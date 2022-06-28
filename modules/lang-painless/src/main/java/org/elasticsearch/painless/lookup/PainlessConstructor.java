@@ -23,8 +23,13 @@ public class PainlessConstructor {
     public final MethodType methodType;
     public final Map<Class<?>, Object> annotations;
 
-    PainlessConstructor(Constructor<?> javaConstructor, List<Class<?>> typeParameters, MethodHandle methodHandle, MethodType methodType,
-            Map<Class<?>, Object> annotations) {
+    PainlessConstructor(
+        Constructor<?> javaConstructor,
+        List<Class<?>> typeParameters,
+        MethodHandle methodHandle,
+        MethodType methodType,
+        Map<Class<?>, Object> annotations
+    ) {
         this.javaConstructor = javaConstructor;
         this.typeParameters = typeParameters;
         this.methodHandle = methodHandle;
@@ -42,12 +47,12 @@ public class PainlessConstructor {
             return false;
         }
 
-        PainlessConstructor that = (PainlessConstructor)object;
+        PainlessConstructor that = (PainlessConstructor) object;
 
-        return Objects.equals(javaConstructor, that.javaConstructor) &&
-                Objects.equals(typeParameters, that.typeParameters) &&
-                Objects.equals(methodType, that.methodType) &&
-                Objects.equals(annotations, that.annotations);
+        return Objects.equals(javaConstructor, that.javaConstructor)
+            && Objects.equals(typeParameters, that.typeParameters)
+            && Objects.equals(methodType, that.methodType)
+            && Objects.equals(annotations, that.annotations);
     }
 
     @Override

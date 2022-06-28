@@ -8,9 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.core.List;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.core.List;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -21,9 +20,11 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.DoubleUnaryOperator;
 
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
@@ -32,8 +33,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         RangeAggregatorSupplier.class
     );
 
-    public static final ObjectParser<RangeAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
+    public static final ObjectParser<RangeAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
@@ -65,9 +65,11 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         super(in, InternalRange.FACTORY, Range::new);
     }
 
-    protected RangeAggregationBuilder(RangeAggregationBuilder clone,
-                                      AggregatorFactories.Builder factoriesBuilder,
-                                      Map<String, Object> metadata) {
+    protected RangeAggregationBuilder(
+        RangeAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -143,32 +145,44 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     @Override
-    protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                AggregatorFactory parent,
-                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        RangeAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected RangeAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
+        /*
+         This will downgrade the precision of the range bounds to match the field's precision.  Fixes float/double issues, but not
+         long/double issues.  See https://github.com/elastic/elasticsearch/issues/77033
+         */
+        DoubleUnaryOperator fixPrecision = config.reduceToStoredPrecisionFunction();
 
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
             assert parser != null;
-            Double from = range.from;
-            Double to = range.to;
-            if (range.fromAsStr != null) {
-                from = parser.parseDouble(range.fromAsStr, false, context::nowInMillis);
-            }
-            if (range.toAsStr != null) {
-                to = parser.parseDouble(range.toAsStr, false, context::nowInMillis);
-            }
-            return new Range(range.key, from, range.fromAsStr, to, range.toAsStr);
+            double from = range.fromAsStr != null ? parser.parseDouble(range.fromAsStr, false, context::nowInMillis) : range.from;
+            double to = range.toAsStr != null ? parser.parseDouble(range.toAsStr, false, context::nowInMillis) : range.to;
+            return new Range(range.key, from, range.fromAsStr, to, range.toAsStr, fixPrecision);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
 
-        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory,
-                                          context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new RangeAggregatorFactory(
+            name,
+            config,
+            ranges,
+            keyed,
+            rangeFactory,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override
@@ -179,5 +193,12 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    private static String generateKey(double from, double to, DocValueFormat format) {
+        StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
+            .append("-")
+            .append(Double.isInfinite(to) ? "*" : format.format(to));
+        return builder.toString();
     }
 }

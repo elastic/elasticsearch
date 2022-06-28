@@ -13,9 +13,15 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Arrays;
+import java.util.Set;
 
 public enum Transports {
     ;
+    private static final Set<String> REQUEST_HEADERS_ALLOWED_ON_DEFAULT_THREAD_CONTEXT = org.elasticsearch.core.Set.of(
+        Task.TRACE_ID,
+        Task.X_OPAQUE_ID_HTTP_HEADER,
+        Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
+    );
 
     /** threads whose name is prefixed by this string will be considered network threads, even though they aren't */
     public static final String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
@@ -28,9 +34,10 @@ public enum Transports {
     public static boolean isTransportThread(Thread t) {
         final String threadName = t.getName();
         for (String s : Arrays.asList(
-                HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
-                TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-                TEST_MOCK_TRANSPORT_THREAD_PREFIX)) {
+            HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
+            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
+            TEST_MOCK_TRANSPORT_THREAD_PREFIX
+        )) {
             if (threadName.contains(s)) {
                 return true;
             }
@@ -51,9 +58,9 @@ public enum Transports {
     }
 
     public static boolean assertDefaultThreadContext(ThreadContext threadContext) {
-        assert threadContext.getRequestHeadersOnly().isEmpty() ||
-            threadContext.getRequestHeadersOnly().size() == 1 && threadContext.getRequestHeadersOnly().containsKey(Task.X_OPAQUE_ID) :
-            "expected empty context but was " + threadContext.getRequestHeadersOnly() + " on " + Thread.currentThread().getName();
+        assert threadContext.getRequestHeadersOnly().isEmpty()
+            || REQUEST_HEADERS_ALLOWED_ON_DEFAULT_THREAD_CONTEXT.containsAll(threadContext.getRequestHeadersOnly().keySet())
+            : "expected empty context but was " + threadContext.getRequestHeadersOnly() + " on " + Thread.currentThread().getName();
         return true;
     }
 }

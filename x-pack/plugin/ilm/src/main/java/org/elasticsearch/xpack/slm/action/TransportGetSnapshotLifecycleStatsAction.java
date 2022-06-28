@@ -19,24 +19,40 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 
-public class TransportGetSnapshotLifecycleStatsAction extends
-    TransportMasterNodeAction<GetSnapshotLifecycleStatsAction.Request, GetSnapshotLifecycleStatsAction.Response> {
+public class TransportGetSnapshotLifecycleStatsAction extends TransportMasterNodeAction<
+    GetSnapshotLifecycleStatsAction.Request,
+    GetSnapshotLifecycleStatsAction.Response> {
 
     @Inject
-    public TransportGetSnapshotLifecycleStatsAction(TransportService transportService, ClusterService clusterService,
-                                                    ThreadPool threadPool, ActionFilters actionFilters,
-                                                    IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetSnapshotLifecycleStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetSnapshotLifecycleStatsAction.Request::new, indexNameExpressionResolver, GetSnapshotLifecycleStatsAction.Response::new,
-                ThreadPool.Names.SAME);
+    public TransportGetSnapshotLifecycleStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetSnapshotLifecycleStatsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetSnapshotLifecycleStatsAction.Request::new,
+            indexNameExpressionResolver,
+            GetSnapshotLifecycleStatsAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(GetSnapshotLifecycleStatsAction.Request request,
-                                   ClusterState state, ActionListener<GetSnapshotLifecycleStatsAction.Response> listener) {
+    protected void masterOperation(
+        GetSnapshotLifecycleStatsAction.Request request,
+        ClusterState state,
+        ActionListener<GetSnapshotLifecycleStatsAction.Response> listener
+    ) {
         SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (slmMeta == null) {
             listener.onResponse(new GetSnapshotLifecycleStatsAction.Response(new SnapshotLifecycleStats()));

@@ -67,10 +67,17 @@ public class FetchContext {
     }
 
     /**
-     * The original query
+     * The original query, not rewritten.
      */
     public Query query() {
         return searchContext.query();
+    }
+
+    /**
+     * The original query in its rewritten form.
+     */
+    public Query rewrittenQuery() {
+        return searchContext.rewrittenQuery();
     }
 
     /**

@@ -8,7 +8,6 @@
 package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 

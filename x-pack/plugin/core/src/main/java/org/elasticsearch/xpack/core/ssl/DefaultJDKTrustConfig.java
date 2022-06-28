@@ -7,13 +7,10 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
-
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -27,6 +24,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * This class represents a trust configuration that corresponds to the default trusted certificates of the JDK
@@ -106,8 +106,7 @@ class DefaultJDKTrustConfig extends TrustConfig {
      * @return the KeyStore used as truststore for PKCS#11 initialized with the password, null otherwise
      */
     private KeyStore getSystemTrustStore() throws KeyStoreException, CertificateException, NoSuchAlgorithmException, IOException {
-        if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")
-            && trustStorePassword != null) {
+        if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11") && trustStorePassword != null) {
             KeyStore keyStore = KeyStore.getInstance("PKCS11");
             keyStore.load(null, trustStorePassword.getChars());
             return keyStore;

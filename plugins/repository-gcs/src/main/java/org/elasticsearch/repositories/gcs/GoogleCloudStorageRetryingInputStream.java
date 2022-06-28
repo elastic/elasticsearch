@@ -15,6 +15,7 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -101,33 +102,34 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         try {
             try {
                 return RetryHelper.runWithRetries(() -> {
-                        try {
-                            return SocketAccess.doPrivilegedIOException(() -> {
-                                final Get get = storage.objects().get(blobId.getBucket(), blobId.getName());
-                                get.setReturnRawInputStream(true);
+                    try {
+                        return SocketAccess.doPrivilegedIOException(() -> {
+                            final Get get = storage.objects().get(blobId.getBucket(), blobId.getName());
+                            get.setReturnRawInputStream(true);
 
-                                if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                                    get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
-                                }
-                                final HttpResponse resp = get.executeMedia();
-                                final Long contentLength = resp.getHeaders().getContentLength();
-                                InputStream content = resp.getContent();
-                                if (contentLength != null) {
-                                    content = new ContentLengthValidatingInputStream(content, contentLength);
-                                }
-                                return content;
-                            });
-                        } catch (IOException e) {
-                            throw StorageException.translate(e);
-                        }
-                    }, client.getOptions().getRetrySettings(), BaseService.EXCEPTION_HANDLER, client.getOptions().getClock());
+                            if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
+                                get.getRequestHeaders().setRange("bytes=" + Math.addExact(start, currentOffset) + "-" + end);
+                            }
+                            final HttpResponse resp = get.executeMedia();
+                            final Long contentLength = resp.getHeaders().getContentLength();
+                            InputStream content = resp.getContent();
+                            if (contentLength != null) {
+                                content = new ContentLengthValidatingInputStream(content, contentLength);
+                            }
+                            return content;
+                        });
+                    } catch (IOException e) {
+                        throw StorageException.translate(e);
+                    }
+                }, client.getOptions().getRetrySettings(), BaseService.EXCEPTION_HANDLER, client.getOptions().getClock());
             } catch (RetryHelper.RetryHelperException e) {
                 throw StorageException.translateAndThrow(e);
             }
         } catch (StorageException e) {
             if (e.getCode() == 404) {
                 throw addSuppressedExceptions(
-                    new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + e.getMessage()));
+                    new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + e.getMessage())
+                );
             }
             throw addSuppressedExceptions(e);
         }
@@ -224,8 +226,16 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         if (attempt >= maxAttempts) {
             throw addSuppressedExceptions(e);
         }
-        logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], attempt [{}] of [{}], retrying",
-            blobId, currentOffset, attempt, maxAttempts), e);
+        logger.debug(
+            new ParameterizedMessage(
+                "failed reading [{}] at offset [{}], attempt [{}] of [{}], retrying",
+                blobId,
+                currentOffset,
+                attempt,
+                maxAttempts
+            ),
+            e
+        );
         attempt += 1;
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);

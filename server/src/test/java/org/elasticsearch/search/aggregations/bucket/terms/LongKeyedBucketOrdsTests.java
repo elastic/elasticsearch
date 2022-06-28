@@ -125,8 +125,10 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
         OwningBucketOrdAndValue[] values = new OwningBucketOrdAndValue[scaledRandomIntBetween(1, 10000)];
         long maxOwningBucketOrd = Long.MIN_VALUE;
         for (int i = 0; i < values.length; i++) {
-            values[i] = randomValueOtherThanMany(seen::contains, () ->
-                    new OwningBucketOrdAndValue(randomLongBetween(0, maxAllowedOwningBucketOrd), randomLongBetween(minValue, maxValue)));
+            values[i] = randomValueOtherThanMany(
+                seen::contains,
+                () -> new OwningBucketOrdAndValue(randomLongBetween(0, maxAllowedOwningBucketOrd), randomLongBetween(minValue, maxValue))
+            );
             seen.add(values[i]);
             maxOwningBucketOrd = Math.max(maxOwningBucketOrd, values[i].owningBucketOrd);
         }
@@ -146,7 +148,6 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
         // And the explicit values are still ok
         assertThat(ords.add(0, 0), equalTo(-1L));
         assertThat(ords.add(1, 0), equalTo(-2L));
-
 
         for (long owningBucketOrd = 0; owningBucketOrd <= maxAllowedOwningBucketOrd; owningBucketOrd++) {
             long expectedCount = 0;

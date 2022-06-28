@@ -8,9 +8,9 @@
 package org.elasticsearch.client.license;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.PostStartBasicResponse;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -20,8 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StartBasicResponseTests extends AbstractResponseTestCase<
-    PostStartBasicResponse, StartBasicResponse> {
+public class StartBasicResponseTests extends AbstractResponseTestCase<PostStartBasicResponse, StartBasicResponse> {
 
     @Override
     protected PostStartBasicResponse createServerTestInstance(XContentType xContentType) {
@@ -67,7 +66,7 @@ public class StartBasicResponseTests extends AbstractResponseTestCase<
         assertThat(serverTestInstance.getStatus().getErrorMessage(), equalTo(clientInstance.getErrorMessage()));
         assertThat(serverTestInstance.getAcknowledgeMessage(), equalTo(clientInstance.getAcknowledgeMessage()));
         assertThat(serverTestInstance.getAcknowledgeMessages().keySet(), equalTo(clientInstance.getAcknowledgeMessages().keySet()));
-        for(Map.Entry<String, String[]> entry: serverTestInstance.getAcknowledgeMessages().entrySet()) {
+        for (Map.Entry<String, String[]> entry : serverTestInstance.getAcknowledgeMessages().entrySet()) {
             assertTrue(Arrays.equals(entry.getValue(), clientInstance.getAcknowledgeMessages().get(entry.getKey())));
         }
     }

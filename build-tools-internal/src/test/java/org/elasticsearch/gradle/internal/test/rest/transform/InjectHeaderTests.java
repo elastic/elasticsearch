@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.core.IsCollectionContaining;
@@ -37,10 +38,10 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     private static final YAMLFactory yaml = new YAMLFactory();
     private static final ObjectMapper mapper = new ObjectMapper(yaml);
     private static final Map<String, String> headers = Map.of(
-            "Content-Type",
-            "application/vnd.elasticsearch+json;compatible-with=7",
-            "Accept",
-            "application/vnd.elasticsearch+json;compatible-with=7"
+        "Content-Type",
+        "application/vnd.elasticsearch+json;compatible-with=7",
+        "Accept",
+        "application/vnd.elasticsearch+json;compatible-with=7"
     );
     private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
@@ -58,8 +59,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(0L));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
-                new LinkedList<>(tests),
-                Collections.singletonList(new InjectHeaders(headers))
+            new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers))
         );
         printTest(testName, transformedTests);
         // ensure setup is correct
@@ -93,8 +94,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
-                new LinkedList<>(tests),
-                Collections.singletonList(new InjectHeaders(headers))
+            new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers))
         );
         printTest(testName, transformedTests);
         // ensure setup is correct
@@ -128,10 +129,10 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
 
         List<ObjectNode> skipNodes = tests.stream()
-                .filter(node -> node.get("setup") != null)
-                .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
-                .map(node -> getSkipNode((ArrayNode) node.get("setup")))
-                .collect(Collectors.toList());
+            .filter(node -> node.get("setup") != null)
+            .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
+            .map(node -> getSkipNode((ArrayNode) node.get("setup")))
+            .collect(Collectors.toList());
 
         // validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
@@ -139,8 +140,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertNull(skipNodes.get(0).get("features"));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
-                new LinkedList<>(tests),
-                Collections.singletonList(new InjectHeaders(headers))
+            new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers))
         );
         printTest(testName, transformedTests);
         // ensure setup is correct
@@ -175,10 +176,10 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
 
         List<ObjectNode> skipNodes = tests.stream()
-                .filter(node -> node.get("setup") != null)
-                .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
-                .map(node -> getSkipNode((ArrayNode) node.get("setup")))
-                .collect(Collectors.toList());
+            .filter(node -> node.get("setup") != null)
+            .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
+            .map(node -> getSkipNode((ArrayNode) node.get("setup")))
+            .collect(Collectors.toList());
 
         // validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
@@ -186,8 +187,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(skipNodes.get(0).get("features"), CoreMatchers.notNullValue());
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
-                new LinkedList<>(tests),
-                Collections.singletonList(new InjectHeaders(headers))
+            new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers))
         );
         printTest(testName, transformedTests);
         // ensure setup is correct
@@ -221,10 +222,10 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
 
         List<ObjectNode> skipNodes = tests.stream()
-                .filter(node -> node.get("setup") != null)
-                .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
-                .map(node -> getSkipNode((ArrayNode) node.get("setup")))
-                .collect(Collectors.toList());
+            .filter(node -> node.get("setup") != null)
+            .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
+            .map(node -> getSkipNode((ArrayNode) node.get("setup")))
+            .collect(Collectors.toList());
 
         // validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
@@ -246,8 +247,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(features, IsCollectionContaining.hasItem("headers"));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
-                new LinkedList<>(tests),
-                Collections.singletonList(new InjectHeaders(headers))
+            new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers))
         );
         printTest(testName, transformedTests);
         // ensure setup is correct

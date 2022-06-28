@@ -11,11 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,10 +37,13 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     }
 
     private BucketOrder getRandomOrder() {
-        switch(randomInt(2)) {
-            case 0: return BucketOrder.key(randomBoolean());
-            case 1: return BucketOrder.count(randomBoolean());
-            default: return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
+        switch (randomInt(2)) {
+            case 0:
+                return BucketOrder.key(randomBoolean());
+            case 1:
+                return BucketOrder.count(randomBoolean());
+            default:
+                return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
         }
     }
 
@@ -71,7 +74,7 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         // compound and aggregation order because _key and _count orders are static instances.
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
-        if(expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
+        if (expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
             assertNotSame(newInstance, expectedInstance);
         }
     }
@@ -79,8 +82,11 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     public void testHistogramOrderBwc() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             BucketOrder order = createTestInstance();
-            Version bwcVersion = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-                VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha2));
+            Version bwcVersion = VersionUtils.randomVersionBetween(
+                random(),
+                VersionUtils.getFirstVersion(),
+                VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha2)
+            );
             boolean bwcOrderFlag = randomBoolean();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(bwcVersion);

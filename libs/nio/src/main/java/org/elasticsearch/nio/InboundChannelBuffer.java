@@ -111,8 +111,9 @@ public final class InboundChannelBuffer implements AutoCloseable {
      */
     public ByteBuffer[] sliceBuffersTo(long to) {
         if (to > capacity) {
-            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
-                "], with slice parameters to [" + to + "]");
+            throw new IndexOutOfBoundsException(
+                "can't slice a channel buffer with capacity [" + capacity + "], with slice parameters to [" + to + "]"
+            );
         } else if (to == 0) {
             return EMPTY_BYTE_BUFFER_ARRAY;
         }
@@ -150,8 +151,9 @@ public final class InboundChannelBuffer implements AutoCloseable {
      */
     public Page[] sliceAndRetainPagesTo(long to) {
         if (to > capacity) {
-            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
-                "], with slice parameters to [" + to + "]");
+            throw new IndexOutOfBoundsException(
+                "can't slice a channel buffer with capacity [" + capacity + "], with slice parameters to [" + to + "]"
+            );
         } else if (to == 0) {
             return EMPTY_BYTE_PAGE_ARRAY;
         }
@@ -162,20 +164,20 @@ public final class InboundChannelBuffer implements AutoCloseable {
             pageCount += 1;
         }
 
-        Page[] pages = new Page[pageCount];
+        Page[] duplicatePages = new Page[pageCount];
         Iterator<Page> pageIterator = this.pages.iterator();
         Page firstPage = pageIterator.next().duplicate();
         ByteBuffer firstBuffer = firstPage.byteBuffer();
         firstBuffer.position(firstBuffer.position() + offset);
-        pages[0] = firstPage;
-        for (int i = 1; i < pages.length; i++) {
-            pages[i] = pageIterator.next().duplicate();
+        duplicatePages[0] = firstPage;
+        for (int i = 1; i < duplicatePages.length; i++) {
+            duplicatePages[i] = pageIterator.next().duplicate();
         }
         if (finalLimit != 0) {
-            pages[pages.length - 1].byteBuffer().limit(finalLimit);
+            duplicatePages[duplicatePages.length - 1].byteBuffer().limit(finalLimit);
         }
 
-        return pages;
+        return duplicatePages;
     }
 
     /**
@@ -189,8 +191,9 @@ public final class InboundChannelBuffer implements AutoCloseable {
      */
     public ByteBuffer[] sliceBuffersFrom(long from) {
         if (from > capacity) {
-            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
-                "], with slice parameters from [" + from + "]");
+            throw new IndexOutOfBoundsException(
+                "can't slice a channel buffer with capacity [" + capacity + "], with slice parameters from [" + from + "]"
+            );
         } else if (from == capacity) {
             return EMPTY_BYTE_BUFFER_ARRAY;
         }
@@ -218,8 +221,17 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
         long newIndex = delta + internalIndex;
         if (newIndex > capacity) {
-            throw new IllegalArgumentException("Cannot increment an index [" + internalIndex + "] with a delta [" + delta +
-                "] that will result in a new index [" + newIndex + "] that is greater than the capacity [" + capacity + "].");
+            throw new IllegalArgumentException(
+                "Cannot increment an index ["
+                    + internalIndex
+                    + "] with a delta ["
+                    + delta
+                    + "] that will result in a new index ["
+                    + newIndex
+                    + "] that is greater than the capacity ["
+                    + capacity
+                    + "]."
+            );
         }
         internalIndex = newIndex;
     }
@@ -238,10 +250,10 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return remaining;
     }
 
-    private int numPages(long capacity) {
-        final long numPages = (capacity + PAGE_MASK) >>> PAGE_SHIFT;
+    private int numPages(long requiredCapacity) {
+        final long numPages = (requiredCapacity + PAGE_MASK) >>> PAGE_SHIFT;
         if (numPages > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("pageSize=" + (PAGE_MASK + 1) + " is too small for such as capacity: " + capacity);
+            throw new IllegalArgumentException("pageSize=" + (PAGE_MASK + 1) + " is too small for such as capacity: " + requiredCapacity);
         }
         return (int) numPages;
     }

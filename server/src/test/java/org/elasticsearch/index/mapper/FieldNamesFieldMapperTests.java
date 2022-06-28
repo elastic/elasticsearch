@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,15 +53,17 @@ public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
     public void testInjectIntoDocDuringParsing() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "_doc", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                            .field("a", "100")
-                            .startObject("b")
-                                .field("c", 42)
-                            .endObject()
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "_doc",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder().startObject().field("a", "100").startObject("b").field("c", 42).endObject().endObject()
+                ),
+                XContentType.JSON
+            )
+        );
 
         assertFieldNames(Collections.emptySet(), doc);
     }
@@ -71,8 +73,7 @@ public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
      */
     public void testUsingEnabledIssuesDeprecationWarning() throws Exception {
 
-        DocumentMapper docMapper = createDocumentMapper(
-            topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject()));
+        DocumentMapper docMapper = createDocumentMapper(topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject()));
 
         assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
@@ -81,6 +82,5 @@ public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
         ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
         assertNull(doc.rootDoc().get("_field_names"));
     }
-
 
 }

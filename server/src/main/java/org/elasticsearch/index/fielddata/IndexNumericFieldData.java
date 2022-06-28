@@ -61,6 +61,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         public final boolean isFloatingPoint() {
             return floatingPoint;
         }
+
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
         }
@@ -93,14 +94,15 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
          * 4. We have to cast the results to another type.
          */
         if (sortRequiresCustomComparator()
-                || nested != null
-                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-                || targetNumericType != getNumericType()) {
+            || nested != null
+            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+            || targetNumericType != getNumericType()) {
             return new SortField(getFieldName(), source, reverse);
         }
 
-        SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX ?
-            SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
+        SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
+            ? SortedNumericSelector.Type.MAX
+            : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
         return sortField;
@@ -122,16 +124,37 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * Builds a {@linkplain BucketedSort} for the {@code targetNumericType},
      * casting the values if their native type doesn't match.
      */
-    public final BucketedSort newBucketedSort(NumericType targetNumericType, BigArrays bigArrays, @Nullable Object missingValue,
-            MultiValueMode sortMode, Nested nested, SortOrder sortOrder, DocValueFormat format,
-            int bucketSize, BucketedSort.ExtraData extra) {
-        return comparatorSource(targetNumericType, missingValue, sortMode, nested)
-                .newBucketedSort(bigArrays, sortOrder, format, bucketSize, extra);
+    public final BucketedSort newBucketedSort(
+        NumericType targetNumericType,
+        BigArrays bigArrays,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
+        return comparatorSource(targetNumericType, missingValue, sortMode, nested).newBucketedSort(
+            bigArrays,
+            sortOrder,
+            format,
+            bucketSize,
+            extra
+        );
     }
 
     @Override
-    public final BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public final BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return newBucketedSort(getNumericType(), bigArrays, missingValue, sortMode, nested, sortOrder, format, bucketSize, extra);
     }
 
@@ -145,34 +168,26 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Nested nested
     ) {
         switch (targetNumericType) {
-        case HALF_FLOAT:
-        case FLOAT:
-            return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
-        case DOUBLE:
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
-        case DATE:
-            return dateComparatorSource(missingValue, sortMode, nested);
-        case DATE_NANOSECONDS:
-            return dateNanosComparatorSource(missingValue, sortMode, nested);
-        default:
-            assert targetNumericType.isFloatingPoint() == false;
-            return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
+            case HALF_FLOAT:
+            case FLOAT:
+                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DOUBLE:
+                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DATE:
+                return dateComparatorSource(missingValue, sortMode, nested);
+            case DATE_NANOSECONDS:
+                return dateNanosComparatorSource(missingValue, sortMode, nested);
+            default:
+                assert targetNumericType.isFloatingPoint() == false;
+                return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
         }
     }
 
-    protected XFieldComparatorSource dateComparatorSource(
-        @Nullable Object missingValue,
-        MultiValueMode sortMode,
-        Nested nested
-    ) {
+    protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE);
     }
 
-    protected XFieldComparatorSource dateNanosComparatorSource(
-        @Nullable Object missingValue,
-        MultiValueMode sortMode,
-        Nested nested
-    ) {
+    protected XFieldComparatorSource dateNanosComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         return new LongValuesComparatorSource(
             this,
             missingValue,

@@ -75,8 +75,8 @@ public interface NodeSelector {
                 Node node = itr.next();
                 if (node.getRoles() == null) continue;
                 if (node.getRoles().isMasterEligible()
-                        && false == node.getRoles().canContainData()
-                        && false == node.getRoles().isIngest()) {
+                    && false == node.getRoles().canContainData()
+                    && false == node.getRoles().isIngest()) {
                     itr.remove();
                 }
             }

@@ -32,11 +32,12 @@ public class GlobalOperationPrivilegeTests extends ESTestCase {
             assertThat(globalOperationPrivilege.getRaw(), equalTo(privilege));
         } else {
             if (category == null || operation == null) {
-                expectThrows(NullPointerException.class,
-                        () -> new GlobalOperationPrivilege(category, operation, privilege));
+                expectThrows(NullPointerException.class, () -> new GlobalOperationPrivilege(category, operation, privilege));
             } else {
-                final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
-                        () -> new GlobalOperationPrivilege(category, operation, privilege));
+                final IllegalArgumentException ile = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> new GlobalOperationPrivilege(category, operation, privilege)
+                );
                 assertThat(ile.getMessage(), equalTo("privileges cannot be empty or null"));
             }
         }
@@ -48,25 +49,31 @@ public class GlobalOperationPrivilegeTests extends ESTestCase {
         final Map<String, Object> privilege = Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(5));
         GlobalOperationPrivilege globalOperationPrivilege = new GlobalOperationPrivilege(category, operation, privilege);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(globalOperationPrivilege, (original) -> {
-            return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw());
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(globalOperationPrivilege, (original) -> {
-            return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw());
-        }, GlobalOperationPrivilegeTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            globalOperationPrivilege,
+            (original) -> { return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw()); }
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            globalOperationPrivilege,
+            (original) -> { return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(), original.getRaw()); },
+            GlobalOperationPrivilegeTests::mutateTestItem
+        );
     }
 
     private static GlobalOperationPrivilege mutateTestItem(GlobalOperationPrivilege original) {
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            return new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
-        case 1:
-            return new GlobalOperationPrivilege(original.getCategory(), randomAlphaOfLength(5), original.getRaw());
-        case 2:
-            return new GlobalOperationPrivilege(original.getCategory(), original.getOperation(),
-                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
-        default:
-            return new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
+            case 0:
+                return new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
+            case 1:
+                return new GlobalOperationPrivilege(original.getCategory(), randomAlphaOfLength(5), original.getRaw());
+            case 2:
+                return new GlobalOperationPrivilege(
+                    original.getCategory(),
+                    original.getOperation(),
+                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
+                );
+            default:
+                return new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
         }
     }
 }

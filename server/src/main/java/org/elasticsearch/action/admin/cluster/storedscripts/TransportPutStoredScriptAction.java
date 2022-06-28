@@ -27,17 +27,30 @@ public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterN
     private final ScriptService scriptService;
 
     @Inject
-    public TransportPutStoredScriptAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
-        super(PutStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                PutStoredScriptRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportPutStoredScriptAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ScriptService scriptService
+    ) {
+        super(
+            PutStoredScriptAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutStoredScriptRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.scriptService = scriptService;
     }
 
     @Override
-    protected void masterOperation(PutStoredScriptRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(PutStoredScriptRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
         scriptService.putStoredScript(clusterService, request, listener);
     }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 

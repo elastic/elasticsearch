@@ -86,9 +86,7 @@ public class InnerAggregate extends AggregateFunction {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             InnerAggregate other = (InnerAggregate) obj;
-            return Objects.equals(inner, other.inner)
-                    && Objects.equals(outer, other.outer)
-                    && Objects.equals(innerKey, other.innerKey);
+            return Objects.equals(inner, other.inner) && Objects.equals(outer, other.outer) && Objects.equals(innerKey, other.innerKey);
         }
         return false;
     }

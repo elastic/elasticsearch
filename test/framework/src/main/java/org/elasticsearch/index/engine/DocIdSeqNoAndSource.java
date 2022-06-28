@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-
 import org.apache.lucene.util.BytesRef;
 
 import java.util.Objects;
@@ -54,8 +53,11 @@ public final class DocIdSeqNoAndSource {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DocIdSeqNoAndSource that = (DocIdSeqNoAndSource) o;
-        return Objects.equals(id, that.id) && Objects.equals(source, that.source)
-            && seqNo == that.seqNo && primaryTerm == that.primaryTerm && version == that.version;
+        return Objects.equals(id, that.id)
+            && Objects.equals(source, that.source)
+            && seqNo == that.seqNo
+            && primaryTerm == that.primaryTerm
+            && version == that.version;
     }
 
     @Override
@@ -65,7 +67,17 @@ public final class DocIdSeqNoAndSource {
 
     @Override
     public String toString() {
-        return "doc{" + "id='" + id + " seqNo=" + seqNo + " primaryTerm=" + primaryTerm
-            + " version=" + version + " source= " + (source != null ? source.utf8ToString() : null) + "}";
+        return "doc{"
+            + "id='"
+            + id
+            + " seqNo="
+            + seqNo
+            + " primaryTerm="
+            + primaryTerm
+            + " version="
+            + version
+            + " source= "
+            + (source != null ? source.utf8ToString() : null)
+            + "}";
     }
 }

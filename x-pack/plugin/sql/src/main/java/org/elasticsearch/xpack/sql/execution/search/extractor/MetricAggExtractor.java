@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
@@ -125,10 +126,10 @@ public class MetricAggExtractor implements BucketExtractor {
         }
 
         if (agg instanceof InternalNumericMetricsAggregation.MultiValue) {
-            //TODO: need to investigate when this can be not-null
-            //if (innerKey == null) {
-            //    throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
-            //}
+            // TODO: need to investigate when this can be not-null
+            // if (innerKey == null) {
+            // throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
+            // }
             return handleTargetType(((InternalNumericMetricsAggregation.MultiValue) agg).value(property));
         } else if (agg instanceof InternalFilter) {
             // COUNT(expr) and COUNT(ALL expr) uses this type of aggregation to account for non-null values only
@@ -179,7 +180,7 @@ public class MetricAggExtractor implements BucketExtractor {
             return hasValue((InternalSum) agg);
         }
         if (agg instanceof InternalTDigestPercentileRanks) {
-            return  hasValue((InternalTDigestPercentileRanks) agg);
+            return hasValue((InternalTDigestPercentileRanks) agg);
         }
         if (agg instanceof InternalTDigestPercentiles) {
             return hasValue((InternalTDigestPercentiles) agg);
@@ -203,9 +204,7 @@ public class MetricAggExtractor implements BucketExtractor {
         }
 
         MetricAggExtractor other = (MetricAggExtractor) obj;
-        return Objects.equals(name, other.name)
-                && Objects.equals(property, other.property)
-                && Objects.equals(innerKey, other.innerKey);
+        return Objects.equals(name, other.name) && Objects.equals(property, other.property) && Objects.equals(innerKey, other.innerKey);
     }
 
     @Override

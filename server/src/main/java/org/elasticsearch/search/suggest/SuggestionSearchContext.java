@@ -67,6 +67,7 @@ public class SuggestionSearchContext {
             this.regex = regex;
         }
 
+        @SuppressWarnings("unchecked")
         public Suggester<SuggestionContext> getSuggester() {
             return ((Suggester<SuggestionContext>) suggester);
         }
@@ -115,17 +116,26 @@ public class SuggestionSearchContext {
 
         @Override
         public String toString() {
-            return "[" +
-                       "text=" + text +
-                       ",field=" + field +
-                       ",prefix=" + prefix +
-                       ",regex=" + regex +
-                       ",size=" + size +
-                       ",shardSize=" + shardSize +
-                       ",suggester=" + suggester +
-                       ",analyzer=" + analyzer +
-                       ",searchExecutionContext=" + searchExecutionContext +
-                   "]";
+            return "["
+                + "text="
+                + text
+                + ",field="
+                + field
+                + ",prefix="
+                + prefix
+                + ",regex="
+                + regex
+                + ",size="
+                + size
+                + ",shardSize="
+                + shardSize
+                + ",suggester="
+                + suggester
+                + ",analyzer="
+                + analyzer
+                + ",searchExecutionContext="
+                + searchExecutionContext
+                + "]";
         }
     }
 

@@ -28,8 +28,13 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         ensureGreen("test");
 
         // This test checks that the Pending Cluster Tasks operation is never blocked, even if an index is read only or whatever.
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA,
-            SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_BLOCKS_METADATA,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
                 PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
@@ -66,9 +71,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return Settings.builder()
-                    .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), nodeCount + 1)
-                    .build();
+                return Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), nodeCount + 1).build();
             }
 
             @Override

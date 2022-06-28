@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
@@ -36,12 +36,13 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
     public void testThatStatusGetsUpdated() {
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_name")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, SECONDS)))
-                        .input(simpleInput())
-                        .condition(NeverCondition.INSTANCE)
-                        .addAction("_logger", loggingAction("logged text")))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, SECONDS)))
+                    .input(simpleInput())
+                    .condition(NeverCondition.INSTANCE)
+                    .addAction("_logger", loggingAction("logged text"))
+            )
+            .get();
         timeWarp().trigger("_name");
 
         GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch().setId("_name").get();
@@ -63,10 +64,10 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
     }
 
     private Matcher<ZonedDateTime> isMillisResolution() {
-        return new FeatureMatcher<ZonedDateTime,Boolean>(equalTo(true), "has millisecond precision", "precission") {
+        return new FeatureMatcher<ZonedDateTime, Boolean>(equalTo(true), "has millisecond precision", "precission") {
             @Override
             protected Boolean featureValueOf(ZonedDateTime actual) {
-                //if date has millisecond precision its nanosecond field will be rounded to millis (equal millis * 10^6)
+                // if date has millisecond precision its nanosecond field will be rounded to millis (equal millis * 10^6)
                 return actual.getNano() == actual.get(ChronoField.MILLI_OF_SECOND) * 1000_000;
             }
         };

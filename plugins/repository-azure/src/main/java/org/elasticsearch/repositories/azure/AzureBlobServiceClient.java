@@ -8,9 +8,10 @@
 
 package org.elasticsearch.repositories.azure;
 
+import io.netty.buffer.ByteBufAllocator;
+
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
-import io.netty.buffer.ByteBufAllocator;
 
 class AzureBlobServiceClient {
     private final BlobServiceClient blobServiceClient;
@@ -18,10 +19,12 @@ class AzureBlobServiceClient {
     private final int maxRetries;
     private final ByteBufAllocator allocator;
 
-    AzureBlobServiceClient(BlobServiceClient blobServiceClient,
-                           BlobServiceAsyncClient blobAsyncClient,
-                           int maxRetries,
-                           ByteBufAllocator allocator) {
+    AzureBlobServiceClient(
+        BlobServiceClient blobServiceClient,
+        BlobServiceAsyncClient blobAsyncClient,
+        int maxRetries,
+        ByteBufAllocator allocator
+    ) {
         this.blobServiceClient = blobServiceClient;
         this.blobAsyncClient = blobAsyncClient;
         this.maxRetries = maxRetries;

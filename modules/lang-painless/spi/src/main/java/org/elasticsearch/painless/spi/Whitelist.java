@@ -8,8 +8,6 @@
 
 package org.elasticsearch.painless.spi;
 
-import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -25,27 +23,6 @@ import java.util.Objects;
  * whitelist object for more detail.
  */
 public final class Whitelist {
-
-    private static final String[] BASE_WHITELIST_FILES = new String[] {
-        "org.elasticsearch.txt",
-        "org.elasticsearch.net.txt",
-        "java.lang.txt",
-        "java.math.txt",
-        "java.text.txt",
-        "java.time.txt",
-        "java.time.chrono.txt",
-        "java.time.format.txt",
-        "java.time.temporal.txt",
-        "java.time.zone.txt",
-        "java.util.txt",
-        "java.util.function.txt",
-        "java.util.regex.txt",
-        "java.util.stream.txt"
-    };
-
-    public static final List<Whitelist> BASE_WHITELISTS =
-            Collections.singletonList(WhitelistLoader.loadFromResourceFiles(
-                    Whitelist.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_WHITELIST_FILES));
 
     /** The {@link ClassLoader} used to look up the whitelisted Java classes, constructors, methods, and fields. */
     public final ClassLoader classLoader;
@@ -63,8 +40,13 @@ public final class Whitelist {
     public final List<WhitelistInstanceBinding> whitelistInstanceBindings;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public Whitelist(ClassLoader classLoader, List<WhitelistClass> whitelistClasses, List<WhitelistMethod> whitelistImportedMethods,
-            List<WhitelistClassBinding> whitelistClassBindings, List<WhitelistInstanceBinding> whitelistInstanceBindings) {
+    public Whitelist(
+        ClassLoader classLoader,
+        List<WhitelistClass> whitelistClasses,
+        List<WhitelistMethod> whitelistImportedMethods,
+        List<WhitelistClassBinding> whitelistClassBindings,
+        List<WhitelistInstanceBinding> whitelistInstanceBindings
+    ) {
 
         this.classLoader = Objects.requireNonNull(classLoader);
         this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));

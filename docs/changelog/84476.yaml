@@ -1,0 +1,22 @@
+pr: 84476
+summary: Deprecation for truststores with no trust entries
+area: TLS
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecation for truststores with no trust entries
+  area: Cluster and node setting
+  notable: true
+  details: |-
+    The use of SSL truststores that do not contain any trusted entries has been deprecated.
+    The various `*.ssl.truststore.path` settings (for example
+    `xpack.security.transport.ssl.truststore.path` or `xpack.http.ssl.truststore.path`) can
+    be used to configure a set of "trust anchors" for SSL certificate verification. In {es}
+    version 7 and earlier, it was permitted to configure a truststore that did not contain
+    any trust anchors (that is, it was empty, or it contained "private key" entries only).
+    In {es} version 8 and above, a `truststore.path` without any trusted certificate entries
+    is no longer accepted, and will cause an error. This configuration is now deprecated in
+    {es} version 7.17
+  impact: |-
+    To avoid deprecation warnings, remove any SSL truststores that do not
+    contain any trusted entries.

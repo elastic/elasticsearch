@@ -1,10 +1,17 @@
 [role="xpack"]
-[testenv="platinum"]
 [[cat-anomaly-detectors]]
 === cat anomaly detectors API
 ++++
 <titleabbrev>cat anomaly detectors</titleabbrev>
 ++++
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the 
+<<ml-get-job-stats,get anomaly detection job statistics API>>.
+====
 
 Returns configuration and usage information about {anomaly-jobs}.
 
@@ -40,9 +47,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[cat-anomaly-detectors-query-params]]
 ==== {api-query-parms-title}
 
+`allow_no_jobs`::
+(Optional, Boolean) deprecated:[7.10,Use `allow_no_match` instead.]
+
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 

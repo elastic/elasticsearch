@@ -180,13 +180,30 @@
           "title": "docs per second",
           "type": "number"
         },
+        "align_checkpoints": {
+          "$id": "#root/settings/align_checkpoints",
+          "title": "align checkpoints",
+          "type": "boolean",
+          "default": true
+        },
         "max_page_search_size": {
           "$id": "#root/settings/max_page_search_size",
           "title": "max page search size",
           "type": "integer",
           "default": 500
+        },
+        "use_point_in_time": {
+          "$id": "#root/settings/use_point_in_time",
+          "title": "use_point_in_time",
+          "type": "boolean",
+          "default": true
         }
       }
+    },
+    "_meta": {
+      "$id": "#root/_meta",
+      "title": "Metadata",
+      "type": "object"
     },
     "retention_policy": {
       "$id": "#root/retention_policy",

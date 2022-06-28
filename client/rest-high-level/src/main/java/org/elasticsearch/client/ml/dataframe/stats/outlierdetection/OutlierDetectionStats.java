@@ -9,11 +9,11 @@ package org.elasticsearch.client.ml.dataframe.stats.outlierdetection;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -28,14 +28,18 @@ public class OutlierDetectionStats implements AnalysisStats {
     public static final ParseField TIMING_STATS = new ParseField("timing_stats");
 
     public static final ConstructingObjectParser<OutlierDetectionStats, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(), true,
-        a -> new OutlierDetectionStats((Instant) a[0], (Parameters) a[1], (TimingStats) a[2]));
+        NAME.getPreferredName(),
+        true,
+        a -> new OutlierDetectionStats((Instant) a[0], (Parameters) a[1], (TimingStats) a[2])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Parameters.PARSER, PARAMETERS);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimingStats.PARSER, TIMING_STATS);
     }

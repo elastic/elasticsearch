@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.Client;
@@ -38,7 +37,7 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
         public Wrapper(Logger logger, Settings settings, ThreadPool threadPool) {
             this.logger = logger;
             this.threadPool = threadPool;
-             // Should the action listener be threaded or not by default. Action listeners are automatically threaded for
+            // Should the action listener be threaded or not by default. Action listeners are automatically threaded for
             // the transport client in order to make sure client side code is not executed on IO threads.
             this.threadedListener = TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(settings));
         }
@@ -64,8 +63,13 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
     private final String executor;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(Logger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
-                                  boolean forceExecution) {
+    public ThreadedActionListener(
+        Logger logger,
+        ThreadPool threadPool,
+        String executor,
+        ActionListener<Response> listener,
+        boolean forceExecution
+    ) {
         super(listener);
         this.logger = logger;
         this.threadPool = threadPool;
@@ -85,6 +89,11 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
             protected void doRun() {
                 listener.onResponse(response);
             }
+
+            @Override
+            public String toString() {
+                return ThreadedActionListener.this + "/onResponse";
+            }
         });
     }
 
@@ -97,14 +106,36 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 delegate.onFailure(e);
             }
 
             @Override
+            public void onRejection(Exception e2) {
+                e.addSuppressed(e2);
+                try {
+                    delegate.onFailure(e);
+                } catch (Exception e3) {
+                    e.addSuppressed(e3);
+                    onFailure(e);
+                }
+            }
+
+            @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to execute failure callback on [{}]", delegate), e);
+                assert false : e;
+                logger.error(() -> "failed to execute failure callback on [" + delegate + "]", e);
+            }
+
+            @Override
+            public String toString() {
+                return ThreadedActionListener.this + "/onFailure";
             }
         });
+    }
+
+    @Override
+    public String toString() {
+        return "ThreadedActionListener[" + executor + "/" + delegate + "]";
     }
 }

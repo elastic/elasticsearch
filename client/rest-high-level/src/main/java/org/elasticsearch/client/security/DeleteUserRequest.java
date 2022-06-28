@@ -21,7 +21,7 @@ public final class DeleteUserRequest implements Validatable {
     private final RefreshPolicy refreshPolicy;
 
     public DeleteUserRequest(String name) {
-        this(name,  RefreshPolicy.IMMEDIATE);
+        this(name, RefreshPolicy.IMMEDIATE);
     }
 
     public DeleteUserRequest(String name, RefreshPolicy refreshPolicy) {

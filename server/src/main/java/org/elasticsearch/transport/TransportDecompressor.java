@@ -27,6 +27,8 @@ public interface TransportDecompressor extends Releasable {
 
     ReleasableBytesReference pollDecompressedPage(boolean isEOS);
 
+    Compression.Scheme getScheme();
+
     @Override
     void close();
 
@@ -46,9 +48,13 @@ public interface TransportDecompressor extends Releasable {
 
     static IllegalStateException createIllegalState(BytesReference bytes) {
         int maxToRead = Math.min(bytes.length(), 10);
-        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
-            .append(maxToRead).append("] content bytes out of [").append(bytes.length())
-            .append("] readable bytes with message size [").append(bytes.length()).append("] ").append("] are [");
+        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
+            .append("] content bytes out of [")
+            .append(bytes.length())
+            .append("] readable bytes with message size [")
+            .append(bytes.length())
+            .append("] ")
+            .append("] are [");
         for (int i = 0; i < maxToRead; i++) {
             sb.append(bytes.get(i)).append(",");
         }

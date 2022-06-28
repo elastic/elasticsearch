@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
@@ -59,8 +60,7 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public void setScorer(Scorable scorer) {
-        }
+        public void setScorer(Scorable scorer) {}
 
         @Override
         public void setDocument(int doc) {

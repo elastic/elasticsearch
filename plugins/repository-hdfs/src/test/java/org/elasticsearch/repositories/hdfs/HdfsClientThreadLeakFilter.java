@@ -25,8 +25,7 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
  */
 public final class HdfsClientThreadLeakFilter implements ThreadFilter {
 
-    private static final String OFFENDING_THREAD_NAME =
-        "org.apache.hadoop.fs.FileSystem$Statistics$StatisticsDataReferenceCleaner";
+    private static final String OFFENDING_THREAD_NAME = "org.apache.hadoop.fs.FileSystem$Statistics$StatisticsDataReferenceCleaner";
 
     @Override
     public boolean reject(Thread t) {

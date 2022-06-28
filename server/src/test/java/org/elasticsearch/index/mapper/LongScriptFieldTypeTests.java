@@ -29,9 +29,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.LongScriptFieldData;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -127,15 +128,9 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     public void testNow() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 LongScriptFieldData ifd = build("millis_ago", Collections.emptyMap()).fielddataBuilder("test", mockContext()::lookup)
@@ -171,8 +166,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Collections.emptyMap(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Longs longs = (ScriptDocValues.Longs) getDoc().get("test");
@@ -180,7 +175,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }

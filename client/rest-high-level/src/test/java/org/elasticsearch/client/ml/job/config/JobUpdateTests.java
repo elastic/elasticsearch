@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,7 +26,7 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
 
     /**
      * Creates a completely random update when the job is null
-     * or a random update that is is valid for the given job
+     * or a random update that is valid for the given job
      */
     public static JobUpdate createRandom(String jobId) {
         JobUpdate.Builder update = new JobUpdate.Builder(jobId);
@@ -66,9 +66,6 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
             update.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            update.setSystemAnnotationsRetentionDays(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
             update.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
         if (randomBoolean()) {
@@ -77,10 +74,12 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
         }
+        if (randomBoolean()) {
+            update.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
+        }
 
         return update.build();
     }
-
 
     private static List<JobUpdate.DetectorUpdate> createRandomDetectorUpdates() {
         int size = randomInt(10);
@@ -93,8 +92,10 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
             List<DetectionRule> detectionRules = null;
             if (randomBoolean()) {
                 detectionRules = new ArrayList<>();
-                detectionRules.add(new DetectionRule.Builder(
-                        Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
+                detectionRules.add(
+                    new DetectionRule.Builder(Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5)))
+                        .build()
+                );
             }
             detectorUpdates.add(new JobUpdate.DetectorUpdate(i, detectorDescription, detectionRules));
         }

@@ -11,15 +11,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests.randomTransformProgress;
 import static org.elasticsearch.xpack.core.transform.transforms.NodeAttributeTests.randomNodeAttributes;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests.randomTransformProgress;
 
 public class TransformStateTests extends AbstractSerializingTestCase<TransformState> {
 

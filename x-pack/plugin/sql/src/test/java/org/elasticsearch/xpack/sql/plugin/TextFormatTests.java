@@ -6,27 +6,29 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.proto.Mode;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
+import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
-import static org.hamcrest.CoreMatchers.is;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.hamcrest.CoreMatchers.is;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -91,17 +93,12 @@ public class TextFormatTests extends ESTestCase {
 
     public void testCsvFormatWithRegularData() {
         String text = CSV.format(req(), regularData());
-        assertEquals("string,number\r\n" +
-                "Along The River Bank,708\r\n" +
-                "Mind Train,280\r\n",
-            text);
+        assertEquals("string,number\r\n" + "Along The River Bank,708\r\n" + "Mind Train,280\r\n", text);
     }
 
     public void testCsvFormatNoHeaderWithRegularData() {
         String text = CSV.format(reqWithParam("header", "absent"), regularData());
-        assertEquals("Along The River Bank,708\r\n" +
-                "Mind Train,280\r\n",
-            text);
+        assertEquals("Along The River Bank,708\r\n" + "Mind Train,280\r\n", text);
     }
 
     public void testCsvFormatWithCustomDelimiterRegularData() {
@@ -124,42 +121,32 @@ public class TextFormatTests extends ESTestCase {
 
     public void testTsvFormatWithRegularData() {
         String text = TSV.format(req(), regularData());
-        assertEquals("string\tnumber\n" +
-                "Along The River Bank\t708\n" +
-                "Mind Train\t280\n",
-                text);
+        assertEquals("string\tnumber\n" + "Along The River Bank\t708\n" + "Mind Train\t280\n", text);
     }
 
     public void testCsvFormatWithEscapedData() {
         String text = CSV.format(req(), escapedData());
-        assertEquals("first,\"\"\"special\"\"\"\r\n" +
-                "normal,\"\"\"quo\"\"ted\"\",\n\"\r\n" +
-                "commas,\"a,b,c,\n,d,e,\t\n\"\r\n"
-            , text);
+        assertEquals("first,\"\"\"special\"\"\"\r\n" + "normal,\"\"\"quo\"\"ted\"\",\n\"\r\n" + "commas,\"a,b,c,\n,d,e,\t\n\"\r\n", text);
     }
 
     public void testCsvFormatWithCustomDelimiterEscapedData() {
         String text = CSV.format(reqWithParam("delimiter", "\\"), escapedData());
-        assertEquals("first\\\"\"\"special\"\"\"\r\n" +
-                "normal\\\"\"\"quo\"\"ted\"\",\n\"\r\n" +
-                "commas\\\"a,b,c,\n,d,e,\t\n\"\r\n"
-                , text);
+        assertEquals(
+            "first\\\"\"\"special\"\"\"\r\n" + "normal\\\"\"\"quo\"\"ted\"\",\n\"\r\n" + "commas\\\"a,b,c,\n,d,e,\t\n\"\r\n",
+            text
+        );
     }
 
     public void testTsvFormatWithEscapedData() {
         String text = TSV.format(req(), escapedData());
-        assertEquals("first\t\"special\"\n" +
-                "normal\t\"quo\"ted\",\\n\n" +
-                "commas\ta,b,c,\\n,d,e,\\t\\n\n"
-                , text);
+        assertEquals("first\t\"special\"\n" + "normal\t\"quo\"ted\",\\n\n" + "commas\ta,b,c,\\n,d,e,\\t\\n\n", text);
     }
 
     public void testInvalidCsvDelims() {
         List<String> invalid = Arrays.asList("\"", "\r", "\n", "\t", "", "ab");
 
-        for (String c: invalid) {
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> CSV.format(reqWithParam("delimiter", c), emptyData()));
+        for (String c : invalid) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> CSV.format(reqWithParam("delimiter", c), emptyData()));
             String msg;
             if (c.length() == 1) {
                 msg = c.equals("\t")
@@ -172,10 +159,23 @@ public class TextFormatTests extends ESTestCase {
         }
     }
 
+    public void testPlainTextEmptyCursorWithColumns() {
+        assertEquals("     name      \n---------------\n", PLAIN_TEXT.format(req(), emptyData()));
+    }
+
+    public void testPlainTextEmptyCursorWithoutColumns() {
+        assertEquals(
+            StringUtils.EMPTY,
+            PLAIN_TEXT.format(
+                req(),
+                new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
+            )
+        );
+    }
 
     private static SqlQueryResponse emptyData() {
         return new SqlQueryResponse(
-            null,
+            StringUtils.EMPTY,
             Mode.JDBC,
             DATE_NANOS_SUPPORT_VERSION,
             false,

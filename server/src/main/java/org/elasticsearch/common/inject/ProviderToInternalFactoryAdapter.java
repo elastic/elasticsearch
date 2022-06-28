@@ -30,8 +30,7 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
     private final InjectorImpl injector;
     private final InternalFactory<? extends T> internalFactory;
 
-    ProviderToInternalFactoryAdapter(InjectorImpl injector,
-                                            InternalFactory<? extends T> internalFactory) {
+    ProviderToInternalFactoryAdapter(InjectorImpl injector, InternalFactory<? extends T> internalFactory) {
         this.injector = injector;
         this.internalFactory = internalFactory;
     }
@@ -43,7 +42,7 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
             T t = injector.callInContext(new ContextualCallable<T>() {
                 @Override
                 public T call(InternalContext context) throws ErrorsException {
-                    Dependency dependency = context.getDependency();
+                    Dependency<?> dependency = context.getDependency();
                     return internalFactory.get(errors, context, dependency);
                 }
             });

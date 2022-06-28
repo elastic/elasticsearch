@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 public class MultiShardTermsEnumTests extends ESTestCase {
-    
+
     public void testRandomIndexFusion() throws Exception {
         String fieldName = "foo";
         Map<String, Integer> globalTermCounts = new HashMap<>();
@@ -53,10 +53,10 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 Directory directory = new ByteBuffersDirectory();
                 IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new MockAnalyzer(random())));
 
-                int numDocs = randomIntBetween(10,200);
+                int numDocs = randomIntBetween(10, 200);
                 for (int i = 0; i < numDocs; i++) {
                     Document document = new Document();
-                    String term = randomAlphaOfLengthBetween(1,3).toLowerCase(Locale.ROOT);
+                    String term = randomAlphaOfLengthBetween(1, 3).toLowerCase(Locale.ROOT);
                     document.add(new StringField(fieldName, term, Field.Store.YES));
                     writer.addDocument(document);
                     int count = 0;
@@ -107,7 +107,7 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                         expecteds.put(termCount.getKey(), termCount.getValue());
                     }
                 }
-                
+
                 while (mte.next() != null) {
                     String teString = mte.term().utf8ToString();
                     long actual = mte.docFreq();

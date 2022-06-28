@@ -40,8 +40,13 @@ public final class AuthenticationResult {
     private final Exception exception;
     private final Map<String, Object> metadata;
 
-    private AuthenticationResult(Status status, @Nullable User user, @Nullable String message, @Nullable Exception exception,
-                                 @Nullable Map<String, Object> metadata) {
+    private AuthenticationResult(
+        Status status,
+        @Nullable User user,
+        @Nullable String message,
+        @Nullable Exception exception,
+        @Nullable Map<String, Object> metadata
+    ) {
         this.status = status;
         this.user = user;
         this.message = message;
@@ -80,7 +85,6 @@ public final class AuthenticationResult {
      * @param user The user that was authenticated. Cannot be {@code null}.
      */
     public static AuthenticationResult success(User user) {
-        Objects.requireNonNull(user);
         return success(user, null);
     }
 
@@ -90,6 +94,7 @@ public final class AuthenticationResult {
      * @see #success(User)
      */
     public static AuthenticationResult success(User user, @Nullable Map<String, Object> metadata) {
+        Objects.requireNonNull(user);
         return new AuthenticationResult(Status.SUCCESS, user, null, null, metadata);
     }
 
@@ -140,12 +145,7 @@ public final class AuthenticationResult {
 
     @Override
     public String toString() {
-        return "AuthenticationResult{" +
-                "status=" + status +
-                ", user=" + user +
-                ", message=" + message +
-                ", exception=" + exception +
-                '}';
+        return "AuthenticationResult{" + "status=" + status + ", user=" + user + ", message=" + message + ", exception=" + exception + '}';
     }
 
 }

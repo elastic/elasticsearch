@@ -24,8 +24,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class StartBasicClusterTask extends ClusterStateUpdateTask {
 
-    private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
-            "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:";
+    private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
+        + "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:";
 
     private final Logger logger;
     private final String clusterName;
@@ -34,8 +34,13 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     private final Clock clock;
     private AtomicReference<Map<String, String[]>> ackMessages = new AtomicReference<>(Collections.emptyMap());
 
-    StartBasicClusterTask(Logger logger, String clusterName, Clock clock, PostStartBasicRequest request,
-                          ActionListener<PostStartBasicResponse> listener) {
+    StartBasicClusterTask(
+        Logger logger,
+        String clusterName,
+        Clock clock,
+        PostStartBasicRequest request,
+        ActionListener<PostStartBasicResponse> listener
+    ) {
         this.logger = logger;
         this.clusterName = clusterName;
         this.request = request;
@@ -50,11 +55,12 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         License oldLicense = LicensesMetadata.extractLicense(oldLicensesMetadata);
         Map<String, String[]> acknowledgeMessages = ackMessages.get();
         if (acknowledgeMessages.isEmpty() == false) {
-            listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages,
-                    ACKNOWLEDGEMENT_HEADER));
+            listener.onResponse(
+                new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages, ACKNOWLEDGEMENT_HEADER)
+            );
         } else if (oldLicense != null && License.LicenseType.isBasic(oldLicense.type())) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.ALREADY_USING_BASIC));
-        }  else {
+        } else {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.GENERATED_BASIC));
         }
     }
@@ -67,9 +73,9 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         if (shouldGenerateNewBasicLicense(currentLicense)) {
             License selfGeneratedLicense = generateBasicLicense(currentState);
             if (request.isAcknowledged() == false && currentLicense != null) {
-                Map<String, String[]> ackMessages = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
-                if (ackMessages.isEmpty() == false) {
-                    this.ackMessages.set(ackMessages);
+                Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
+                if (ackMessageMap.isEmpty() == false) {
+                    this.ackMessages.set(ackMessageMap);
                     return currentState;
                 }
             }
@@ -93,7 +99,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         return currentLicense == null
             || License.LicenseType.isBasic(currentLicense.type()) == false
             || LicenseService.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()
-            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != currentLicense.expiryDate();
+            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseService.getExpiryDate(currentLicense);
     }
 
     private License generateBasicLicense(ClusterState currentState) {

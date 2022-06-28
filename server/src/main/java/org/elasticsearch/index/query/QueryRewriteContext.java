@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +30,11 @@ public class QueryRewriteContext {
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
 
     public QueryRewriteContext(
-            NamedXContentRegistry xContentRegistry, NamedWriteableRegistry writeableRegistry,Client client,
-            LongSupplier nowInMillis) {
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis
+    ) {
 
         this.xContentRegistry = xContentRegistry;
         this.writeableRegistry = writeableRegistry;
@@ -88,12 +91,12 @@ public class QueryRewriteContext {
      * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Object> listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
         } else {
             CountDown countDown = new CountDown(asyncActions.size());
-            ActionListener<?> internalListener = new ActionListener() {
+            ActionListener<Object> internalListener = new ActionListener<Object>() {
                 @Override
                 public void onResponse(Object o) {
                     if (countDown.countDown()) {

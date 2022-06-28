@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -38,8 +38,11 @@ public class ParsedHDRPercentileRanks extends ParsedPercentileRanks {
         };
     }
 
-    private static final ObjectParser<ParsedHDRPercentileRanks, Void> PARSER =
-            new ObjectParser<>(ParsedHDRPercentileRanks.class.getSimpleName(), true, ParsedHDRPercentileRanks::new);
+    private static final ObjectParser<ParsedHDRPercentileRanks, Void> PARSER = new ObjectParser<>(
+        ParsedHDRPercentileRanks.class.getSimpleName(),
+        true,
+        ParsedHDRPercentileRanks::new
+    );
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);
     }

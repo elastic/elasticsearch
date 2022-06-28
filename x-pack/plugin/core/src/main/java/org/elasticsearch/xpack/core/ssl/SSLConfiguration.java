@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
-
 
 /**
  * Represents the configuration for an SSLContext
@@ -118,14 +117,20 @@ public final class SSLConfiguration {
 
     @Override
     public String toString() {
-        return "SSLConfiguration{" +
-                "keyConfig=[" + keyConfig +
-                "], trustConfig=" + trustConfig +
-                "], cipherSuites=[" + ciphers +
-                "], supportedProtocols=[" + supportedProtocols +
-                "], sslClientAuth=[" + sslClientAuth +
-                "], verificationMode=[" + verificationMode +
-                "]}";
+        return "SSLConfiguration{"
+            + "keyConfig=["
+            + keyConfig
+            + "], trustConfig="
+            + trustConfig
+            + "], cipherSuites=["
+            + ciphers
+            + "], supportedProtocols=["
+            + supportedProtocols
+            + "], sslClientAuth=["
+            + sslClientAuth
+            + "], verificationMode=["
+            + verificationMode
+            + "]}";
     }
 
     @Override
@@ -163,8 +168,8 @@ public final class SSLConfiguration {
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig) {
         final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig);
         return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
-                .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
-                .orElse(trustConfig);
+            .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
+            .orElse(trustConfig);
     }
 
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig) {
@@ -194,8 +199,11 @@ public final class SSLConfiguration {
     private static SecureString getDefaultTrustStorePassword(Settings settings) {
         // We only handle the default store password if it's a PKCS#11 token
         if (System.getProperty("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11")) {
-            try (SecureString systemTrustStorePassword =
-                     new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", "").toCharArray())) {
+            try (
+                SecureString systemTrustStorePassword = new SecureString(
+                    System.getProperty("javax.net.ssl.trustStorePassword", "").toCharArray()
+                )
+            ) {
                 if (systemTrustStorePassword.length() == 0) {
                     try (SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings)) {
                         return trustStorePassword;

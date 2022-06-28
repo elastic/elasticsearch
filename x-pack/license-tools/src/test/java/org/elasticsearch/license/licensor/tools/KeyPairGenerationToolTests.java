@@ -27,21 +27,12 @@ public class KeyPairGenerationToolTests extends CommandTestCase {
         Path exists = createTempFile("", "existing");
         Path dne = createTempDir().resolve("dne");
         UserException e = expectThrows(
-                UserException.class,
-                () -> execute(
-                        "--publicKeyPath",
-                        exists.toString(),
-                        "--privateKeyPath",
-                        dne.toString()));
+            UserException.class,
+            () -> execute("--publicKeyPath", exists.toString(), "--privateKeyPath", dne.toString())
+        );
         assertThat(e.getMessage(), containsString("existing"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        e = expectThrows(
-                UserException.class,
-                () -> execute(
-                        "--publicKeyPath",
-                        dne.toString(),
-                        "--privateKeyPath",
-                        exists.toString()));
+        e = expectThrows(UserException.class, () -> execute("--publicKeyPath", dne.toString(), "--privateKeyPath", exists.toString()));
         assertThat(e.getMessage(), containsString("existing"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
     }
@@ -51,11 +42,7 @@ public class KeyPairGenerationToolTests extends CommandTestCase {
         Path publicKeyFilePath = keysDir.resolve("public");
         Path privateKeyFilePath = keysDir.resolve("private");
 
-        execute(
-                "--publicKeyPath",
-                publicKeyFilePath.toString(),
-                "--privateKeyPath",
-                privateKeyFilePath.toString());
+        execute("--publicKeyPath", publicKeyFilePath.toString(), "--privateKeyPath", privateKeyFilePath.toString());
         assertTrue(publicKeyFilePath.toString(), Files.exists(publicKeyFilePath));
         assertTrue(privateKeyFilePath.toString(), Files.exists(privateKeyFilePath));
     }

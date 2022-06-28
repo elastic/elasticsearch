@@ -63,10 +63,10 @@ class TimeoutRequestConfigCallback implements RestClientBuilder.RequestConfigCal
     @Override
     public Builder customizeRequestConfig(Builder requestConfigBuilder) {
         if (connectTimeout != null) {
-            requestConfigBuilder.setConnectTimeout((int)connectTimeout.millis());
+            requestConfigBuilder.setConnectTimeout((int) connectTimeout.millis());
         }
         if (socketTimeout != null) {
-            requestConfigBuilder.setSocketTimeout((int)socketTimeout.millis());
+            requestConfigBuilder.setSocketTimeout((int) socketTimeout.millis());
         }
 
         return requestConfigBuilder;

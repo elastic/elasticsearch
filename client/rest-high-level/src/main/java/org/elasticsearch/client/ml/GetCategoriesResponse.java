@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.results.CategoryDefinition;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,9 +24,11 @@ public class GetCategoriesResponse extends AbstractResultResponse<CategoryDefini
     public static final ParseField CATEGORIES = new ParseField("categories");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetCategoriesResponse, Void> PARSER =
-            new ConstructingObjectParser<>("get_categories_response", true,
-                    a -> new GetCategoriesResponse((List<CategoryDefinition>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetCategoriesResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_categories_response",
+        true,
+        a -> new GetCategoriesResponse((List<CategoryDefinition>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), CategoryDefinition.PARSER, CATEGORIES);

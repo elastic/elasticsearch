@@ -17,8 +17,9 @@ public final class HistoryStoreField {
 
     public static final String INDEX_PREFIX = ".watcher-history-";
     public static final String INDEX_PREFIX_WITH_TEMPLATE = INDEX_PREFIX + WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION + "-";
-    public static final String INDEX_PREFIX_WITH_TEMPLATE_10 = INDEX_PREFIX +
-        WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION_10 + "-";
+    public static final String INDEX_PREFIX_WITH_TEMPLATE_10 = INDEX_PREFIX
+        + WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION_10
+        + "-";
     private static final DateFormatter indexTimeFormat = DateFormatter.forPattern("yyyy.MM.dd");
 
     /**

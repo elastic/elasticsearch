@@ -38,16 +38,18 @@ public class MappingParserContext {
     private final IndexSettings indexSettings;
     private final BooleanSupplier idFieldDataEnabled;
 
-    public MappingParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                Function<String, Mapper.TypeParser> typeParsers,
-                                Function<String, RuntimeField.Parser> runtimeFieldParsers,
-                                Version indexVersionCreated,
-                                Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-                                DateFormatter dateFormatter,
-                                ScriptCompiler scriptCompiler,
-                                IndexAnalyzers indexAnalyzers,
-                                IndexSettings indexSettings,
-                                BooleanSupplier idFieldDataEnabled) {
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        Version indexVersionCreated,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        DateFormatter dateFormatter,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        BooleanSupplier idFieldDataEnabled
+    ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -133,9 +135,18 @@ public class MappingParserContext {
 
     private static class MultiFieldParserContext extends MappingParserContext {
         MultiFieldParserContext(MappingParserContext in) {
-            super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                in.idFieldDataEnabled);
+            super(
+                in.similarityLookupService,
+                in.typeParsers,
+                in.runtimeFieldParsers,
+                in.indexVersionCreated,
+                in.searchExecutionContextSupplier,
+                in.dateFormatter,
+                in.scriptCompiler,
+                in.indexAnalyzers,
+                in.indexSettings,
+                in.idFieldDataEnabled
+            );
         }
 
         @Override
@@ -146,9 +157,18 @@ public class MappingParserContext {
 
     static class DynamicTemplateParserContext extends MappingParserContext {
         DynamicTemplateParserContext(MappingParserContext in) {
-            super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                in.idFieldDataEnabled);
+            super(
+                in.similarityLookupService,
+                in.typeParsers,
+                in.runtimeFieldParsers,
+                in.indexVersionCreated,
+                in.searchExecutionContextSupplier,
+                in.dateFormatter,
+                in.scriptCompiler,
+                in.indexAnalyzers,
+                in.indexSettings,
+                in.idFieldDataEnabled
+            );
         }
 
         @Override

@@ -13,11 +13,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -124,8 +124,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
             validationException = addValidationError("id is missing", validationException);
         }
         if (versionType.validateVersionForReads(version) == false) {
-            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type ["
-                    + versionType.name() + "]", validationException);
+            validationException = ValidateActions.addValidationError(
+                "illegal version value [" + version + "] for version type [" + versionType.name() + "]",
+                validationException
+            );
         }
         return validationException;
     }

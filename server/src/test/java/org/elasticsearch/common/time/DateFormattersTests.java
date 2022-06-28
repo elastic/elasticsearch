@@ -8,9 +8,9 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
@@ -33,32 +33,34 @@ import static org.hamcrest.Matchers.sameInstance;
 public class DateFormattersTests extends ESTestCase {
 
     public void testWeekBasedDates() {
-        assumeFalse("won't work in jdk8 " +
-                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
-            JavaVersion.current().equals(JavaVersion.parse("8")));
+        assumeFalse(
+            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8"))
+        );
 
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
         DateFormatter dateFormatter = DateFormatters.forPattern("YYYY-ww");
 
         // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
-        assertThat(DateFormatters.from(dateFormatter.parse("2016-01")) ,
-            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2016-01")),
+            equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
 
         // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
-        assertThat(DateFormatters.from(dateFormatter.parse("2015-01")) ,
-            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
-
+        assertThat(
+            DateFormatters.from(dateFormatter.parse("2015-01")),
+            equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC))
+        );
 
         // as per WeekFields.ISO first week starts on Monday and has minimum 4 days
-         dateFormatter = DateFormatters.forPattern("YYYY");
+        dateFormatter = DateFormatters.forPattern("YYYY");
 
         // first week of 2016 starts on Monday 2016-01-04 as previous week in 2016 has only 3 days
-        assertThat(DateFormatters.from(dateFormatter.parse("2016")) ,
-            equalTo(ZonedDateTime.of(2016,01,04, 0,0,0,0,ZoneOffset.UTC)));
+        assertThat(DateFormatters.from(dateFormatter.parse("2016")), equalTo(ZonedDateTime.of(2016, 01, 04, 0, 0, 0, 0, ZoneOffset.UTC)));
 
         // first week of 2015 starts on Monday 2014-12-29 because 4days belong to 2019
-        assertThat(DateFormatters.from(dateFormatter.parse("2015")) ,
-            equalTo(ZonedDateTime.of(2014,12,29, 0,0,0,0,ZoneOffset.UTC)));
+        assertThat(DateFormatters.from(dateFormatter.parse("2015")), equalTo(ZonedDateTime.of(2014, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC)));
     }
 
     // this is not in the duelling tests, because the epoch millis parser in joda time drops the milliseconds after the comma
@@ -131,8 +133,6 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), is("failed to parse date field [1234.1234567890] with format [epoch_second]"));
     }
 
-
-
     public void testEpochMilliParsersWithDifferentFormatters() {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
@@ -142,18 +142,22 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testParsersWithMultipleInternalFormats() throws Exception {
         ZonedDateTime first = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+0100")
+        );
         ZonedDateTime second = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00")
+        );
         assertThat(first, is(second));
     }
 
     public void testNanoOfSecondWidth() throws Exception {
         ZonedDateTime first = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1")
+        );
         assertThat(first.getNano(), is(100000000));
         ZonedDateTime second = DateFormatters.from(
-            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001"));
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001")
+        );
         assertThat(second.getNano(), is(1));
     }
 
@@ -171,11 +175,12 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time"),
-            sameInstance(DateFormatters.forPattern("strict_date_optional_time")));
+        assertThat(
+            DateFormatters.forPattern("strict_date_optional_time"),
+            sameInstance(DateFormatters.forPattern("strict_date_optional_time"))
+        );
         assertThat(DateFormatters.forPattern("YYYY"), equalTo(DateFormatters.forPattern("YYYY")));
-        assertThat(DateFormatters.forPattern("YYYY").hashCode(),
-            is(DateFormatters.forPattern("YYYY").hashCode()));
+        assertThat(DateFormatters.forPattern("YYYY").hashCode(), is(DateFormatters.forPattern("YYYY").hashCode()));
 
         // different timezone, thus not equals
         assertThat(DateFormatters.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("YYYY"))));
@@ -329,8 +334,13 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testRoundupFormatterZone() {
         ZoneId zoneId = randomZone();
-        String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
-            "strict_date_optional_time||date_optional_time");
+        String format = randomFrom(
+            "epoch_second",
+            "epoch_millis",
+            "strict_date_optional_time",
+            "uuuu-MM-dd'T'HH:mm:ss.SSS",
+            "strict_date_optional_time||date_optional_time"
+        );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withZone(zoneId);
         JavaDateFormatter roundUpFormatter = formatter.getRoundupParser();
         assertThat(roundUpFormatter.zone(), is(zoneId));
@@ -339,8 +349,13 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testRoundupFormatterLocale() {
         Locale locale = randomLocale(random());
-        String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
-            "strict_date_optional_time||date_optional_time");
+        String format = randomFrom(
+            "epoch_second",
+            "epoch_millis",
+            "strict_date_optional_time",
+            "uuuu-MM-dd'T'HH:mm:ss.SSS",
+            "strict_date_optional_time||date_optional_time"
+        );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);
         JavaDateFormatter roundupParser = formatter.getRoundupParser();
         assertThat(roundupParser.locale(), is(locale));
@@ -349,8 +364,7 @@ public class DateFormattersTests extends ESTestCase {
 
     public void test0MillisAreFormatted() {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_time");
-        Clock clock = Clock.fixed(ZonedDateTime.of(2019, 02, 8, 11, 43, 00, 0,
-            ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
+        Clock clock = Clock.fixed(ZonedDateTime.of(2019, 02, 8, 11, 43, 00, 0, ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
         String formatted = formatter.formatMillis(clock.millis());
         assertThat(formatted, is("2019-02-08T11:43:00.000Z"));
     }
@@ -397,37 +411,98 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testWeek_yearDeprecation() {
         DateFormatter.forPattern("week_year");
-        assertWarnings("Format name \"week_year\" is deprecated and will be removed in a future version. " +
-                "Use \"weekyear\" format instead");
+        assertWarnings(
+            "Format name \"week_year\" is deprecated and will be removed in a future version. " + "Use \"weekyear\" format instead"
+        );
     }
 
     public void testCamelCaseDeprecation() {
-        String[] deprecatedNames = new String[]{
-            "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime",
-            "basicOrdinalDateTimeNoMillis", "basicTime", "basicTimeNoMillis", "basicTTime", "basicTTimeNoMillis",
-            "basicWeekDate", "basicWeekDateTime", "basicWeekDateTimeNoMillis", "dateHour", "dateHourMinute",
-            "dateHourMinuteSecond", "dateHourMinuteSecondFraction", "dateHourMinuteSecondMillis", "dateOptionalTime",
-            "dateTime", "dateTimeNoMillis", "hourMinute", "hourMinuteSecond", "hourMinuteSecondFraction", "hourMinuteSecondMillis",
-            "ordinalDate", "ordinalDateTime", "ordinalDateTimeNoMillis", "timeNoMillis",
-            "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis",
-            "weekyearWeek", "weekyearWeekDay",
-            "yearMonth", "yearMonthDay", "strictBasicWeekDate", "strictBasicWeekDateTime",
-            "strictBasicWeekDateTimeNoMillis", "strictDate", "strictDateHour", "strictDateHourMinute", "strictDateHourMinuteSecond",
-            "strictDateHourMinuteSecondFraction", "strictDateHourMinuteSecondMillis", "strictDateOptionalTime",
-            "strictDateOptionalTimeNanos", "strictDateTime", "strictDateTimeNoMillis", "strictHour", "strictHourMinute",
-            "strictHourMinuteSecond", "strictHourMinuteSecondFraction", "strictHourMinuteSecondMillis", "strictOrdinalDate",
-            "strictOrdinalDateTime", "strictOrdinalDateTimeNoMillis", "strictTime", "strictTimeNoMillis", "strictTTime",
-            "strictTTimeNoMillis", "strictWeekDate", "strictWeekDateTime", "strictWeekDateTimeNoMillis", "strictWeekyear",
+        String[] deprecatedNames = new String[] {
+            "basicDate",
+            "basicDateTime",
+            "basicDateTimeNoMillis",
+            "basicOrdinalDate",
+            "basicOrdinalDateTime",
+            "basicOrdinalDateTimeNoMillis",
+            "basicTime",
+            "basicTimeNoMillis",
+            "basicTTime",
+            "basicTTimeNoMillis",
+            "basicWeekDate",
+            "basicWeekDateTime",
+            "basicWeekDateTimeNoMillis",
+            "dateHour",
+            "dateHourMinute",
+            "dateHourMinuteSecond",
+            "dateHourMinuteSecondFraction",
+            "dateHourMinuteSecondMillis",
+            "dateOptionalTime",
+            "dateTime",
+            "dateTimeNoMillis",
+            "hourMinute",
+            "hourMinuteSecond",
+            "hourMinuteSecondFraction",
+            "hourMinuteSecondMillis",
+            "ordinalDate",
+            "ordinalDateTime",
+            "ordinalDateTimeNoMillis",
+            "timeNoMillis",
+            "tTime",
+            "tTimeNoMillis",
+            "weekDate",
+            "weekDateTime",
+            "weekDateTimeNoMillis",
+            "weekyearWeek",
+            "weekyearWeekDay",
+            "yearMonth",
+            "yearMonthDay",
+            "strictBasicWeekDate",
+            "strictBasicWeekDateTime",
+            "strictBasicWeekDateTimeNoMillis",
+            "strictDate",
+            "strictDateHour",
+            "strictDateHourMinute",
+            "strictDateHourMinuteSecond",
+            "strictDateHourMinuteSecondFraction",
+            "strictDateHourMinuteSecondMillis",
+            "strictDateOptionalTime",
+            "strictDateOptionalTimeNanos",
+            "strictDateTime",
+            "strictDateTimeNoMillis",
+            "strictHour",
+            "strictHourMinute",
+            "strictHourMinuteSecond",
+            "strictHourMinuteSecondFraction",
+            "strictHourMinuteSecondMillis",
+            "strictOrdinalDate",
+            "strictOrdinalDateTime",
+            "strictOrdinalDateTimeNoMillis",
+            "strictTime",
+            "strictTimeNoMillis",
+            "strictTTime",
+            "strictTTimeNoMillis",
+            "strictWeekDate",
+            "strictWeekDateTime",
+            "strictWeekDateTimeNoMillis",
+            "strictWeekyear",
             "strictWeekyearWeek",
-            "strictWeekyearWeekDay", "strictYear", "strictYearMonth", "strictYearMonthDay"
-        };
+            "strictWeekyearWeekDay",
+            "strictYear",
+            "strictYearMonth",
+            "strictYearMonthDay" };
         for (String name : deprecatedNames) {
             String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
 
             DateFormatter dateFormatter = DateFormatter.forPattern(name);
             assertThat(dateFormatter.pattern(), equalTo(name));
-            assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                    "Use snake case name " + snakeCaseName + " instead.");
+            assertWarnings(
+                "Camel case format name "
+                    + name
+                    + " is deprecated and will be removed in a future version. "
+                    + "Use snake case name "
+                    + snakeCaseName
+                    + " instead."
+            );
 
             dateFormatter = DateFormatter.forPattern(snakeCaseName);
             assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
@@ -439,8 +514,14 @@ public class DateFormattersTests extends ESTestCase {
                 assertThat(dateFormatter.pattern(), equalTo(name));
 
                 String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-                assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                    "Use snake case name " + snakeCaseName + " instead.");
+                assertWarnings(
+                    "Camel case format name "
+                        + name
+                        + " is deprecated and will be removed in a future version. "
+                        + "Use snake case name "
+                        + snakeCaseName
+                        + " instead."
+                );
 
                 dateFormatter = Joda.forPattern(snakeCaseName);
                 assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));

@@ -10,14 +10,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -39,14 +39,17 @@ public class RuleScope implements ToXContentObject, Writeable {
             if (unparsedScope.isEmpty()) {
                 return new RuleScope();
             }
-            ConstructingObjectParser<FilterRef, Void> filterRefParser =
-                ignoreUnknownFields ? FilterRef.LENIENT_PARSER : FilterRef.STRICT_PARSER;
+            ConstructingObjectParser<FilterRef, Void> filterRefParser = ignoreUnknownFields
+                ? FilterRef.LENIENT_PARSER
+                : FilterRef.STRICT_PARSER;
             Map<String, FilterRef> scope = new HashMap<>();
             for (Map.Entry<String, Object> entry : unparsedScope.entrySet()) {
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                     builder.map((Map<String, ?>) entry.getValue());
-                    try (XContentParser scopeParser = XContentFactory.xContent(builder.contentType()).createParser(
-                            NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))) {
+                    try (
+                        XContentParser scopeParser = XContentFactory.xContent(builder.contentType())
+                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))
+                    ) {
                         scope.put(entry.getKey(), filterRefParser.parse(scopeParser, null));
                     }
                 }
@@ -87,11 +90,13 @@ public class RuleScope implements ToXContentObject, Writeable {
         Optional<String> invalidKey = scope.keySet().stream().filter(k -> validKeys.contains(k) == false).findFirst();
         if (invalidKey.isPresent()) {
             if (validKeys.isEmpty()) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_NO_AVAILABLE_FIELDS,
-                        invalidKey.get()));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_NO_AVAILABLE_FIELDS, invalidKey.get())
+                );
             }
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD,
-                    invalidKey.get(), validKeys));
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD, invalidKey.get(), validKeys)
+            );
         }
     }
 

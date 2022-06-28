@@ -9,16 +9,17 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
+
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.iterable.Iterables;
 
 import java.lang.reflect.Array;
 import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.Set;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.Set;
 
 final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 

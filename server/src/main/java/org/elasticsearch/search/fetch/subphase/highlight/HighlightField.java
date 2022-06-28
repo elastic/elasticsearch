@@ -13,9 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -115,8 +115,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
         } else if (token == XContentParser.Token.VALUE_NULL) {
             fragments = null;
         } else {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected token type [" + token + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token type [" + token + "]");
         }
         return new HighlightField(fieldName, fragments);
     }

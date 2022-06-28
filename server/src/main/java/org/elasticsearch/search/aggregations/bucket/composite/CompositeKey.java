@@ -18,6 +18,7 @@ import java.util.Arrays;
 /**
  * A key that is composed of multiple {@link Comparable} values.
  */
+@SuppressWarnings("rawtypes")
 class CompositeKey implements Writeable {
     private final Comparable[] values;
 
@@ -63,8 +64,6 @@ class CompositeKey implements Writeable {
 
     @Override
     public String toString() {
-        return "CompositeKey{" +
-            "values=" + Arrays.toString(values) +
-            '}';
+        return "CompositeKey{" + "values=" + Arrays.toString(values) + '}';
     }
 }

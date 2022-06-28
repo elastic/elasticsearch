@@ -10,16 +10,14 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Ignore
 import org.xmlunit.builder.DiffBuilder
 import org.xmlunit.builder.Input
-import spock.lang.IgnoreRest
 
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // required for JarHell to work
-        addSubProject(":libs:elasticsearch-core") << "apply plugin:'java'"
+        subProject(":libs:elasticsearch-core") << "apply plugin:'java'"
     }
     def "artifacts and tweaked pom is published"() {
         given:
@@ -277,8 +275,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                     
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
-            licenseFile = file('license.txt')
-            noticeFile = file('notice.txt')
+            licenseFile.set(file('license.txt'))
+            noticeFile.set(file('notice.txt'))
             version = "1.0"
             group = 'org.acme'        
         """
@@ -352,8 +350,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
            
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
-            licenseFile = file('license.txt')
-            noticeFile = file('notice.txt')
+            licenseFile.set(file('license.txt'))
+            noticeFile.set(file('notice.txt'))
             version = "2.0"
             group = 'org.acme'        
         """

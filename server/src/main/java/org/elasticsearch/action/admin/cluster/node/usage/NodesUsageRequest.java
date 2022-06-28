@@ -68,7 +68,6 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
         return this;
     }
 
-
     /**
      * Should the node rest actions usage statistics be returned.
      */

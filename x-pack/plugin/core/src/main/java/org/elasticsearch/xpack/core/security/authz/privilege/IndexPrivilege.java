@@ -50,8 +50,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Map.ofEntries;
 import static org.elasticsearch.core.Map.entry;
+import static org.elasticsearch.core.Map.ofEntries;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
@@ -60,56 +60,93 @@ public final class IndexPrivilege extends Privilege {
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
-    private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns("internal:transport/proxy/indices:data/read/*",
-            ClusterSearchShardsAction.NAME);
+    private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
+        "internal:transport/proxy/indices:data/read/*",
+        ClusterSearchShardsAction.NAME
+    );
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
-    private static final Automaton CREATE_DOC_AUTOMATON = patterns("indices:data/write/index", "indices:data/write/index[*",
-        "indices:data/write/index:op_type/create", "indices:data/write/bulk*");
-    private static final Automaton INDEX_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
-        "indices:data/write/update*");
+    private static final Automaton CREATE_DOC_AUTOMATON = patterns(
+        "indices:data/write/index",
+        "indices:data/write/index[*",
+        "indices:data/write/index:op_type/create",
+        "indices:data/write/bulk*"
+    );
+    private static final Automaton INDEX_AUTOMATON = patterns(
+        "indices:data/write/index*",
+        "indices:data/write/bulk*",
+        "indices:data/write/update*"
+    );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");
-    private static final Automaton MANAGE_AUTOMATON =
-            unionAndMinimize(Arrays.asList(MONITOR_AUTOMATON, patterns("indices:admin/*", FieldCapabilitiesAction.NAME + "*",
-                GetRollupIndexCapsAction.NAME + "*")));
-    private static final Automaton CREATE_INDEX_AUTOMATON = patterns(CreateIndexAction.NAME, AutoCreateAction.NAME,
-            CreateDataStreamAction.NAME);
+    private static final Automaton MANAGE_AUTOMATON = unionAndMinimize(
+        Arrays.asList(
+            MONITOR_AUTOMATON,
+            patterns("indices:admin/*", FieldCapabilitiesAction.NAME + "*", GetRollupIndexCapsAction.NAME + "*")
+        )
+    );
+    private static final Automaton CREATE_INDEX_AUTOMATON = patterns(
+        CreateIndexAction.NAME,
+        AutoCreateAction.NAME,
+        CreateDataStreamAction.NAME
+    );
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME, DeleteDataStreamAction.NAME);
-    private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
-        GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
-        ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME,
-        ExplainLifecycleAction.NAME, GetDataStreamAction.NAME, ResolveIndexAction.NAME, FieldCapabilitiesAction.NAME + "*",
-        GetRollupIndexCapsAction.NAME + "*");
-    private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
-        CloseIndexAction.NAME + "*", PromoteDataStreamAction.NAME, RolloverAction.NAME);
+    private static final Automaton VIEW_METADATA_AUTOMATON = patterns(
+        GetAliasesAction.NAME,
+        AliasesExistAction.NAME,
+        GetIndexAction.NAME,
+        IndicesExistsAction.NAME,
+        GetFieldMappingsAction.NAME + "*",
+        GetMappingsAction.NAME,
+        ClusterSearchShardsAction.NAME,
+        TypesExistsAction.NAME,
+        ValidateQueryAction.NAME + "*",
+        GetSettingsAction.NAME,
+        ExplainLifecycleAction.NAME,
+        GetDataStreamAction.NAME,
+        ResolveIndexAction.NAME,
+        FieldCapabilitiesAction.NAME + "*",
+        GetRollupIndexCapsAction.NAME + "*"
+    );
+    private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(
+        PutFollowAction.NAME,
+        UnfollowAction.NAME,
+        CloseIndexAction.NAME + "*",
+        PromoteDataStreamAction.NAME,
+        RolloverAction.NAME
+    );
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
-    private static final Automaton MAINTENANCE_AUTOMATON = patterns("indices:admin/refresh*", "indices:admin/flush*",
-        "indices:admin/synced_flush", "indices:admin/forcemerge*");
+    private static final Automaton MAINTENANCE_AUTOMATON = patterns(
+        "indices:admin/refresh*",
+        "indices:admin/flush*",
+        "indices:admin/synced_flush",
+        "indices:admin/forcemerge*"
+    );
     private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(AutoPutMappingAction.NAME, AutoCreateAction.NAME);
 
-    public static final IndexPrivilege NONE =                new IndexPrivilege("none",                Automatons.EMPTY);
-    public static final IndexPrivilege ALL =                 new IndexPrivilege("all",                 ALL_AUTOMATON);
-    public static final IndexPrivilege READ =                new IndexPrivilege("read",                READ_AUTOMATON);
-    public static final IndexPrivilege READ_CROSS_CLUSTER =  new IndexPrivilege("read_cross_cluster",  READ_CROSS_CLUSTER_AUTOMATON);
-    public static final IndexPrivilege CREATE =              new IndexPrivilege("create",              CREATE_AUTOMATON);
-    public static final IndexPrivilege INDEX =               new IndexPrivilege("index",               INDEX_AUTOMATON);
-    public static final IndexPrivilege DELETE =              new IndexPrivilege("delete",              DELETE_AUTOMATON);
-    public static final IndexPrivilege WRITE =               new IndexPrivilege("write",               WRITE_AUTOMATON);
-    public static final IndexPrivilege CREATE_DOC =          new IndexPrivilege("create_doc",          CREATE_DOC_AUTOMATON);
-    public static final IndexPrivilege MONITOR =             new IndexPrivilege("monitor",             MONITOR_AUTOMATON);
-    public static final IndexPrivilege MANAGE =              new IndexPrivilege("manage",              MANAGE_AUTOMATON);
-    public static final IndexPrivilege DELETE_INDEX =        new IndexPrivilege("delete_index",        DELETE_INDEX_AUTOMATON);
-    public static final IndexPrivilege CREATE_INDEX =        new IndexPrivilege("create_index",        CREATE_INDEX_AUTOMATON);
-    public static final IndexPrivilege VIEW_METADATA =       new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
+    public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
+    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
+    public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
+    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
+    public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
+    public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON);
+    public static final IndexPrivilege DELETE = new IndexPrivilege("delete", DELETE_AUTOMATON);
+    public static final IndexPrivilege WRITE = new IndexPrivilege("write", WRITE_AUTOMATON);
+    public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON);
+    public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON);
+    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON);
+    public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON);
+    public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON);
+    public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
     public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
-    public static final IndexPrivilege MANAGE_ILM =          new IndexPrivilege("manage_ilm",          MANAGE_ILM_AUTOMATON);
-    public static final IndexPrivilege MAINTENANCE =         new IndexPrivilege("maintenance",         MAINTENANCE_AUTOMATON);
-    public static final IndexPrivilege AUTO_CONFIGURE =      new IndexPrivilege("auto_configure",      AUTO_CONFIGURE_AUTOMATON);
+    public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
+    public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
+    public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
 
-    private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(ofEntries(
+    private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
+        ofEntries(
             entry("none", NONE),
             entry("all", ALL),
             entry("manage", MANAGE),
@@ -128,7 +165,9 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
             entry("maintenance", MAINTENANCE),
-            entry("auto_configure", AUTO_CONFIGURE)));
+            entry("auto_configure", AUTO_CONFIGURE)
+        )
+    );
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
@@ -172,10 +211,13 @@ public final class IndexPrivilege extends Privilege {
                 } else if (indexPrivilege != null) {
                     automata.add(indexPrivilege.automaton);
                 } else {
-                    String errorMessage = "unknown index privilege [" + part + "]. a privilege must be either " +
-                        "one of the predefined fixed indices privileges [" +
-                        Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
-                        " actions";
+                    String errorMessage = "unknown index privilege ["
+                        + part
+                        + "]. a privilege must be either "
+                        + "one of the predefined fixed indices privileges ["
+                        + Strings.collectionToCommaDelimitedString(VALUES.entrySet())
+                        + "] or a pattern over one of the available index"
+                        + " actions";
                     logger.debug(errorMessage);
                     throw new IllegalArgumentException(errorMessage);
                 }
@@ -203,9 +245,8 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
-        return Collections.unmodifiableList(VALUES.entrySet().stream()
-            .filter(e -> e.getValue().predicate.test(action))
-            .map(e -> e.getKey())
-            .collect(Collectors.toList()));
+        return Collections.unmodifiableList(
+            VALUES.entrySet().stream().filter(e -> e.getValue().predicate.test(action)).map(e -> e.getKey()).collect(Collectors.toList())
+        );
     }
 }

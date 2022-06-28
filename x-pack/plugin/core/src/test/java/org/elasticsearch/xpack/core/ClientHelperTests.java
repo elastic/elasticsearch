@@ -40,8 +40,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -96,7 +95,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         ClientHelper.executeAsyncWithOrigin(client, origin, ClusterHealthAction.INSTANCE, new ClusterHealthRequest(), listener);
@@ -122,14 +121,13 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
-
         doAnswer(invocationOnMock -> {
             assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         Client clientWithOrigin = ClientHelper.clientWithOrigin(client, origin);
@@ -155,7 +153,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
 
@@ -183,7 +181,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
@@ -216,7 +214,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
@@ -237,8 +235,18 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
     }
@@ -251,11 +259,23 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> headers = MapBuilder.<String, String> newMapBuilder().put(AuthenticationField.AUTHENTICATION_KEY, "anything")
-                .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything").map();
+        Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
+            .put(AuthenticationField.AUTHENTICATION_KEY, "anything")
+            .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")
+            .map();
 
         assertRunAsExecution(headers, h -> {
             assertThat(h.keySet(), hasSize(2));
@@ -272,10 +292,20 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> unrelatedHeaders = MapBuilder.<String, String> newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
+        Map<String, String> unrelatedHeaders = MapBuilder.<String, String>newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
 
         assertExecutionWithOrigin(unrelatedHeaders, client);
     }
@@ -325,7 +355,8 @@ public class ClientHelperTests extends ESTestCase {
         {  // Singleton map with a security-related header
             assertThat(
                 ClientHelper.filterSecurityHeaders(Collections.singletonMap(AuthenticationServiceField.RUN_AS_USER_HEADER, "value")),
-                hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value"));
+                hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value")
+            );
         }
         {  // Map with 3 headers out of which only 1 is security-related
             Map<String, String> headers = new HashMap<>();

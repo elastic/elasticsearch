@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
@@ -29,8 +29,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The configuration object for the groups section in the rollup config.
@@ -49,15 +49,25 @@ public class RollupActionGroupConfig implements Writeable, ToXContentObject {
     public static final String NAME = "groups";
     private static final ConstructingObjectParser<RollupActionGroupConfig, Void> PARSER;
     static {
-        PARSER = new ConstructingObjectParser<>(NAME, args ->
-            new RollupActionGroupConfig((RollupActionDateHistogramGroupConfig) args[0], (HistogramGroupConfig) args[1],
-                (TermsGroupConfig) args[2]));
-        PARSER.declareObject(constructorArg(),
-            (p, c) -> RollupActionDateHistogramGroupConfig.fromXContent(p), new ParseField(RollupActionDateHistogramGroupConfig.NAME));
-        PARSER.declareObject(optionalConstructorArg(),
-            (p, c) -> HistogramGroupConfig.fromXContent(p), new ParseField(HistogramGroupConfig.NAME));
-        PARSER.declareObject(optionalConstructorArg(),
-            (p, c) -> TermsGroupConfig.fromXContent(p), new ParseField(TermsGroupConfig.NAME));
+        PARSER = new ConstructingObjectParser<>(
+            NAME,
+            args -> new RollupActionGroupConfig(
+                (RollupActionDateHistogramGroupConfig) args[0],
+                (HistogramGroupConfig) args[1],
+                (TermsGroupConfig) args[2]
+            )
+        );
+        PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> RollupActionDateHistogramGroupConfig.fromXContent(p),
+            new ParseField(RollupActionDateHistogramGroupConfig.NAME)
+        );
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> HistogramGroupConfig.fromXContent(p),
+            new ParseField(HistogramGroupConfig.NAME)
+        );
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TermsGroupConfig.fromXContent(p), new ParseField(TermsGroupConfig.NAME));
     }
 
     private final RollupActionDateHistogramGroupConfig dateHistogram;
@@ -68,9 +78,11 @@ public class RollupActionGroupConfig implements Writeable, ToXContentObject {
         this(dateHistogram, null, null);
     }
 
-    public RollupActionGroupConfig(final RollupActionDateHistogramGroupConfig dateHistogram,
-                                   final @Nullable HistogramGroupConfig histogram,
-                                   final @Nullable TermsGroupConfig terms) {
+    public RollupActionGroupConfig(
+        final RollupActionDateHistogramGroupConfig dateHistogram,
+        final @Nullable HistogramGroupConfig histogram,
+        final @Nullable TermsGroupConfig terms
+    ) {
         if (dateHistogram == null) {
             throw new IllegalArgumentException("Date histogram must not be null");
         }
@@ -120,8 +132,10 @@ public class RollupActionGroupConfig implements Writeable, ToXContentObject {
         return Collections.unmodifiableSet(fields);
     }
 
-    public void validateMappings(final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 final ActionRequestValidationException validationException) {
+    public void validateMappings(
+        final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        final ActionRequestValidationException validationException
+    ) {
         dateHistogram.validateMappings(fieldCapsResponse, validationException);
         if (histogram != null) {
             histogram.validateMappings(fieldCapsResponse, validationException);

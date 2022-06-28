@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
@@ -32,8 +32,8 @@ public class AckClusterStatePublishResponseHandler extends BlockingClusterStateP
      *                    gotten from non master nodes
      */
     public AckClusterStatePublishResponseHandler(Set<DiscoveryNode> publishingToNodes, Discovery.AckListener ackListener) {
-        //Don't count the master as acknowledged, because it's not done yet
-        //otherwise we might end up with all the nodes but the master holding the latest cluster state
+        // Don't count the master as acknowledged, because it's not done yet
+        // otherwise we might end up with all the nodes but the master holding the latest cluster state
         super(publishingToNodes);
         this.ackListener = ackListener;
     }

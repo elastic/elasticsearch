@@ -22,9 +22,10 @@ import com.github.javaparser.javadoc.JavadocBlockTag;
 import com.github.javaparser.javadoc.description.JavadocDescription;
 import com.github.javaparser.javadoc.description.JavadocDescriptionElement;
 import com.github.javaparser.javadoc.description.JavadocInlineTag;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Whitelist;
 
@@ -44,21 +45,20 @@ public class JavadocExtractor {
     private final JavaClassResolver resolver;
     private final Map<String, ParsedJavaClass> cache = new HashMap<>();
 
-    private static final String GPLv2 = "This code is free software; you can redistribute it and/or" +
-        " modify it under the terms of the GNU General Public License version 2 only, as published" +
-        " by the Free Software Foundation.";
+    private static final String GPLv2 = "This code is free software; you can redistribute it and/or"
+        + " modify it under the terms of the GNU General Public License version 2 only, as published"
+        + " by the Free Software Foundation.";
 
-    private static final String ESv2 = "Copyright Elasticsearch B.V. and/or licensed to Elasticsearch" +
-        " B.V. under one or more contributor license agreements. Licensed under the Elastic License 2.0" +
-        " and the Server Side Public License, v 1; you may not use this file except in compliance with," +
-        " at your election, the Elastic License 2.0 or the Server Side Public License, v 1.";
+    private static final String ESv2 = "Copyright Elasticsearch B.V. and/or licensed to Elasticsearch"
+        + " B.V. under one or more contributor license agreements. Licensed under the Elastic License 2.0"
+        + " and the Server Side Public License, v 1; you may not use this file except in compliance with,"
+        + " at your election, the Elastic License 2.0 or the Server Side Public License, v 1.";
 
-    private static final String[] LICENSES = new String[]{GPLv2, ESv2};
+    private static final String[] LICENSES = new String[] { GPLv2, ESv2 };
 
     public JavadocExtractor(JavaClassResolver resolver) {
         this.resolver = resolver;
     }
-
 
     public ParsedJavaClass parseClass(String className) throws IOException {
         ParsedJavaClass parsed = cache.get(className);
@@ -86,7 +86,7 @@ public class JavadocExtractor {
         private boolean valid = false;
         private boolean validated = false;
 
-        public ParsedJavaClass(String ... licenses) {
+        public ParsedJavaClass(String... licenses) {
             methods = new HashMap<>();
             fields = new HashMap<>();
             constructors = new HashMap<>();
@@ -126,9 +126,7 @@ public class JavadocExtractor {
 
         @Override
         public String toString() {
-            return "ParsedJavaClass{" +
-                "methods=" + methods +
-                '}';
+            return "ParsedJavaClass{" + "methods=" + methods + '}';
         }
 
         public void putMethod(MethodDeclaration declaration) {
@@ -138,11 +136,8 @@ public class JavadocExtractor {
             methods.put(
                 MethodSignature.fromDeclaration(declaration),
                 new ParsedMethod(
-                        declaration.getJavadoc().map(JavadocExtractor::clean).orElse(null),
-                        declaration.getParameters()
-                                .stream()
-                                .map(p -> stripTypeParameters(p.getName().asString()))
-                                .collect(Collectors.toList())
+                    declaration.getJavadoc().map(JavadocExtractor::clean).orElse(null),
+                    declaration.getParameters().stream().map(p -> stripTypeParameters(p.getName().asString())).collect(Collectors.toList())
                 )
             );
         }
@@ -154,11 +149,8 @@ public class JavadocExtractor {
             constructors.put(
                 declaration.getParameters().stream().map(p -> stripTypeParameters(p.getType().asString())).collect(Collectors.toList()),
                 new ParsedMethod(
-                        declaration.getJavadoc().map(JavadocExtractor::clean).orElse(null),
-                        declaration.getParameters()
-                                .stream()
-                                .map(p -> p.getName().asString())
-                                .collect(Collectors.toList())
+                    declaration.getJavadoc().map(JavadocExtractor::clean).orElse(null),
+                    declaration.getParameters().stream().map(p -> p.getName().asString()).collect(Collectors.toList())
                 )
             );
         }
@@ -184,7 +176,7 @@ public class JavadocExtractor {
     private static String stripTypeParameters(String type) {
         int start = 0;
         int count = 0;
-        for (int i=0; i<type.length(); i++) {
+        for (int i = 0; i < type.length(); i++) {
             char c = type.charAt(i);
             if (c == '<') {
                 if (start == 0) {
@@ -212,11 +204,8 @@ public class JavadocExtractor {
 
         public static MethodSignature fromDeclaration(MethodDeclaration declaration) {
             return new MethodSignature(
-                    declaration.getNameAsString(),
-                    declaration.getParameters()
-                            .stream()
-                            .map(p -> stripTypeParameters(p.getType().asString()))
-                            .collect(Collectors.toList())
+                declaration.getNameAsString(),
+                declaration.getParameters().stream().map(p -> stripTypeParameters(p.getType().asString())).collect(Collectors.toList())
             );
         }
 
@@ -225,8 +214,7 @@ public class JavadocExtractor {
             if (this == o) return true;
             if ((o instanceof MethodSignature) == false) return false;
             MethodSignature that = (MethodSignature) o;
-            return Objects.equals(name, that.name) &&
-                Objects.equals(parameterTypes, that.parameterTypes);
+            return Objects.equals(name, that.name) && Objects.equals(parameterTypes, that.parameterTypes);
         }
 
         @Override
@@ -286,10 +274,10 @@ public class JavadocExtractor {
         }
 
         public boolean isEmpty() {
-            return param.size() == 0 &&
-                (description == null || description.isEmpty()) &&
-                (returns == null || returns.isEmpty()) &&
-                thrws.size() == 0;
+            return param.size() == 0
+                && (description == null || description.isEmpty())
+                && (returns == null || returns.isEmpty())
+                && thrws.size() == 0;
         }
 
         @Override
@@ -323,7 +311,7 @@ public class JavadocExtractor {
         List<String> cleaned = new ArrayList<>(description.getElements().size() + tags.size());
         cleaned.addAll(stripInlineTags(description));
         ParsedJavadoc parsed = new ParsedJavadoc(cleaned(cleaned));
-        for (JavadocBlockTag tag: tags) {
+        for (JavadocBlockTag tag : tags) {
             String tagName = tag.getTagName();
             // https://docs.oracle.com/en/java/javase/14/docs/specs/javadoc/doc-comment-spec.html#standard-tags
             // ignore author, deprecated, hidden, provides, uses, see, serial*, since and version.
@@ -348,9 +336,9 @@ public class JavadocExtractor {
     private static List<String> stripInlineTags(JavadocDescription description) {
         List<JavadocDescriptionElement> elements = description.getElements();
         List<String> stripped = new ArrayList<>(elements.size());
-        for (JavadocDescriptionElement element: elements) {
+        for (JavadocDescriptionElement element : elements) {
             if (element instanceof JavadocInlineTag) {
-                stripped.add(((JavadocInlineTag)element).getContent());
+                stripped.add(((JavadocInlineTag) element).getContent());
             } else {
                 stripped.add(element.toText());
             }

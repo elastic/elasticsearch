@@ -151,14 +151,16 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 0, new SearchHit.NestedIdentity("grandchildren", 0, null)),
-                leaf.nestedIdentity());
+                leaf.nestedIdentity()
+            );
 
             assertNotNull(leaf.advance(2));
             assertEquals(2, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 0, new SearchHit.NestedIdentity("grandchildren", 2, null)),
-                leaf.nestedIdentity());
+                leaf.nestedIdentity()
+            );
 
             assertNotNull(leaf.advance(3));
             assertEquals(3, leaf.doc());
@@ -170,14 +172,16 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 1, new SearchHit.NestedIdentity("grandchildren", 0, null)),
-                leaf.nestedIdentity());
+                leaf.nestedIdentity()
+            );
 
             assertNotNull(leaf.advance(5));
             assertEquals(5, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 1, new SearchHit.NestedIdentity("grandchildren", 1, null)),
-                leaf.nestedIdentity());
+                leaf.nestedIdentity()
+            );
 
             assertNull(leaf.advance(12));
             assertNull(leaf.nestedIdentity());
@@ -260,30 +264,22 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
             assertNotNull(leaf.advance(0));
             assertEquals(0, leaf.doc());
             assertEquals(9, leaf.rootDoc());
-            assertEquals(
-                new SearchHit.NestedIdentity("children.grandchildren", 0, null),
-                leaf.nestedIdentity());
+            assertEquals(new SearchHit.NestedIdentity("children.grandchildren", 0, null), leaf.nestedIdentity());
 
             assertNotNull(leaf.advance(2));
             assertEquals(2, leaf.doc());
             assertEquals(9, leaf.rootDoc());
-            assertEquals(
-                new SearchHit.NestedIdentity("children.grandchildren", 2, null),
-                leaf.nestedIdentity());
+            assertEquals(new SearchHit.NestedIdentity("children.grandchildren", 2, null), leaf.nestedIdentity());
 
             assertNotNull(leaf.advance(3));
             assertEquals(3, leaf.doc());
             assertEquals(9, leaf.rootDoc());
-            assertEquals(
-                new SearchHit.NestedIdentity("children.grandchildren", 3, null),
-                leaf.nestedIdentity());
+            assertEquals(new SearchHit.NestedIdentity("children.grandchildren", 3, null), leaf.nestedIdentity());
 
             assertNotNull(leaf.advance(5));
             assertEquals(5, leaf.doc());
             assertEquals(9, leaf.rootDoc());
-            assertEquals(
-                new SearchHit.NestedIdentity("children.grandchildren", 5, null),
-                leaf.nestedIdentity());
+            assertEquals(new SearchHit.NestedIdentity("children.grandchildren", 5, null), leaf.nestedIdentity());
 
             assertNull(leaf.advance(9));
             assertNull(leaf.nestedIdentity());

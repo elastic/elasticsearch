@@ -11,14 +11,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -26,16 +18,23 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.hamcrest.CoreMatchers;
 
-public class ShapeQueryOverPointTests extends ShapeQueryTests {
+public class ShapeQueryOverPointTests extends ShapeQueryTestCase {
     @Override
     protected XContentBuilder createDefaultMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties").startObject(defaultFieldName)
+        XContentBuilder xcb = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(defaultFieldName)
             .field("type", "point")
-            .endObject().endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
         return xcb;
     }
@@ -49,14 +48,16 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
 
         for (ShapeRelation shapeRelation : ShapeRelation.values()) {
             if (shapeRelation.equals(ShapeRelation.INTERSECTS) == false) {
-                SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
-                    client().prepareSearch("test")
-                        .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle)
-                            .relation(shapeRelation))
-                        .get());
-                assertThat(e.getCause().getMessage(),
-                    CoreMatchers.containsString(shapeRelation
-                        + " query relation not supported for Field [" + defaultFieldName + "]"));
+                SearchPhaseExecutionException e = expectThrows(
+                    SearchPhaseExecutionException.class,
+                    () -> client().prepareSearch("test")
+                        .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle).relation(shapeRelation))
+                        .get()
+                );
+                assertThat(
+                    e.getCause().getMessage(),
+                    CoreMatchers.containsString(shapeRelation + " query relation not supported for Field [" + defaultFieldName + "]")
+                );
             }
         }
     }
@@ -66,15 +67,12 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").addMapping(defaultFieldType, mapping, XContentType.JSON).get();
         ensureGreen();
 
-        Line line = new Line(new double[]{-25, -25}, new double[]{-35, -35});
+        Line line = new Line(new double[] { -25, -25 }, new double[] { -35, -35 });
 
         try {
-            client().prepareSearch("test")
-                .setQuery(new ShapeQueryBuilder(defaultFieldName, line)).get();
-        } catch (
-            SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getMessage(),
-                CoreMatchers.containsString("does not support " + ShapeType.LINESTRING + " queries"));
+            client().prepareSearch("test").setQuery(new ShapeQueryBuilder(defaultFieldName, line)).get();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getCause().getMessage(), CoreMatchers.containsString("does not support " + ShapeType.LINESTRING + " queries"));
         }
     }
 
@@ -83,7 +81,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").addMapping(defaultFieldType, mapping, XContentType.JSON).get();
         ensureGreen();
 
-        LinearRing linearRing = new LinearRing(new double[]{-25,-35,-25}, new double[]{-25,-35,-25});
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
 
         try {
             // LinearRing extends Line implements Geometry: expose the build process
@@ -92,10 +90,11 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
             searchRequestBuilder.setQuery(queryBuilder);
             searchRequestBuilder.setIndices("test");
             searchRequestBuilder.get();
-        } catch (
-            SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getMessage(),
-                CoreMatchers.containsString("Field [" + defaultFieldName + "] does not support LINEARRING queries"));
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(
+                e.getCause().getMessage(),
+                CoreMatchers.containsString("Field [" + defaultFieldName + "] does not support LINEARRING queries")
+            );
         }
     }
 
@@ -104,23 +103,17 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").addMapping(defaultFieldType, mapping, XContentType.JSON).get();
         ensureGreen();
 
-        CoordinatesBuilder coords1 = new CoordinatesBuilder()
-            .coordinate(-35,-35)
-            .coordinate(-25,-25);
-        CoordinatesBuilder coords2 = new CoordinatesBuilder()
-            .coordinate(-15,-15)
-            .coordinate(-5,-5);
-        LineStringBuilder lsb1 = new LineStringBuilder(coords1);
-        LineStringBuilder lsb2 = new LineStringBuilder(coords2);
-        MultiLineStringBuilder mlb = new MultiLineStringBuilder().linestring(lsb1).linestring(lsb2);
-        MultiLine multiline = (MultiLine) mlb.buildGeometry();
+        Line lsb1 = new Line(new double[] { -35, -25 }, new double[] { -35, -25 });
+        Line lsb2 = new Line(new double[] { -15, -5 }, new double[] { -15, -5 });
 
+        MultiLine multiline = new MultiLine(org.elasticsearch.core.List.of(lsb1, lsb2));
         try {
-            client().prepareSearch("test")
-                .setQuery(new ShapeQueryBuilder(defaultFieldName, multiline)).get();
+            client().prepareSearch("test").setQuery(new ShapeQueryBuilder(defaultFieldName, multiline)).get();
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(),
-                CoreMatchers.containsString("does not support " + ShapeType.MULTILINESTRING + " queries"));
+            assertThat(
+                e.getCause().getMessage(),
+                CoreMatchers.containsString("does not support " + ShapeType.MULTILINESTRING + " queries")
+            );
         }
     }
 
@@ -129,15 +122,12 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").addMapping(defaultFieldType, mapping, XContentType.JSON).get();
         ensureGreen();
 
-        MultiPointBuilder mpb = new MultiPointBuilder().coordinate(-35,-25).coordinate(-15,-5);
-        MultiPoint multiPoint = mpb.buildGeometry();
+        MultiPoint multiPoint = new MultiPoint(org.elasticsearch.core.List.of(new Point(-35, -25), new Point(-15, -5)));
 
         try {
-            client().prepareSearch("test")
-                .setQuery(new ShapeQueryBuilder(defaultFieldName, multiPoint)).get();
+            client().prepareSearch("test").setQuery(new ShapeQueryBuilder(defaultFieldName, multiPoint)).get();
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(),
-                CoreMatchers.containsString("does not support " + ShapeType.MULTIPOINT + " queries"));
+            assertThat(e.getCause().getMessage(), CoreMatchers.containsString("does not support " + ShapeType.MULTIPOINT + " queries"));
         }
     }
 
@@ -146,15 +136,12 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         client().admin().indices().prepareCreate("test").addMapping(defaultFieldType, mapping, XContentType.JSON).get();
         ensureGreen();
 
-        PointBuilder pb = new PointBuilder().coordinate(-35, -25);
-        Point point = pb.buildGeometry();
+        Point point = new Point(-35, -2);
 
         try {
-            client().prepareSearch("test")
-                .setQuery(new ShapeQueryBuilder(defaultFieldName, point)).get();
+            client().prepareSearch("test").setQuery(new ShapeQueryBuilder(defaultFieldName, point)).get();
         } catch (Exception e) {
-            assertThat(e.getCause().getMessage(),
-                CoreMatchers.containsString("does not support " + ShapeType.POINT + " queries"));
+            assertThat(e.getCause().getMessage(), CoreMatchers.containsString("does not support " + ShapeType.POINT + " queries"));
         }
     }
 

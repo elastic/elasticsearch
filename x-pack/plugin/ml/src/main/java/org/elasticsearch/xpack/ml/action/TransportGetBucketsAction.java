@@ -25,8 +25,13 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
     private final Client client;
 
     @Inject
-    public TransportGetBucketsAction(TransportService transportService, ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
-                                     JobManager jobManager, Client client) {
+    public TransportGetBucketsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        JobResultsProvider jobResultsProvider,
+        JobManager jobManager,
+        Client client
+    ) {
         super(GetBucketsAction.NAME, transportService, actionFilters, GetBucketsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
@@ -35,32 +40,34 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
 
     @Override
     protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-                ok -> {
-                    BucketsQueryBuilder query =
-                            new BucketsQueryBuilder().expand(request.isExpand())
-                                    .includeInterim(request.isExcludeInterim() == false)
-                                    .start(request.getStart())
-                                    .end(request.getEnd())
-                                    .anomalyScoreThreshold(request.getAnomalyScore())
-                                    .sortField(request.getSort())
-                                    .sortDescending(request.isDescending());
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(ok -> {
+            BucketsQueryBuilder query = new BucketsQueryBuilder().expand(request.isExpand())
+                .includeInterim(request.isExcludeInterim() == false)
+                .start(request.getStart())
+                .end(request.getEnd())
+                .anomalyScoreThreshold(request.getAnomalyScore())
+                .sortField(request.getSort())
+                .sortDescending(request.isDescending());
 
-                    if (request.getPageParams() != null) {
-                        query.from(request.getPageParams().getFrom())
-                                .size(request.getPageParams().getSize());
-                    }
-                    if (request.getTimestamp() != null) {
-                        query.timestamp(request.getTimestamp());
-                    } else {
-                        query.start(request.getStart());
-                        query.end(request.getEnd());
-                    }
-                    jobResultsProvider.buckets(request.getJobId(), query, q ->
-                            listener.onResponse(new GetBucketsAction.Response(q)), listener::onFailure, client);
+            if (request.getPageParams() != null) {
+                query.from(request.getPageParams().getFrom()).size(request.getPageParams().getSize());
+            }
+            if (request.getTimestamp() != null) {
+                query.timestamp(request.getTimestamp());
+            } else {
+                query.start(request.getStart());
+                query.end(request.getEnd());
+            }
+            jobResultsProvider.buckets(
+                request.getJobId(),
+                query,
+                q -> listener.onResponse(new GetBucketsAction.Response(q)),
+                listener::onFailure,
+                client
+            );
 
-                },
-                listener::onFailure
+        },
+            listener::onFailure
 
         ));
     }

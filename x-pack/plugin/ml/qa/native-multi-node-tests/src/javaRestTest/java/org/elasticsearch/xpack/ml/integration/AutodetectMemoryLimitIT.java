@@ -65,7 +65,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         while (timestamp < now) {
             for (int i = 0; i < 11000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.
                 data.add(createJsonRecord(createRecord(timestamp, String.valueOf(i), "")));
             }
@@ -109,7 +109,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         while (timestamp < now) {
             for (int i = 0; i < 10000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.
                 data.add(createJsonRecord(createRecord(timestamp, String.valueOf(i), "")));
             }
@@ -155,10 +155,13 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
                 List<String> data = new ArrayList<>();
                 for (int user = 0; user < 10000; user++) {
                     // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                    // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                    // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                     // optimisation is used will make the results of this test very different for the different platforms.
-                    data.add(createJsonRecord(createRecord(
-                            timestamp, String.valueOf(department) + "_" + String.valueOf(user), String.valueOf(department))));
+                    data.add(
+                        createJsonRecord(
+                            createRecord(timestamp, String.valueOf(department) + "_" + String.valueOf(user), String.valueOf(department))
+                        )
+                    );
                 }
                 postData(job.getId(), data.stream().collect(Collectors.joining()));
             }
@@ -202,7 +205,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
             List<String> data = new ArrayList<>();
             for (int i = 0; i < 10000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.
                 Map<String, Object> record = new HashMap<>();
                 record.put("time", timestamp);

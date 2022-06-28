@@ -29,7 +29,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             randomAlphaOfLength(6),
             randomInt(RegExp.ALL),
             matchFlags,
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
     }
 
@@ -42,7 +42,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             orig.pattern(),
             orig.syntaxFlags(),
             orig.matchFlags(),
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
     }
 
@@ -79,7 +79,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             pattern,
             syntaxFlags,
             matchFlags,
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
     }
 
@@ -92,7 +92,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "a.+b",
             0,
             0,
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         assertTrue(query.matches(List.of("astuffb")));
         assertFalse(query.matches(List.of("astuffB")));
@@ -109,7 +109,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "a.+b",
             0,
             RegExp.ASCII_CASE_INSENSITIVE,
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         assertTrue(ciQuery.matches(List.of("astuffB")));
         assertTrue(ciQuery.matches(List.of("Astuffb", "fffff")));
@@ -129,7 +129,7 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             "a.+b",
             0,
             0,
-            Operations.DEFAULT_MAX_DETERMINIZED_STATES
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         ByteRunAutomaton automaton = visitForSingleAutomata(query);
         BytesRef term = new BytesRef("astuffb");

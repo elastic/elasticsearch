@@ -8,19 +8,22 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-public class GeoBoundingBoxQueryGeoPointIT extends AbstractGeoBoundingBoxQueryIT {
+public class GeoBoundingBoxQueryGeoPointIT extends GeoBoundingBoxQueryIntegTestCase {
 
     @Override
     public XContentBuilder getMapping() throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_point");
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
         return xContentBuilder;
     }
 }
-

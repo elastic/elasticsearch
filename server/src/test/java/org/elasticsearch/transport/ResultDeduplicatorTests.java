@@ -27,8 +27,7 @@ public class ResultDeduplicatorTests extends ESTestCase {
         Exception failure = randomBoolean() ? new TransportException("simulated") : null;
         final TransportRequest request = new TransportRequest() {
             @Override
-            public void setParentTask(final TaskId taskId) {
-            }
+            public void setParentTask(final TaskId taskId) {}
         };
         final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>();
         final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();

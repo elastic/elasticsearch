@@ -14,11 +14,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,7 +45,7 @@ public class ClientYamlTestResponse {
             this.bodyContentType = XContentType.fromMediaTypeOrFormat(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
-                //skip parsing if we got text back (e.g. if we called _cat apis)
+                // skip parsing if we got text back (e.g. if we called _cat apis)
                 if (bodyContentType != null) {
                     this.parsedResponse = ObjectPath.createFromXContent(bodyContentType.xContent(), new BytesArray(bytes));
                 }
@@ -72,13 +72,20 @@ public class ClientYamlTestResponse {
      * Get a list of all of the values of all warning headers returned in the response.
      */
     public List<String> getWarningHeaders() {
-        List<String> warningHeaders = new ArrayList<>();
+        return getHeaders("Warning");
+    }
+
+    /**
+     * Get a list of all the values of a given header returned in the response.
+     */
+    public List<String> getHeaders(String name) {
+        List<String> headers = new ArrayList<>();
         for (Header header : response.getHeaders()) {
-            if (header.getName().equals("Warning")) {
-                warningHeaders.add(header.getValue());
+            if (header.getName().equalsIgnoreCase(name)) {
+                headers.add(header.getValue());
             }
         }
-        return warningHeaders;
+        return headers;
     }
 
     /**
@@ -89,7 +96,7 @@ public class ClientYamlTestResponse {
         if (parsedResponse != null) {
             return parsedResponse.evaluate("");
         }
-        //we only get here if there is no response body or the body is text
+        // we only get here if there is no response body or the body is text
         assert bodyContentType == null;
         return getBodyAsString();
     }
@@ -99,14 +106,16 @@ public class ClientYamlTestResponse {
      */
     public String getBodyAsString() {
         if (bodyAsString == null && body != null) {
-            //content-type null means that text was returned
+            // content-type null means that text was returned
             if (bodyContentType == null || bodyContentType == XContentType.JSON || bodyContentType == XContentType.YAML) {
                 bodyAsString = new String(body, StandardCharsets.UTF_8);
             } else {
-                //if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
+                // if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
                 try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
-                    try (XContentParser parser = bodyContentType.xContent()
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)) {
+                    try (
+                        XContentParser parser = bodyContentType.xContent()
+                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)
+                    ) {
                         jsonBuilder.copyCurrentStructure(parser);
                     }
                     bodyAsString = Strings.toString(jsonBuilder);
@@ -138,9 +147,9 @@ public class ClientYamlTestResponse {
         }
 
         if (parsedResponse == null) {
-            //special case: api that don't support body (e.g. exists) return true if 200, false if 404, even if no body
-            //is_true: '' means the response had no body but the client returned true (caused by 200)
-            //is_false: '' means the response had no body but the client returned false (caused by 404)
+            // special case: api that don't support body (e.g. exists) return true if 200, false if 404, even if no body
+            // is_true: '' means the response had no body but the client returned true (caused by 200)
+            // is_false: '' means the response had no body but the client returned false (caused by 404)
             if ("".equals(path) && HttpHead.METHOD_NAME.equals(response.getRequestLine().getMethod())) {
                 return isError() == false;
             }

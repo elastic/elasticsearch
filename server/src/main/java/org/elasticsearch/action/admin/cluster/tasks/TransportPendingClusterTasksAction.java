@@ -24,19 +24,33 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-public class TransportPendingClusterTasksAction
-        extends TransportMasterNodeReadAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
+public class TransportPendingClusterTasksAction extends TransportMasterNodeReadAction<
+    PendingClusterTasksRequest,
+    PendingClusterTasksResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPendingClusterTasksAction.class);
 
     private final ClusterService clusterService;
 
     @Inject
-    public TransportPendingClusterTasksAction(TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, ActionFilters actionFilters,
-                                              IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PendingClusterTasksRequest::new, indexNameExpressionResolver, PendingClusterTasksResponse::new, ThreadPool.Names.SAME);
+    public TransportPendingClusterTasksAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PendingClusterTasksAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PendingClusterTasksRequest::new,
+            indexNameExpressionResolver,
+            PendingClusterTasksResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.clusterService = clusterService;
     }
 
@@ -46,8 +60,11 @@ public class TransportPendingClusterTasksAction
     }
 
     @Override
-    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state,
-                                   ActionListener<PendingClusterTasksResponse> listener) {
+    protected void masterOperation(
+        PendingClusterTasksRequest request,
+        ClusterState state,
+        ActionListener<PendingClusterTasksResponse> listener
+    ) {
         logger.trace("fetching pending tasks from cluster service");
         final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks();
         logger.trace("done fetching pending tasks from cluster service");

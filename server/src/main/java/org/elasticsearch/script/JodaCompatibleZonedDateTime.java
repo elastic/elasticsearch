@@ -8,13 +8,12 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.joda.time.DateTime;
 
 import java.security.AccessController;
@@ -33,6 +32,7 @@ import java.time.chrono.ChronoZonedDateTime;
 import java.time.chrono.Chronology;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
+import java.time.temporal.IsoFields;
 import java.time.temporal.Temporal;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjuster;
@@ -48,7 +48,11 @@ import java.util.Objects;
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
 public class JodaCompatibleZonedDateTime
-        implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
+    implements
+        Comparable<ChronoZonedDateTime<?>>,
+        ChronoZonedDateTime<LocalDate>,
+        Temporal,
+        TemporalAccessor {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
@@ -58,15 +62,14 @@ public class JodaCompatibleZonedDateTime
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override
             public Void run() {
-                deprecationLogger.deprecate(DeprecationCategory.PARSING, key, message, params);
+                deprecationLogger.critical(DeprecationCategory.PARSING, key, message, params);
                 return null;
             }
         });
     }
 
     private static void logDeprecatedMethod(String oldMethod, String newMethod) {
-        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.",
-            oldMethod, newMethod);
+        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.", oldMethod, newMethod);
     }
 
     private ZonedDateTime dt;
@@ -83,7 +86,7 @@ public class JodaCompatibleZonedDateTime
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null)return false;
+        if (o == null) return false;
         if (o.getClass() == JodaCompatibleZonedDateTime.class) {
             JodaCompatibleZonedDateTime that = (JodaCompatibleZonedDateTime) o;
             return Objects.equals(dt, that.dt);
@@ -283,7 +286,7 @@ public class JodaCompatibleZonedDateTime
     }
 
     @Override
-    public ZonedDateTime plus(long amount,TemporalUnit unit) {
+    public ZonedDateTime plus(long amount, TemporalUnit unit) {
         return dt.plus(amount, unit);
     }
 
@@ -467,14 +470,14 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getWeekOfWeekyear() {
-        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear());
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)");
+        return dt.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
     }
 
     @Deprecated
     public int getWeekyear() {
-        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear());
+        logDeprecatedMethod("getWeekyear()", "get(IsoFields.WEEK_BASED_YEAR)");
+        return dt.get(IsoFields.WEEK_BASED_YEAR);
     }
 
     @Deprecated
@@ -509,8 +512,10 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getDayOfWeek() {
-        logDeprecated("getDayOfWeek()",
-            "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue().");
+        logDeprecated(
+            "getDayOfWeek()",
+            "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue()."
+        );
         return dt.getDayOfWeek().getValue();
     }
 }

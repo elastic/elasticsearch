@@ -27,8 +27,11 @@ public class TestEventHandler extends EventHandler {
     private final Set<SocketChannelContext> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());
     private final MockNioTransport.TransportThreadWatchdog transportThreadWatchdog;
 
-    TestEventHandler(Consumer<Exception> exceptionHandler, Supplier<NioSelector> selectorSupplier,
-                     MockNioTransport.TransportThreadWatchdog transportThreadWatchdog) {
+    TestEventHandler(
+        Consumer<Exception> exceptionHandler,
+        Supplier<NioSelector> selectorSupplier,
+        MockNioTransport.TransportThreadWatchdog transportThreadWatchdog
+    ) {
         super(exceptionHandler, selectorSupplier);
         this.transportThreadWatchdog = transportThreadWatchdog;
     }

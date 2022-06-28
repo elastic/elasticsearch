@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -16,7 +16,7 @@ public class ForecastJobResponseTests extends AbstractXContentTestCase<ForecastJ
 
     @Override
     protected ForecastJobResponse createTestInstance() {
-        return new ForecastJobResponse(randomBoolean(),randomAlphaOfLength(10));
+        return new ForecastJobResponse(randomBoolean(), randomAlphaOfLength(10));
     }
 
     @Override

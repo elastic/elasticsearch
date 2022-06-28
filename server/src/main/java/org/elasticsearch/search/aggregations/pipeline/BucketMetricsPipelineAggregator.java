@@ -32,8 +32,13 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     protected final DocValueFormat format;
     protected final GapPolicy gapPolicy;
 
-    BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
-            Map<String, Object> metadata) {
+    BucketMetricsPipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        GapPolicy gapPolicy,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, metadata);
         this.gapPolicy = gapPolicy;
         this.format = format;
@@ -55,8 +60,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         innerWriteTo(out);
     }
 
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void innerWriteTo(StreamOutput out) throws IOException {}
 
     @Override
     public final InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
@@ -82,8 +86,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
      * Called before initial collection and between successive collection runs.
      * A chance to initialize or re-initialize state
      */
-    protected void preCollection() {
-    }
+    protected void preCollection() {}
 
     /**
      * Called after a collection run is finished to build the aggregation for

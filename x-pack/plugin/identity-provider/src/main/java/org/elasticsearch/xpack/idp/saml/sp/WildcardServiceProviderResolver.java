@@ -10,25 +10,25 @@ package org.elasticsearch.xpack.idp.saml.sp;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
@@ -44,8 +44,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class WildcardServiceProviderResolver {
 
-    public static final Setting<String> FILE_PATH_SETTING = Setting.simpleString("xpack.idp.sp.wildcard.path",
-        "wildcard_services.json", Setting.Property.NodeScope);
+    public static final Setting<String> FILE_PATH_SETTING = Setting.simpleString(
+        "xpack.idp.sp.wildcard.path",
+        "wildcard_services.json",
+        Setting.Property.NodeScope
+    );
 
     private class State {
         final Map<String, WildcardServiceProvider> services;
@@ -75,10 +78,12 @@ public class WildcardServiceProviderResolver {
      * This is implemented as a factory method to facilitate testing - the core resolver just works on InputStreams, this method
      * handles all the Path/ResourceWatcher logic
      */
-    public static WildcardServiceProviderResolver create(Environment environment,
-                                                         ResourceWatcherService resourceWatcherService,
-                                                         ScriptService scriptService,
-                                                         SamlServiceProviderFactory spFactory) {
+    public static WildcardServiceProviderResolver create(
+        Environment environment,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        SamlServiceProviderFactory spFactory
+    ) {
         final Settings settings = environment.settings();
         final Path path = XPackPlugin.resolveConfigFile(environment, FILE_PATH_SETTING.get(environment.settings()));
 
@@ -90,13 +95,20 @@ public class WildcardServiceProviderResolver {
             try {
                 resolver.reload(path);
             } catch (IOException e) {
-                throw new ElasticsearchException("File [{}] (from setting [{}]) cannot be loaded",
-                    e, path.toAbsolutePath(), FILE_PATH_SETTING.getKey());
+                throw new ElasticsearchException(
+                    "File [{}] (from setting [{}]) cannot be loaded",
+                    e,
+                    path.toAbsolutePath(),
+                    FILE_PATH_SETTING.getKey()
+                );
             }
         } else if (FILE_PATH_SETTING.exists(environment.settings())) {
             // A file was explicitly configured, but doesn't exist. That's a mistake...
-            throw new ElasticsearchException("File [{}] (from setting [{}]) does not exist",
-                path.toAbsolutePath(), FILE_PATH_SETTING.getKey());
+            throw new ElasticsearchException(
+                "File [{}] (from setting [{}]) does not exist",
+                path.toAbsolutePath(),
+                FILE_PATH_SETTING.getKey()
+            );
         }
 
         final FileWatcher fileWatcher = new FileWatcher(path);
@@ -123,8 +135,12 @@ public class WildcardServiceProviderResolver {
         try {
             resourceWatcherService.add(fileWatcher);
         } catch (IOException e) {
-            throw new ElasticsearchException("Failed to watch file [{}] (from setting [{}])",
-                e, path.toAbsolutePath(), FILE_PATH_SETTING.getKey());
+            throw new ElasticsearchException(
+                "Failed to watch file [{}] (from setting [{}])",
+                e,
+                path.toAbsolutePath(),
+                FILE_PATH_SETTING.getKey()
+            );
         }
         return resolver;
     }
@@ -163,8 +179,14 @@ public class WildcardServiceProviderResolver {
                 final String names = Strings.collectionToCommaDelimitedString(matches.keySet());
                 logger.warn("Found multiple matching wildcard services for [{}] [{}] - [{}]", entityId, acs, names);
                 throw new IllegalStateException(
-                    "Found multiple wildcard service providers for entity ID [" + entityId + "] and ACS [" + acs
-                        + "] - wildcard service names [" + names + "]");
+                    "Found multiple wildcard service providers for entity ID ["
+                        + entityId
+                        + "] and ACS ["
+                        + acs
+                        + "] - wildcard service names ["
+                        + names
+                        + "]"
+                );
         }
     }
 
@@ -180,8 +202,10 @@ public class WildcardServiceProviderResolver {
         if (newServices.equals(oldState.services) == false) {
             // Services have changed
             if (this.stateRef.compareAndSet(oldState, new State(newServices))) {
-                logger.info("Reloaded cached wildcard service providers, new providers [{}]",
-                    Strings.collectionToCommaDelimitedString(newServices.keySet()));
+                logger.info(
+                    "Reloaded cached wildcard service providers, new providers [{}]",
+                    Strings.collectionToCommaDelimitedString(newServices.keySet())
+                );
             } else {
                 // some other thread reloaded it
             }
@@ -189,8 +213,7 @@ public class WildcardServiceProviderResolver {
     }
 
     private void reload(Path file) throws IOException {
-        try (InputStream in = Files.newInputStream(file);
-             XContentParser parser = buildServicesParser(in)) {
+        try (InputStream in = Files.newInputStream(file); XContentParser parser = buildServicesParser(in)) {
             reload(parser);
         }
     }

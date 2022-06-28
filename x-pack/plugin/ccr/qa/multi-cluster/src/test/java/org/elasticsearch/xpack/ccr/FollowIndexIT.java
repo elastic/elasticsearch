@@ -40,11 +40,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             logger.info("Running against leader cluster");
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
-                mapping =
-                    "\"_source\": {" +
-                    "  \"includes\": [\"field\"]," +
-                    "  \"excludes\": [\"filtered_field\"]" +
-                    "}";
+                mapping = "\"_source\": {" + "  \"includes\": [\"field\"]," + "  \"excludes\": [\"filtered_field\"]" + "}";
             }
             createIndex(leaderIndexName, Settings.EMPTY, mapping);
             for (int i = 0; i < numDocs; i++) {
@@ -110,7 +106,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             final Map<String, Object> responseAsMap = entityAsMap(response);
             assertThat(responseAsMap, hasKey("error"));
             assertThat(responseAsMap.get("error"), instanceOf(Map.class));
-            @SuppressWarnings("unchecked") final Map<Object, Object> error = (Map<Object, Object>) responseAsMap.get("error");
+            @SuppressWarnings("unchecked")
+            final Map<Object, Object> error = (Map<Object, Object>) responseAsMap.get("error");
             assertThat(error, hasEntry("type", "illegal_argument_exception"));
             assertThat(
                 error,
@@ -139,18 +136,16 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             final Map<String, Object> responseAsMap = entityAsMap(response);
             assertThat(responseAsMap, hasKey("error"));
             assertThat(responseAsMap.get("error"), instanceOf(Map.class));
-            @SuppressWarnings("unchecked") final Map<Object, Object> error = (Map<Object, Object>) responseAsMap.get("error");
+            @SuppressWarnings("unchecked")
+            final Map<Object, Object> error = (Map<Object, Object>) responseAsMap.get("error");
             assertThat(error, hasEntry("type", "illegal_argument_exception"));
-            assertThat(
-                error,
-                hasEntry("reason", "unknown setting [index.non_existent_setting]")
-            );
+            assertThat(error, hasEntry("reason", "unknown setting [index.non_existent_setting]"));
         }
     }
 
     public void testFollowNonExistingLeaderIndex() {
         if ("follow".equals(targetCluster) == false) {
-            logger.info("skipping test, waiting for target cluster [follow]" );
+            logger.info("skipping test, waiting for target cluster [follow]");
             return;
         }
         ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index"));
@@ -191,8 +186,10 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             verifyDataStream(leaderClient, dataStreamName, DataStream.getDefaultBackingIndexName("logs-foobar-prod", 1));
         }
 
-        ResponseException failure = expectThrows(ResponseException.class,
-            () -> followIndex(DataStream.getDefaultBackingIndexName("logs-foobar-prod", 1), ".ds-logs-barbaz-prod-000001"));
+        ResponseException failure = expectThrows(
+            ResponseException.class,
+            () -> followIndex(DataStream.getDefaultBackingIndexName("logs-foobar-prod", 1), ".ds-logs-barbaz-prod-000001")
+        );
         assertThat(failure.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(failure.getMessage(), containsString("a backing index name in the local and remote cluster must remain the same"));
     }
@@ -229,8 +226,12 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
         } else {
             final ResponseException e = expectThrows(ResponseException.class, () -> followIndex(mountedIndex, mountedIndex + "-follower"));
-            assertThat(e.getMessage(), containsString("is a searchable snapshot index and cannot be used as a leader index for " +
-                "cross-cluster replication purpose"));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "is a searchable snapshot index and cannot be used as a leader index for " + "cross-cluster replication purpose"
+                )
+            );
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
     }
@@ -238,8 +239,6 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

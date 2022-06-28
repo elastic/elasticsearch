@@ -34,7 +34,7 @@ public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRa
     @Override
     protected final Field newRangeField(Range box) {
         AbstractRange<?> testRange = (AbstractRange<?>) box;
-        RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType(), testRange.getMin(), testRange.getMax(), true , true);
+        RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType(), testRange.getMin(), testRange.getMax(), true, true);
         try {
             BytesRef encodeRange = rangeType().encodeRanges(Collections.singleton(range));
             return new BinaryDocValuesField(fieldName(), encodeRange);

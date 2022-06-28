@@ -68,15 +68,16 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
         for (InternalAdjacencyMatrix input : inputs) {
             for (InternalAdjacencyMatrix.InternalBucket bucket : input.getBuckets()) {
                 if (bucket.getDocCount() > 0) {
-                    expectedCounts.compute(bucket.getKeyAsString(),
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+                    expectedCounts.compute(
+                        bucket.getKeyAsString(),
+                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount()
+                    );
                 }
             }
         }
         final Map<String, Long> actualCounts = new TreeMap<>();
         for (InternalAdjacencyMatrix.InternalBucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(bucket.getKeyAsString(),
-                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+            actualCounts.compute(bucket.getKeyAsString(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
     }
@@ -92,24 +93,25 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
         List<InternalAdjacencyMatrix.InternalBucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            buckets = new ArrayList<>(buckets);
-            buckets.add(new InternalAdjacencyMatrix.InternalBucket(randomAlphaOfLength(10), randomNonNegativeLong(),
-                    InternalAggregations.EMPTY));
-            break;
-        case 2:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(
+                    new InternalAdjacencyMatrix.InternalBucket(randomAlphaOfLength(10), randomNonNegativeLong(), InternalAggregations.EMPTY)
+                );
+                break;
+            case 2:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAdjacencyMatrix(name, buckets, metadata);
     }

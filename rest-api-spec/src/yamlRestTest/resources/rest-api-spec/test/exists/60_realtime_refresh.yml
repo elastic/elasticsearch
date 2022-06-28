@@ -20,13 +20,13 @@
  - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
       exists:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: false
 
  - is_false: ''
@@ -34,7 +34,7 @@
  - do:
       exists:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: true
 
  - is_true: ''
@@ -42,7 +42,7 @@
  - do:
       exists:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: false
           refresh:  true
 

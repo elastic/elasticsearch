@@ -11,8 +11,8 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Objects;
 import java.util.Optional;

@@ -12,17 +12,17 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
@@ -86,15 +86,13 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
+            .build();
     }
 
     public void testDuelWithAliasFilters() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", "field1", "type=text", "field2", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>(numberOfRoles);
         IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
@@ -107,10 +105,9 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
         builder.get();
 
         for (int roleI = 1; roleI <= numberOfRoles; roleI++) {
-            SearchResponse searchResponse1 = client()
-                    .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD)))
-                    .prepareSearch("test")
-                    .get();
+            SearchResponse searchResponse1 = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD))
+            ).prepareSearch("test").get();
             SearchResponse searchResponse2 = client().prepareSearch("alias" + roleI).get();
             assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(searchResponse2.getHits().getTotalHits().value));
             for (int hitI = 0; hitI < searchResponse1.getHits().getHits().length; hitI++) {

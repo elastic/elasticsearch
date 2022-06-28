@@ -26,25 +26,25 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "integer_range" : { "gte": 1, "lte": 5 } }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "integer_range" : { "gte": 1, "lte": 3 } }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "integer_range" : { "gte": 4, "lte": 5 } }
 
   - do:
       index:
         index: test
-        id: 4
+        id: "4"
         body: { "integer_range" : null }
 
   - do:
@@ -98,19 +98,19 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "long_range" : { "gte": 1, "lte": 5 } }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "long_range" : { "gte": 1, "lte": 3 } }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "long_range" : { "gte": 4, "lte": 5 } }
 
 
@@ -158,19 +158,19 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "float_range" : { "gte": 1, "lte": 5 } }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "float_range" : { "gte": 1, "lte": 3 } }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "float_range" : { "gte": 4, "lte": 5 } }
 
 
@@ -218,19 +218,19 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "double_range" : { "gte": 1, "lte": 5 } }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "double_range" : { "gte": 1, "lte": 3 } }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "double_range" : { "gte": 4, "lte": 5 } }
 
 
@@ -278,19 +278,19 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "ip_range" : { "gte": "192.168.0.1", "lte": "192.168.0.5" } }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "ip_range" : { "gte": "192.168.0.1", "lte": "192.168.0.3" } }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "ip_range" : { "gte": "192.168.0.4", "lte": "192.168.0.5" } }
 
 
@@ -338,19 +338,19 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "date_range" : { "gte": "2017-09-01", "lte": "2017-09-05" } }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "date_range" : { "gte": "2017-09-01", "lte": "2017-09-03" } }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "date_range" : { "gte": "2017-09-04", "lte": "2017-09-05" } }
 
 
@@ -401,19 +401,19 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "date_range" : { "gte": "2019-12-14T12:00:00.000Z", "lte": "2019-12-14T13:00:00.000Z" } }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body: { "date_range" : { "gte": "2019-12-15T12:00:00.000Z", "lte": "2019-12-15T13:00:00.000Z" } }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "date_range" : { "gte": "2019-12-16T12:00:00.000Z", "lte": "2019-12-16T13:00:00.000Z" } }
 
 

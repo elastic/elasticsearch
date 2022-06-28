@@ -1,0 +1,6 @@
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+
+dependencies {
+  testImplementation project(":test:framework")
+}

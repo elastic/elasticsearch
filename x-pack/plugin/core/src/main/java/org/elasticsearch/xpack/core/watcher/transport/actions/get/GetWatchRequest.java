@@ -22,8 +22,7 @@ public class GetWatchRequest extends ActionRequest {
 
     private String id;
 
-    public GetWatchRequest() {
-    }
+    public GetWatchRequest() {}
 
     /**
      * @param id name (id) of the watch to retrieve
@@ -60,7 +59,6 @@ public class GetWatchRequest extends ActionRequest {
         return validationException;
     }
 
-
     /**
      * @return The name of the watch to retrieve
      */
@@ -70,6 +68,6 @@ public class GetWatchRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "get [" + id +"]";
+        return "get [" + id + "]";
     }
 }

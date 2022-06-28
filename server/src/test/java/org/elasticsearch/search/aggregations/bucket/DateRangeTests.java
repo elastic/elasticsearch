@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -32,9 +32,11 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
                 key = randomAlphaOfLengthBetween(1, 20);
             }
             double from = randomBoolean() ? Double.NEGATIVE_INFINITY : randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE - 1000);
-            double to = randomBoolean() ? Double.POSITIVE_INFINITY
-                    : (Double.isInfinite(from) ? randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
-                            : randomIntBetween((int) from, Integer.MAX_VALUE));
+            double to = randomBoolean()
+                ? Double.POSITIVE_INFINITY
+                : (Double.isInfinite(from)
+                    ? randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
+                    : randomIntBetween((int) from, Integer.MAX_VALUE));
             if (randomBoolean()) {
                 factory.addRange(new Range(key, from, to));
             } else {
@@ -60,16 +62,18 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
     }
 
     public void testParsingRangeStrict() throws IOException {
-        final String rangeAggregation = "{\n" +
-                "\"field\" : \"date\",\n" +
-                "\"format\" : \"yyyy-MM-dd\",\n" +
-                "\"ranges\" : [\n" +
-                "    { \"from\" : \"2017-01-01\", \"to\" : \"2017-01-02\", \"badField\" : \"abcd\" }\n" +
-                "]\n" +
-            "}";
+        final String rangeAggregation = "{\n"
+            + "\"field\" : \"date\",\n"
+            + "\"format\" : \"yyyy-MM-dd\",\n"
+            + "\"ranges\" : [\n"
+            + "    { \"from\" : \"2017-01-01\", \"to\" : \"2017-01-02\", \"badField\" : \"abcd\" }\n"
+            + "]\n"
+            + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
-        XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> DateRangeAggregationBuilder.PARSER.parse(parser, "aggregationName"));
+        XContentParseException ex = expectThrows(
+            XContentParseException.class,
+            () -> DateRangeAggregationBuilder.PARSER.parse(parser, "aggregationName")
+        );
         assertThat(ex.getCause(), notNullValue());
         assertThat(ex.getCause().getMessage(), containsString("badField"));
     }

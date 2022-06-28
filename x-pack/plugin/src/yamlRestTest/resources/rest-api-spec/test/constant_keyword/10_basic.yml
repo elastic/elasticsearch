@@ -1,7 +1,7 @@
 setup:
 
   - skip:
-      version: " - 7.99.99" # TODO: make it 7.6.99 after backport
+      version: " - 7.6.99"
       reason: "constant_keyword was added in 7.7"
 
   - do:
@@ -31,19 +31,19 @@ setup:
   - do:
       index:
         index: test1
-        id:    1
+        id:    "1"
         body:  {}
 
   - do:
       index:
         index: test1
-        id:    2
+        id:    "2"
         body:  { "foo": "bar" }
 
   - do:
       index:
         index: test2
-        id:    1
+        id:    "1"
         body:  {}
 
   - do:

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
 
@@ -16,8 +16,11 @@ public class BucketInfluencerTests extends AbstractXContentTestCase<BucketInflue
 
     @Override
     protected BucketInfluencer createTestInstance() {
-        BucketInfluencer bucketInfluencer = new BucketInfluencer(randomAlphaOfLengthBetween(1, 20), new Date(randomNonNegativeLong()),
-                randomNonNegativeLong());
+        BucketInfluencer bucketInfluencer = new BucketInfluencer(
+            randomAlphaOfLengthBetween(1, 20),
+            new Date(randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
         if (randomBoolean()) {
             bucketInfluencer.setAnomalyScore(randomDouble());
         }

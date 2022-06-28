@@ -15,9 +15,9 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionPre78;
@@ -49,10 +49,11 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         private final boolean deferValidation;
         private TransformConfig config;
 
-        public Request(TransformConfigUpdate update, String id, boolean deferValidation) {
+        public Request(TransformConfigUpdate update, String id, boolean deferValidation, TimeValue timeout) {
             this.update = update;
             this.id = id;
             this.deferValidation = deferValidation;
+            this.setTimeout(timeout);
         }
 
         // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
@@ -71,11 +72,16 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return new Request(in);
             }
             UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(in);
-            return new Request(r.getUpdate(), r.getId(), r.isDeferValidation());
+            return new Request(r.getUpdate(), r.getId(), r.isDeferValidation(), r.timeout());
         }
 
-        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation);
+        public static Request fromXContent(
+            final XContentParser parser,
+            final String id,
+            final boolean deferValidation,
+            final TimeValue timeout
+        ) {
+            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation, timeout);
         }
 
         /**
@@ -151,7 +157,8 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public int hashCode() {
-            return Objects.hash(update, id, deferValidation, config);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(getTimeout(), update, id, deferValidation, config);
         }
 
         @Override
@@ -163,10 +170,13 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return false;
             }
             Request other = (Request) obj;
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
             return Objects.equals(update, other.update)
                 && this.deferValidation == other.deferValidation
                 && this.id.equals(other.id)
-                && Objects.equals(config, other.config);
+                && Objects.equals(config, other.config)
+                && getTimeout().equals(other.getTimeout());
         }
     }
 

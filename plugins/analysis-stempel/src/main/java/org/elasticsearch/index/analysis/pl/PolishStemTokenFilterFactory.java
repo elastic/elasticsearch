@@ -17,16 +17,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-
-
-
 public class PolishStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public PolishStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 
-    @Override public TokenStream create(TokenStream tokenStream) {
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
         return new StempelFilter(tokenStream, new StempelStemmer(PolishAnalyzer.getDefaultTable()));
     }
 }

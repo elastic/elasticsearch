@@ -20,19 +20,24 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0,
-    autoManageMasterNodes = false)
+@ClusterScope(
+    scope = ESIntegTestCase.Scope.TEST,
+    numDataNodes = 0,
+    numClientNodes = 0,
+    transportClientRatio = 0.0,
+    autoManageMasterNodes = false
+)
 public class IndicesExistsIT extends ESIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        Settings settings = Settings.builder()
-            .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 99).build();
+        Settings settings = Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 99).build();
         String node = internalCluster().startNode(settings);
 
         assertRequestBuilderThrows(
             client(node).admin().indices().prepareExists("test").setMasterNodeTimeout(TimeValue.timeValueSeconds(0)),
-            MasterNotDiscoveredException.class);
+            MasterNotDiscoveredException.class
+        );
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node)); // shut down node so that test properly cleans up
     }

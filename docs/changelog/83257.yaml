@@ -1,0 +1,5 @@
+pr: 83257
+summary: Forward deprecations from search response to transform `_preview` API response
+area: Transform
+type: upgrade
+issues: []

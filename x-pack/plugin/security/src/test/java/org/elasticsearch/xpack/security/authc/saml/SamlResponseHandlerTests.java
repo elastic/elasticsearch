@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.XMLCipher;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import javax.crypto.Cipher;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 import javax.xml.crypto.dsig.DigestMethod;
@@ -126,11 +127,19 @@ public class SamlResponseHandlerTests extends SamlTestCase {
     protected SpConfiguration getSpConfiguration(List<String> reqAuthnCtxClassRef) {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(
             Collections.singleton("*"),
-                (X509Credential) buildOpenSamlCredential(spSigningCertificatePair).get(0));
+            (X509Credential) buildOpenSamlCredential(spSigningCertificatePair).get(0)
+        );
         final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
-                .map((cred) -> (X509Credential) cred).collect(Collectors.<X509Credential>toList());
-        return new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, SP_LOGOUT_URL, signingConfiguration, spEncryptionCredentials,
-            reqAuthnCtxClassRef);
+            .map((cred) -> (X509Credential) cred)
+            .collect(Collectors.<X509Credential>toList());
+        return new SpConfiguration(
+            SP_ENTITY_ID,
+            SP_ACS_URL,
+            SP_LOGOUT_URL,
+            signingConfiguration,
+            spEncryptionCredentials,
+            reqAuthnCtxClassRef
+        );
     }
 
     protected IdpConfiguration getIdpConfiguration(Supplier<List<Credential>> credentials) {
@@ -159,26 +168,33 @@ public class SamlResponseHandlerTests extends SamlTestCase {
     protected String getSignatureAlgorithmURI(PrivateKey key) {
         String algoUri = null;
         switch (key.getAlgorithm()) {
-        case "RSA":
-            algoUri = randomFrom("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
-                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512");
-            break;
-        case "DSA":
-            algoUri = "http://www.w3.org/2009/xmldsig11#dsa-sha256";
-            break;
-        case "EC":
-            algoUri = randomFrom("http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256",
-                    "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512");
-            break;
-        default:
-            throw new IllegalArgumentException("Unsupported algorithm : " + key.getAlgorithm()
-                    + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]");
+            case "RSA":
+                algoUri = randomFrom(
+                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"
+                );
+                break;
+            case "DSA":
+                algoUri = "http://www.w3.org/2009/xmldsig11#dsa-sha256";
+                break;
+            case "EC":
+                algoUri = randomFrom(
+                    "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256",
+                    "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512"
+                );
+                break;
+            default:
+                throw new IllegalArgumentException(
+                    "Unsupported algorithm : "
+                        + key.getAlgorithm()
+                        + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]"
+                );
         }
         return algoUri;
     }
 
     protected void signElement(Element parent, String c14nMethod) throws Exception {
-        //We need to explicitly set the Id attribute, "ID" is just our convention
+        // We need to explicitly set the Id attribute, "ID" is just our convention
         parent.setIdAttribute("ID", true);
         final String refID = "#" + parent.getAttribute("ID");
         final X509Certificate certificate = idpSigningCertificatePair.v1();
@@ -211,13 +227,14 @@ public class SamlResponseHandlerTests extends SamlTestCase {
         signature.sign(dsc);
     }
 
-    protected void signSignableObject(
-        SignableSAMLObject signableObject, String c14nMethod, Tuple<X509Certificate, PrivateKey> keyPair)
+    protected void signSignableObject(SignableSAMLObject signableObject, String c14nMethod, Tuple<X509Certificate, PrivateKey> keyPair)
         throws Exception {
         final Signature signature = SamlUtils.buildObject(Signature.class, Signature.DEFAULT_ELEMENT_NAME);
         final Credential credential = new BasicCredential(keyPair.v1().getPublicKey(), keyPair.v2());
-        final org.opensaml.xmlsec.signature.KeyInfo kf = SamlUtils.buildObject(org.opensaml.xmlsec.signature.KeyInfo.class,
-            org.opensaml.xmlsec.signature.KeyInfo.DEFAULT_ELEMENT_NAME);
+        final org.opensaml.xmlsec.signature.KeyInfo kf = SamlUtils.buildObject(
+            org.opensaml.xmlsec.signature.KeyInfo.class,
+            org.opensaml.xmlsec.signature.KeyInfo.DEFAULT_ELEMENT_NAME
+        );
         KeyInfoSupport.addCertificate(kf, keyPair.v1());
         signature.setSigningCredential(credential);
         signature.setSignatureAlgorithm(getSignatureAlgorithmURI(keyPair.v2()));

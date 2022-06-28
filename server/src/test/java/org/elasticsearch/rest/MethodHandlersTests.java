@@ -19,9 +19,7 @@ public class MethodHandlersTests extends ESTestCase {
     public void testLookupForDifferentMethods() {
         RestHandler putHandler = (request, channel, client) -> {};
         RestHandler postHandler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, putHandler)
-            .addMethod(POST, postHandler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, putHandler).addMethod(POST, postHandler);
 
         RestHandler found = methodHandlers.getHandler(PUT);
         assertThat(found, sameInstance(putHandler));
@@ -29,9 +27,7 @@ public class MethodHandlersTests extends ESTestCase {
 
     public void testLookupForHandlerUnderMultipleMethods() {
         RestHandler handler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, handler)
-            .addMethod(POST, handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, handler).addMethod(POST, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT);
         assertThat(found, sameInstance(handler));
@@ -42,8 +38,7 @@ public class MethodHandlersTests extends ESTestCase {
 
     public void testExceptionOnOverride() {
         RestHandler handler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, handler);
 
         expectThrows(IllegalArgumentException.class, () -> methodHandlers.addMethod(PUT, handler));
     }

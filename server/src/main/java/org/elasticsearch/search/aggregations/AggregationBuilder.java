@@ -7,29 +7,33 @@
  */
 package org.elasticsearch.search.aggregations;
 
-
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
+    implements
+        NamedWriteable,
+        ToXContentFragment,
+        BaseAggregationBuilder,
+        Rewriteable<AggregationBuilder> {
     public static final long DEFAULT_PREALLOCATION = 1024 * 6;
 
     protected final String name;
@@ -154,8 +158,11 @@ public abstract class AggregationBuilder
      * instead of <strong>per parent bucket</strong>.
      */
     public enum BucketCardinality {
-        NONE, ONE, MANY;
+        NONE,
+        ONE,
+        MANY;
     }
+
     /**
      * A rough count of the number of buckets that {@link Aggregator}s built
      * by this builder will contain per owning parent bucket.
@@ -182,5 +189,39 @@ public abstract class AggregationBuilder
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Return true if any of the child aggregations is a time-series aggregation that requires an in-order execution
+     */
+    public boolean isInSortOrderExecutionRequired() {
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.isInSortOrderExecutionRequired()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Called by aggregations whose parents must be sequentially ordered.
+     * @param type the type of the aggregation being validated
+     * @param name the name of the aggregation being validated
+     * @param addValidationError callback to add validation errors
+     */
+    protected void validateSequentiallyOrdered(String type, String name, Consumer<String> addValidationError) {
+        addValidationError.accept(
+            type + " aggregation [" + name + "] must have a histogram, date_histogram or auto_date_histogram as parent"
+        );
+    }
+
+    /**
+     * Called by aggregations whose parents must be sequentially ordered without any gaps.
+     * @param type the type of the aggregation being validated
+     * @param name the name of the aggregation being validated
+     * @param addValidationError callback to add validation errors
+     */
+    protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
+        validateSequentiallyOrdered(type, name, addValidationError);
     }
 }

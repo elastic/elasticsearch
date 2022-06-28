@@ -11,8 +11,8 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -56,8 +56,7 @@ public final class PutRoleRequest implements Validatable, ToXContentObject {
         }
         final PutRoleRequest other = (PutRoleRequest) obj;
 
-        return (refreshPolicy == other.getRefreshPolicy()) &&
-               Objects.equals(role, other.role);
+        return (refreshPolicy == other.getRefreshPolicy()) && Objects.equals(role, other.role);
     }
 
     @Override

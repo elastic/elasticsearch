@@ -41,6 +41,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.SystemIndexManager.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
@@ -50,12 +52,25 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     private final SystemIndices systemIndices;
 
     @Inject
-    public TransportUpdateSettingsAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, MetadataUpdateSettingsService updateSettingsService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         SystemIndices systemIndices) {
-        super(UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateSettingsRequest::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportUpdateSettingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataUpdateSettingsService updateSettingsService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
+        super(
+            UpdateSettingsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            UpdateSettingsRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.updateSettingsService = updateSettingsService;
         this.systemIndices = systemIndices;
     }
@@ -73,13 +88,16 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final UpdateSettingsRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         final Settings requestSettings = request.settings();
 
@@ -91,27 +109,25 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                     .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
                     .collect(Collectors.joining(", "))
                 + ". This will not work in the next major version";
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access", message);
         }
 
-        final List<String> hiddenSystemIndexViolations
-            = checkForHidingSystemIndex(concreteIndices, request);
+        final List<String> hiddenSystemIndexViolations = checkForHidingSystemIndex(concreteIndices, request);
         if (hiddenSystemIndexViolations.isEmpty() == false) {
             final String message = "Cannot set [index.hidden] to 'true' on system indices: "
-                + hiddenSystemIndexViolations.stream()
-                    .map(entry -> "[" + entry + "]")
-                    .collect(Collectors.joining(", "));
+                + hiddenSystemIndexViolations.stream().map(entry -> "[" + entry + "]").collect(Collectors.joining(", "));
             logger.warn(message);
             listener.onFailure(new IllegalStateException(message));
             return;
         }
 
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                .indices(concreteIndices)
-                .settings(requestSettings)
-                .setPreserveExisting(request.isPreserveExisting())
-                .ackTimeout(request.timeout())
-                .masterNodeTimeout(request.masterNodeTimeout());
+        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
+            concreteIndices
+        )
+            .settings(requestSettings)
+            .setPreserveExisting(request.isPreserveExisting())
+            .ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
             logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), e);
@@ -143,6 +159,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 final Settings descriptorSettings = descriptor.getSettings();
                 List<String> failedKeys = new ArrayList<>();
                 for (String key : requestSettings.keySet()) {
+                    if (MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST.contains(key)) {
+                        // Don't check the setting if it's on the allowlist.
+                        continue;
+                    }
                     final String expectedValue = descriptorSettings.get(key);
                     final String actualValue = requestSettings.get(key);
 

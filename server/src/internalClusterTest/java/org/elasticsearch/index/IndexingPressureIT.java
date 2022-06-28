@@ -19,10 +19,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -51,10 +51,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(unboundedWriteQueue)
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(unboundedWriteQueue).build();
     }
 
     @Override
@@ -73,9 +70,12 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     public void testWriteBytesAreIncremented() throws Exception {
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -163,11 +163,12 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
             if (usePrimaryAsCoordinatingNode) {
                 assertBusy(() -> {
-                    assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                        greaterThan(bulkShardRequestSize + secondBulkRequestSize));
+                    assertThat(
+                        primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                        greaterThan(bulkShardRequestSize + secondBulkRequestSize)
+                    );
                     assertEquals(secondBulkRequestSize, primaryWriteLimits.getCurrentCoordinatingBytes());
-                    assertThat(primaryWriteLimits.getCurrentPrimaryBytes(),
-                        greaterThan(bulkShardRequestSize + secondBulkRequestSize));
+                    assertThat(primaryWriteLimits.getCurrentPrimaryBytes(), greaterThan(bulkShardRequestSize + secondBulkRequestSize));
 
                     assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
                     assertEquals(0, replicaWriteLimits.getCurrentCoordinatingBytes());
@@ -181,8 +182,12 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 assertEquals(0, replicaWriteLimits.getCurrentPrimaryBytes());
             }
             assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertBusy(() -> assertThat(replicaWriteLimits.getCurrentReplicaBytes(),
-                greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));
+            assertBusy(
+                () -> assertThat(
+                    replicaWriteLimits.getCurrentReplicaBytes(),
+                    greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)
+                )
+            );
 
             replicaRelease.close();
 
@@ -229,12 +234,16 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
         final long bulkRequestSize = bulkRequest.ramBytesUsed();
         final long bulkShardRequestSize = totalRequestSize;
-        restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-            (long) (bulkShardRequestSize * 1.5) + "B").build());
+        restartNodesWithSettings(
+            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -293,12 +302,16 @@ public class IndexingPressureIT extends ESIntegTestCase {
             bulkRequest.add(request);
         }
         final long bulkShardRequestSize = totalRequestSize;
-        restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-            (long)(bulkShardRequestSize * 1.5) + "B").build());
+        restartNodesWithSettings(
+            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+        );
 
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -342,9 +355,12 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
     public void testWritesWillSucceedIfBelowThreshold() throws Exception {
         restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1MB").build());
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -382,8 +398,8 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next()
-            .value.getName();
+        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next().value
+            .getName();
     }
 
     private Tuple<String, String> getPrimaryReplicaNodeNames() {
@@ -410,7 +426,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         final CountDownLatch blockReplication = new CountDownLatch(1);
         final int threads = threadPool.info(ThreadPool.Names.WRITE).getMax();
         final CountDownLatch pointReached = new CountDownLatch(threads);
-        for (int i = 0; i< threads; ++i) {
+        for (int i = 0; i < threads; ++i) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
                 try {
                     pointReached.countDown();

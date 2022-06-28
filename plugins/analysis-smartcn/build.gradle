@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description 'Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.'
@@ -24,12 +24,4 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.elasticsearch.index.analysis.SmartChineseAnalyzerProvider',
-    'org.elasticsearch.index.analysis.SmartChineseNoOpTokenFilterFactory',
-    'org.elasticsearch.index.analysis.SmartChineseStopTokenFilterFactory',
-    'org.elasticsearch.index.analysis.SmartChineseTokenizerTokenizerFactory' 
 }

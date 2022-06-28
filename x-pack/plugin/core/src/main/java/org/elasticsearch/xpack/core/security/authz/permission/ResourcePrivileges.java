@@ -80,8 +80,8 @@ public final class ResourcePrivileges {
             return this;
         }
 
-        public Builder addPrivileges(Map<String, Boolean> privileges) {
-            for (Entry<String, Boolean> entry : privileges.entrySet()) {
+        public Builder addPrivileges(Map<String, Boolean> privilegeMap) {
+            for (Entry<String, Boolean> entry : privilegeMap.entrySet()) {
                 addPrivilege(entry.getKey(), entry.getValue());
             }
             return this;

@@ -32,14 +32,14 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_1: "bar"
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_1: "baz"
 
@@ -65,7 +65,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_2: ["bar", "foo"]
 
@@ -106,7 +106,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_3:
             input: "bar"
@@ -115,7 +115,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_3:
             input: "baz"
@@ -145,7 +145,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_4:
             - input: "bar"
@@ -156,7 +156,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_4:
             - input: "baz"
@@ -203,7 +203,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_5a: "bar"
           suggest_5b: "baz"
@@ -245,7 +245,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_6:
             input: "bar"
@@ -256,7 +256,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_6:
             input: "baz"
@@ -299,14 +299,14 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_1: "bar"
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_1: "bar"
 

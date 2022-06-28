@@ -1,0 +1,5 @@
+pr: 83764
+summary: Short circuit date patterns after first match
+area: Ingest
+type: bug
+issues: []

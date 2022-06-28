@@ -13,20 +13,20 @@ import org.elasticsearch.test.ESTestCase;
 public class DeleteCalendarJobRequestTests extends ESTestCase {
 
     public void testWithNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class,
-            () -> new DeleteCalendarJobRequest(null, "job1"));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteCalendarJobRequest(null, "job1"));
         assertEquals("[calendar_id] must not be null.", ex.getMessage());
     }
 
     public void testSetJobIds() {
         String calendarId = randomAlphaOfLength(10);
 
-        NullPointerException ex = expectThrows(NullPointerException.class,
-            () ->new DeleteCalendarJobRequest(calendarId, "job1", null));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteCalendarJobRequest(calendarId, "job1", null));
         assertEquals("jobIds must not contain null values.", ex.getMessage());
 
-        IllegalArgumentException illegalArgumentException =
-            expectThrows(IllegalArgumentException.class, () -> new DeleteCalendarJobRequest(calendarId));
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeleteCalendarJobRequest(calendarId)
+        );
         assertEquals("jobIds must not be empty.", illegalArgumentException.getMessage());
     }
 }

@@ -1,6 +1,5 @@
 [[point]]
 [role="xpack"]
-[testenv="basic"]
 === Point field type
 ++++
 <titleabbrev>Point</titleabbrev>

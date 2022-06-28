@@ -22,10 +22,15 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     protected final Map<String, ValuesSourceConfig> configs;
     protected final DocValueFormat format;
 
-    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                              DocValueFormat format, AggregationContext context,
-                                              AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metadata) throws IOException {
+    public MultiValuesSourceAggregatorFactory(
+        String name,
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
         this.format = format;

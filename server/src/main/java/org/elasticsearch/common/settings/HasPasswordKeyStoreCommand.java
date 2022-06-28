@@ -22,8 +22,9 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
     static final int NO_PASSWORD_EXIT_CODE = 1;
 
     HasPasswordKeyStoreCommand() {
-        super("Succeeds if the keystore exists and is password-protected, " +
-            "fails with exit code " + NO_PASSWORD_EXIT_CODE + " otherwise.");
+        super(
+            "Succeeds if the keystore exists and is password-protected, " + "fails with exit code " + NO_PASSWORD_EXIT_CODE + " otherwise."
+        );
     }
 
     @Override

@@ -40,19 +40,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch fold = new Batch("Fold queries",
-                new FoldProject(),
-                new FoldFilter(),
-                new FoldOrderBy(),
-                new FoldLimit()
-        );
-        Batch finish = new Batch("Finish query", Limiter.ONCE,
-                new PlanOutputToQueryRef()
-        );
+        Batch fold = new Batch("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
+        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
 
         return Arrays.asList(fold, finish);
     }
-
 
     private static class FoldProject extends QueryFoldingRule<ProjectExec> {
 

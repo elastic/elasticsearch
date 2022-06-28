@@ -101,10 +101,10 @@ public class SimulatedAnealingMinimizer {
         double error = 0;
         double[] predictions = model.predict(train, test.length);
 
-        assert(predictions.length == test.length);
+        assert (predictions.length == test.length);
 
         for (int i = 0; i < predictions.length; i++) {
-            error += Math.abs(test[i] - predictions[i]) ;
+            error += Math.abs(test[i] - predictions[i]);
         }
 
         return error;

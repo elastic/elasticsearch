@@ -33,19 +33,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "str": "bcd" }
 
   - do:
@@ -66,19 +66,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "ip": "::1" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "ip": "127.0.0.1" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "ip": "::1" }
 
   - do:
@@ -124,19 +124,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "boolean": true }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "boolean": false }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "boolean": true }
 
   - do:
@@ -157,19 +157,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "integer": 1234 }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "integer": 5678 }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "integer": 1234 }
 
   - do:
@@ -192,19 +192,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "date": "2016-05-03" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "date": "2014-09-01" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "date": "2016-05-03" }
 
   - do:
@@ -243,7 +243,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -262,7 +262,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -281,7 +281,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -300,7 +300,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -323,21 +323,21 @@ setup:
       index:
         refresh: true
         index: test_1
-        id: 1
+        id: "1"
         body: { "str" : "abc", "number": 1 }
 
   - do:
       index:
         refresh: true
         index: test_1
-        id: 2
+        id: "2"
         body: { "str": "abc", "number": 2 }
 
   - do:
       index:
         refresh: true
         index: test_1
-        id: 3
+        id: "3"
         body: { "str": "bcd", "number": 3 }
 
   - do:

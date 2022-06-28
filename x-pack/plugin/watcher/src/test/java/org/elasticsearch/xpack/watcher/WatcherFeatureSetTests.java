@@ -15,16 +15,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
@@ -35,24 +36,24 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WatcherFeatureSetTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private Client client;
 
     @Before
     public void init() throws Exception {
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -63,7 +64,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         WatcherFeatureSet featureSet = new WatcherFeatureSet(Settings.EMPTY, licenseState, client);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
+        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -84,8 +85,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<WatcherStatsResponse> listener =
-                    (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
+            ActionListener<WatcherStatsResponse> listener = (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
 
             List<WatcherStatsResponse.Node> nodes = new ArrayList<>();
             DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -104,8 +104,9 @@ public class WatcherFeatureSetTests extends ESTestCase {
             secondNode.setStats(secondCounters);
             nodes.add(secondNode);
 
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false),
-                    nodes, Collections.emptyList()));
+            listener.onResponse(
+                new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false), nodes, Collections.emptyList())
+            );
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 

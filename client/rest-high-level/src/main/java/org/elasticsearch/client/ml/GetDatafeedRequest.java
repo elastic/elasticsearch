@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +41,9 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
         "get_datafeed_request",
-        true, a -> new GetDatafeedRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0]));
+        true,
+        a -> new GetDatafeedRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0])
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), DATAFEED_IDS);
@@ -129,9 +131,9 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
         }
 
         GetDatafeedRequest that = (GetDatafeedRequest) other;
-        return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch) &&
-            Objects.equals(excludeGenerated, that.excludeGenerated);
+        return Objects.equals(datafeedIds, that.datafeedIds)
+            && Objects.equals(allowNoMatch, that.allowNoMatch)
+            && Objects.equals(excludeGenerated, that.excludeGenerated);
     }
 
     @Override
@@ -139,7 +141,7 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
         builder.startObject();
 
         if (datafeedIds.isEmpty() == false) {
-            builder.field(DATAFEED_IDS.getPreferredName(), datafeedIds);
+            builder.stringListField(DATAFEED_IDS.getPreferredName(), datafeedIds);
         }
 
         if (allowNoMatch != null) {

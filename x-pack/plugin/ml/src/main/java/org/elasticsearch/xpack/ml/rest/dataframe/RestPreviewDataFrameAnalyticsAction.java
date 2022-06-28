@@ -12,8 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -59,9 +59,9 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
                 DataFrameAnalyticsConfig.ID.getPreferredName()
             );
         }
-        final PreviewDataFrameAnalyticsAction.Request.Builder requestBuilder = Strings.isNullOrEmpty(jobId) ?
-            PreviewDataFrameAnalyticsAction.Request.fromXContent(restRequest.contentOrSourceParamParser()) :
-            new PreviewDataFrameAnalyticsAction.Request.Builder();
+        final PreviewDataFrameAnalyticsAction.Request.Builder requestBuilder = Strings.isNullOrEmpty(jobId)
+            ? PreviewDataFrameAnalyticsAction.Request.fromXContent(restRequest.contentOrSourceParamParser())
+            : new PreviewDataFrameAnalyticsAction.Request.Builder();
 
         return channel -> {
             RestToXContentListener<PreviewDataFrameAnalyticsAction.Response> listener = new RestToXContentListener<>(channel);
@@ -81,11 +81,7 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        client.execute(
-                            PreviewDataFrameAnalyticsAction.INSTANCE,
-                            requestBuilder.setConfig(jobs.get(0)).build(),
-                            listener
-                        );
+                        client.execute(PreviewDataFrameAnalyticsAction.INSTANCE, requestBuilder.setConfig(jobs.get(0)).build(), listener);
                     }
                 }, listener::onFailure));
             }

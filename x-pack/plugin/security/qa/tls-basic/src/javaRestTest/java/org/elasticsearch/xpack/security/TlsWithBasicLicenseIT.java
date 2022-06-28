@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.AfterClass;
@@ -131,6 +131,4 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
         assertThat(paths, containsInAnyOrder("http.crt", "transport.crt", "ca.crt"));
     }
 
-
 }
-

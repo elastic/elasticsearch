@@ -34,6 +34,7 @@ import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
 
+@SuppressWarnings("removal")
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
@@ -44,6 +45,11 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private final String query;
     private final String name;
     private final long[] eventIds;
+    /**
+     * Join keys can be of multiple types, but toml is very restrictive and doesn't allow mixed types values in the same array of values
+     * For now, every value will be converted to a String.
+     */
+    private final String[] joinKeys;
 
     @Before
     public void setup() throws Exception {
@@ -78,18 +84,19 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 name = "" + (counter);
             }
 
-            results.add(new Object[] { spec.query(), name, spec.expectedEventIds() });
+            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys() });
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds) {
+    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
         this.index = index;
 
         this.query = query;
         this.name = name;
         this.eventIds = eventIds;
+        this.joinKeys = joinKeys;
     }
 
     public void test() throws Exception {
@@ -100,11 +107,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         Hits hits = response.hits();
         if (hits.events() != null) {
             assertEvents(hits.events());
-        }
-        else if (hits.sequences() != null) {
+        } else if (hits.sequences() != null) {
             assertSequences(hits.sequences());
-        }
-        else {
+        } else {
             fail("No events or sequences found");
         }
     }
@@ -124,7 +129,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         return runRequest(eqlClient(), request);
     }
 
-    protected  EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
+    protected EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
         int timeout = Math.toIntExact(timeout().millis());
 
         RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)
@@ -132,7 +137,12 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             .setConnectTimeout(timeout)
             .setSocketTimeout(timeout)
             .build();
-        return eqlClient.search(request, RequestOptions.DEFAULT.toBuilder().setRequestConfig(config).build());
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        Boolean ccsMinimizeRoundtrips = ccsMinimizeRoundtrips();
+        if (ccsMinimizeRoundtrips != null) {
+            optionsBuilder.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
+        }
+        return eqlClient.search(request, optionsBuilder.setRequestConfig(config).build());
     }
 
     protected EqlClient eqlClient() {
@@ -156,9 +166,18 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
         long[] expected = eventIds;
         long[] actual = extractIds(events);
-        assertArrayEquals(LoggerMessageFormat.format(null, "unexpected result for spec[{}] [{}] -> {} vs {}", name, query, Arrays.toString(
-                expected), Arrays.toString(actual)),
-                expected, actual);
+        assertArrayEquals(
+            LoggerMessageFormat.format(
+                null,
+                "unexpected result for spec[{}] [{}] -> {} vs {}",
+                name,
+                query,
+                Arrays.toString(expected),
+                Arrays.toString(actual)
+            ),
+            expected,
+            actual
+        );
     }
 
     private String eventsToString(List<Event> events) {
@@ -182,10 +201,54 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     protected void assertSequences(List<Sequence> sequences) {
-        List<Event> events = sequences.stream()
-                .flatMap(s -> s.events().stream())
-                .collect(toList());
+        List<Event> events = sequences.stream().flatMap(s -> s.events().stream()).collect(toList());
         assertEvents(events);
+        List<Object> keys = sequences.stream().flatMap(s -> s.joinKeys().stream()).collect(toList());
+        assertEvents(events);
+        assertJoinKeys(keys);
+    }
+
+    private void assertJoinKeys(List<Object> keys) {
+        logger.debug("Join keys {}", new Object() {
+            public String toString() {
+                return keysToString(keys);
+            }
+        });
+
+        if (joinKeys == null || joinKeys.length == 0) {
+            return;
+        }
+        String[] actual = new String[keys.size()];
+        int i = 0;
+        for (Object key : keys) {
+            if (key == null) {
+                actual[i] = "null";
+            } else {
+                actual[i] = key.toString();
+            }
+            i++;
+        }
+        assertArrayEquals(
+            LoggerMessageFormat.format(
+                null,
+                "unexpected result for spec[{}] [{}] -> {} vs {}",
+                name,
+                query,
+                Arrays.toString(joinKeys),
+                Arrays.toString(actual)
+            ),
+            joinKeys,
+            actual
+        );
+    }
+
+    private String keysToString(List<Object> keys) {
+        StringJoiner sj = new StringJoiner(",", "[", "]");
+        for (Object key : keys) {
+            sj.add(key.toString());
+            sj.add("\n");
+        }
+        return sj.toString();
     }
 
     @Override

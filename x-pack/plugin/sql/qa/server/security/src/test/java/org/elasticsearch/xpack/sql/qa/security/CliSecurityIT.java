@@ -152,10 +152,11 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         public void expectShowTables(List<String> tables, String user) throws Exception {
             try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
                 String tablesOutput = cli.command("SHOW TABLES");
+                assertThat(tablesOutput, containsString("catalog"));
                 assertThat(tablesOutput, containsString("name"));
                 assertThat(tablesOutput, containsString("type"));
                 assertThat(tablesOutput, containsString("kind"));
-                assertEquals("---------------+---------------+---------------", cli.readLine());
+                assertEquals("---------------+---------------+---------------+---------------", cli.readLine());
                 for (String table : tables) {
                     String line = null;
                     /*
@@ -163,7 +164,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                      * `.security6` index but it might not have created the index
                      * by the time the test runs.
                      */
-                    while (line == null || line.startsWith(".security")) {
+                    while (line == null || line.contains("|.security")) {
                         line = cli.readLine();
                     }
                     assertThat(line, containsString(table));

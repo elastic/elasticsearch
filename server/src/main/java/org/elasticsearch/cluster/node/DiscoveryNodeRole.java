@@ -9,11 +9,11 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
@@ -111,10 +111,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DiscoveryNodeRole that = (DiscoveryNodeRole) o;
-        return roleName.equals(that.roleName) &&
-            roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
-            canContainData == that.canContainData &&
-            isKnownRole == that.isKnownRole;
+        return roleName.equals(that.roleName)
+            && roleNameAbbreviation.equals(that.roleNameAbbreviation)
+            && canContainData == that.canContainData
+            && isKnownRole == that.isKnownRole;
     }
 
     @Override
@@ -129,12 +129,17 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     @Override
     public final String toString() {
-        return "DiscoveryNodeRole{" +
-                "roleName='" + roleName + '\'' +
-                ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
-                ", canContainData=" + canContainData +
-                (isKnownRole ? "" : ", isKnownRole=false") +
-                '}';
+        return "DiscoveryNodeRole{"
+            + "roleName='"
+            + roleName
+            + '\''
+            + ", roleNameAbbreviation='"
+            + roleNameAbbreviation
+            + '\''
+            + ", canContainData="
+            + canContainData
+            + (isKnownRole ? "" : ", isKnownRole=false")
+            + '}';
     }
 
     /**
@@ -159,11 +164,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_content",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+            return Setting.boolSetting("node.data_content", settings ->
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
                 Setting.Property.Deprecated,
                 Setting.Property.NodeScope
             );
@@ -184,11 +187,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_hot",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+            return Setting.boolSetting("node.data_hot", settings ->
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
                 Setting.Property.Deprecated,
                 Setting.Property.NodeScope
             );
@@ -209,11 +210,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_warm",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+            return Setting.boolSetting("node.data_warm", settings ->
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
                 Setting.Property.Deprecated,
                 Setting.Property.NodeScope
             );
@@ -234,11 +233,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_cold",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+            return Setting.boolSetting("node.data_cold", settings ->
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
                 Setting.Property.Deprecated,
                 Setting.Property.NodeScope
             );
@@ -259,11 +256,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // we do not register these settings, they're not intended to be used externally, only for proper defaults
-            return Setting.boolSetting(
-                "node.data_frozen",
-                settings ->
-                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+            return Setting.boolSetting("node.data_frozen", settings ->
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
                 Setting.Property.Deprecated,
                 Setting.Property.NodeScope
             );
@@ -315,18 +310,17 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     /**
      * The built-in node roles.
      */
-    public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
-        Set.of(
-            DATA_ROLE,
-            INGEST_ROLE,
-            MASTER_ROLE,
-            REMOTE_CLUSTER_CLIENT_ROLE,
-            DATA_CONTENT_NODE_ROLE,
-            DATA_HOT_NODE_ROLE,
-            DATA_WARM_NODE_ROLE,
-            DATA_COLD_NODE_ROLE,
-            DATA_FROZEN_NODE_ROLE
-        ).stream().collect(Sets.toUnmodifiableSortedSet());
+    public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Set.of(
+        DATA_ROLE,
+        INGEST_ROLE,
+        MASTER_ROLE,
+        REMOTE_CLUSTER_CLIENT_ROLE,
+        DATA_CONTENT_NODE_ROLE,
+        DATA_HOT_NODE_ROLE,
+        DATA_WARM_NODE_ROLE,
+        DATA_COLD_NODE_ROLE,
+        DATA_FROZEN_NODE_ROLE
+    ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * The version that {@link #REMOTE_CLUSTER_CLIENT_ROLE} is introduced. Nodes before this version do not have that role even
@@ -334,8 +328,9 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      */
     public static final Version REMOTE_CLUSTER_CLIENT_ROLE_VERSION = Version.V_7_8_0;
 
-    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
-        Collections.unmodifiableSortedSet(new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE)));
+    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES = Collections.unmodifiableSortedSet(
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE))
+    );
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer

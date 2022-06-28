@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobStorageException;
+
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -45,10 +46,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     protected Settings nodeSettings() {
         final String endpoint = System.getProperty("test.azure.endpoint_suffix");
         if (Strings.hasText(endpoint)) {
-            return Settings.builder()
-                .put(super.nodeSettings())
-                .put("azure.client.default.endpoint_suffix", endpoint)
-                .build();
+            return Settings.builder().put(super.nodeSettings()).put("azure.client.default.endpoint_suffix", endpoint).build();
         }
         return super.nodeSettings();
     }
@@ -77,13 +75,17 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository(repoName)
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository(repoName)
             .setType("azure")
-            .setSettings(Settings.builder()
-                .put("container", System.getProperty("test.azure.container"))
-                .put("base_path", System.getProperty("test.azure.base"))
-                .put("max_single_part_upload_size", new ByteSizeValue(1, ByteSizeUnit.MB))
-            ).get();
+            .setSettings(
+                Settings.builder()
+                    .put("container", System.getProperty("test.azure.container"))
+                    .put("base_path", System.getProperty("test.azure.base"))
+                    .put("max_single_part_upload_size", new ByteSizeValue(1, ByteSizeUnit.MB))
+            )
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
             ensureSasTokenPermissions();
@@ -95,17 +97,19 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
-            final AzureBlobServiceClient azureBlobServiceClient =
-                blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
+            final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
             final BlobServiceClient client = azureBlobServiceClient.getSyncClient();
             try {
                 SocketAccess.doPrivilegedException(() -> {
                     final BlobContainerClient blobContainer = client.getBlobContainerClient(blobStore.toString());
                     return blobContainer.exists();
                 });
-                future.onFailure(new RuntimeException(
-                    "The SAS token used in this test allowed for checking container existence. This test only supports tokens " +
-                        "that grant only the documented permission requirements for the Azure repository plugin."));
+                future.onFailure(
+                    new RuntimeException(
+                        "The SAS token used in this test allowed for checking container existence. This test only supports tokens "
+                            + "that grant only the documented permission requirements for the Azure repository plugin."
+                    )
+                );
             } catch (BlobStorageException e) {
                 if (e.getStatusCode() == HttpURLConnection.HTTP_FORBIDDEN) {
                     future.onResponse(null);
@@ -124,8 +128,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repo.threadPool().generic().execute(ActionRunnable.run(future, () -> {
             final BlobContainer blobContainer = repo.blobStore().blobContainer(repo.basePath().add("large_write"));
-            blobContainer.writeBlob(UUIDs.base64UUID(),
-                new ByteArrayInputStream(randomByteArrayOfLength(blobSize)), blobSize, false);
+            blobContainer.writeBlob(UUIDs.base64UUID(), new ByteArrayInputStream(randomByteArrayOfLength(blobSize)), blobSize, false);
             blobContainer.delete();
         }));
         future.get();

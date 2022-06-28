@@ -14,9 +14,9 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 
 /**
  * The {@link NodeAndClusterIdStateListener} listens to cluster state changes and ONLY when receives the first update
@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
  */
 public class NodeAndClusterIdStateListener implements ClusterStateObserver.Listener {
     private static final Logger logger = LogManager.getLogger(NodeAndClusterIdStateListener.class);
-    static final SetOnce<Tuple<String,String>> nodeAndClusterId = new SetOnce<>();
+    static final SetOnce<Tuple<String, String>> nodeAndClusterId = new SetOnce<>();
 
     private NodeAndClusterIdStateListener() {}
 
@@ -62,8 +62,8 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
         setNodeIdAndClusterId(nodeId, clusterUUID);
     }
 
-    void setNodeIdAndClusterId(String nodeId, String clusterUUID){
-        nodeAndClusterId.set(Tuple.tuple(nodeId,clusterUUID));
+    void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
+        nodeAndClusterId.set(Tuple.tuple(nodeId, clusterUUID));
     }
 
     @Override

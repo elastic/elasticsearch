@@ -21,7 +21,7 @@
       index:
           index:  index
           type:   not_doc
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - do:
@@ -31,7 +31,7 @@
       termvectors:
           index: index
           type:  _doc # todo: remove when termvectors support typeless API
-          id:    1
+          id:    "1"
 
  - is_true: found
  - match: {_type: _doc}
@@ -41,6 +41,6 @@
       termvectors:
           index: index
           type:  some_random_type
-          id:    1
+          id:    "1"
 
  - is_false: found 

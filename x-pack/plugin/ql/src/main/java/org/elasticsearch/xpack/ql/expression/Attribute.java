@@ -77,8 +77,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier(), qualifier) ? this : clone(source(), name(), dataType(), qualifier, nullable(), id(),
-                synthetic());
+        return Objects.equals(qualifier(), qualifier)
+            ? this
+            : clone(source(), name(), dataType(), qualifier, nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
@@ -86,8 +87,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withNullability(Nullability nullability) {
-        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), dataType(), qualifier(), nullability, id(),
-                synthetic());
+        return Objects.equals(nullable(), nullability)
+            ? this
+            : clone(source(), name(), dataType(), qualifier(), nullability, id(), synthetic());
     }
 
     public Attribute withId(NameId id) {
@@ -98,8 +100,15 @@ public abstract class Attribute extends NamedExpression {
         return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, qualifier(), nullable(), id(), synthetic());
     }
 
-    protected abstract Attribute clone(Source source, String name, DataType type, String qualifier, Nullability nullability,
-            NameId id, boolean synthetic);
+    protected abstract Attribute clone(
+        Source source,
+        String name,
+        DataType type,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    );
 
     @Override
     public Attribute toAttribute() {
@@ -130,8 +139,7 @@ public abstract class Attribute extends NamedExpression {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             Attribute other = (Attribute) obj;
-            return Objects.equals(qualifier, other.qualifier)
-                    && Objects.equals(nullability, other.nullability);
+            return Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
         }
 
         return false;

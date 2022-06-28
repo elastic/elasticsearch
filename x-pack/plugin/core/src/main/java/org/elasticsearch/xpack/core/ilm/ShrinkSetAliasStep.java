@@ -32,7 +32,7 @@ public class ShrinkSetAliasStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Boolean> listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
         // get source index
         String indexName = indexMetadata.getIndex().getName();
         // get target shrink index

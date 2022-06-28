@@ -9,9 +9,9 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,8 +55,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateNullId() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(null, sample.getIndexPattern(), sample.getRollupIndex(), sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            null,
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -69,8 +77,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateEmptyId() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig("", sample.getIndexPattern(), sample.getRollupIndex(), sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            "",
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -83,8 +99,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateNullIndexPattern() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), null, sample.getRollupIndex(), sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            null,
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -97,8 +121,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateEmptyIndexPattern() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), "", sample.getRollupIndex(), sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            "",
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -111,23 +143,41 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateMatchAllIndexPattern() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), "*", sample.getRollupIndex(), sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            "*",
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
         assertThat(validation.isPresent(), is(true));
         ValidationException validationException = validation.get();
         assertThat(validationException.validationErrors().size(), is(1));
-        assertThat(validationException.validationErrors(),
-            contains("Index pattern must not match all indices (as it would match it's own rollup index"));
+        assertThat(
+            validationException.validationErrors(),
+            contains("Index pattern must not match all indices (as it would match it's own rollup index")
+        );
     }
 
     public void testValidateIndexPatternMatchesRollupIndex() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), "rollup*", "rollup", sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            "rollup*",
+            "rollup",
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -140,8 +190,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateSameIndexAndRollupPatterns() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), "test", "test", sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            "test",
+            "test",
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -154,8 +212,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateNullRollupPattern() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), null, sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            null,
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -168,8 +234,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateEmptyRollupPattern() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), "", sample.getCron(),
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            "",
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -182,8 +256,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateNullCron() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), null,
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            null,
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -196,8 +278,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateEmptyCron() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), "",
-            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            "",
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -210,8 +300,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidatePageSize() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(),
-            sample.getCron(), 0, sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            sample.getCron(),
+            0,
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -224,8 +322,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateGroupOrMetrics() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(),
-            sample.getCron(), sample.getPageSize(), null, null, sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            null,
+            null,
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -239,8 +345,16 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
         final GroupConfig groupConfig = new GroupConfig(null);
 
         final RollupJobConfig sample = randomRollupJobConfig(id);
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(),
-            sample.getCron(), sample.getPageSize(), groupConfig, sample.getMetricsConfig(), sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            groupConfig,
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
@@ -254,16 +368,26 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
         final List<MetricConfig> metricsConfigs = singletonList(new MetricConfig(null, null));
 
         final RollupJobConfig sample = randomRollupJobConfig(id);
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(),
-            sample.getCron(), sample.getPageSize(), sample.getGroupConfig(), metricsConfigs, sample.getTimeout());
+        final RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            sample.getIndexPattern(),
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            metricsConfigs,
+            sample.getTimeout()
+        );
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
         assertThat(validation.isPresent(), is(true));
         ValidationException validationException = validation.get();
         assertThat(validationException.validationErrors().size(), is(2));
-        assertThat(validationException.validationErrors(),
-            containsInAnyOrder("Field name is required", "Metrics must be a non-null, non-empty array of strings"));
+        assertThat(
+            validationException.validationErrors(),
+            containsInAnyOrder("Field name is required", "Metrics must be a non-null, non-empty array of strings")
+        );
     }
 
     public static RollupJobConfig randomRollupJobConfig(final String id) {
@@ -271,8 +395,9 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
         final String rollupIndex = "rollup_" + indexPattern;
         final String cron = randomCron();
         final int pageSize = randomIntBetween(1, 100);
-        final TimeValue timeout = randomBoolean() ? null :
-            new TimeValue(randomIntBetween(0, 60), randomFrom(Arrays.asList(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES)));
+        final TimeValue timeout = randomBoolean()
+            ? null
+            : new TimeValue(randomIntBetween(0, 60), randomFrom(Arrays.asList(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES)));
         final GroupConfig groups = GroupConfigTests.randomGroupConfig();
 
         final List<MetricConfig> metrics = new ArrayList<>();
@@ -286,12 +411,12 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     }
 
     private static String randomCron() {
-        return (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59)))         + //second
-            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59)))      + //minute
-            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 23)))      + //hour
-            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 31)))      + //day of month
-            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12)))      + //month
-            " ?"                                                                                               + //day of week
-            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  //year
+        return (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59))) + // second
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59))) + // minute
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 23))) + // hour
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 31))) + // day of month
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12))) + // month
+            " ?" + // day of week
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  // year
     }
 }

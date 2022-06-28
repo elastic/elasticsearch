@@ -34,14 +34,20 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
     }
 
     @Override
-    public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount,
-            Map<SegmentCommitInfo, Boolean> segmentsToMerge, MergeContext mergeContext) throws IOException {
+    public MergeSpecification findForcedMerges(
+        SegmentInfos infos,
+        int maxSegmentCount,
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+        MergeContext mergeContext
+    ) throws IOException {
         return forcedMergePolicy.findForcedMerges(infos, maxSegmentCount, segmentsToMerge, mergeContext);
     }
 
     @Override
     public MergeSpecification findForcedDeletesMerges(SegmentInfos infos, MergeContext mergeContext) throws IOException {
-        return forcedMergePolicy.findForcedDeletesMerges(infos, mergeContext);
+        // we apply the max segment size through the regular merge policy in
+        // order to avoid giant segments when expunging deletes on a read/write index
+        return regularMergePolicy.findForcedDeletesMerges(infos, mergeContext);
     }
 
     public void setForceMergeDeletesPctAllowed(double forceMergeDeletesPctAllowed) {

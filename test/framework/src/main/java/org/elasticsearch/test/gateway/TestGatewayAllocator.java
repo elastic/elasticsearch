@@ -54,16 +54,22 @@ public class TestGatewayAllocator extends GatewayAllocator {
             // for now always return immediately what we know
             final ShardId shardId = shard.shardId();
             final Set<String> ignoreNodes = allocation.getIgnoreNodes(shardId);
-            Map<DiscoveryNode, NodeGatewayStartedShards> foundShards = knownAllocations.values().stream()
+            Map<DiscoveryNode, NodeGatewayStartedShards> foundShards = knownAllocations.values()
+                .stream()
                 .flatMap(shardMap -> shardMap.values().stream())
                 .filter(ks -> ks.shardId().equals(shardId))
                 .filter(ks -> ignoreNodes.contains(ks.currentNodeId()) == false)
                 .filter(ks -> currentNodes.nodeExists(ks.currentNodeId()))
-                .collect(Collectors.toMap(
-                    routing -> currentNodes.get(routing.currentNodeId()),
-                    routing ->
-                        new NodeGatewayStartedShards(
-                            currentNodes.get(routing.currentNodeId()), routing.allocationId().getId(), routing.primary())));
+                .collect(
+                    Collectors.toMap(
+                        routing -> currentNodes.get(routing.currentNodeId()),
+                        routing -> new NodeGatewayStartedShards(
+                            currentNodes.get(routing.currentNodeId()),
+                            routing.allocationId().getId(),
+                            routing.primary()
+                        )
+                    )
+                );
 
             return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
         }
@@ -105,16 +111,17 @@ public class TestGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void beforeAllocation(RoutingAllocation allocation) {
-    }
+    public void beforeAllocation(RoutingAllocation allocation) {}
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-    }
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
 
     @Override
-    public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                                   UnassignedAllocationHandler unassignedAllocationHandler) {
+    public void allocateUnassigned(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         currentNodes = allocation.nodes();
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
@@ -123,7 +130,6 @@ public class TestGatewayAllocator extends GatewayAllocator {
      * manually add a specific shard to the allocations the gateway keeps track of
      */
     public void addKnownAllocation(ShardRouting shard) {
-            knownAllocations.computeIfAbsent(shard.currentNodeId(), id -> new HashMap<>())
-                .put(shard.shardId(), shard);
+        knownAllocations.computeIfAbsent(shard.currentNodeId(), id -> new HashMap<>()).put(shard.shardId(), shard);
     }
 }

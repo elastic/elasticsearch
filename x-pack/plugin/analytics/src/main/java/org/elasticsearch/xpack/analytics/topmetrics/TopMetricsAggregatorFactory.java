@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -33,16 +34,28 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
      * can be collected per bucket. This defaults to a low number because
      * there can be a *huge* number of buckets
      */
-    public static final Setting<Integer> MAX_BUCKET_SIZE =
-        Setting.intSetting("index.top_metrics_max_size", 10, 1, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Integer> MAX_BUCKET_SIZE = Setting.intSetting(
+        "index.top_metrics_max_size",
+        10,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     private final List<SortBuilder<?>> sortBuilders;
     private final int size;
     private final List<MultiValuesSourceFieldConfig> metricFields;
 
-    public TopMetricsAggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
-            Builder subFactoriesBuilder, Map<String, Object> metadata, List<SortBuilder<?>> sortBuilders,
-            int size, List<MultiValuesSourceFieldConfig> metricFields) throws IOException {
+    public TopMetricsAggregatorFactory(
+        String name,
+        AggregationContext context,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        List<SortBuilder<?>> sortBuilders,
+        int size,
+        List<MultiValuesSourceFieldConfig> metricFields
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.sortBuilders = sortBuilders;
         this.size = size;
@@ -54,26 +67,49 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
         throws IOException {
         int maxBucketSize = MAX_BUCKET_SIZE.get(context.getIndexSettings().getSettings());
         if (size > maxBucketSize) {
-            throw new IllegalArgumentException("[top_metrics.size] must not be more than [" + maxBucketSize + "] but was [" + size
-                    + "]. This limit can be set by changing the [" + MAX_BUCKET_SIZE.getKey()
-                    + "] index level setting.");
+            throw new IllegalArgumentException(
+                "[top_metrics.size] must not be more than ["
+                    + maxBucketSize
+                    + "] but was ["
+                    + size
+                    + "]. This limit can be set by changing the ["
+                    + MAX_BUCKET_SIZE.getKey()
+                    + "] index level setting."
+            );
         }
         MetricValues[] metricValues = new MetricValues[metricFields.size()];
-        for (int i = 0; i < metricFields.size(); i++) {
-            MultiValuesSourceFieldConfig config = metricFields.get(i);
-            ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
+        boolean success = false;
+        try {
+            for (int i = 0; i < metricFields.size(); i++) {
+                MultiValuesSourceFieldConfig config = metricFields.get(i);
+                ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
+                    context,
+                    null,
+                    config.getFieldName(),
+                    config.getScript(),
+                    config.getMissing(),
+                    config.getTimeZone(),
+                    null,
+                    CoreValuesSourceType.NUMERIC
+                );
+                MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
+                metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+            }
+            TopMetricsAggregator aggregator = new TopMetricsAggregator(
+                name,
                 context,
-                null,
-                config.getFieldName(),
-                config.getScript(),
-                config.getMissing(),
-                config.getTimeZone(),
-                null,
-                CoreValuesSourceType.NUMERIC
+                parent,
+                metadata,
+                size,
+                sortBuilders.get(0),
+                metricValues
             );
-            MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
-            metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+            success = true;
+            return aggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(metricValues);
+            }
         }
-        return new TopMetricsAggregator(name, context, parent, metadata, size, sortBuilders.get(0), metricValues);
     }
 }

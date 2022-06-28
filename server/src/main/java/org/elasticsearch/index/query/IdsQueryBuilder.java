@@ -11,18 +11,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
+import static org.elasticsearch.xcontent.ObjectParser.fromList;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
@@ -141,14 +141,13 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         try {
             IdsQueryBuilder builder = PARSER.apply(parser, null);
             if (builder.types().length > 0) {
-                deprecationLogger.deprecate(DeprecationCategory.TYPES, "ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.critical(DeprecationCategory.TYPES, "ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             return builder;
         } catch (IllegalArgumentException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
     }
-
 
     @Override
     public String getWriteableName() {
@@ -197,7 +196,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected boolean doEquals(IdsQueryBuilder other) {
-        return Objects.equals(ids, other.ids) &&
-               Arrays.equals(types, other.types);
+        return Objects.equals(ids, other.ids) && Arrays.equals(types, other.types);
     }
 }

@@ -31,9 +31,7 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Arrays.asList(
-            new Route(POST, "/{index}/_pit"),
-            new Route(POST, "/_pit"));
+        return Arrays.asList(new Route(POST, "/{index}/_pit"), new Route(POST, "/_pit"));
     }
 
     @Override

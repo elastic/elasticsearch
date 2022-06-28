@@ -50,9 +50,12 @@ public class ReadonlyActionIT extends ESRestTestCase {
     }
 
     public void testReadOnly() throws Exception {
-        createIndexWithSettings(client(), index, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
         String phaseName = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, phaseName, new ReadOnlyAction());
         updatePolicy(client(), index, policy);
@@ -69,21 +72,28 @@ public class ReadonlyActionIT extends ESRestTestCase {
 
         // add a policy
         Map<String, LifecycleAction> hotActions = org.elasticsearch.core.Map.of(
-            RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
-            ReadOnlyAction.NAME, new ReadOnlyAction());
-        Map<String, Phase> phases = org.elasticsearch.core.Map.of(
-            "hot", new Phase("hot", TimeValue.ZERO, hotActions));
+            RolloverAction.NAME,
+            new RolloverAction(null, null, null, 1L),
+            ReadOnlyAction.NAME,
+            new ReadOnlyAction()
+        );
+        Map<String, Phase> phases = org.elasticsearch.core.Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
         createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
         client().performRequest(createPolicyRequest);
 
         // then create the index and index a document to trigger rollover
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        createIndexWithSettings(
+            client(),
+            originalIndex,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
         index(client(), originalIndex, "_id", "foo", "bar");
 
         assertBusy(() -> {

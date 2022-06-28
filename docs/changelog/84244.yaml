@@ -1,0 +1,5 @@
+pr: 84244
+summary: Fix bug where initial scale from 0->1 could scale too high
+area: Machine Learning
+type: bug
+issues: []

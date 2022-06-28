@@ -23,22 +23,22 @@ setup:
          body:
            - index:
                _index: test_1
-               _id:    1
+               _id:    "1"
            - int_field: 1
              double_field: 1.0
            - index:
                _index: test_1
-               _id:    2
+               _id:    "2"
            - int_field: 2
              double_field: 2.0
            - index:
                _index: test_1
-               _id:    3
+               _id:    "3"
            - int_field: 3
              double_field: 3.0
            - index:
                _index: test_1
-               _id:    4
+               _id:    "4"
            - int_field: 4
              double_field: 4.0
 

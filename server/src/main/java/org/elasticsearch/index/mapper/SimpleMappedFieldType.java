@@ -21,17 +21,30 @@ import java.util.Map;
  */
 public abstract class SimpleMappedFieldType extends MappedFieldType {
 
-    protected SimpleMappedFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                    TextSearchInfo textSearchInfo, Map<String, String> meta) {
+    protected SimpleMappedFieldType(
+        String name,
+        boolean isSearchable,
+        boolean isStored,
+        boolean hasDocValues,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta
+    ) {
         super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
-    public final Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                  ShapeRelation relation, ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
+    public final Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        SearchExecutionContext context
+    ) {
         if (relation == ShapeRelation.DISJOINT) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                    "] does not support DISJOINT ranges");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
         }
         // We do not fail on non-null time zones and date parsers
         // The reasoning is that on query parsers, you might want to set a time zone or format for date fields
@@ -43,8 +56,13 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
      * Same as {@link #rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, SearchExecutionContext)}
      * but without the trouble of relations or date-specific options.
      */
-    protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-            SearchExecutionContext context) {
+    protected Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support range queries");
     }
 

@@ -48,53 +48,91 @@ public class ConditionTests extends ESTestCase {
     public void testMaxSize() {
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 20)));
 
-        Condition.Result result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            ByteSizeValue.ofMb(0), randomByteSize()));
+        Condition.Result result = maxSizeCondition.evaluate(
+            new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(), ByteSizeValue.ofMb(0), randomByteSize())
+        );
         assertThat(result.matched, equalTo(false));
 
-        result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            ByteSizeValue.ofMb(randomIntBetween(0, 9)), randomByteSize()));
+        result = maxSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                ByteSizeValue.ofMb(randomIntBetween(0, 9)),
+                randomByteSize()
+            )
+        );
         assertThat(result.matched, equalTo(false));
 
-        result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            ByteSizeValue.ofMb(randomIntBetween(20, 1000)), randomByteSize()));
+        result = maxSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                ByteSizeValue.ofMb(randomIntBetween(20, 1000)),
+                randomByteSize()
+            )
+        );
         assertThat(result.matched, equalTo(true));
     }
 
     public void testMaxPrimaryShardSize() {
-        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
-            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 20)));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
+            ByteSizeValue.ofMb(randomIntBetween(10, 20))
+        );
 
-        Condition.Result result = maxPrimaryShardSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(),
-            randomNonNegativeLong(), randomByteSize(), ByteSizeValue.ofMb(0)));
+        Condition.Result result = maxPrimaryShardSizeCondition.evaluate(
+            new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomByteSize(), ByteSizeValue.ofMb(0))
+        );
         assertThat(result.matched, equalTo(false));
 
-        result = maxPrimaryShardSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            randomByteSize(), ByteSizeValue.ofMb(randomIntBetween(0, 9))));
+        result = maxPrimaryShardSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomByteSize(),
+                ByteSizeValue.ofMb(randomIntBetween(0, 9))
+            )
+        );
         assertThat(result.matched, equalTo(false));
 
-        result = maxPrimaryShardSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
-            randomByteSize(), ByteSizeValue.ofMb(randomIntBetween(20, 1000))));
+        result = maxPrimaryShardSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomByteSize(),
+                ByteSizeValue.ofMb(randomIntBetween(20, 1000))
+            )
+        );
         assertThat(result.matched, equalTo(true));
     }
 
     public void testEqualsAndHashCode() {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxAgeCondition, condition -> new MaxAgeCondition(condition.value),
-            condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxAgeCondition,
+            condition -> new MaxAgeCondition(condition.value),
+            condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong()))
+        );
 
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxDocsCondition, condition -> new MaxDocsCondition(condition.value),
-            condition -> new MaxDocsCondition(randomLong()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxDocsCondition,
+            condition -> new MaxDocsCondition(condition.value),
+            condition -> new MaxDocsCondition(randomLong())
+        );
 
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(randomByteSize());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSizeCondition, condition -> new MaxSizeCondition(condition.value),
-            condition -> new MaxSizeCondition(randomByteSize()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxSizeCondition,
+            condition -> new MaxSizeCondition(condition.value),
+            condition -> new MaxSizeCondition(randomByteSize())
+        );
 
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(randomByteSize());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxPrimaryShardSizeCondition,
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxPrimaryShardSizeCondition,
             condition -> new MaxPrimaryShardSizeCondition(condition.value),
-            condition -> new MaxPrimaryShardSizeCondition(randomByteSize()));
+            condition -> new MaxPrimaryShardSizeCondition(randomByteSize())
+        );
     }
 
     private static ByteSizeValue randomByteSize() {

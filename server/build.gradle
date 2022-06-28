@@ -41,7 +41,7 @@ if (!isEclipse) {
     java11Implementation sourceSets.main.output
   }
 
-  compileJava11Java {
+  tasks.named("compileJava11Java").configure {
     sourceCompatibility = 11
     targetCompatibility = 11
   }
@@ -54,7 +54,7 @@ if (!isEclipse) {
     }
   }
 
-  jar {
+  tasks.named("jar").configure {
     metaInf {
       into 'versions/11'
       from sourceSets.java11.output
@@ -69,6 +69,7 @@ dependencies {
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
+  api project(":libs:elasticsearch-lz4")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
 
@@ -84,16 +85,12 @@ dependencies {
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
-
-  // LZ4
-  api 'org.lz4:lz4-java:1.8.0'
 
   // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
@@ -103,16 +100,11 @@ dependencies {
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
-  // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  api "org.locationtech.jts:jts-core:${versions.jts}", optional
-
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
-  // repackaged jna with native bits linked against all elastic supported platforms
-  api "org.elasticsearch:jna:${versions.jna}"
+  api "net.java.dev.jna:jna:${versions.jna}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -120,26 +112,6 @@ dependencies {
   }
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
-  }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-}
-
-// Until this project is always being formatted with spotless, we need to
-// guard against `spotless()` not existing.
-try {
-  spotless {
-    java {
-      // Contains large data tables that do not format well.
-      targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
-    }
-  }
-}
-catch (Exception e) {
-  if (e.getMessage().contains("Could not find method spotless") == false) {
-    throw e;
   }
 }
 
@@ -201,7 +173,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
-            'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
             'com.conversantmedia.util.concurrent.SpinPolicy',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',
@@ -222,11 +193,8 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
-            'com.lmax.disruptor.BlockingWaitStrategy',
-            'com.lmax.disruptor.BusySpinWaitStrategy',
             'com.lmax.disruptor.EventFactory',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
@@ -236,10 +204,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
             'com.lmax.disruptor.SequenceReportingEventHandler',
-            'com.lmax.disruptor.SleepingWaitStrategy',
-            'com.lmax.disruptor.TimeoutBlockingWaitStrategy',
             'com.lmax.disruptor.WaitStrategy',
-            'com.lmax.disruptor.YieldingWaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
             'javax.jms.Connection',
@@ -258,25 +223,17 @@ tasks.named("thirdPartyAudit").configure {
             'javax.mail.Transport',
             'javax.mail.internet.InternetAddress',
             'javax.mail.internet.InternetHeaders',
-            'javax.mail.internet.MimeBodyPart',
             'javax.mail.internet.MimeMessage',
             'javax.mail.internet.MimeMultipart',
             'javax.mail.internet.MimeUtility',
-            'javax.mail.util.ByteArrayDataSource',
             'org.apache.commons.compress.compressors.CompressorStreamFactory',
             'org.apache.commons.compress.utils.IOUtils',
             'org.apache.commons.csv.CSVFormat',
             'org.apache.commons.csv.QuoteMode',
-            'org.apache.kafka.clients.producer.Callback',
-            'org.apache.kafka.clients.producer.KafkaProducer',
             'org.apache.kafka.clients.producer.Producer',
-            'org.apache.kafka.clients.producer.ProducerRecord',
             'org.apache.kafka.clients.producer.RecordMetadata',
             'org.codehaus.stax2.XMLStreamWriter2',
-            'org.jctools.queues.MessagePassingQueue$Consumer',
             'org.jctools.queues.MpscArrayQueue',
-            'org.osgi.framework.AdaptPermission',
-            'org.osgi.framework.AdminPermission',
             'org.osgi.framework.Bundle',
             'org.osgi.framework.BundleActivator',
             'org.osgi.framework.BundleContext',
@@ -290,30 +247,11 @@ tasks.named("thirdPartyAudit").configure {
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
-
-            // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-            'org.noggit.JSONParser',
-
-            // from lucene-spatial
-            'com.fasterxml.jackson.databind.JsonSerializer',
-            'com.fasterxml.jackson.databind.JsonDeserializer',
-            'com.fasterxml.jackson.databind.node.ArrayNode',
-            'com.google.common.geometry.S2Cell',
-            'com.google.common.geometry.S2CellId',
-            'com.google.common.geometry.S2Projections',
-            'com.google.common.geometry.S2Point',
-            'com.google.common.geometry.S2$Metric',
-            'com.google.common.geometry.S2LatLng'
     )
 
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
     }
-
-    ignoreViolations(
-      // from java-lz4
-      'net.jpountz.util.UnsafeUtils'
-    )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -371,19 +309,11 @@ tasks.named('splitPackagesAudit').configure {
     // Joda should own its own packages! This should be a simple move.
     'org.joda.time.format.StrictISODateTimeFormat',
 
-    // xcontent should not have common, all it's common packages should be renamed to xcontent
-    'org.elasticsearch.common.xcontent.*',
-    'org.elasticsearch.common.xcontent.support.XContentMapValues',
-
     // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
     'org.elasticsearch.cli.CommandLoggingConfigurator',
     'org.elasticsearch.cli.EnvironmentAwareCommand',
     'org.elasticsearch.cli.KeyStoreAwareCommand',
     'org.elasticsearch.cli.LoggingAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareMultiCommand',
-
-    // these should be temporary, query needs package private access to TermScorer though
-   'org.apache.lucene.search.XCombinedFieldQuery', 
-   'org.apache.lucene.search.XMultiNormsLeafSimScorer' 
+    'org.elasticsearch.cli.LoggingAwareMultiCommand'
 
 }

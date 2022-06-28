@@ -8,8 +8,6 @@
 
 package org.elasticsearch.client;
 
-import static org.elasticsearch.client.RequestConverters.createContentType;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.nio.entity.NByteArrayEntity;
@@ -18,23 +16,21 @@ import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.textstructure.FindStructureRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
+
+import static org.elasticsearch.client.RequestConverters.createContentType;
 
 final class TextStructureRequestConverters {
 
     private TextStructureRequestConverters() {}
 
     static Request findFileStructure(FindStructureRequest findStructureRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_text_structure")
-            .addPathPartAsIs("find_structure")
-            .build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_text_structure").addPathPartAsIs("find_structure").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
         if (findStructureRequest.getLinesToSample() != null) {
-            params.putParam(FindStructureRequest.LINES_TO_SAMPLE.getPreferredName(),
-                findStructureRequest.getLinesToSample().toString());
+            params.putParam(FindStructureRequest.LINES_TO_SAMPLE.getPreferredName(), findStructureRequest.getLinesToSample().toString());
         }
         if (findStructureRequest.getTimeout() != null) {
             params.putParam(FindStructureRequest.TIMEOUT.getPreferredName(), findStructureRequest.getTimeout().toString());
@@ -46,23 +42,25 @@ final class TextStructureRequestConverters {
             params.putParam(FindStructureRequest.FORMAT.getPreferredName(), findStructureRequest.getFormat().toString());
         }
         if (findStructureRequest.getColumnNames() != null) {
-            params.putParam(FindStructureRequest.COLUMN_NAMES.getPreferredName(),
-                Strings.collectionToCommaDelimitedString(findStructureRequest.getColumnNames()));
+            params.putParam(
+                FindStructureRequest.COLUMN_NAMES.getPreferredName(),
+                Strings.collectionToCommaDelimitedString(findStructureRequest.getColumnNames())
+            );
         }
         if (findStructureRequest.getHasHeaderRow() != null) {
-            params.putParam(FindStructureRequest.HAS_HEADER_ROW.getPreferredName(),
-                findStructureRequest.getHasHeaderRow().toString());
+            params.putParam(FindStructureRequest.HAS_HEADER_ROW.getPreferredName(), findStructureRequest.getHasHeaderRow().toString());
         }
         if (findStructureRequest.getDelimiter() != null) {
-            params.putParam(FindStructureRequest.DELIMITER.getPreferredName(),
-                findStructureRequest.getDelimiter().toString());
+            params.putParam(FindStructureRequest.DELIMITER.getPreferredName(), findStructureRequest.getDelimiter().toString());
         }
         if (findStructureRequest.getQuote() != null) {
             params.putParam(FindStructureRequest.QUOTE.getPreferredName(), findStructureRequest.getQuote().toString());
         }
         if (findStructureRequest.getShouldTrimFields() != null) {
-            params.putParam(FindStructureRequest.SHOULD_TRIM_FIELDS.getPreferredName(),
-                findStructureRequest.getShouldTrimFields().toString());
+            params.putParam(
+                FindStructureRequest.SHOULD_TRIM_FIELDS.getPreferredName(),
+                findStructureRequest.getShouldTrimFields().toString()
+            );
         }
         if (findStructureRequest.getGrokPattern() != null) {
             params.putParam(FindStructureRequest.GROK_PATTERN.getPreferredName(), findStructureRequest.getGrokPattern());

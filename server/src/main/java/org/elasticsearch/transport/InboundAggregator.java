@@ -35,8 +35,10 @@ public class InboundAggregator implements Releasable {
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
 
-    public InboundAggregator(Supplier<CircuitBreaker> circuitBreaker,
-                             Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction) {
+    public InboundAggregator(
+        Supplier<CircuitBreaker> circuitBreaker,
+        Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction
+    ) {
         this(circuitBreaker, (Predicate<String>) actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
@@ -61,6 +63,13 @@ public class InboundAggregator implements Releasable {
         if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false) {
             initializeRequestState();
         }
+    }
+
+    public void updateCompressionScheme(Compression.Scheme compressionScheme) {
+        ensureOpen();
+        assert isAggregating();
+        assert firstContent == null && contentAggregation == null;
+        currentHeader.setCompressionScheme(compressionScheme);
     }
 
     public void aggregate(ReleasableBytesReference content) {
@@ -112,6 +121,7 @@ public class InboundAggregator implements Releasable {
                 success = true;
                 return new InboundMessage(aggregated.getHeader(), aggregationException);
             } else {
+                assert uncompressedOrSchemeDefined(aggregated.getHeader());
                 success = true;
                 return aggregated;
             }
@@ -186,6 +196,10 @@ public class InboundAggregator implements Releasable {
         } catch (ActionNotFoundTransportException e) {
             shortCircuit(e);
         }
+    }
+
+    private static boolean uncompressedOrSchemeDefined(Header header) {
+        return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
     private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[fingerprint-processor]]
 === Fingerprint processor
 ++++

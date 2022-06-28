@@ -9,12 +9,12 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -56,14 +56,18 @@ public class InvalidateTokenResponseTests extends ESTestCase {
             .field("error_count", 0)
             .startArray("error_details")
             .startObject();
-        ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, new ElasticsearchException("foo",
-            new IllegalArgumentException("bar")));
+        ElasticsearchException.generateThrowableXContent(
+            builder,
+            ToXContent.EMPTY_PARAMS,
+            new ElasticsearchException("foo", new IllegalArgumentException("bar"))
+        );
         builder.endObject().startObject();
-        ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, new ElasticsearchException("boo",
-            new IllegalArgumentException("far")));
-        builder.endObject()
-            .endArray()
-            .endObject();
+        ElasticsearchException.generateThrowableXContent(
+            builder,
+            ToXContent.EMPTY_PARAMS,
+            new ElasticsearchException("boo", new IllegalArgumentException("far"))
+        );
+        builder.endObject().endArray().endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
         try (XContentParser parser = createParser(xContentType.xContent(), xContent)) {

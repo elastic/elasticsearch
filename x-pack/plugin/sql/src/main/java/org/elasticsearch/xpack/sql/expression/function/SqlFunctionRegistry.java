@@ -149,19 +149,18 @@ public class SqlFunctionRegistry extends FunctionRegistry {
     }
 
     private FunctionDefinition[][] functions() {
-        return new FunctionDefinition[][]{
+        return new FunctionDefinition[][] {
             // Aggregate functions
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Avg.class, Avg::new, "AVG"),
                 def(Count.class, Count::new, "COUNT"),
                 def(First.class, First::new, "FIRST", "FIRST_VALUE"),
                 def(Last.class, Last::new, "LAST", "LAST_VALUE"),
                 def(Max.class, Max::new, "MAX"),
                 def(Min.class, Min::new, "MIN"),
-                def(Sum.class, Sum::new, "SUM")
-            },
+                def(Sum.class, Sum::new, "SUM") },
             // Statistics
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Kurtosis.class, Kurtosis::new, "KURTOSIS"),
                 def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "MAD"),
                 def(Percentile.class, Percentile::new, "PERCENTILE"),
@@ -171,25 +170,21 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(StddevSamp.class, StddevSamp::new, "STDDEV_SAMP"),
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
                 def(VarPop.class, VarPop::new, "VAR_POP"),
-                def(VarSamp.class, VarSamp::new, "VAR_SAMP")
-            },
+                def(VarSamp.class, VarSamp::new, "VAR_SAMP") },
             // histogram
-            new FunctionDefinition[]{
-                def(Histogram.class, Histogram::new, "HISTOGRAM")
-            },
+            new FunctionDefinition[] { def(Histogram.class, Histogram::new, "HISTOGRAM") },
             // Scalar functions
             // Conditional
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Case.class, Case::new, "CASE"),
                 def(Coalesce.class, Coalesce::new, "COALESCE"),
                 def(Iif.class, Iif::new, "IIF"),
                 def(IfNull.class, (BinaryBuilder<IfNull>) IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
-                def(Least.class, Least::new, "LEAST")
-            },
+                def(Least.class, Least::new, "LEAST") },
             // Date
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(CurrentDate.class, CurrentDate::new, "CURRENT_DATE", "CURDATE", "TODAY"),
                 def(CurrentTime.class, CurrentTime::new, "CURRENT_TIME", "CURTIME"),
                 def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
@@ -217,10 +212,9 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(TimeParse.class, TimeParse::new, "TIME_PARSE"),
                 def(Quarter.class, Quarter::new, "QUARTER"),
                 def(Year.class, Year::new, "YEAR"),
-                def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK")
-            },
+                def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK") },
             // Math
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "ABS"),
                 def(ACos.class, ACos::new, "ACOS"),
                 def(ASin.class, ASin::new, "ASIN"),
@@ -250,10 +244,9 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Sinh.class, Sinh::new, "SINH"),
                 def(Sqrt.class, Sqrt::new, "SQRT"),
                 def(Tan.class, Tan::new, "TAN"),
-                def(Truncate.class, Truncate::new, "TRUNCATE", "TRUNC")
-            },
+                def(Truncate.class, Truncate::new, "TRUNCATE", "TRUNC") },
             // String
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Ascii.class, Ascii::new, "ASCII"),
                 def(BitLength.class, BitLength::new, "BIT_LENGTH"),
                 def(Char.class, Char::new, "CHAR"),
@@ -275,32 +268,22 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(StartsWith.class, StartsWith::new, "STARTS_WITH"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
                 def(Trim.class, Trim::new, "TRIM"),
-                def(UCase.class, UCase::new, "UCASE")
-            },
+                def(UCase.class, UCase::new, "UCASE") },
             // DataType conversion
-            new FunctionDefinition[]{
-                def(Cast.class, Cast::new, "CAST", "CONVERT")
-            },
+            new FunctionDefinition[] { def(Cast.class, Cast::new, "CAST", "CONVERT") },
             // Scalar "meta" functions
-            new FunctionDefinition[]{
-                def(Database.class, Database::new, "DATABASE"),
-                def(User.class, User::new, "USER")
-            },
+            new FunctionDefinition[] { def(Database.class, Database::new, "DATABASE"), def(User.class, User::new, "USER") },
             // Geo Functions
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
                 def(StDistance.class, StDistance::new, "ST_DISTANCE"),
                 def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
                 def(StGeometryType.class, StGeometryType::new, "ST_GEOMETRYTYPE"),
                 def(StX.class, StX::new, "ST_X"),
                 def(StY.class, StY::new, "ST_Y"),
-                def(StZ.class, StZ::new, "ST_Z")
-            },
+                def(StZ.class, StZ::new, "ST_Z") },
             // Special
-            new FunctionDefinition[]{
-                def(Score.class, Score::new, "SCORE")
-            }
-        };
+            new FunctionDefinition[] { def(Score.class, Score::new, "SCORE") } };
     }
 
     /**
@@ -315,10 +298,12 @@ public class SqlFunctionRegistry extends FunctionRegistry {
      * Main method to register a function.
      */
     @SuppressWarnings("overloads")
-    protected static FunctionDefinition def(Class<? extends Function> function,
-                                            SqlFunctionBuilder builder,
-                                            boolean datetime,
-                                            String... names) {
+    protected static FunctionDefinition def(
+        Class<? extends Function> function,
+        SqlFunctionBuilder builder,
+        boolean datetime,
+        String... names
+    ) {
         Check.isTrue(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
@@ -392,9 +377,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a three-args function that requires a timezone.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function,
-                                                                 TernaryZoneIdAwareBuilder<T> ctorRef,
-                                                                 String... names) {
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryZoneIdAwareBuilder<T> ctorRef, String... names) {
         SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
             if (children.size() != 3) {
                 throw new QlIllegalArgumentException("expects three arguments");
@@ -408,7 +391,6 @@ public class SqlFunctionRegistry extends FunctionRegistry {
     protected interface TernaryZoneIdAwareBuilder<T> {
         T build(Source source, Expression first, Expression second, Expression third, ZoneId zi);
     }
-
 
     /**
      * Special method to create function definition for Cast as its signature is not compatible with {@link UnresolvedFunction}.

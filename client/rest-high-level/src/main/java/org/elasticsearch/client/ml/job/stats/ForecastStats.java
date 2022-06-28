@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.ml.job.stats;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,30 +32,30 @@ public class ForecastStats implements ToXContentObject {
     public static final ParseField STATUS = new ParseField("status");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ForecastStats, Void> PARSER =
-        new ConstructingObjectParser<>("forecast_stats",
-            true,
-            (a) -> {
-                int i = 0;
-                long total = (long)a[i++];
-                SimpleStats memoryStats = (SimpleStats)a[i++];
-                SimpleStats recordStats = (SimpleStats)a[i++];
-                SimpleStats runtimeStats = (SimpleStats)a[i++];
-                Map<String, Long> statusCounts = (Map<String, Long>)a[i];
-                return new ForecastStats(total, memoryStats, recordStats, runtimeStats, statusCounts);
-            });
+    public static final ConstructingObjectParser<ForecastStats, Void> PARSER = new ConstructingObjectParser<>(
+        "forecast_stats",
+        true,
+        (a) -> {
+            int i = 0;
+            long total = (long) a[i++];
+            SimpleStats memoryStats = (SimpleStats) a[i++];
+            SimpleStats recordStats = (SimpleStats) a[i++];
+            SimpleStats runtimeStats = (SimpleStats) a[i++];
+            Map<String, Long> statusCounts = (Map<String, Long>) a[i];
+            return new ForecastStats(total, memoryStats, recordStats, runtimeStats, statusCounts);
+        }
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, MEMORY_BYTES);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, RECORDS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, PROCESSING_TIME_MS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            p -> {
-                Map<String, Long> counts = new HashMap<>();
-                p.map().forEach((key, value) -> counts.put(key, ((Number)value).longValue()));
-                return counts;
-            }, STATUS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            Map<String, Long> counts = new HashMap<>();
+            p.map().forEach((key, value) -> counts.put(key, ((Number) value).longValue()));
+            return counts;
+        }, STATUS, ObjectParser.ValueType.OBJECT);
     }
 
     private final long total;
@@ -65,11 +65,13 @@ public class ForecastStats implements ToXContentObject {
     private SimpleStats runtimeStats;
     private Map<String, Long> statusCounts;
 
-    public ForecastStats(long total,
-                         SimpleStats memoryStats,
-                         SimpleStats recordStats,
-                         SimpleStats runtimeStats,
-                         Map<String, Long> statusCounts) {
+    public ForecastStats(
+        long total,
+        SimpleStats memoryStats,
+        SimpleStats recordStats,
+        SimpleStats runtimeStats,
+        Map<String, Long> statusCounts
+    ) {
         this.total = total;
         this.forecastedJobs = total > 0 ? 1 : 0;
         if (total > 0) {
@@ -153,11 +155,11 @@ public class ForecastStats implements ToXContentObject {
         }
 
         ForecastStats other = (ForecastStats) obj;
-        return Objects.equals(total, other.total) &&
-            Objects.equals(forecastedJobs, other.forecastedJobs) &&
-            Objects.equals(memoryStats, other.memoryStats) &&
-            Objects.equals(recordStats, other.recordStats) &&
-            Objects.equals(runtimeStats, other.runtimeStats) &&
-            Objects.equals(statusCounts, other.statusCounts);
+        return Objects.equals(total, other.total)
+            && Objects.equals(forecastedJobs, other.forecastedJobs)
+            && Objects.equals(memoryStats, other.memoryStats)
+            && Objects.equals(recordStats, other.recordStats)
+            && Objects.equals(runtimeStats, other.runtimeStats)
+            && Objects.equals(statusCounts, other.statusCounts);
     }
 }

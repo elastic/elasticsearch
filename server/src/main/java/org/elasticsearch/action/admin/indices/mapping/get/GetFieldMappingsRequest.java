@@ -26,6 +26,8 @@ import java.io.IOException;
  */
 public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
+
     protected boolean local = false;
 
     private String[] fields = Strings.EMPTY_ARRAY;
@@ -35,7 +37,7 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public GetFieldMappingsRequest() {}
 

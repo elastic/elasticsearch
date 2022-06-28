@@ -10,12 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Nullable;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -28,6 +22,13 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Collection;
 import java.util.Locale;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
@@ -59,8 +60,9 @@ final class KeyStoreUtil {
      */
     static KeyStore readKeyStore(Path path, String type, char[] password) throws GeneralSecurityException {
         if (Files.notExists(path)) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath()
-                + "] because the file does not exist");
+            throw new SslConfigException(
+                "cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] because the file does not exist"
+            );
         }
         try {
             KeyStore keyStore = KeyStore.getInstance(type);
@@ -69,8 +71,10 @@ final class KeyStoreUtil {
             }
             return keyStore;
         } catch (IOException e) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
-                e);
+            throw new SslConfigException(
+                "cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
+                e
+            );
         }
     }
 
@@ -127,15 +131,16 @@ final class KeyStoreUtil {
                 return (X509ExtendedKeyManager) keyManager;
             }
         }
-        throw new SslConfigException("failed to find a X509ExtendedKeyManager in the key manager factory for [" + algorithm
-            + "] and keystore [" + keyStore + "]");
+        throw new SslConfigException(
+            "failed to find a X509ExtendedKeyManager in the key manager factory for [" + algorithm + "] and keystore [" + keyStore + "]"
+        );
     }
 
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the trust material in the provided {@link KeyStore}
      */
-    static X509ExtendedTrustManager createTrustManager(@Nullable KeyStore trustStore, String algorithm)
-        throws NoSuchAlgorithmException, KeyStoreException {
+    static X509ExtendedTrustManager createTrustManager(@Nullable KeyStore trustStore, String algorithm) throws NoSuchAlgorithmException,
+        KeyStoreException {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
         tmf.init(trustStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
@@ -144,9 +149,13 @@ final class KeyStoreUtil {
                 return (X509ExtendedTrustManager) trustManager;
             }
         }
-        throw new SslConfigException("failed to find a X509ExtendedTrustManager in the trust manager factory for [" + algorithm
-            + "] and truststore [" + trustStore + "]");
+        throw new SslConfigException(
+            "failed to find a X509ExtendedTrustManager in the trust manager factory for ["
+                + algorithm
+                + "] and truststore ["
+                + trustStore
+                + "]"
+        );
     }
-
 
 }

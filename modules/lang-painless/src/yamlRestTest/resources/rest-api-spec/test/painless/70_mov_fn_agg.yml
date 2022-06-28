@@ -22,32 +22,32 @@ setup:
          body:
            - index:
                _index: test
-               _id:    1
+               _id:    "1"
            - date: "2017-01-01T00:00:00"
              value_field: 1
            - index:
                _index: test
-               _id:    2
+               _id:    "2"
            - date: "2017-01-02T00:00:00"
              value_field: 2
            - index:
                _index: test
-               _id:    3
+               _id:    "3"
            - date: "2017-01-03T00:00:00"
              value_field: 3
            - index:
                _index: test
-               _id:    4
+               _id:    "4"
            - date: "2017-01-04T00:00:00"
              value_field: 4
            - index:
                _index: test
-               _id:    5
+               _id:    "5"
            - date: "2017-01-05T00:00:00"
              value_field: 5
            - index:
                _index: test
-               _id:    6
+               _id:    "6"
            - date: "2017-01-06T00:00:00"
              value_field: 6
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 
@@ -50,7 +51,7 @@ public class IndexShardSnapshotStatus {
     }
 
     private final AtomicReference<Stage> stage;
-    private final AtomicReference<String> generation;
+    private final AtomicReference<ShardGeneration> generation;
     private final AtomicReference<ShardSnapshotResult> shardSnapshotResult; // only set in stage DONE
     private long startTime;
     private long totalTime;
@@ -74,7 +75,7 @@ public class IndexShardSnapshotStatus {
         final long totalSize,
         final long processedSize,
         final String failure,
-        final String generation
+        final ShardGeneration generation
     ) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.generation = new AtomicReference<>(generation);
@@ -156,7 +157,7 @@ public class IndexShardSnapshotStatus {
         }
     }
 
-    public String generation() {
+    public ShardGeneration generation() {
         return generation.get();
     }
 
@@ -199,7 +200,7 @@ public class IndexShardSnapshotStatus {
         );
     }
 
-    public static IndexShardSnapshotStatus newInitializing(String generation) {
+    public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation) {
         return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation);
     }
 
@@ -218,7 +219,7 @@ public class IndexShardSnapshotStatus {
         final int fileCount,
         final long incrementalSize,
         final long size,
-        String generation
+        ShardGeneration generation
     ) {
         // The snapshot is done which means the number of processed files is the same as total
         return new IndexShardSnapshotStatus(

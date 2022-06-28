@@ -9,10 +9,10 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoTask
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
@@ -35,8 +35,10 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
-  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
-
+  target = new File(providers.systemProperty('csv')
+                      .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
+                      .get()
+  )
   // explicitly add our dependency on the JDK
   String jdkVersion = VersionProperties.versions.get('bundled_jdk').split('@')[0]
   String jdkMajorVersion = jdkVersion.split('[+.]')[0]
@@ -150,7 +152,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
       exclude 'config/log4j2.properties'
 
       eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.internal-es-plugin') ? module.esplugin.name : module.es_meta_plugin.name
+        String name = module.esplugin.name
         // Copy all non config/bin files
         // Note these might be unde a subdirectory in the case of a meta plugin
         if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
@@ -249,8 +251,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
         "bundled_${platform}_${architecture}" {
           it.platform = platform
-          it.version = VersionProperties.getBundledJdk(platform)
-          it.vendor = (platform == 'darwin' && architecture == 'aarch64') ? 'azul' : VersionProperties.bundledJdkVendor
+          it.version = VersionProperties.bundledJdkVersion
+          it.vendor = VersionProperties.bundledJdkVendor
           it.architecture = architecture
         }
       }
@@ -273,6 +275,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
+    all {
+      resolutionStrategy.dependencySubstitution {
+        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:elasticsearch-log4j") because "patched to remove JndiLookup clas"}
+    }
   }
 
   dependencies {
@@ -293,7 +299,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
      *****************************************************************************/
     libFiles = { testDistro ->
       copySpec {
-        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)
@@ -487,6 +493,7 @@ subprojects {
     Map<String, Object> expansions = [
       'project.name': project.name,
       'project.version': version,
+      'project.minor.version': "${VersionProperties.elasticsearchVersion.major}.${VersionProperties.elasticsearchVersion.minor}",
 
       'path.conf': [
         'deb': '/etc/elasticsearch',

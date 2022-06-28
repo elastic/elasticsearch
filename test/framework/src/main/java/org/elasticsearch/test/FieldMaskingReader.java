@@ -18,6 +18,7 @@ import java.util.Collections;
 
 public class FieldMaskingReader extends FilterDirectoryReader {
     private final String field;
+
     public FieldMaskingReader(String field, DirectoryReader in) throws IOException {
         super(in, new FilterDirectoryReader.SubReaderWrapper() {
             @Override

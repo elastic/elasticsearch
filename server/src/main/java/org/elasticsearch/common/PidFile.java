@@ -62,7 +62,7 @@ public final class PidFile {
             throw new IllegalArgumentException(path + " exists but is not a regular file");
         }
 
-        try(OutputStream stream = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+        try (OutputStream stream = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
             stream.write(Long.toString(pid).getBytes(StandardCharsets.UTF_8));
         }
 
@@ -71,7 +71,6 @@ public final class PidFile {
         }
         return new PidFile(path, deleteOnExit, pid);
     }
-
 
     /**
      * Returns the current process id

@@ -27,9 +27,10 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestCase<BinaryComparisonProcessor> {
     public static BinaryComparisonProcessor randomProcessor() {
         return new BinaryComparisonProcessor(
-                new ConstantProcessor(randomLong()),
-                new ConstantProcessor(randomLong()),
-                randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values()));
+            new ConstantProcessor(randomLong()),
+            new ConstantProcessor(randomLong()),
+            randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values())
+        );
     }
 
     @Override

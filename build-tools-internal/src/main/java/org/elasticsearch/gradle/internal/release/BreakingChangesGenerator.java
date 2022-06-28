@@ -8,11 +8,8 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import groovy.text.SimpleTemplateEngine;
-
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.File;
@@ -24,52 +21,63 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
+
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
 
 /**
- * Generates the page that lists the breaking changes and deprecations for a minor version release.
+ * Generates the page that contains breaking changes deprecations for a minor release series.
  */
 public class BreakingChangesGenerator {
 
-    static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
-        try (FileWriter output = new FileWriter(outputFile)) {
-            generateFile(Files.readString(templateFile.toPath()), output, entries);
+    static void update(File migrationTemplateFile, File migrationOutputFile, List<ChangelogEntry> entries) throws IOException {
+        try (FileWriter output = new FileWriter(migrationOutputFile)) {
+            output.write(
+                generateMigrationFile(
+                    QualifiedVersion.of(VersionProperties.getElasticsearch()),
+                    Files.readString(migrationTemplateFile.toPath()),
+                    entries
+                )
+            );
         }
     }
 
     @VisibleForTesting
-    private static void generateFile(String template, FileWriter outputWriter, List<ChangelogEntry> entries) throws IOException {
-        final Version version = VersionProperties.getElasticsearchVersion();
-
-        final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingChangesByNotabilityByArea = entries.stream()
-            .map(ChangelogEntry::getBreaking)
+    static String generateMigrationFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
+        final Map<Boolean, Map<String, List<ChangelogEntry.Deprecation>>> deprecationsByNotabilityByArea = entries.stream()
+            .map(ChangelogEntry::getDeprecation)
             .filter(Objects::nonNull)
+            .sorted(comparing(ChangelogEntry.Deprecation::getTitle))
             .collect(
-                Collectors.groupingBy(
-                    ChangelogEntry.Breaking::isNotable,
-                    Collectors.groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, Collectors.toList())
+                groupingBy(
+                    ChangelogEntry.Deprecation::isNotable,
+                    TreeMap::new,
+                    groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, toList())
                 )
             );
 
-        final Map<String, List<ChangelogEntry.Deprecation>> deprecationsByArea = entries.stream()
-            .map(ChangelogEntry::getDeprecation)
+        final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingByNotabilityByArea = entries.stream()
+            .map(ChangelogEntry::getBreaking)
             .filter(Objects::nonNull)
-            .collect(Collectors.groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, Collectors.toList()));
+            .sorted(comparing(ChangelogEntry.Breaking::getTitle))
+            .collect(
+                groupingBy(
+                    ChangelogEntry.Breaking::isNotable,
+                    TreeMap::new,
+                    groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, toList())
+                )
+            );
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("breakingChangesByNotabilityByArea", breakingChangesByNotabilityByArea);
-        bindings.put("deprecationsByArea", deprecationsByArea);
-        bindings.put("isElasticsearchSnapshot", VersionProperties.isElasticsearchSnapshot());
-        bindings.put("majorDotMinor", version.getMajor() + "." + version.getMinor());
-        bindings.put("majorMinor", String.valueOf(version.getMajor()) + version.getMinor());
-        bindings.put("nextMajor", (version.getMajor() + 1) + ".0");
+        bindings.put("breakingByNotabilityByArea", breakingByNotabilityByArea);
+        bindings.put("deprecationsByNotabilityByArea", deprecationsByNotabilityByArea);
+        bindings.put("isElasticsearchSnapshot", version.isSnapshot());
+        bindings.put("majorDotMinor", version.major() + "." + version.minor());
+        bindings.put("majorMinor", String.valueOf(version.major()) + version.minor());
+        bindings.put("nextMajor", (version.major() + 1) + ".0");
         bindings.put("version", version);
 
-        try {
-            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(template).make(bindings).writeTo(outputWriter);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        return TemplateUtils.render(template, bindings);
     }
 }

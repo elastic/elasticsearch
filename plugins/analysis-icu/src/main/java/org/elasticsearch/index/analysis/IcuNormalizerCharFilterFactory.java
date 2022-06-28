@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.analysis;
 
-
 import com.ibm.icu.text.Normalizer2;
 
 import org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter;
@@ -17,7 +16,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
-
 
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter} to normalize character.
@@ -37,7 +35,10 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
             mode = "compose";
         }
         Normalizer2 normalizer = Normalizer2.getInstance(
-            null, method, "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE);
+            null,
+            method,
+            "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE
+        );
         this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
     }
 

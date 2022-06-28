@@ -8,7 +8,7 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -34,7 +34,6 @@ restResources {
 }
 
 def useFixture = providers.environmentVariable("geoip_use_service")
-  .forUseAtConfigurationTime()
   .map { s -> Boolean.parseBoolean(s) == false }
   .getOrElse(true)
 
@@ -73,10 +72,8 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
     'org.apache.http.HttpEntity',
-    'org.apache.http.HttpHost',
     'org.apache.http.HttpResponse',
     'org.apache.http.StatusLine',
-    'org.apache.http.auth.UsernamePasswordCredentials',
     'org.apache.http.client.config.RequestConfig$Builder',
     'org.apache.http.client.config.RequestConfig',
     'org.apache.http.client.methods.CloseableHttpResponse',

@@ -15,7 +15,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-
 public class BuiltinCommandTests extends SqlCliTestCase {
 
     public void testInvalidCommand() throws Exception {

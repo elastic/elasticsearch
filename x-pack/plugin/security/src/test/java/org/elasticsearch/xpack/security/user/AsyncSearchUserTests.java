@@ -50,23 +50,28 @@ public class AsyncSearchUserTests extends ESTestCase {
             for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
-            assertThat(predicate.test(mockIndexAbstraction(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 3))),
-                    Matchers.is(true));
+            assertThat(
+                predicate.test(mockIndexAbstraction(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 3))),
+                Matchers.is(true)
+            );
         }
     }
 
     public void testAsyncSearchUserHasNoClusterPrivileges() {
         for (String action : Arrays.asList(ClusterStateAction.NAME, GetWatchAction.NAME, ClusterStatsAction.NAME, NodesStatsAction.NAME)) {
-            assertThat(AsyncSearchUser.ROLE.cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
-                    Matchers.is(false));
+            assertThat(
+                AsyncSearchUser.ROLE.cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
+                Matchers.is(false)
+            );
         }
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {
         IndexAbstraction mock = mock(IndexAbstraction.class);
         when(mock.getName()).thenReturn(name);
-        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
-                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        when(mock.getType()).thenReturn(
+            randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
+        );
         return mock;
     }
 }

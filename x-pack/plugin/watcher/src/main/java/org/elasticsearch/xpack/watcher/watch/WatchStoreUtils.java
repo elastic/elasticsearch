@@ -32,7 +32,7 @@ public class WatchStoreUtils {
             throw new IllegalStateException("Alias [" + name + "] points to more than one index");
         }
 
-        return indexAbstraction.getIndices().get(0);
+        return metadata.index(indexAbstraction.getIndices().get(0));
     }
 
 }

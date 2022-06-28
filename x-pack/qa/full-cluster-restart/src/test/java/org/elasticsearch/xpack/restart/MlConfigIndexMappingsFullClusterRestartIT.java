@@ -38,9 +38,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before
@@ -49,8 +47,8 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
                 ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
                 : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
-            boolean clusterUnderstandsComposableTemplates =
-                isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
+            boolean clusterUnderstandsComposableTemplates = isRunningAgainstOldCluster() == false
+                || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
             XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
         }
     }
@@ -80,8 +78,8 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     private void assertThatMlConfigIndexDoesNotExist() {
         Request getIndexRequest = new Request("GET", ".ml-config");
         getIndexRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
-                "access to system indices will be prevented by default";
+            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct "
+                + "access to system indices will be prevented by default";
             v.current(systemIndexWarning);
             v.compatible(systemIndexWarning);
         }));
@@ -90,18 +88,19 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig =
-            "{\n" +
-            "    \"job_id\": \"" + jobId + "\",\n" +
-            "    \"analysis_config\": {\n" +
-            "        \"bucket_span\": \"10m\",\n" +
-            "        \"detectors\": [{\n" +
-            "            \"function\": \"metric\",\n" +
-            "            \"field_name\": \"responsetime\"\n" +
-            "        }]\n" +
-            "    },\n" +
-            "    \"data_description\": {}\n" +
-            "}";
+        String jobConfig = "{\n"
+            + "    \"job_id\": \""
+            + jobId
+            + "\",\n"
+            + "    \"analysis_config\": {\n"
+            + "        \"bucket_span\": \"10m\",\n"
+            + "        \"detectors\": [{\n"
+            + "            \"function\": \"metric\",\n"
+            + "            \"field_name\": \"responsetime\"\n"
+            + "        }]\n"
+            + "    },\n"
+            + "    \"data_description\": {}\n"
+            + "}";
 
         Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
         putJobRequest.setJsonEntity(jobConfig);
@@ -113,11 +112,11 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     private Map<String, Object> getConfigIndexMappings() throws Exception {
         Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
         getIndexMappingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
-                "access to system indices will be prevented by default";
-            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in get mapping " +
-                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', which means responses will omit the type " +
-                "name in mapping definitions.";
+            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct "
+                + "access to system indices will be prevented by default";
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in get mapping "
+                + "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', which means responses will omit the type "
+                + "name in mapping definitions.";
             v.current(systemIndexWarning);
             v.compatible(systemIndexWarning, typesWarning);
         }));

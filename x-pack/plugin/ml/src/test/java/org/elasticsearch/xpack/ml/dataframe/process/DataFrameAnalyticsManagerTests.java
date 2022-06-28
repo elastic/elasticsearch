@@ -24,18 +24,18 @@ import static org.mockito.Mockito.mock;
 public class DataFrameAnalyticsManagerTests extends ESTestCase {
 
     public void testNodeShuttingDown() {
-        DataFrameAnalyticsManager manager =
-            new DataFrameAnalyticsManager(
-                Settings.EMPTY,
-                mock(NodeClient.class),
-                mock(ThreadPool.class),
-                mock(ClusterService.class),
-                mock(DataFrameAnalyticsConfigProvider.class),
-                mock(AnalyticsProcessManager.class),
-                mock(DataFrameAnalyticsAuditor.class),
-                mock(IndexNameExpressionResolver.class),
-                mock(ResultsPersisterService.class),
-                mock(ModelLoadingService.class));
+        DataFrameAnalyticsManager manager = new DataFrameAnalyticsManager(
+            Settings.EMPTY,
+            mock(NodeClient.class),
+            mock(ThreadPool.class),
+            mock(ClusterService.class),
+            mock(DataFrameAnalyticsConfigProvider.class),
+            mock(AnalyticsProcessManager.class),
+            mock(DataFrameAnalyticsAuditor.class),
+            mock(IndexNameExpressionResolver.class),
+            mock(ResultsPersisterService.class),
+            mock(ModelLoadingService.class)
+        );
         assertThat(manager.isNodeShuttingDown(), is(false));
 
         manager.markNodeAsShuttingDown();

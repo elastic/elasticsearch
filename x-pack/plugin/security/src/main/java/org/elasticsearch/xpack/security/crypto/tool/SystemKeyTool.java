@@ -8,19 +8,18 @@ package org.elasticsearch.xpack.security.crypto.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -30,6 +29,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 public class SystemKeyTool extends EnvironmentAwareCommand {
 
@@ -43,8 +45,10 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         arguments = parser.nonOptions("key path");
     }
 
-    public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Sets.newHashSet(PosixFilePermission.OWNER_READ,
-            PosixFilePermission.OWNER_WRITE);
+    public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Sets.newHashSet(
+        PosixFilePermission.OWNER_READ,
+        PosixFilePermission.OWNER_WRITE
+    );
 
     public static void main(String[] args) throws Exception {
         final SystemKeyTool tool = new SystemKeyTool();
@@ -82,8 +86,10 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         PosixFileAttributeView view = Files.getFileAttributeView(keyPath, PosixFileAttributeView.class);
         if (view != null) {
             view.setPermissions(PERMISSION_OWNER_READ_WRITE);
-            terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, "
-                    + "permissions are set to owner read/write only");
+            terminal.println(
+                "Ensure the generated key can be read by the user that Elasticsearch runs as, "
+                    + "permissions are set to owner read/write only"
+            );
         }
     }
 
@@ -100,7 +106,6 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
             throw new ElasticsearchException("failed to generate key", e);
         }
     }
-
 
     @SuppressForbidden(reason = "Parsing command line path")
     private static Path parsePath(String path) {

@@ -14,7 +14,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-mustache')
-  testImplementation project(path: ':modules:geo')
+  testImplementation project(xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
 }
 

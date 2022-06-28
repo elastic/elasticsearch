@@ -258,7 +258,6 @@ public class WatcherClient {
         return client.execute(ActivateWatchAction.INSTANCE, request);
     }
 
-
     /**
      * Prepare a watch service request.
      */
@@ -279,8 +278,6 @@ public class WatcherClient {
     public ActionFuture<AcknowledgedResponse> watcherService(WatcherServiceRequest request) {
         return client.execute(WatcherServiceAction.INSTANCE, request);
     }
-
-
 
     /**
      * Creates a request builder to execute a watch by id

@@ -16,8 +16,8 @@ import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.internal.jvm.Jvm;
 
-import java.io.FileWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -151,7 +151,6 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
                 OutputStream out = Files.newOutputStream(jarPath);
                 InputStream jarInput = this.getClass().getResourceAsStream("/META-INF/reaper.jar");
             ) {
-                System.out.println("jarInput = " + jarInput);
                 logger.info("Copying reaper.jar...");
                 jarInput.transferTo(out);
             } catch (IOException e) {

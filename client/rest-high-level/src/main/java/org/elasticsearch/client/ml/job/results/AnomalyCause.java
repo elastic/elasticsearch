@@ -8,12 +8,12 @@
 package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.DetectorFunction;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,8 +50,11 @@ public class AnomalyCause implements ToXContentObject {
      */
     public static final ParseField FIELD_NAME = new ParseField("field_name");
 
-    public static final ObjectParser<AnomalyCause, Void> PARSER =
-        new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(), true, AnomalyCause::new);
+    public static final ObjectParser<AnomalyCause, Void> PARSER = new ObjectParser<>(
+        ANOMALY_CAUSE.getPreferredName(),
+        true,
+        AnomalyCause::new
+    );
 
     static {
         PARSER.declareDouble(AnomalyCause::setProbability, PROBABILITY);
@@ -86,8 +89,7 @@ public class AnomalyCause implements ToXContentObject {
 
     private List<Influence> influencers;
 
-    AnomalyCause() {
-    }
+    AnomalyCause() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -272,8 +274,22 @@ public class AnomalyCause implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(probability, actual, typical, byFieldName, byFieldValue, correlatedByFieldValue, fieldName, function,
-            functionDescription, overFieldName, overFieldValue, partitionFieldName, partitionFieldValue, influencers);
+        return Objects.hash(
+            probability,
+            actual,
+            typical,
+            byFieldName,
+            byFieldValue,
+            correlatedByFieldValue,
+            fieldName,
+            function,
+            functionDescription,
+            overFieldName,
+            overFieldValue,
+            partitionFieldName,
+            partitionFieldValue,
+            influencers
+        );
     }
 
     @Override
@@ -286,21 +302,21 @@ public class AnomalyCause implements ToXContentObject {
             return false;
         }
 
-        AnomalyCause that = (AnomalyCause)other;
+        AnomalyCause that = (AnomalyCause) other;
 
-        return this.probability == that.probability &&
-            Objects.equals(this.typical, that.typical) &&
-            Objects.equals(this.actual, that.actual) &&
-            Objects.equals(this.function, that.function) &&
-            Objects.equals(this.functionDescription, that.functionDescription) &&
-            Objects.equals(this.fieldName, that.fieldName) &&
-            Objects.equals(this.byFieldName, that.byFieldName) &&
-            Objects.equals(this.byFieldValue, that.byFieldValue) &&
-            Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue) &&
-            Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-            Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
-            Objects.equals(this.overFieldName, that.overFieldName) &&
-            Objects.equals(this.overFieldValue, that.overFieldValue) &&
-            Objects.equals(this.influencers, that.influencers);
+        return this.probability == that.probability
+            && Objects.equals(this.typical, that.typical)
+            && Objects.equals(this.actual, that.actual)
+            && Objects.equals(this.function, that.function)
+            && Objects.equals(this.functionDescription, that.functionDescription)
+            && Objects.equals(this.fieldName, that.fieldName)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.byFieldValue, that.byFieldValue)
+            && Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.overFieldValue, that.overFieldValue)
+            && Objects.equals(this.influencers, that.influencers);
     }
 }

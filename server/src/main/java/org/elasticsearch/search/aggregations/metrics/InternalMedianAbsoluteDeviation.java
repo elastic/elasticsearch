@@ -10,9 +10,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,9 +76,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final boolean anyResults = valuesSketch.size() > 0;
-        final Double mad = anyResults
-            ? getMedianAbsoluteDeviation()
-            : null;
+        final Double mad = anyResults ? getMedianAbsoluteDeviation() : null;
 
         builder.field(CommonFields.VALUE.getPreferredName(), mad);
         if (format != DocValueFormat.RAW && anyResults) {

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.fielddata;
 
-
 import java.io.IOException;
 
 /**

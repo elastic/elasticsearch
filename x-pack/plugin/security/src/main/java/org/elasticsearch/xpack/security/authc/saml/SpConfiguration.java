@@ -24,9 +24,14 @@ public class SpConfiguration {
     private final List<String> reqAuthnCtxClassRef;
     private final List<X509Credential> encryptionCredentials;
 
-    public SpConfiguration(final String entityId, final String ascUrl, final String logoutUrl,
-                           final SigningConfiguration signingConfiguration, @Nullable final List<X509Credential> encryptionCredential,
-                           final List<String> authnCtxClassRef) {
+    public SpConfiguration(
+        final String entityId,
+        final String ascUrl,
+        final String logoutUrl,
+        final SigningConfiguration signingConfiguration,
+        @Nullable final List<X509Credential> encryptionCredential,
+        final List<String> authnCtxClassRef
+    ) {
         this.entityId = entityId;
         this.ascUrl = ascUrl;
         this.logoutUrl = logoutUrl;

@@ -11,8 +11,8 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -20,12 +20,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
 
-
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
-    public static final Function<SortedSetDocValues, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION =
-            ((Function<SortedSetDocValues, SortedBinaryDocValues>) FieldData::toString)
-            .andThen(ScriptDocValues.Strings::new);
+    public static final Function<SortedSetDocValues, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION = ((Function<
+        SortedSetDocValues,
+        SortedBinaryDocValues>) FieldData::toString).andThen(ScriptDocValues.Strings::new);
 
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
@@ -57,8 +56,7 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public SortedSetDocValues getOrdinalsValues() {

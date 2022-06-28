@@ -37,8 +37,7 @@ public final class Variables {
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put(ID, ctx.id().value());
         ctxModel.put(WATCH_ID, ctx.id().watchId());
-        ctxModel.put(EXECUTION_TIME,
-            new JodaCompatibleZonedDateTime(ctx.executionTime().toInstant(), ZoneOffset.UTC));
+        ctxModel.put(EXECUTION_TIME, new JodaCompatibleZonedDateTime(ctx.executionTime().toInstant(), ZoneOffset.UTC));
         ctxModel.put(TRIGGER, ctx.triggerEvent().data());
         if (payload != null) {
             ctxModel.put(PAYLOAD, payload.data());

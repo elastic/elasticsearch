@@ -47,8 +47,10 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSystemUserSwitchWithSystemUser() {
-        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY,
-                new Authentication(SystemUser.INSTANCE, new RealmRef("test", "test", "foo"), null));
+        threadContext.putTransient(
+            AuthenticationField.AUTHENTICATION_KEY,
+            new Authentication(SystemUser.INSTANCE, new RealmRef("test", "test", "foo"), null)
+        );
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
 
@@ -58,7 +60,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSystemUserSwitchWithNonSystemUser() {
         User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
@@ -66,7 +68,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSystemUserSwitchWithNonSystemUserAndInternalAction() {
         User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
@@ -81,7 +83,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
         // set authentication
         User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         assertFalse(AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext));
 
@@ -99,8 +101,14 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
-        for (String origin : Arrays.asList(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
-                ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN)) {
+        for (String origin : Arrays.asList(
+            ClientHelper.ML_ORIGIN,
+            ClientHelper.WATCHER_ORIGIN,
+            ClientHelper.DEPRECATION_ORIGIN,
+            ClientHelper.MONITORING_ORIGIN,
+            ClientHelper.PERSISTENT_TASK_ORIGIN,
+            ClientHelper.INDEX_LIFECYCLE_ORIGIN
+        )) {
             assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
         }
     }

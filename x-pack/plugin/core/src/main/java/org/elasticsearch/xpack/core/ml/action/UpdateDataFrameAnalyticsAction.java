@@ -14,9 +14,9 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -45,7 +45,8 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
             } else if (Strings.isNullOrEmpty(id) == false && id.equals(updateBuilder.getId()) == false) {
                 // If we have both URI and body ID, they must be identical
                 throw new IllegalArgumentException(
-                    Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, updateBuilder.getId(), id));
+                    Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, updateBuilder.getId(), id)
+                );
             }
 
             return new UpdateDataFrameAnalyticsAction.Request(updateBuilder.build());
@@ -99,8 +100,10 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
         }
     }
 
-    public static class RequestBuilder
-        extends MasterNodeOperationRequestBuilder<Request, PutDataFrameAnalyticsAction.Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        Request,
+        PutDataFrameAnalyticsAction.Response,
+        RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, UpdateDataFrameAnalyticsAction action) {
             super(client, action, new Request());

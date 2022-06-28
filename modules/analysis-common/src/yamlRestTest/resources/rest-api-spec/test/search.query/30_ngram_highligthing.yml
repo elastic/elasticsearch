@@ -43,7 +43,7 @@
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         refresh: true
         body:
           name: logicacmg ehemals avinci - the know how company

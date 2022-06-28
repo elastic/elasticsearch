@@ -5,28 +5,28 @@ setup:
       index:
           index:  index_1
           type:   test
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
   - do:
       index:
           index:  index_1
           type:   test
-          id:     2
+          id:     "2"
           body:   { foo: baz }
 
   - do:
       index:
           index:  index_1
           type:   test
-          id:     3
+          id:     "3"
           body:   { foo: foo }
 
   - do:
       index:
           index:  index_2
           type:   test
-          id:     1
+          id:     "1"
           body:   { foo: foo }
 
   - do:

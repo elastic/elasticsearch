@@ -6,22 +6,22 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
@@ -49,8 +49,12 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     private final WatcherSearchTemplateService searchTemplateService;
     private final TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, Client client, WatcherSearchTemplateService searchTemplateService,
-                                 TimeValue defaultTimeout) {
+    public ExecutableSearchInput(
+        SearchInput input,
+        Client client,
+        WatcherSearchTemplateService searchTemplateService,
+        TimeValue defaultTimeout
+    ) {
         super(input);
         this.client = client;
         this.searchTemplateService = searchTemplateService;
@@ -78,8 +82,12 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
-        final SearchResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN,
-                client, () -> client.search(searchRequest).actionGet(timeout));
+        final SearchResponse response = ClientHelper.executeWithHeaders(
+            ctx.watch().status().getHeaders(),
+            ClientHelper.WATCHER_ORIGIN,
+            client,
+            () -> client.search(searchRequest).actionGet(timeout)
+        );
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
@@ -96,10 +104,16 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             params = EMPTY_PARAMS;
         }
         if (input.getExtractKeys() != null) {
-            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, params, false);
+            BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes, XContentType.JSON)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    bytes,
+                    XContentType.SMILE
+                )
+            ) {
                 Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
                 payload = new Payload.Simple(filteredKeys);
             }

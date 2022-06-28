@@ -41,13 +41,17 @@ public class FakeTcpChannel implements TcpChannel {
         this(isServer, "profile", messageCaptor);
     }
 
-
     public FakeTcpChannel(boolean isServer, String profile, AtomicReference<BytesReference> messageCaptor) {
         this(isServer, null, null, profile, messageCaptor);
     }
 
-    public FakeTcpChannel(boolean isServer, InetSocketAddress localAddress, InetSocketAddress remoteAddress, String profile,
-                          AtomicReference<BytesReference> messageCaptor) {
+    public FakeTcpChannel(
+        boolean isServer,
+        InetSocketAddress localAddress,
+        InetSocketAddress remoteAddress,
+        String profile,
+        AtomicReference<BytesReference> messageCaptor
+    ) {
         this.isServer = isServer;
         this.localAddress = localAddress;
         this.remoteAddress = remoteAddress;

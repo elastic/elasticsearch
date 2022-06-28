@@ -38,10 +38,8 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
     }
 
-    public void testHasNext()
-    {
-        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
+    public void testHasNext() {
+        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client).addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
             .addBatch(createJsonDoc("d"), createJsonDoc("e"))
             .finishMock();
 
@@ -59,11 +57,8 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
         ESTestCase.expectThrows(NoSuchElementException.class, testIterator::next);
     }
 
-    public void testFirstBatchIsEmpty()
-    {
-        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client)
-            .addBatch()
-            .finishMock();
+    public void testFirstBatchIsEmpty() {
+        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client).addBatch().finishMock();
 
         TestIterator testIterator = new TestIterator(originSettingClient, INDEX_NAME);
         assertTrue(testIterator.hasNext());
@@ -72,10 +67,8 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
         assertFalse(testIterator.hasNext());
     }
 
-    public void testExtractSearchAfterValuesSet()
-    {
-        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
+    public void testExtractSearchAfterValuesSet() {
+        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client).addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
             .addBatch(createJsonDoc("d"), createJsonDoc("e"))
             .finishMock();
 
@@ -84,12 +77,12 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
         Deque<String> next = testIterator.next();
         assertThat(next, not(empty()));
         Object[] values = testIterator.searchAfterFields();
-        assertArrayEquals(new Object[] {"c"}, values);
+        assertArrayEquals(new Object[] { "c" }, values);
 
         next = testIterator.next();
         assertThat(next, not(empty()));
         values = testIterator.searchAfterFields();
-        assertArrayEquals(new Object[] {"e"}, values);
+        assertArrayEquals(new Object[] { "e" }, values);
     }
 
     private static class TestIterator extends SearchAfterDocumentsIterator<String> {
@@ -117,12 +110,12 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
 
         @Override
         protected Object[] searchAfterFields() {
-            return new Object[] {searchAfterValue};
+            return new Object[] { searchAfterValue };
         }
 
         @Override
         protected void extractSearchAfterFields(SearchHit lastSearchHit) {
-            searchAfterValue = (String)lastSearchHit.getSourceAsMap().get("name");
+            searchAfterValue = (String) lastSearchHit.getSourceAsMap().get("name");
         }
     }
 

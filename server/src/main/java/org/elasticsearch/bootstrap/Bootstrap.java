@@ -16,13 +16,15 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.plugins.PluginsManager;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -34,10 +36,12 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -111,9 +115,9 @@ final class Bootstrap {
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
-               Natives.tryVirtualLock();
+                Natives.tryVirtualLock();
             } else {
-               Natives.tryMlockall();
+                Natives.tryMlockall();
             }
         }
 
@@ -149,6 +153,9 @@ final class Bootstrap {
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
+
+        // init filesystem natives
+        FileSystemNatives.init();
     }
 
     static void initializeProbes() {
@@ -156,6 +163,7 @@ final class Bootstrap {
         ProcessProbe.getInstance();
         OsProbe.getInstance();
         JvmInfo.jvmInfo();
+        HotThreads.initializeRuntimeMonitoring();
     }
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
@@ -167,11 +175,17 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        try {
+            environment.validateNativesConfig(); // temporary directories are important for JNA
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
         initializeNatives(
-                environment.tmpFile(),
-                BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
-                BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
+            environment.tmpFile(),
+            BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
+            BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
+            BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
+        );
 
         // initialize probes before the security manager is installed
         initializeProbes();
@@ -185,8 +199,9 @@ final class Bootstrap {
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
                         if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                            throw new IllegalStateException("Node didn't stop within 10 seconds. " +
-                                    "Any outstanding requests or tasks might get killed.");
+                            throw new IllegalStateException(
+                                "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
+                            );
                         }
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
@@ -220,7 +235,9 @@ final class Bootstrap {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,
-                final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
+                final BoundTransportAddress boundTransportAddress,
+                List<BootstrapCheck> checks
+            ) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
@@ -249,7 +266,7 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
-        try{
+        try {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
@@ -274,7 +291,7 @@ final class Bootstrap {
     static SecureString readPassphrase(InputStream stream, int maxLength) throws IOException {
         SecureString passphrase;
 
-        try(InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+        try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             passphrase = new SecureString(Terminal.readLineToCharArray(reader, maxLength));
         } catch (RuntimeException e) {
             if (e.getMessage().startsWith("Input exceeded maximum length")) {
@@ -292,10 +309,11 @@ final class Bootstrap {
     }
 
     private static Environment createEnvironment(
-            final Path pidFile,
-            final SecureSettings secureSettings,
-            final Settings initialSettings,
-            final Path configPath) {
+        final Path pidFile,
+        final SecureSettings secureSettings,
+        final Settings initialSettings,
+        final Path configPath
+    ) {
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
@@ -304,9 +322,13 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath,
-                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
-                () -> System.getenv("HOSTNAME"));
+        return InternalSettingsPreparer.prepareEnvironment(
+            builder.build(),
+            Collections.emptyMap(),
+            configPath,
+            // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+            () -> System.getenv("HOSTNAME")
+        );
     }
 
     private void start() throws NodeValidationException {
@@ -331,11 +353,8 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(
-            final boolean foreground,
-            final Path pidFile,
-            final boolean quiet,
-            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
+    static void init(final boolean foreground, final Path pidFile, final boolean quiet, final Environment initialEnv)
+        throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
@@ -357,17 +376,19 @@ final class Bootstrap {
                 "future versions of Elasticsearch will require Java 11; your Java version from [%s] does not meet this "
                     + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
                     + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
-                System.getProperty("java.home"));
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.OTHER, "java_version_11_required", message);
+                System.getProperty("java.home")
+            );
+            DeprecationLogger.getLogger(Bootstrap.class).critical(DeprecationCategory.OTHER, "java_version_11_required", message);
         }
         if (BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection") != null) {
             final String message = String.format(
                 Locale.ROOT,
-                "The Java option es.xcontent.strict_duplicate_detection is set to [%s]; " +
-                    "this option is deprecated and non-functional and should be removed from Java configuration.",
-                BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection"));
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.SETTINGS,
-                "strict_duplicate_detection_setting_removed", message);
+                "The Java option es.xcontent.strict_duplicate_detection is set to [%s]; "
+                    + "this option is deprecated and non-functional and should be removed from Java configuration.",
+                BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection")
+            );
+            DeprecationLogger.getLogger(Bootstrap.class)
+                .critical(DeprecationCategory.SETTINGS, "strict_duplicate_detection_setting_removed", message);
         }
         if (environment.pidFile() != null) {
             try {
@@ -395,6 +416,20 @@ final class Bootstrap {
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
+
+            if (PluginsManager.configExists(environment)) {
+                if (Build.CURRENT.type() == Build.Type.DOCKER) {
+                    try {
+                        PluginsManager.syncPlugins(environment);
+                    } catch (Exception e) {
+                        throw new BootstrapException(e);
+                    }
+                } else {
+                    throw new BootstrapException(
+                        new ElasticsearchException("Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]")
+                    );
+                }
+            }
 
             INSTANCE.setup(true, environment);
 
@@ -469,8 +504,13 @@ final class Bootstrap {
 
     private static void checkLucene() {
         if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
-            throw new AssertionError("Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                + Version.CURRENT.luceneVersion + "]  but the current lucene version is [" + org.apache.lucene.util.Version.LATEST + "]");
+            throw new AssertionError(
+                "Lucene version mismatch this version of Elasticsearch requires lucene version ["
+                    + Version.CURRENT.luceneVersion
+                    + "]  but the current lucene version is ["
+                    + org.apache.lucene.util.Version.LATEST
+                    + "]"
+            );
         }
     }
 

@@ -10,5 +10,4 @@ package org.elasticsearch.client.feature;
 
 import org.elasticsearch.client.TimedRequest;
 
-public class ResetFeaturesRequest extends TimedRequest {
-}
+public class ResetFeaturesRequest extends TimedRequest {}

@@ -35,10 +35,6 @@ public class ApplyCommitRequest extends TermVersionRequest {
 
     @Override
     public String toString() {
-        return "ApplyCommitRequest{" +
-            "term=" + term +
-            ", version=" + version +
-            ", sourceNode=" + sourceNode +
-            '}';
+        return "ApplyCommitRequest{" + "term=" + term + ", version=" + version + ", sourceNode=" + sourceNode + '}';
     }
 }

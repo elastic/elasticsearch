@@ -20,11 +20,13 @@ import java.util.Map;
 @FunctionalInterface
 public interface MissingAggregatorSupplier {
 
-    MissingAggregator build(String name,
-                     AggregatorFactories factories,
-                     ValuesSourceConfig valuesSourceConfig,
-                     AggregationContext aggregationContext,
-                     Aggregator parent,
-                     CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException;
+    MissingAggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        AggregationContext aggregationContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

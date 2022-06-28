@@ -24,13 +24,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,29 +48,38 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MetadataTests extends ESTestCase {
 
     public void testFindAliases() {
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .putAlias(AliasMetadata.builder("alias1").build())
-            .putAlias(AliasMetadata.builder("alias2").build())).build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias1").build())
+                    .putAlias(AliasMetadata.builder("alias2").build())
+            )
+            .build();
 
         {
             ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
@@ -84,7 +94,7 @@ public class MetadataTests extends ESTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[]{"index"});
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -92,8 +102,10 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases =
-                metadata.findAliases(new GetAliasesRequest("alias*"), new String[]{"index"});
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
+                new GetAliasesRequest("alias*"),
+                new String[] { "index" }
+            );
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -101,15 +113,17 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases =
-                metadata.findAliases(new GetAliasesRequest("alias1"), new String[]{"index"});
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
+                new GetAliasesRequest("alias1"),
+                new String[] { "index" }
+            );
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(1));
             assertThat(aliasMetadataList.get(0).alias(), equalTo("alias1"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[]{"index"});
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -123,16 +137,18 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testFindAliasWithExclusion() {
-        Metadata metadata = Metadata.builder().put(
-            IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(AliasMetadata.builder("alias1").build())
-                .putAlias(AliasMetadata.builder("alias2").build())
-        ).build();
-        List<AliasMetadata> aliases =
-            metadata.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] {"index"}).get("index");
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias1").build())
+                    .putAlias(AliasMetadata.builder("alias2").build())
+            )
+            .build();
+        List<AliasMetadata> aliases = metadata.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] { "index" })
+            .get("index");
         assertThat(aliases.size(), equalTo(1));
         assertThat(aliases.get(0).alias(), equalTo("alias2"));
     }
@@ -145,7 +161,7 @@ public class MetadataTests extends ESTestCase {
 
         List<Index> allIndices = new ArrayList<>(result.indices);
         allIndices.addAll(result.backingIndices);
-        String[] concreteIndices = allIndices.stream().map(Index::getName).collect(Collectors.toList()).toArray(new String[]{});
+        String[] concreteIndices = allIndices.stream().map(Index::getName).collect(Collectors.toList()).toArray(new String[] {});
         ImmutableOpenMap<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
         assertThat(dataStreams.size(), equalTo(numBackingIndices));
         for (Index backingIndex : result.backingIndices) {
@@ -155,17 +171,19 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testFindAliasWithExclusionAndOverride() {
-        Metadata metadata = Metadata.builder().put(
-            IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(AliasMetadata.builder("aa").build())
-                .putAlias(AliasMetadata.builder("ab").build())
-                .putAlias(AliasMetadata.builder("bb").build())
-        ).build();
-        List<AliasMetadata> aliases =
-            metadata.findAliases(new GetAliasesRequest().aliases("a*", "-*b", "b*"), new String[] {"index"}).get("index");
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("aa").build())
+                    .putAlias(AliasMetadata.builder("ab").build())
+                    .putAlias(AliasMetadata.builder("bb").build())
+            )
+            .build();
+        List<AliasMetadata> aliases = metadata.findAliases(new GetAliasesRequest().aliases("a*", "-*b", "b*"), new String[] { "index" })
+            .get("index");
         assertThat(aliases.size(), equalTo(2));
         assertThat(aliases.get(0).alias(), equalTo("aa"));
         assertThat(aliases.get(1).alias(), equalTo("bb"));
@@ -173,17 +191,21 @@ public class MetadataTests extends ESTestCase {
 
     public void testIndexAndAliasWithSameName() {
         IndexMetadata.Builder builder = IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(AliasMetadata.builder("index").build());
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("index").build());
         try {
             Metadata.builder().put(builder).build();
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(),
-                equalTo("index, alias, and data stream names need to be unique, but the following duplicates were found [index (alias " +
-                    "of [index]) conflicts with index]"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "index, alias, and data stream names need to be unique, but the following duplicates were found [index (alias "
+                        + "of [index]) conflicts with index]"
+                )
+            );
         }
     }
 
@@ -194,7 +216,7 @@ public class MetadataTests extends ESTestCase {
             indices.add(randomAlphaOfLength(10));
         }
         Map<String, Set<String>> aliasToIndices = new HashMap<>();
-        for (String alias: randomSubsetOf(randomIntBetween(1, 10), indices)) {
+        for (String alias : randomSubsetOf(randomIntBetween(1, 10), indices)) {
             aliasToIndices.put(alias, new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices)));
         }
         int properAliases = randomIntBetween(0, 3);
@@ -241,12 +263,11 @@ public class MetadataTests extends ESTestCase {
         Metadata.builder(metadata).put(buildIndexMetadata(indexB, alias, bWriteIndex)).build();
 
         // when too many write indices
-        Exception exception = expectThrows(IllegalStateException.class,
-            () -> {
-                IndexMetadata.Builder metaA = buildIndexMetadata(indexA, alias, true);
-                IndexMetadata.Builder metaB = buildIndexMetadata(indexB, alias, true);
-                Metadata.builder().put(metaA).put(metaB).build();
-            });
+        Exception exception = expectThrows(IllegalStateException.class, () -> {
+            IndexMetadata.Builder metaA = buildIndexMetadata(indexA, alias, true);
+            IndexMetadata.Builder metaB = buildIndexMetadata(indexB, alias, true);
+            Metadata.builder().put(metaA).put(metaB).build();
+        });
         assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
     }
 
@@ -256,20 +277,29 @@ public class MetadataTests extends ESTestCase {
         String indexB = randomAlphaOfLength(7);
 
         {
-            Exception ex = expectThrows(IllegalStateException.class,
-                () -> buildMetadataWithHiddenIndexMix(alias, indexA, true, indexB, randomFrom(false, null)).build());
+            Exception ex = expectThrows(
+                IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, true, indexB, randomFrom(false, null)).build()
+            );
             assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
         }
 
         {
-            Exception ex = expectThrows(IllegalStateException.class,
-                () -> buildMetadataWithHiddenIndexMix(alias, indexA, randomFrom(false, null), indexB, true).build());
+            Exception ex = expectThrows(
+                IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, randomFrom(false, null), indexB, true).build()
+            );
             assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
         }
     }
 
-    private Metadata.Builder buildMetadataWithHiddenIndexMix(String aliasName, String indexAName, Boolean indexAHidden,
-                                                             String indexBName, Boolean indexBHidden) {
+    private Metadata.Builder buildMetadataWithHiddenIndexMix(
+        String aliasName,
+        String indexAName,
+        Boolean indexAHidden,
+        String indexBName,
+        Boolean indexBHidden
+    ) {
         IndexMetadata.Builder indexAMeta = IndexMetadata.builder(indexAName)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
@@ -285,12 +315,12 @@ public class MetadataTests extends ESTestCase {
 
     public void testResolveIndexRouting() {
         IndexMetadata.Builder builder = IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(AliasMetadata.builder("alias0").build())
-                .putAlias(AliasMetadata.builder("alias1").routing("1").build())
-                .putAlias(AliasMetadata.builder("alias2").routing("1,2").build());
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("alias0").build())
+            .putAlias(AliasMetadata.builder("alias1").routing("1").build())
+            .putAlias(AliasMetadata.builder("alias2").routing("1,2").build());
         Metadata metadata = Metadata.builder().put(builder).build();
 
         // no alias, no index
@@ -311,8 +341,13 @@ public class MetadataTests extends ESTestCase {
             metadata.resolveIndexRouting("0", "alias1");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1], " +
-                "and was provided with routing value [0], rejecting operation"));
+            assertThat(
+                ex.getMessage(),
+                is(
+                    "Alias [alias1] has index routing associated with it [1], "
+                        + "and was provided with routing value [0], rejecting operation"
+                )
+            );
         }
 
         // alias with invalid index routing.
@@ -320,16 +355,26 @@ public class MetadataTests extends ESTestCase {
             metadata.resolveIndexRouting(null, "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that" +
-                " resolved to several routing values, rejecting operation"));
+            assertThat(
+                ex.getMessage(),
+                is(
+                    "index/alias [alias2] provided with routing value [1,2] that"
+                        + " resolved to several routing values, rejecting operation"
+                )
+            );
         }
 
         try {
             metadata.resolveIndexRouting("1", "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that" +
-                " resolved to several routing values, rejecting operation"));
+            assertThat(
+                ex.getMessage(),
+                is(
+                    "index/alias [alias2] provided with routing value [1,2] that"
+                        + " resolved to several routing values, rejecting operation"
+                )
+            );
         }
 
         IndexMetadata.Builder builder2 = IndexMetadata.builder("index2")
@@ -340,8 +385,10 @@ public class MetadataTests extends ESTestCase {
         Metadata metadataTwoIndices = Metadata.builder(metadata).put(builder2).build();
 
         // alias with multiple indices
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> metadataTwoIndices.resolveIndexRouting("1", "alias0"));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> metadataTwoIndices.resolveIndexRouting("1", "alias0")
+        );
         assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
     }
 
@@ -376,25 +423,31 @@ public class MetadataTests extends ESTestCase {
         // alias with index routing.
         assertEquals(metadata.resolveWriteIndexRouting(null, "alias1"), "1");
         Exception exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting("0", "alias1"));
-        assertThat(exception.getMessage(),
-            is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation"));
+        assertThat(
+            exception.getMessage(),
+            is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation")
+        );
 
         // alias with invalid index routing.
         exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting(null, "alias2"));
-            assertThat(exception.getMessage(),
-                is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        assertThat(
+            exception.getMessage(),
+            is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
+        );
         exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting("1", "alias2"));
-        assertThat(exception.getMessage(),
-            is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        assertThat(
+            exception.getMessage(),
+            is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
+        );
         exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting(randomFrom("1", null), "alias4"));
-        assertThat(exception.getMessage(),
-            is("index/alias [alias4] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        assertThat(
+            exception.getMessage(),
+            is("index/alias [alias4] provided with routing value [1,2] that resolved to several routing values, rejecting operation")
+        );
 
         // alias with no write index
         exception = expectThrows(IllegalArgumentException.class, () -> metadata.resolveWriteIndexRouting("1", "alias3"));
-        assertThat(exception.getMessage(),
-            is("alias [alias3] does not have a write index"));
-
+        assertThat(exception.getMessage(), is("alias [alias3] does not have a write index"));
 
         // aliases with multiple indices
         AliasMetadata.Builder aliasZeroBuilderTwo = AliasMetadata.builder("alias0");
@@ -415,12 +468,9 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testUnknownFieldClusterMetadata() throws IOException {
-        BytesReference metadata = BytesReference.bytes(JsonXContent.contentBuilder()
-            .startObject()
-                .startObject("meta-data")
-                    .field("random", "value")
-                .endObject()
-            .endObject());
+        BytesReference metadata = BytesReference.bytes(
+            JsonXContent.contentBuilder().startObject().startObject("meta-data").field("random", "value").endObject().endObject()
+        );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
             Metadata.Builder.fromXContent(parser);
             fail();
@@ -430,12 +480,9 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testUnknownFieldIndexMetadata() throws IOException {
-        BytesReference metadata = BytesReference.bytes(JsonXContent.contentBuilder()
-            .startObject()
-                .startObject("index_name")
-                    .field("random", "value")
-                .endObject()
-            .endObject());
+        BytesReference metadata = BytesReference.bytes(
+            JsonXContent.contentBuilder().startObject().startObject("index_name").field("random", "value").endObject().endObject()
+        );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
             IndexMetadata.Builder.fromXContent(parser);
             fail();
@@ -470,8 +517,10 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testXContentClusterUUID() throws IOException {
-        final Metadata originalMeta = Metadata.builder().clusterUUID(UUIDs.randomBase64UUID())
-            .clusterUUIDCommitted(randomBoolean()).build();
+        final Metadata originalMeta = Metadata.builder()
+            .clusterUUID(UUIDs.randomBase64UUID())
+            .clusterUUIDCommitted(randomBoolean())
+            .build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         Metadata.FORMAT.toXContent(builder, originalMeta);
@@ -484,8 +533,10 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSerializationClusterUUID() throws IOException {
-        final Metadata originalMeta = Metadata.builder().clusterUUID(UUIDs.randomBase64UUID())
-            .clusterUUIDCommitted(randomBoolean()).build();
+        final Metadata originalMeta = Metadata.builder()
+            .clusterUUID(UUIDs.randomBase64UUID())
+            .clusterUUIDCommitted(randomBoolean())
+            .build();
         final BytesStreamOutput out = new BytesStreamOutput();
         originalMeta.writeTo(out);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
@@ -520,8 +571,12 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testXContentWithCoordinationMetadata() throws IOException {
-        CoordinationMetadata originalMeta = new CoordinationMetadata(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomVotingConfigExclusions());
+        CoordinationMetadata originalMeta = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingConfigExclusions()
+        );
 
         Metadata metadata = Metadata.builder().coordinationMetadata(originalMeta).build();
 
@@ -537,11 +592,19 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testGlobalStateEqualsCoordinationMetadata() {
-        CoordinationMetadata coordinationMetadata1 = new CoordinationMetadata(randomNonNegativeLong(), randomVotingConfig(),
-                randomVotingConfig(), randomVotingConfigExclusions());
+        CoordinationMetadata coordinationMetadata1 = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingConfigExclusions()
+        );
         Metadata metadata1 = Metadata.builder().coordinationMetadata(coordinationMetadata1).build();
-        CoordinationMetadata coordinationMetadata2 = new CoordinationMetadata(randomNonNegativeLong(), randomVotingConfig(),
-                randomVotingConfig(), randomVotingConfigExclusions());
+        CoordinationMetadata coordinationMetadata2 = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingConfigExclusions()
+        );
         Metadata metadata2 = Metadata.builder().coordinationMetadata(coordinationMetadata2).build();
 
         assertTrue(Metadata.isGlobalStateEquals(metadata1, metadata1));
@@ -562,33 +625,58 @@ public class MetadataTests extends ESTestCase {
 
     public void testFindMappings() throws IOException {
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("index1")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM))
-                .put(IndexMetadata.builder("index2")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM)).build();
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM)
+            )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+                    .putMapping("_doc", FIND_MAPPINGS_TEST_ITEM)
+            )
+            .build();
 
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(Strings.EMPTY_ARRAY,
-                    Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER, onNextIndexCalls::incrementAndGet);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                MapperPlugin.NOOP_FIELD_FILTER,
+                onNextIndexCalls::incrementAndGet
+            );
             assertEquals(0, mappings.size());
             assertThat(onNextIndexCalls.get(), equalTo(0));
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index1"},
-                     new String[]{"notfound"}, MapperPlugin.NOOP_FIELD_FILTER, onNextIndexCalls::incrementAndGet);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+                new String[] { "index1" },
+                new String[] { "notfound" },
+                MapperPlugin.NOOP_FIELD_FILTER,
+                onNextIndexCalls::incrementAndGet
+            );
             assertEquals(0, mappings.size());
             assertThat(onNextIndexCalls.get(), equalTo(1));
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index1"},
-                    Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER, onNextIndexCalls::incrementAndGet);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+                new String[] { "index1" },
+                Strings.EMPTY_ARRAY,
+                MapperPlugin.NOOP_FIELD_FILTER,
+                onNextIndexCalls::incrementAndGet
+            );
             assertEquals(1, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
             assertThat(onNextIndexCalls.get(), equalTo(1));
@@ -596,8 +684,11 @@ public class MetadataTests extends ESTestCase {
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                    new String[]{"index1", "index2"},
-                    new String[]{randomBoolean() ? "_doc" : "_all"}, MapperPlugin.NOOP_FIELD_FILTER, onNextIndexCalls::incrementAndGet);
+                new String[] { "index1", "index2" },
+                new String[] { randomBoolean() ? "_doc" : "_all" },
+                MapperPlugin.NOOP_FIELD_FILTER,
+                onNextIndexCalls::incrementAndGet
+            );
             assertEquals(2, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
             assertIndexMappingsNotFiltered(mappings, "index2");
@@ -606,41 +697,64 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testFindMappingsNoOpFilters() throws IOException {
-        MappingMetadata originalMappingMetadata = new MappingMetadata("_doc",
-                XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, true));
+        MappingMetadata originalMappingMetadata = new MappingMetadata(
+            "_doc",
+            XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, true)
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("index1")
-                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping(originalMappingMetadata)).build();
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+                    .putMapping(originalMappingMetadata)
+            )
+            .build();
 
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index1"},
-                    randomBoolean() ? Strings.EMPTY_ARRAY : new String[]{"_all"}, MapperPlugin.NOOP_FIELD_FILTER,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+                new String[] { "index1" },
+                randomBoolean() ? Strings.EMPTY_ARRAY : new String[] { "_all" },
+                MapperPlugin.NOOP_FIELD_FILTER,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
             MappingMetadata mappingMetadata = index1.get("_doc");
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index1"},
-                    randomBoolean() ? Strings.EMPTY_ARRAY : new String[]{"_all"}, index -> field -> randomBoolean(),
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+                new String[] { "index1" },
+                randomBoolean() ? Strings.EMPTY_ARRAY : new String[] { "_all" },
+                index -> field -> randomBoolean(),
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
             MappingMetadata mappingMetadata = index1.get("_doc");
             assertNotSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index1"},
-                    new String[]{"_doc"}, MapperPlugin.NOOP_FIELD_FILTER, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+                new String[] { "index1" },
+                new String[] { "_doc" },
+                MapperPlugin.NOOP_FIELD_FILTER,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
             MappingMetadata mappingMetadata = index1.get("_doc");
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index1"},
-                    new String[]{"_doc"}, index -> field -> randomBoolean(), Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
+                new String[] { "index1" },
+                new String[] { "_doc" },
+                index -> field -> randomBoolean(),
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             ImmutableOpenMap<String, MappingMetadata> index1 = mappings.get("index1");
             MappingMetadata mappingMetadata = index1.get("_doc");
             assertNotSame(originalMappingMetadata, mappingMetadata);
@@ -652,7 +766,7 @@ public class MetadataTests extends ESTestCase {
         String mapping = FIND_MAPPINGS_TEST_ITEM;
         if (randomBoolean()) {
             Map<String, Object> stringObjectMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, false);
-            Map<String, Object> doc = (Map<String, Object>)stringObjectMap.get("_doc");
+            Map<String, Object> doc = (Map<String, Object>) stringObjectMap.get("_doc");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(doc);
                 mapping = Strings.toString(builder);
@@ -660,35 +774,56 @@ public class MetadataTests extends ESTestCase {
         }
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("index1")
-                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping("_doc", mapping))
-                .put(IndexMetadata.builder("index2")
-                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("_doc", mapping))
-                .put(IndexMetadata.builder("index3")
-                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping("_doc", mapping)).build();
+            .put(
+                IndexMetadata.builder("index1")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+                    .putMapping("_doc", mapping)
+            )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+                    .putMapping("_doc", mapping)
+            )
+            .put(
+                IndexMetadata.builder("index3")
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    )
+                    .putMapping("_doc", mapping)
+            )
+            .build();
 
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                    new String[]{"index1", "index2", "index3"},
-                    new String[]{"_doc"}, index -> {
-                        if (index.equals("index1")) {
-                            return field -> field.startsWith("name.") == false && field.startsWith("properties.key.") == false
-                                    && field.equals("age") == false && field.equals("address.location") == false;
-                        }
-                        if (index.equals("index2")) {
-                            return field -> false;
-                        }
-                        return MapperPlugin.NOOP_FIELD_PREDICATE;
-                    },
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
-
-
+                new String[] { "index1", "index2", "index3" },
+                new String[] { "_doc" },
+                index -> {
+                    if (index.equals("index1")) {
+                        return field -> field.startsWith("name.") == false
+                            && field.startsWith("properties.key.") == false
+                            && field.equals("age") == false
+                            && field.equals("address.location") == false;
+                    }
+                    if (index.equals("index2")) {
+                        return field -> false;
+                    }
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                },
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
 
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");
@@ -740,9 +875,11 @@ public class MetadataTests extends ESTestCase {
 
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                    new String[]{"index1", "index2" , "index3"},
-                    new String[]{"_doc"}, index -> field -> (index.equals("index3") && field.endsWith("keyword")),
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+                new String[] { "index1", "index2", "index3" },
+                new String[] { "_doc" },
+                index -> field -> (index.equals("index3") && field.endsWith("keyword")),
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index2");
@@ -777,9 +914,11 @@ public class MetadataTests extends ESTestCase {
 
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(
-                    new String[]{"index1", "index2" , "index3"},
-                    new String[]{"_doc"}, index -> field -> (index.equals("index2")),
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+                new String[] { "index1", "index2", "index3" },
+                new String[] { "_doc" },
+                index -> field -> (index.equals("index2")),
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index3");
@@ -789,14 +928,18 @@ public class MetadataTests extends ESTestCase {
 
     private static IndexMetadata.Builder buildIndexMetadata(String name, String alias, Boolean writeIndex) {
         return IndexMetadata.builder(name)
-            .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
+            .settings(settings(Version.CURRENT))
+            .creationDate(randomNonNegativeLong())
             .putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex))
-            .numberOfShards(1).numberOfReplicas(0);
+            .numberOfShards(1)
+            .numberOfReplicas(0);
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
-                                                    String index) {
+    private static void assertIndexMappingsNoFields(
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
+        String index
+    ) {
         ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.get(index);
         assertNotNull(indexMappings);
         assertEquals(1, indexMappings.size());
@@ -811,8 +954,10 @@ public class MetadataTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNotFiltered(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
-                                                       String index) {
+    private static void assertIndexMappingsNotFiltered(
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
+        String index
+    ) {
         ImmutableOpenMap<String, MappingMetadata> indexMappings = mappings.get(index);
         assertNotNull(indexMappings);
 
@@ -864,7 +1009,7 @@ public class MetadataTests extends ESTestCase {
     public static void assertLeafs(Map<String, Object> properties, String... fields) {
         for (String field : fields) {
             assertTrue(properties.containsKey(field));
-            Map<String, Object> fieldProp = (Map<String, Object>)properties.get(field);
+            Map<String, Object> fieldProp = (Map<String, Object>) properties.get(field);
             assertNotNull(fieldProp);
             assertFalse(fieldProp.containsKey("properties"));
             assertFalse(fieldProp.containsKey("fields"));
@@ -874,7 +1019,7 @@ public class MetadataTests extends ESTestCase {
     public static void assertMultiField(Map<String, Object> properties, String field, String... subFields) {
         assertTrue(properties.containsKey(field));
         @SuppressWarnings("unchecked")
-        Map<String, Object> fieldProp = (Map<String, Object>)properties.get(field);
+        Map<String, Object> fieldProp = (Map<String, Object>) properties.get(field);
         assertNotNull(fieldProp);
         assertTrue(fieldProp.containsKey("fields"));
         @SuppressWarnings("unchecked")
@@ -882,84 +1027,85 @@ public class MetadataTests extends ESTestCase {
         assertLeafs(subFieldsDef, subFields);
     }
 
-    private static final String FIND_MAPPINGS_TEST_ITEM = "{\n" +
-            "  \"_doc\": {\n" +
-            "      \"_routing\": {\n" +
-            "        \"required\":true\n" +
-            "      }," +
-            "      \"_source\": {\n" +
-            "        \"enabled\":false\n" +
-            "      }," +
-            "      \"properties\": {\n" +
-            "        \"name\": {\n" +
-            "          \"properties\": {\n" +
-            "            \"first\": {\n" +
-            "              \"type\": \"keyword\"\n" +
-            "            },\n" +
-            "            \"last\": {\n" +
-            "              \"type\": \"keyword\"\n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        \"birth\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        },\n" +
-            "        \"age\": {\n" +
-            "          \"type\": \"integer\"\n" +
-            "        },\n" +
-            "        \"ip\": {\n" +
-            "          \"type\": \"ip\"\n" +
-            "        },\n" +
-            "        \"suggest\" : {\n" +
-            "          \"type\": \"completion\"\n" +
-            "        },\n" +
-            "        \"address\": {\n" +
-            "          \"type\": \"object\",\n" +
-            "          \"properties\": {\n" +
-            "            \"street\": {\n" +
-            "              \"type\": \"keyword\"\n" +
-            "            },\n" +
-            "            \"location\": {\n" +
-            "              \"type\": \"geo_point\"\n" +
-            "            },\n" +
-            "            \"area\": {\n" +
-            "              \"type\": \"geo_shape\",  \n" +
-            "              \"tree\": \"quadtree\",\n" +
-            "              \"precision\": \"1m\"\n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        \"properties\": {\n" +
-            "          \"type\": \"nested\",\n" +
-            "          \"properties\": {\n" +
-            "            \"key\" : {\n" +
-            "              \"type\": \"text\",\n" +
-            "              \"fields\": {\n" +
-            "                \"keyword\" : {\n" +
-            "                  \"type\" : \"keyword\"\n" +
-            "                }\n" +
-            "              }\n" +
-            "            },\n" +
-            "            \"value\" : {\n" +
-            "              \"type\": \"text\",\n" +
-            "              \"fields\": {\n" +
-            "                \"keyword\" : {\n" +
-            "                  \"type\" : \"keyword\"\n" +
-            "                }\n" +
-            "              }\n" +
-            "            }\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}";
+    private static final String FIND_MAPPINGS_TEST_ITEM = "{\n"
+        + "  \"_doc\": {\n"
+        + "      \"_routing\": {\n"
+        + "        \"required\":true\n"
+        + "      },"
+        + "      \"_source\": {\n"
+        + "        \"enabled\":false\n"
+        + "      },"
+        + "      \"properties\": {\n"
+        + "        \"name\": {\n"
+        + "          \"properties\": {\n"
+        + "            \"first\": {\n"
+        + "              \"type\": \"keyword\"\n"
+        + "            },\n"
+        + "            \"last\": {\n"
+        + "              \"type\": \"keyword\"\n"
+        + "            }\n"
+        + "          }\n"
+        + "        },\n"
+        + "        \"birth\": {\n"
+        + "          \"type\": \"date\"\n"
+        + "        },\n"
+        + "        \"age\": {\n"
+        + "          \"type\": \"integer\"\n"
+        + "        },\n"
+        + "        \"ip\": {\n"
+        + "          \"type\": \"ip\"\n"
+        + "        },\n"
+        + "        \"suggest\" : {\n"
+        + "          \"type\": \"completion\"\n"
+        + "        },\n"
+        + "        \"address\": {\n"
+        + "          \"type\": \"object\",\n"
+        + "          \"properties\": {\n"
+        + "            \"street\": {\n"
+        + "              \"type\": \"keyword\"\n"
+        + "            },\n"
+        + "            \"location\": {\n"
+        + "              \"type\": \"geo_point\"\n"
+        + "            },\n"
+        + "            \"area\": {\n"
+        + "              \"type\": \"geo_shape\",  \n"
+        + "              \"tree\": \"quadtree\",\n"
+        + "              \"precision\": \"1m\"\n"
+        + "            }\n"
+        + "          }\n"
+        + "        },\n"
+        + "        \"properties\": {\n"
+        + "          \"type\": \"nested\",\n"
+        + "          \"properties\": {\n"
+        + "            \"key\" : {\n"
+        + "              \"type\": \"text\",\n"
+        + "              \"fields\": {\n"
+        + "                \"keyword\" : {\n"
+        + "                  \"type\" : \"keyword\"\n"
+        + "                }\n"
+        + "              }\n"
+        + "            },\n"
+        + "            \"value\" : {\n"
+        + "              \"type\": \"text\",\n"
+        + "              \"fields\": {\n"
+        + "                \"keyword\" : {\n"
+        + "                  \"type\" : \"keyword\"\n"
+        + "                }\n"
+        + "              }\n"
+        + "            }\n"
+        + "          }\n"
+        + "        }\n"
+        + "      }\n"
+        + "    }\n"
+        + "  }\n"
+        + "}";
 
     public void testTransientSettingsOverridePersistentSettings() {
-        final Setting setting = Setting.simpleString("key");
+        final Setting<String> setting = Setting.simpleString("key");
         final Metadata metadata = Metadata.builder()
             .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
-            .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
+            .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build())
+            .build();
         assertThat(setting.get(metadata.settings()), equalTo("transient-value"));
     }
 
@@ -983,49 +1129,51 @@ public class MetadataTests extends ESTestCase {
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(IndexMetadata.builder(dataStreamName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build(), false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.core.List.of(idx.getIndex())));
+            .put(
+                IndexMetadata.builder(dataStreamName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
+                false
+            )
+            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.core.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(),
-            containsString("index, alias, and data stream names need to be unique, but the following duplicates were found [data " +
-                "stream [" + dataStreamName + "] conflicts with index]"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index, alias, and data stream names need to be unique, but the following duplicates were found [data "
+                    + "stream ["
+                    + dataStreamName
+                    + "] conflicts with index]"
+            )
+        );
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
         final String dataStreamName = "my-data-stream";
-        IndexMetadata idx = createFirstBackingIndex(dataStreamName)
-            .putAlias(AliasMetadata.builder(dataStreamName).build())
-            .build();
+        IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(AliasMetadata.builder(dataStreamName).build()).build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.core.List.of(idx.getIndex())));
+            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.core.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(),
-            containsString("index, alias, and data stream names need to be unique, but the following duplicates were found [" +
-                dataStreamName + " (alias of [" + DataStream.getDefaultBackingIndexName(dataStreamName, 1) +
-                "]) conflicts with data stream]"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index, alias, and data stream names need to be unique, but the following duplicates were found ["
+                    + dataStreamName
+                    + " (alias of ["
+                    + DataStream.getDefaultBackingIndexName(dataStreamName, 1)
+                    + "]) conflicts with data stream]"
+            )
+        );
     }
 
     public void testBuilderWarnsAboutDataStreamWithConflictingBackingAlias() {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
-        Metadata.Builder b =
-            Metadata
-                .builder()
-                .put(idx, false)
-                .put(new DataStream(
-                    dataStreamName,
-                    createTimestampField("@timestamp"), org.elasticsearch.core.List.of(idx.getIndex()))
-                );
+        Metadata.Builder b = Metadata.builder()
+            .put(idx, false)
+            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.core.List.of(idx.getIndex())));
         b.build();
         assertWarnings("aliases [" + conflictingName + "] cannot refer to backing indices of data streams");
     }
@@ -1047,7 +1195,7 @@ public class MetadataTests extends ESTestCase {
             backingIndices.add(im.getIndex());
         }
 
-        b.put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
+        b.put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -1068,8 +1216,18 @@ public class MetadataTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         b.put(ds1Index2, false);
-        b.put(new DataStream(dataStreamName1, createTimestampField("@timestamp"),
-            Arrays.asList(ds1Index1.getIndex(), ds1Index2.getIndex()), 2, null));
+        b.put(
+            new DataStream(
+                dataStreamName1,
+                createTimestampField("@timestamp"),
+                Arrays.asList(ds1Index1.getIndex(), ds1Index2.getIndex()),
+                2,
+                null,
+                false,
+                false,
+                false
+            )
+        );
 
         final String dataStreamName2 = "logs-foobar";
         IndexMetadata ds2Index1 = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName2, 1, Version.V_7_10_2))
@@ -1078,8 +1236,18 @@ public class MetadataTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         b.put(ds2Index1, false);
-        b.put(new DataStream(dataStreamName2, createTimestampField("@timestamp"),
-            Collections.singletonList(ds2Index1.getIndex()), 1, null));
+        b.put(
+            new DataStream(
+                dataStreamName2,
+                createTimestampField("@timestamp"),
+                singletonList(ds2Index1.getIndex()),
+                1,
+                null,
+                false,
+                false,
+                false
+            )
+        );
 
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(2));
@@ -1090,14 +1258,7 @@ public class MetadataTests extends ESTestCase {
         int numDataStreams = randomIntBetween(2, 8);
         for (int i = 0; i < numDataStreams; i++) {
             String name = "data-stream-" + i;
-            int numBackingIndices = randomIntBetween(1, 4);
-            List<Index> indices = new ArrayList<>(numBackingIndices);
-            for (int j = 1; j <= numBackingIndices; j++) {
-                IndexMetadata idx = createBackingIndex(name, j).build();
-                indices.add(idx.getIndex());
-                b.put(idx, true);
-            }
-            b.put(new DataStream(name, createTimestampField("@timestamp"), indices));
+            addDataStream(name, b);
         }
 
         Metadata metadata = b.build();
@@ -1112,9 +1273,148 @@ public class MetadataTests extends ESTestCase {
             assertThat(value.isHidden(), is(false));
             assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(value.getIndices().size(), equalTo(ds.getIndices().size()));
-            assertThat(value.getWriteIndex().getIndex().getName(),
-                equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
+            assertThat(value.getWriteIndex().getName(), equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
         }
+    }
+
+    public void testBuildIndicesLookupForDataStreamAliases() {
+        Metadata.Builder b = Metadata.builder();
+
+        addDataStream("d1", b);
+        addDataStream("d2", b);
+        addDataStream("d3", b);
+        addDataStream("d4", b);
+
+        b.put("a1", "d1", null, null);
+        b.put("a1", "d2", null, null);
+        b.put("a2", "d3", null, null);
+        b.put("a3", "d1", null, null);
+
+        Metadata metadata = b.build();
+        assertThat(metadata.dataStreams().size(), equalTo(4));
+        IndexAbstraction value = metadata.getIndicesLookup().get("d1");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), containsInAnyOrder("a1", "a3"));
+
+        value = metadata.getIndicesLookup().get("d2");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), contains("a1"));
+
+        value = metadata.getIndicesLookup().get("d3");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), contains("a2"));
+
+        value = metadata.getIndicesLookup().get("d4");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), empty());
+
+        value = metadata.getIndicesLookup().get("a1");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(value.getAliases(), nullValue());
+
+        value = metadata.getIndicesLookup().get("a2");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(value.getAliases(), nullValue());
+
+        value = metadata.getIndicesLookup().get("a3");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(value.getAliases(), nullValue());
+    }
+
+    public void testDataStreamAliasValidation() {
+        Metadata.Builder b = Metadata.builder();
+        addDataStream("my-alias", b);
+        b.put("my-alias", "my-alias", null, null);
+        Exception e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        addDataStream("d1", b);
+        addDataStream("my-alias", b);
+        b.put("my-alias", "d1", null, null);
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        b.put(
+            IndexMetadata.builder("index1")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .putAlias(new AliasMetadata.Builder("my-alias"))
+        );
+
+        addDataStream("d1", b);
+        b.put("my-alias", "d1", null, null);
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
+    }
+
+    public void testDataStreamAliasValidationRestoreScenario() {
+        Metadata.Builder b = Metadata.builder();
+        b.dataStreams(
+            org.elasticsearch.core.Map.of("my-alias", createDataStream("my-alias")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("my-alias"), null, null))
+        );
+        Exception e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        b.dataStreams(
+            org.elasticsearch.core.Map.of("d1", createDataStream("d1"), "my-alias", createDataStream("my-alias")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("d1"), null, null))
+        );
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        b.put(
+            IndexMetadata.builder("index1")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .putAlias(new AliasMetadata.Builder("my-alias"))
+        );
+        b.dataStreams(
+            org.elasticsearch.core.Map.of("d1", createDataStream("d1")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("d1"), null, null))
+        );
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
+    }
+
+    private void addDataStream(String name, Metadata.Builder b) {
+        int numBackingIndices = randomIntBetween(1, 4);
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int j = 1; j <= numBackingIndices; j++) {
+            IndexMetadata idx = createBackingIndex(name, j).build();
+            indices.add(idx.getIndex());
+            b.put(idx, true);
+        }
+        b.put(newInstance(name, createTimestampField("@timestamp"), indices));
+    }
+
+    private DataStream createDataStream(String name) {
+        int numBackingIndices = randomIntBetween(1, 4);
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int j = 1; j <= numBackingIndices; j++) {
+            IndexMetadata idx = createBackingIndex(name, j).build();
+            indices.add(idx.getIndex());
+        }
+        return newInstance(name, createTimestampField("@timestamp"), indices);
     }
 
     public void testIndicesLookupRecordsDataStreamForBackingIndices() {
@@ -1141,8 +1441,9 @@ public class MetadataTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         orig.writeTo(out);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final Metadata fromStreamMeta = Metadata.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(),
-            namedWriteableRegistry));
+        final Metadata fromStreamMeta = Metadata.readFrom(
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
+        );
         assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
     }
 
@@ -1156,23 +1457,18 @@ public class MetadataTests extends ESTestCase {
         String dataStreamName = "foo-datastream";
         Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
             .put(
-                new IndexMetadata.Builder(dataStreamName + "-index-without-counter")
-                    .settings(settings(Version.CURRENT))
+                new IndexMetadata.Builder(dataStreamName + "-index-without-counter").settings(settings(Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
             .put(
-                new IndexMetadata.Builder(dataStreamName + randomAlphaOfLength(10))
-                    .settings(settings(Version.CURRENT))
+                new IndexMetadata.Builder(dataStreamName + randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
 
             )
             .put(
-                new IndexMetadata.Builder(randomAlphaOfLength(10))
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
+                new IndexMetadata.Builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)
 
             )
             .build();
@@ -1185,11 +1481,11 @@ public class MetadataTests extends ESTestCase {
         String dataStreamName = "foo-datastream";
         Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
             .put(
-                new IndexMetadata.Builder(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-something-100012")
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-            ).build();
+                new IndexMetadata.Builder(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-something-100012").settings(
+                    settings(Version.CURRENT)
+                ).numberOfShards(1).numberOfReplicas(1)
+            )
+            .build();
         // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
         // additional text before number
         validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
@@ -1212,28 +1508,30 @@ public class MetadataTests extends ESTestCase {
             }
             backingIndices.add(idx);
         }
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = newInstance(
             dataStreamName,
             createTimestampField("@timestamp"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
 
-        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
+        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, Collections.emptyList());
         // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method already
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         for (IndexMetadata indexMeta : backingIndices) {
-            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
         }
 
         for (int i = 1; i <= generations; i++) {
             // for the indices that we added in the data stream with a "shrink-" prefix, add the non-prefixed indices to the lookup
             if (i % 2 == 0 && i < generations) {
                 IndexMetadata indexMeta = createBackingIndex(dataStreamName, i).build();
-                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
             }
         }
-        DataStreamMetadata dataStreamMetadata =
-            new DataStreamMetadata(org.elasticsearch.core.Map.of(dataStreamName, dataStream), Collections.emptyMap());
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(
+            org.elasticsearch.core.Map.of(dataStreamName, dataStream),
+            Collections.emptyMap()
+        );
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system
@@ -1241,12 +1539,9 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
-        Metadata metadata = Metadata.builder().put(
-            IndexMetadata.builder("foo-index")
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-        ).build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("foo-index").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         try {
             validateDataStreams(metadata.getIndicesLookup(), null);
@@ -1315,8 +1610,10 @@ public class MetadataTests extends ESTestCase {
 
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
+        );
     }
 
     public void testDataStreamReferToNonExistingDataStream() {
@@ -1342,15 +1639,19 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeDataStream("logs-postgres-us");
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-eu", "logs-postgres-au"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-au")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeDataStream("logs-postgres-au");
@@ -1374,15 +1675,19 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-us", true), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-eu", "logs-postgres-au"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-au")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-au", true), is(true));
@@ -1406,8 +1711,10 @@ public class MetadataTests extends ESTestCase {
         mdBuilder.put("logs-postgres", "logs-postgres-au", null, null);
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au")
+        );
 
         Metadata.Builder mdBuilder2 = Metadata.builder(metadata);
         expectThrows(ResourceNotFoundException.class, () -> mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", true));
@@ -1477,8 +1784,10 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
+        );
 
         // change write flag:
         mdBuilder = Metadata.builder(metadata);
@@ -1487,8 +1796,10 @@ public class MetadataTests extends ESTestCase {
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
+        );
     }
 
     public void testDataStreamWriteRemoveAlias() {
@@ -1501,8 +1812,10 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-primary", randomBoolean()), is(true));
@@ -1522,8 +1835,10 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-primary"));
-        assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
-            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated"));
+        assertThat(
+            metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
+            containsInAnyOrder("logs-postgres-primary", "logs-postgres-replicated")
+        );
 
         mdBuilder = Metadata.builder(metadata);
         mdBuilder.removeDataStream("logs-postgres-primary");
@@ -1534,6 +1849,141 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
     }
 
+    public void testReuseIndicesLookup() {
+        String indexName = "my-index";
+        String aliasName = "my-alias";
+        String dataStreamName = "logs-mysql-prod";
+        String dataStreamAliasName = "logs-mysql";
+        Metadata previous = Metadata.builder().build();
+
+        // Things that should change indices lookup
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata idx = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
+            builder.put(idx, true);
+            DataStream dataStream = newInstance(dataStreamName, new DataStream.TimestampField("@timestamp"), singletonList(idx.getIndex()));
+            builder.put(dataStream);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            builder.put(dataStreamAliasName, dataStreamName, false, null);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            builder.put(dataStreamAliasName, dataStreamName, true, null);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            builder.put(
+                IndexMetadata.builder(indexName)
+                    .settings(settings(Version.CURRENT))
+                    .creationDate(randomNonNegativeLong())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            );
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            imBuilder.putAlias(AliasMetadata.builder(aliasName).build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            imBuilder.putAlias(AliasMetadata.builder(aliasName).writeIndex(true).build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            Settings.Builder sBuilder = Settings.builder()
+                .put(builder.get(indexName).getSettings())
+                .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), true);
+            imBuilder.settings(sBuilder.build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
+            previous = metadata;
+        }
+
+        // Things that shouldn't change indices lookup
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            imBuilder.numberOfReplicas(2);
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
+            previous = metadata;
+        }
+        {
+            Metadata.Builder builder = Metadata.builder(previous);
+            IndexMetadata.Builder imBuilder = IndexMetadata.builder(builder.get(indexName));
+            Settings.Builder sBuilder = Settings.builder()
+                .put(builder.get(indexName).getSettings())
+                .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "val");
+            imBuilder.settings(sBuilder.build());
+            builder.put(imBuilder);
+            Metadata metadata = builder.build();
+            assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
+            previous = metadata;
+        }
+    }
+
+    public void testOldestIndexComputation() {
+        Metadata metadata = buildIndicesWithVersions(
+            new Version[] { Version.V_6_1_0, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) }
+        ).build();
+
+        assertEquals(Version.V_6_1_0, metadata.oldestIndexVersion());
+
+        Metadata.Builder b = Metadata.builder();
+        assertEquals(Version.CURRENT, b.build().oldestIndexVersion());
+
+        Throwable ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildIndicesWithVersions(new Version[] { Version.V_6_1_0, Version.V_EMPTY, Version.fromId(Version.CURRENT.id + 1) })
+                .build()
+        );
+
+        assertEquals("[index.version.created] is not present in the index settings for index with UUID [null]", ex.getMessage());
+    }
+
+    private Metadata.Builder buildIndicesWithVersions(Version... indexVersions) {
+        int lastIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (Version indexVersion : indexVersions) {
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
+                .settings(settings(indexVersion))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
+        }
+
+        return b;
+    }
+
     public static Metadata randomMetadata() {
         return randomMetadata(1);
     }
@@ -1541,18 +1991,14 @@ public class MetadataTests extends ESTestCase {
     public static Metadata randomMetadata(int numDataStreams) {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
-            .put(IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
-                .patterns(Arrays.asList("bar-*", "foo-*"))
-                .settings(Settings.builder()
-                    .put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
-                    .build())
-                .build())
-            .persistentSettings(Settings.builder()
-                .put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
-                .build())
-            .transientSettings(Settings.builder()
-                .put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
-                .build())
+            .put(
+                IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .persistentSettings(Settings.builder().put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
+            .transientSettings(Settings.builder().put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
             .clusterUUID("uuid" + randomAlphaOfLength(3))
             .clusterUUIDCommitted(randomBoolean())
             .indexGraveyard(IndexGraveyardTests.createRandom())
@@ -1600,7 +2046,7 @@ public class MetadataTests extends ESTestCase {
             b.put(im, false);
             backingIndices.add(im.getIndex());
         }
-        b.put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
+        b.put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
         return new CreateIndexResult(indices, backingIndices, b.build());
     }
 

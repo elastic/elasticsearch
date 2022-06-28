@@ -11,8 +11,7 @@ public class GetLicenseResponse {
 
     private String license;
 
-    GetLicenseResponse() {
-    }
+    GetLicenseResponse() {}
 
     public GetLicenseResponse(String license) {
         this.license = license;

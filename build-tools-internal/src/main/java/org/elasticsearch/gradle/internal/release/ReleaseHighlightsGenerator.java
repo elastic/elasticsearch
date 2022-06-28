@@ -8,11 +8,8 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import groovy.text.SimpleTemplateEngine;
-
 import com.google.common.annotations.VisibleForTesting;
 
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.File;
@@ -32,24 +29,29 @@ import java.util.stream.Collectors;
 public class ReleaseHighlightsGenerator {
     static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
         try (FileWriter output = new FileWriter(outputFile)) {
-            generateFile(VersionProperties.getElasticsearchVersion(), Files.readString(templateFile.toPath()), entries, output);
+            output.write(
+                generateFile(QualifiedVersion.of(VersionProperties.getElasticsearch()), Files.readString(templateFile.toPath()), entries)
+            );
         }
     }
 
     @VisibleForTesting
-    static void generateFile(Version version, String templateFile, List<ChangelogEntry> entries, FileWriter outputWriter)
-        throws IOException {
+    static String generateFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
         final List<String> priorVersions = new ArrayList<>();
 
-        if (version.getMinor() > 0) {
-            final int major = version.getMajor();
-            for (int minor = version.getMinor(); minor >= 0; minor--) {
+        if (version.minor() > 0) {
+            final int major = version.major();
+            for (int minor = version.minor() - 1; minor >= 0; minor--) {
                 String majorMinor = major + "." + minor;
-                String fileSuffix = "";
-                if (major == 7 && minor < 7) {
-                    fileSuffix = "-" + majorMinor + ".0";
-                }
-                priorVersions.add("{ref-bare}/" + majorMinor + "/release-highlights" + fileSuffix + ".html[" + majorMinor + "]");
+                priorVersions.add(
+                    "{ref-bare}/"
+                        + majorMinor
+                        + "/release-highlights"
+                        + (minor <= 6 ? "-" + majorMinor + ".0" : "")
+                        + ".html["
+                        + majorMinor
+                        + "]"
+                );
             }
         }
 
@@ -66,11 +68,6 @@ public class ReleaseHighlightsGenerator {
         bindings.put("notableHighlights", notableHighlights);
         bindings.put("nonNotableHighlights", nonNotableHighlights);
 
-        try {
-            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(templateFile).make(bindings).writeTo(outputWriter);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        return TemplateUtils.render(template, bindings);
     }
 }

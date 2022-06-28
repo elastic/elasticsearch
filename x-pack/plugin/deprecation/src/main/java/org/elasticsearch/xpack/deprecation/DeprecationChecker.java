@@ -12,7 +12,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 
@@ -70,7 +71,6 @@ public interface DeprecationChecker {
             this.client = client;
             this.clusterState = clusterState;
         }
-
 
         public NamedXContentRegistry xContentRegistry() {
             return xContentRegistry;

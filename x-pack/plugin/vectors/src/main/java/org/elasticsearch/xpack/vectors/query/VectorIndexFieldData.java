@@ -5,14 +5,13 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -23,7 +22,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
-
 
 public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
 
@@ -53,13 +51,22 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        throw new IllegalArgumentException("Field [" + fieldName + "] of type [" +
-            DenseVectorFieldMapper.CONTENT_TYPE + "] doesn't support sort");
+        throw new IllegalArgumentException(
+            "Field [" + fieldName + "] of type [" + DenseVectorFieldMapper.CONTENT_TYPE + "] doesn't support sort"
+        );
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 

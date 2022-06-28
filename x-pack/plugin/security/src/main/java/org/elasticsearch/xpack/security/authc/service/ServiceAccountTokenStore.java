@@ -8,11 +8,7 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-
-import java.util.Collection;
 
 /**
  * The interface should be implemented by credential stores of different backends.
@@ -23,11 +19,6 @@ public interface ServiceAccountTokenStore {
      * Verify the given token for encapsulated service account and credential
      */
     void authenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener);
-
-    /**
-     * Get all tokens belong to the given service account id
-     */
-    void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener);
 
     class StoreAuthenticationResult {
         private final boolean success;

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -17,12 +17,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class ShardsAcknowledgedResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             this::createTestInstance,
             ShardsAcknowledgedResponseTests::toXContent,
-            ShardsAcknowledgedResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .test();
+            ShardsAcknowledgedResponse::fromXContent
+        ).supportsUnknownFields(false).test();
     }
 
     private ShardsAcknowledgedResponse createTestInstance() {

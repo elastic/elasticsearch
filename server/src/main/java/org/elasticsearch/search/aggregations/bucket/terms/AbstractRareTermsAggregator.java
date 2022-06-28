@@ -57,9 +57,16 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
              * But the RareTerms agg _must_ execute in breadth first since it relies on
              * deferring execution, so we just have to throw up our hands and refuse
              */
-            throw new IllegalStateException("RareTerms agg [" + name() + "] is the child of the nested agg [" + nestedAgg
-                + "], and also has a scoring child agg [" + scoringAgg + "].  This combination is not supported because " +
-                "it requires executing in [depth_first] mode, which the RareTerms agg cannot do.");
+            throw new IllegalStateException(
+                "RareTerms agg ["
+                    + name()
+                    + "] is the child of the nested agg ["
+                    + nestedAgg
+                    + "], and also has a scoring child agg ["
+                    + scoringAgg
+                    + "].  This combination is not supported because "
+                    + "it requires executing in [depth_first] mode, which the RareTerms agg cannot do."
+            );
         }
     }
 

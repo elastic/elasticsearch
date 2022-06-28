@@ -24,9 +24,7 @@ public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_slm/policy"),
-            new Route(GET, "/_slm/policy/{name}")));
+        return unmodifiableList(asList(new Route(GET, "/_slm/policy"), new Route(GET, "/_slm/policy/{name}")));
     }
 
     @Override

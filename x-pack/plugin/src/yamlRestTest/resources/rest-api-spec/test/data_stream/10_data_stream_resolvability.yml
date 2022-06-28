@@ -280,14 +280,14 @@
   - do:
       index:
         index:   simple-data-stream1
-        id:      1
+        id:      "1"
         op_type: create
         body:    { keys: [1,2,3], '@timestamp': '2020-12-12' }
 
   - do:
       index:
         index:   simple-data-stream1
-        id:      2
+        id:      "2"
         op_type: create
         body:    { keys: [4,5,6], '@timestamp': '2020-12-12' }
 
@@ -529,7 +529,7 @@
         body:
           - create:
               _index: simple-data-stream1
-              _id:    1
+              _id:    "1"
           - event:
               - category: process
             "@timestamp": 2020-02-03T12:34:56Z

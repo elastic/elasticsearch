@@ -65,8 +65,7 @@ public class Node {
      * {@code host} are nullable and implementations of {@link NodeSelector}
      * need to decide what to do in their absence.
      */
-    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version,
-            Roles roles, Map<String, List<String>> attributes) {
+    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version, Roles roles, Map<String, List<String>> attributes) {
         if (host == null) {
             throw new IllegalArgumentException("host cannot be null");
         }
@@ -189,6 +188,7 @@ public class Node {
         public boolean isMasterEligible() {
             return roles.contains("master");
         }
+
         /**
          * Returns whether or not the node stores data.
          * @deprecated use {@link #hasDataRole()} or {@link #canContainData()}
@@ -246,6 +246,7 @@ public class Node {
         public boolean canContainData() {
             return hasDataRole() || roles.stream().anyMatch(role -> role.startsWith("data_"));
         }
+
         /**
          * Returns whether or not the node runs ingest pipelines.
          */

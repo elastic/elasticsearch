@@ -12,6 +12,7 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -46,9 +47,10 @@ class SearchGroupsResolver implements GroupsResolver {
     private final boolean ignoreReferralErrors;
 
     SearchGroupsResolver(RealmConfig config) {
-        baseDn = config.getSetting(SearchGroupsResolverSettings.BASE_DN, () -> {
-            throw new IllegalArgumentException("base_dn must be specified");
-        });
+        baseDn = config.getSetting(
+            SearchGroupsResolverSettings.BASE_DN,
+            () -> { throw new IllegalArgumentException("base_dn must be specified"); }
+        );
         filter = config.getSetting(SearchGroupsResolverSettings.FILTER);
         userAttribute = config.getSetting(SearchGroupsResolverSettings.USER_ATTRIBUTE);
         scope = config.getSetting(SearchGroupsResolverSettings.SCOPE);
@@ -56,8 +58,14 @@ class SearchGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public void resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger,
-                        Collection<Attribute> attributes, ActionListener<List<String>> listener) {
+    public void resolve(
+        LDAPInterface connection,
+        String userDn,
+        TimeValue timeout,
+        Logger logger,
+        Collection<Attribute> attributes,
+        ActionListener<List<String>> listener
+    ) {
         getUserId(userDn, attributes, connection, timeout, ActionListener.wrap((userId) -> {
             if (userId == null) {
                 listener.onResponse(Collections.emptyList());
@@ -65,16 +73,19 @@ class SearchGroupsResolver implements GroupsResolver {
                 try {
                     Filter userFilter = createFilter(filter, userId);
 
-                    search(connection, baseDn, scope.scope(), userFilter,
-                            Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
-                            ActionListener.wrap(
-                                    (results) -> listener.onResponse(results
-                                            .stream()
-                                            .map((r) -> r.getDN())
-                                            .collect(Collectors.toList())
-                                    ),
-                                    listener::onFailure),
-                            SearchRequest.NO_ATTRIBUTES);
+                    search(
+                        connection,
+                        baseDn,
+                        scope.scope(),
+                        userFilter,
+                        Math.toIntExact(timeout.seconds()),
+                        ignoreReferralErrors,
+                        ActionListener.wrap(
+                            (results) -> listener.onResponse(results.stream().map((r) -> r.getDN()).collect(Collectors.toList())),
+                            listener::onFailure
+                        ),
+                        SearchRequest.NO_ATTRIBUTES
+                    );
                 } catch (LDAPException e) {
                     listener.onFailure(e);
                 }
@@ -90,35 +101,44 @@ class SearchGroupsResolver implements GroupsResolver {
         return null;
     }
 
-    private void getUserId(String dn, Collection<Attribute> attributes, LDAPInterface connection,
-                           TimeValue timeout, ActionListener<String> listener) {
+    private void getUserId(
+        String dn,
+        Collection<Attribute> attributes,
+        LDAPInterface connection,
+        TimeValue timeout,
+        ActionListener<String> listener
+    ) {
         if (isNullOrEmpty(userAttribute) || userAttribute.equals("dn")) {
             listener.onResponse(dn);
         } else if (attributes != null) {
             final String value = attributes.stream()
-                    .filter((attribute) -> attribute.getName().equals(userAttribute))
-                    .map(Attribute::getValue)
-                    .findFirst()
-                    .orElse(null);
+                .filter((attribute) -> attribute.getName().equals(userAttribute))
+                .map(Attribute::getValue)
+                .findFirst()
+                .orElse(null);
             listener.onResponse(value);
         } else {
             readUserAttribute(connection, dn, timeout, listener);
         }
     }
 
-    void readUserAttribute(LDAPInterface connection, String userDn, TimeValue timeout,
-                           ActionListener<String> listener) {
-        searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER,
-                Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
-                ActionListener.wrap((entry) -> {
-                    if (entry == null || entry.hasAttribute(userAttribute) == false) {
-                        listener.onResponse(null);
-                    } else {
-                        listener.onResponse(entry.getAttributeValue(userAttribute));
-                    }
-                }, listener::onFailure),
-                userAttribute);
+    void readUserAttribute(LDAPInterface connection, String userDn, TimeValue timeout, ActionListener<String> listener) {
+        searchForEntry(
+            connection,
+            userDn,
+            SearchScope.BASE,
+            OBJECT_CLASS_PRESENCE_FILTER,
+            Math.toIntExact(timeout.seconds()),
+            ignoreReferralErrors,
+            ActionListener.wrap((entry) -> {
+                if (entry == null || entry.hasAttribute(userAttribute) == false) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onResponse(entry.getAttributeValue(userAttribute));
+                }
+            }, listener::onFailure),
+            userAttribute
+        );
     }
-
 
 }

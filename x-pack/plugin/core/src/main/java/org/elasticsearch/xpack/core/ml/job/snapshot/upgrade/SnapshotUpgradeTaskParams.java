@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
@@ -30,15 +30,12 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
     public static final ConstructingObjectParser<SnapshotUpgradeTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         JOB_SNAPSHOT_UPGRADE_TASK_NAME,
         true,
-        a -> new SnapshotUpgradeTaskParams((String) a[0], (String) a[1]));
+        a -> new SnapshotUpgradeTaskParams((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_ID);
-    }
-
-    public static SnapshotUpgradeTaskParams fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     public static final String NAME = JOB_SNAPSHOT_UPGRADE_TASK_NAME;
@@ -94,8 +91,7 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotUpgradeTaskParams params = (SnapshotUpgradeTaskParams) o;
-        return Objects.equals(jobId, params.jobId) &&
-            Objects.equals(snapshotId, params.snapshotId);
+        return Objects.equals(jobId, params.jobId) && Objects.equals(snapshotId, params.snapshotId);
     }
 
     @Override
@@ -107,6 +103,8 @@ public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTas
     public String getMlId() {
         return jobId;
     }
+
+    public static SnapshotUpgradeTaskParams fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
 }
-
-

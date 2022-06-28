@@ -83,8 +83,7 @@ public class ESLoggerUsageChecker {
         }
     }
 
-    private static void checkLoggerUsage(Consumer<WrongLoggerUsage> wrongUsageCallback, String... classDirectories)
-        throws IOException {
+    private static void checkLoggerUsage(Consumer<WrongLoggerUsage> wrongUsageCallback, String... classDirectories) throws IOException {
         for (String classDirectory : classDirectories) {
             Path root = Paths.get(classDirectory);
             if (Files.isDirectory(root) == false) {
@@ -132,13 +131,22 @@ public class ESLoggerUsageChecker {
 
         @Override
         public String toString() {
-            return "WrongLoggerUsage{" +
-                "className='" + className + '\'' +
-                ", methodName='" + methodName + '\'' +
-                ", logMethodName='" + logMethodName + '\'' +
-                ", line=" + line +
-                ", errorMessage='" + errorMessage + '\'' +
-                '}';
+            return "WrongLoggerUsage{"
+                + "className='"
+                + className
+                + '\''
+                + ", methodName='"
+                + methodName
+                + '\''
+                + ", logMethodName='"
+                + logMethodName
+                + '\''
+                + ", line="
+                + line
+                + ", errorMessage='"
+                + errorMessage
+                + '\''
+                + '}';
         }
 
         /**
@@ -266,8 +274,17 @@ public class ESLoggerUsageChecker {
 
                         int lengthWithoutMarker = argumentTypes.length - markerOffset;
 
-                        verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
-                            methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
+                        verifyLoggerUsage(
+                            methodNode,
+                            logMessageFrames,
+                            arraySizeFrames,
+                            lineNumber,
+                            i,
+                            methodInsn,
+                            argumentTypes,
+                            markerOffset,
+                            lengthWithoutMarker
+                        );
                     }
                 } else if (insn.getOpcode() == Opcodes.INVOKESPECIAL) { // constructor invocation
                     MethodInsnNode methodInsn = (MethodInsnNode) insn;
@@ -275,46 +292,62 @@ public class ESLoggerUsageChecker {
 
                     if (DEPRECATED_TYPES.contains(objectType)) {
                         Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
-                        if (argumentTypes.length == 3 &&
-                            argumentTypes[0].equals(STRING_CLASS) &&
-                            argumentTypes[1].equals(STRING_CLASS) &&
-                            argumentTypes[2].equals(OBJECT_ARRAY_CLASS)) {
+                        if (argumentTypes.length == 3
+                            && argumentTypes[0].equals(STRING_CLASS)
+                            && argumentTypes[1].equals(STRING_CLASS)
+                            && argumentTypes[2].equals(OBJECT_ARRAY_CLASS)) {
                             checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 2);
                         }
-                    }else if (objectType.equals(PARAMETERIZED_MESSAGE_CLASS)) {
+                    } else if (objectType.equals(PARAMETERIZED_MESSAGE_CLASS)) {
                         Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
-                        if (argumentTypes.length == 2 &&
-                            argumentTypes[0].equals(STRING_CLASS) &&
-                            argumentTypes[1].equals(OBJECT_ARRAY_CLASS)) {
+                        if (argumentTypes.length == 2
+                            && argumentTypes[0].equals(STRING_CLASS)
+                            && argumentTypes[1].equals(OBJECT_ARRAY_CLASS)) {
                             checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 1);
-                        } else if (argumentTypes.length == 2 &&
-                            argumentTypes[0].equals(STRING_CLASS) &&
-                            argumentTypes[1].equals(OBJECT_CLASS)) {
-                            checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 1);
-                        } else if (argumentTypes.length == 3 &&
-                            argumentTypes[0].equals(STRING_CLASS) &&
-                            argumentTypes[1].equals(OBJECT_CLASS) &&
-                            argumentTypes[2].equals(OBJECT_CLASS)) {
-                            checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 2);
-                        } else if (argumentTypes.length == 3 &&
-                            argumentTypes[0].equals(STRING_CLASS) &&
-                            argumentTypes[1].equals(OBJECT_ARRAY_CLASS) &&
-                            argumentTypes[2].equals(THROWABLE_CLASS)) {
-                            checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 1);
-                        } else if (argumentTypes.length == 3 &&
-                            argumentTypes[0].equals(STRING_CLASS) &&
-                            argumentTypes[1].equals(STRING_ARRAY_CLASS) &&
-                            argumentTypes[2].equals(THROWABLE_CLASS)) {
-                            checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 1);
-                        } else {
-                            throw new IllegalStateException("Constructor invoked on " + objectType +
-                                " that is not supported by logger usage checker"+
-                                new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                                "Constructor: "+ Arrays.toString(argumentTypes)));
-                        }
+                        } else if (argumentTypes.length == 2
+                            && argumentTypes[0].equals(STRING_CLASS)
+                            && argumentTypes[1].equals(OBJECT_CLASS)) {
+                                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 1);
+                            } else if (argumentTypes.length == 3
+                                && argumentTypes[0].equals(STRING_CLASS)
+                                && argumentTypes[1].equals(OBJECT_CLASS)
+                                && argumentTypes[2].equals(OBJECT_CLASS)) {
+                                    checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, 0, 2);
+                                } else if (argumentTypes.length == 3
+                                    && argumentTypes[0].equals(STRING_CLASS)
+                                    && argumentTypes[1].equals(OBJECT_ARRAY_CLASS)
+                                    && argumentTypes[2].equals(THROWABLE_CLASS)) {
+                                        checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, 0, 1);
+                                    } else if (argumentTypes.length == 3
+                                        && argumentTypes[0].equals(STRING_CLASS)
+                                        && argumentTypes[1].equals(STRING_ARRAY_CLASS)
+                                        && argumentTypes[2].equals(THROWABLE_CLASS)) {
+                                            checkArrayArgs(
+                                                methodNode,
+                                                logMessageFrames[i],
+                                                arraySizeFrames[i],
+                                                lineNumber,
+                                                methodInsn,
+                                                0,
+                                                1
+                                            );
+                                        } else {
+                                            throw new IllegalStateException(
+                                                "Constructor invoked on "
+                                                    + objectType
+                                                    + " that is not supported by logger usage checker"
+                                                    + new WrongLoggerUsage(
+                                                        className,
+                                                        methodNode.name,
+                                                        methodInsn.name,
+                                                        lineNumber,
+                                                        "Constructor: " + Arrays.toString(argumentTypes)
+                                                    )
+                                            );
+                                        }
                     }
                 } else if (insn.getOpcode() == Opcodes.INVOKEVIRTUAL) {
-                    //using strings because this test do not depend on server
+                    // using strings because this test do not depend on server
 
                     MethodInsnNode methodInsn = (MethodInsnNode) insn;
                     if (methodInsn.owner.equals("org/elasticsearch/common/logging/DeprecationLogger")) {
@@ -324,89 +357,173 @@ public class ESLoggerUsageChecker {
 
                             int lengthWithoutMarker = argumentTypes.length - markerOffset;
 
-                            verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
-                                methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
+                            verifyLoggerUsage(
+                                methodNode,
+                                logMessageFrames,
+                                arraySizeFrames,
+                                lineNumber,
+                                i,
+                                methodInsn,
+                                argumentTypes,
+                                markerOffset,
+                                lengthWithoutMarker
+                            );
                         }
                     }
                 }
             }
         }
 
-        private void verifyLoggerUsage(MethodNode methodNode, Frame<BasicValue>[] logMessageFrames, Frame<BasicValue>[] arraySizeFrames,
-                                       int lineNumber, int i, MethodInsnNode methodInsn, Type[] argumentTypes,
-                                       int markerOffset, int lengthWithoutMarker) {
-            if (lengthWithoutMarker == 2 &&
-                argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
-                (argumentTypes[markerOffset + 1].equals(OBJECT_ARRAY_CLASS) ||
-                    argumentTypes[markerOffset + 1].equals(SUPPLIER_ARRAY_CLASS))) {
+        private void verifyLoggerUsage(
+            MethodNode methodNode,
+            Frame<BasicValue>[] logMessageFrames,
+            Frame<BasicValue>[] arraySizeFrames,
+            int lineNumber,
+            int i,
+            MethodInsnNode methodInsn,
+            Type[] argumentTypes,
+            int markerOffset,
+            int lengthWithoutMarker
+        ) {
+            if (lengthWithoutMarker == 2
+                && argumentTypes[markerOffset + 0].equals(STRING_CLASS)
+                && (argumentTypes[markerOffset + 1].equals(OBJECT_ARRAY_CLASS)
+                    || argumentTypes[markerOffset + 1].equals(SUPPLIER_ARRAY_CLASS))) {
                 // VARARGS METHOD: debug(Marker?, String, (Object...|Supplier...))
-                checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, markerOffset + 0,
-                    markerOffset + 1);
-            } else if (lengthWithoutMarker >= 2 &&
-                argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
-                argumentTypes[markerOffset + 1].equals(OBJECT_CLASS)) {
-                // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
-                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0,
-                    lengthWithoutMarker - 1);
-            } else if ((lengthWithoutMarker == 1 || lengthWithoutMarker == 2) &&
-                lengthWithoutMarker == 2 ? argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS) : true) {
-                // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
-                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, 0);
-            } else {
-                throw new IllegalStateException("Method invoked on " + LOGGER_CLASS.getClassName() +
-                    " that is not supported by logger usage checker");
-            }
+                checkArrayArgs(
+                    methodNode,
+                    logMessageFrames[i],
+                    arraySizeFrames[i],
+                    lineNumber,
+                    methodInsn,
+                    markerOffset + 0,
+                    markerOffset + 1
+                );
+            } else if (lengthWithoutMarker >= 2
+                && argumentTypes[markerOffset + 0].equals(STRING_CLASS)
+                && argumentTypes[markerOffset + 1].equals(OBJECT_CLASS)) {
+                    // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
+                    checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, lengthWithoutMarker - 1);
+                } else if ((lengthWithoutMarker == 1 || lengthWithoutMarker == 2) && lengthWithoutMarker == 2
+                    ? argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS)
+                    : true) {
+                        // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
+                        checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, 0);
+                    } else {
+                        throw new IllegalStateException(
+                            "Method invoked on " + LOGGER_CLASS.getClassName() + " that is not supported by logger usage checker"
+                        );
+                    }
         }
 
-        private void checkFixedArityArgs(MethodNode methodNode, Frame<BasicValue> logMessageFrame, int lineNumber,
-                                         MethodInsnNode methodInsn, int messageIndex, int positionalArgsLength) {
-            PlaceHolderStringBasicValue logMessageLength = checkLogMessageConsistency(methodNode, logMessageFrame, lineNumber, methodInsn,
-                messageIndex, positionalArgsLength);
+        private void checkFixedArityArgs(
+            MethodNode methodNode,
+            Frame<BasicValue> logMessageFrame,
+            int lineNumber,
+            MethodInsnNode methodInsn,
+            int messageIndex,
+            int positionalArgsLength
+        ) {
+            PlaceHolderStringBasicValue logMessageLength = checkLogMessageConsistency(
+                methodNode,
+                logMessageFrame,
+                lineNumber,
+                methodInsn,
+                messageIndex,
+                positionalArgsLength
+            );
             if (logMessageLength == null) {
                 return;
             }
             if (logMessageLength.minValue != positionalArgsLength) {
-                wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                    "Expected " + logMessageLength.minValue + " arguments but got " + positionalArgsLength));
+                wrongUsageCallback.accept(
+                    new WrongLoggerUsage(
+                        className,
+                        methodNode.name,
+                        methodInsn.name,
+                        lineNumber,
+                        "Expected " + logMessageLength.minValue + " arguments but got " + positionalArgsLength
+                    )
+                );
                 return;
             }
         }
 
-        private void checkArrayArgs(MethodNode methodNode, Frame<BasicValue> logMessageFrame, Frame<BasicValue> arraySizeFrame,
-                                    int lineNumber, MethodInsnNode methodInsn, int messageIndex, int arrayIndex) {
+        private void checkArrayArgs(
+            MethodNode methodNode,
+            Frame<BasicValue> logMessageFrame,
+            Frame<BasicValue> arraySizeFrame,
+            int lineNumber,
+            MethodInsnNode methodInsn,
+            int messageIndex,
+            int arrayIndex
+        ) {
             BasicValue arraySizeObject = getStackValue(arraySizeFrame, methodInsn, arrayIndex);
             if (arraySizeObject instanceof ArraySizeBasicValue == false) {
-                wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                    "Could not determine size of array"));
+                wrongUsageCallback.accept(
+                    new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber, "Could not determine size of array")
+                );
                 return;
             }
             ArraySizeBasicValue arraySize = (ArraySizeBasicValue) arraySizeObject;
-            PlaceHolderStringBasicValue logMessageLength = checkLogMessageConsistency(methodNode, logMessageFrame, lineNumber, methodInsn,
-                messageIndex, arraySize.minValue);
+            PlaceHolderStringBasicValue logMessageLength = checkLogMessageConsistency(
+                methodNode,
+                logMessageFrame,
+                lineNumber,
+                methodInsn,
+                messageIndex,
+                arraySize.minValue
+            );
             if (logMessageLength == null) {
                 return;
             }
             if (arraySize.minValue != arraySize.maxValue) {
-                wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                    "Multiple parameter arrays with conflicting sizes"));
+                wrongUsageCallback.accept(
+                    new WrongLoggerUsage(
+                        className,
+                        methodNode.name,
+                        methodInsn.name,
+                        lineNumber,
+                        "Multiple parameter arrays with conflicting sizes"
+                    )
+                );
                 return;
             }
             assert logMessageLength.minValue == logMessageLength.maxValue && arraySize.minValue == arraySize.maxValue;
             if (logMessageLength.minValue != arraySize.minValue) {
-                wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                    "Expected " + logMessageLength.minValue + " arguments but got " + arraySize.minValue));
+                wrongUsageCallback.accept(
+                    new WrongLoggerUsage(
+                        className,
+                        methodNode.name,
+                        methodInsn.name,
+                        lineNumber,
+                        "Expected " + logMessageLength.minValue + " arguments but got " + arraySize.minValue
+                    )
+                );
                 return;
             }
         }
 
-        private PlaceHolderStringBasicValue checkLogMessageConsistency(MethodNode methodNode, Frame<BasicValue> logMessageFrame,
-                                                                       int lineNumber, MethodInsnNode methodInsn, int messageIndex,
-                                                                       int argsSize) {
+        private PlaceHolderStringBasicValue checkLogMessageConsistency(
+            MethodNode methodNode,
+            Frame<BasicValue> logMessageFrame,
+            int lineNumber,
+            MethodInsnNode methodInsn,
+            int messageIndex,
+            int argsSize
+        ) {
             BasicValue logMessageLengthObject = getStackValue(logMessageFrame, methodInsn, messageIndex);
             if (logMessageLengthObject instanceof PlaceHolderStringBasicValue == false) {
                 if (argsSize > 0) {
-                    wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                        "First argument must be a string constant so that we can statically ensure proper place holder usage"));
+                    wrongUsageCallback.accept(
+                        new WrongLoggerUsage(
+                            className,
+                            methodNode.name,
+                            methodInsn.name,
+                            lineNumber,
+                            "First argument must be a string constant so that we can statically ensure proper place holder usage"
+                        )
+                    );
                 } else {
                     // don't check logger usage for logger.warn(someObject)
                 }
@@ -414,8 +531,15 @@ public class ESLoggerUsageChecker {
             }
             PlaceHolderStringBasicValue logMessageLength = (PlaceHolderStringBasicValue) logMessageLengthObject;
             if (logMessageLength.minValue != logMessageLength.maxValue) {
-                wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                    "Multiple log messages with conflicting number of place holders"));
+                wrongUsageCallback.accept(
+                    new WrongLoggerUsage(
+                        className,
+                        methodNode.name,
+                        methodInsn.name,
+                        lineNumber,
+                        "Multiple log messages with conflicting number of place holders"
+                    )
+                );
                 return null;
             }
             return logMessageLength;
@@ -478,10 +602,7 @@ public class ESLoggerUsageChecker {
 
         @Override
         public String toString() {
-            return "IntMinMaxTrackingBasicValue{" +
-                "minValue=" + minValue +
-                ", maxValue=" + maxValue +
-                '}';
+            return "IntMinMaxTrackingBasicValue{" + "minValue=" + minValue + ", maxValue=" + maxValue + '}';
         }
     }
 
@@ -531,7 +652,8 @@ public class ESLoggerUsageChecker {
 
         @Override
         public BasicValue merge(BasicValue value1, BasicValue value2) {
-            if (value1 instanceof PlaceHolderStringBasicValue && value2 instanceof PlaceHolderStringBasicValue
+            if (value1 instanceof PlaceHolderStringBasicValue
+                && value2 instanceof PlaceHolderStringBasicValue
                 && value1.equals(value2) == false) {
                 PlaceHolderStringBasicValue c1 = (PlaceHolderStringBasicValue) value1;
                 PlaceHolderStringBasicValue c2 = (PlaceHolderStringBasicValue) value2;
@@ -549,23 +671,31 @@ public class ESLoggerUsageChecker {
         @Override
         public BasicValue newOperation(AbstractInsnNode insnNode) throws AnalyzerException {
             switch (insnNode.getOpcode()) {
-                case ICONST_0: return new IntegerConstantBasicValue(Type.INT_TYPE, 0);
-                case ICONST_1: return new IntegerConstantBasicValue(Type.INT_TYPE, 1);
-                case ICONST_2: return new IntegerConstantBasicValue(Type.INT_TYPE, 2);
-                case ICONST_3: return new IntegerConstantBasicValue(Type.INT_TYPE, 3);
-                case ICONST_4: return new IntegerConstantBasicValue(Type.INT_TYPE, 4);
-                case ICONST_5: return new IntegerConstantBasicValue(Type.INT_TYPE, 5);
+                case ICONST_0:
+                    return new IntegerConstantBasicValue(Type.INT_TYPE, 0);
+                case ICONST_1:
+                    return new IntegerConstantBasicValue(Type.INT_TYPE, 1);
+                case ICONST_2:
+                    return new IntegerConstantBasicValue(Type.INT_TYPE, 2);
+                case ICONST_3:
+                    return new IntegerConstantBasicValue(Type.INT_TYPE, 3);
+                case ICONST_4:
+                    return new IntegerConstantBasicValue(Type.INT_TYPE, 4);
+                case ICONST_5:
+                    return new IntegerConstantBasicValue(Type.INT_TYPE, 5);
                 case BIPUSH:
-                case SIPUSH: return new IntegerConstantBasicValue(Type.INT_TYPE, ((IntInsnNode)insnNode).operand);
+                case SIPUSH:
+                    return new IntegerConstantBasicValue(Type.INT_TYPE, ((IntInsnNode) insnNode).operand);
                 case Opcodes.LDC: {
-                    Object constant = ((LdcInsnNode)insnNode).cst;
+                    Object constant = ((LdcInsnNode) insnNode).cst;
                     if (constant instanceof Integer) {
-                        return new IntegerConstantBasicValue(Type.INT_TYPE, (Integer)constant);
+                        return new IntegerConstantBasicValue(Type.INT_TYPE, (Integer) constant);
                     } else {
                         return super.newOperation(insnNode);
                     }
                 }
-                default: return super.newOperation(insnNode);
+                default:
+                    return super.newOperation(insnNode);
             }
         }
 
@@ -588,8 +718,11 @@ public class ESLoggerUsageChecker {
             if (insnNode.getOpcode() == Opcodes.ANEWARRAY && value instanceof IntegerConstantBasicValue) {
                 IntegerConstantBasicValue constantBasicValue = (IntegerConstantBasicValue) value;
                 String desc = ((TypeInsnNode) insnNode).desc;
-                return new ArraySizeBasicValue(Type.getType("[" + Type.getObjectType(desc)), constantBasicValue.minValue,
-                    constantBasicValue.maxValue);
+                return new ArraySizeBasicValue(
+                    Type.getType("[" + Type.getObjectType(desc)),
+                    constantBasicValue.minValue,
+                    constantBasicValue.maxValue
+                );
             }
             return super.unaryOperation(insnNode, value);
         }

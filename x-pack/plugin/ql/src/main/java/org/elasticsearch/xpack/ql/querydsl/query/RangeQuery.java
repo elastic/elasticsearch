@@ -28,8 +28,16 @@ public class RangeQuery extends LeafQuery {
         this(source, field, lower, includeLower, upper, includeUpper, null, zoneId);
     }
 
-    public RangeQuery(Source source, String field, Object lower, boolean includeLower, Object upper,
-            boolean includeUpper, String format, ZoneId zoneId) {
+    public RangeQuery(
+        Source source,
+        String field,
+        Object lower,
+        boolean includeLower,
+        Object upper,
+        boolean includeUpper,
+        String format,
+        ZoneId zoneId
+    ) {
         super(source);
         this.field = field;
         this.lower = lower;
@@ -97,19 +105,17 @@ public class RangeQuery extends LeafQuery {
         }
 
         RangeQuery other = (RangeQuery) obj;
-        return Objects.equals(field, other.field) &&
-                Objects.equals(includeLower, other.includeLower) &&
-                Objects.equals(includeUpper, other.includeUpper) &&
-                Objects.equals(lower, other.lower) &&
-                Objects.equals(upper, other.upper) &&
-                Objects.equals(format, other.format) &&
-                Objects.equals(zoneId, other.zoneId);
+        return Objects.equals(field, other.field)
+            && Objects.equals(includeLower, other.includeLower)
+            && Objects.equals(includeUpper, other.includeUpper)
+            && Objects.equals(lower, other.lower)
+            && Objects.equals(upper, other.upper)
+            && Objects.equals(format, other.format)
+            && Objects.equals(zoneId, other.zoneId);
     }
 
     @Override
     protected String innerToString() {
-        return field + ":"
-            + (includeLower ? "[" : "(") + lower + ", "
-            + upper + (includeUpper ? "]" : ")") + "@" + zoneId.getId();
+        return field + ":" + (includeLower ? "[" : "(") + lower + ", " + upper + (includeUpper ? "]" : ")") + "@" + zoneId.getId();
     }
 }

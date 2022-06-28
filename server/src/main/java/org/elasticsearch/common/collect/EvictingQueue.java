@@ -86,7 +86,6 @@ public class EvictingQueue<T> implements Queue<T> {
         return queue.remove();
     }
 
-
     @Override
     public T poll() {
         return queue.poll();
@@ -153,8 +152,7 @@ public class EvictingQueue<T> implements Queue<T> {
     public boolean addAll(Collection<? extends T> c) {
         boolean modified = false;
         for (T e : c)
-            if (add(e))
-                modified = true;
+            if (add(e)) modified = true;
         return modified;
     }
 

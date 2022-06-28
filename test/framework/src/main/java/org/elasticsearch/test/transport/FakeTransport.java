@@ -35,11 +35,11 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     private TransportMessageListener listener;
 
     @Override
-    public void setMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener messageListener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
-        this.listener = listener;
+        this.listener = messageListener;
     }
 
     @Override
@@ -63,8 +63,8 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        listener.onResponse(new CloseableConnection() {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> actionListener) {
+        actionListener.onResponse(new CloseableConnection() {
             @Override
             public DiscoveryNode getNode() {
                 return node;

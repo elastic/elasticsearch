@@ -104,8 +104,13 @@ public class NioSelector implements Closeable {
     }
 
     public void assertOnSelectorThread() {
-        assert isOnCurrentThread() : "Must be on selector thread [" + thread.get().getName() + "} to perform this operation. " +
-            "Currently on thread [" + Thread.currentThread().getName() + "].";
+        assert isOnCurrentThread()
+            : "Must be on selector thread ["
+                + thread.get().getName()
+                + "} to perform this operation. "
+                + "Currently on thread ["
+                + Thread.currentThread().getName()
+                + "].";
     }
 
     /**
@@ -162,10 +167,10 @@ public class NioSelector implements Closeable {
                         try {
                             processKey(sk);
                         } catch (CancelledKeyException cke) {
-                            eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(),  cke);
+                            eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(), cke);
                         }
                     } else {
-                        eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(),  new CancelledKeyException());
+                        eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(), new CancelledKeyException());
                     }
                 }
             }
@@ -186,8 +191,9 @@ public class NioSelector implements Closeable {
         cleanupPendingWrites();
         channelsToClose.addAll(channelsToRegister);
         channelsToRegister.clear();
-        channelsToClose.addAll(selector.keys().stream()
-            .map(sk -> (ChannelContext<?>) sk.attachment()).filter(Objects::nonNull).collect(Collectors.toList()));
+        channelsToClose.addAll(
+            selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).filter(Objects::nonNull).collect(Collectors.toList())
+        );
         closePendingChannels();
     }
 

@@ -10,8 +10,10 @@ package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
+import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Packages;
+import org.junit.BeforeClass;
 
 import java.nio.file.Paths;
 
@@ -20,6 +22,7 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assume.assumeTrue;
 
 public class PackageUpgradeTests extends PackagingTestCase {
 
@@ -27,6 +30,12 @@ public class PackageUpgradeTests extends PackagingTestCase {
     protected static final Distribution bwcDistribution;
     static {
         bwcDistribution = new Distribution(Paths.get(System.getProperty("tests.bwc-distribution")));
+    }
+
+    @BeforeClass
+    public static void filterVersions() {
+        // These older packages actually can no longer be installed with newer package managers
+        assumeTrue(Version.fromString(bwcDistribution.baseVersion).onOrAfter(Version.V_6_3_0));
     }
 
     public void test10InstallBwcVersion() throws Exception {

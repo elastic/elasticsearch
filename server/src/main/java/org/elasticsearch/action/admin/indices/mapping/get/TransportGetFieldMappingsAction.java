@@ -33,9 +33,13 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
-                                           TransportGetFieldMappingsIndexAction shardAction,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportGetFieldMappingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        TransportGetFieldMappingsIndexAction shardAction,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;

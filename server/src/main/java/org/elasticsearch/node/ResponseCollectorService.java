@@ -75,9 +75,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
         final int clientNum = nodeIdToStats.size();
         // Transform the mutable object internally used for accounting into the computed version
         Map<String, ComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
-        nodeIdToStats.forEach((k, v) -> {
-            nodeStats.put(k, new ComputedNodeStats(clientNum, v));
-        });
+        nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ComputedNodeStats(clientNum, v)); });
         return nodeStats;
     }
 
@@ -123,8 +121,13 @@ public final class ResponseCollectorService implements ClusterStateListener {
         }
 
         ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
-            this(nodeStats.nodeId, clientNum,
-                    (int) nodeStats.queueSize.getAverage(), nodeStats.responseTime.getAverage(), nodeStats.serviceTime);
+            this(
+                nodeStats.nodeId,
+                clientNum,
+                (int) nodeStats.queueSize.getAverage(),
+                nodeStats.responseTime.getAverage(),
+                nodeStats.serviceTime
+            );
         }
 
         ComputedNodeStats(StreamInput in) throws IOException {
@@ -204,10 +207,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
         final ExponentiallyWeightedMovingAverage responseTime;
         double serviceTime;
 
-        NodeStatistics(String nodeId,
-                       ExponentiallyWeightedMovingAverage queueSizeEWMA,
-                       ExponentiallyWeightedMovingAverage responseTimeEWMA,
-                       double serviceTimeEWMA) {
+        NodeStatistics(
+            String nodeId,
+            ExponentiallyWeightedMovingAverage queueSizeEWMA,
+            ExponentiallyWeightedMovingAverage responseTimeEWMA,
+            double serviceTimeEWMA
+        ) {
             this.nodeId = nodeId;
             this.queueSize = queueSizeEWMA;
             this.responseTime = responseTimeEWMA;

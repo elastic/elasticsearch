@@ -99,12 +99,12 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), script, fieldName);
+        return Objects.hash(classHash(), script, fieldName);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         AbstractScriptFieldQuery<?> other = (AbstractScriptFieldQuery<?>) obj;

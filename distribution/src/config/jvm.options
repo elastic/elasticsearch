@@ -9,7 +9,7 @@
 ## should create one or more files in the jvm.options.d
 ## directory containing your adjustments.
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/current/jvm-options.html
+## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/jvm-options.html
 ## for more information.
 ##
 ################################################################
@@ -31,7 +31,7 @@
 ## -Xms4g
 ## -Xmx4g
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/current/heap-size.html
+## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/heap-size.html
 ## for more information
 ##
 ################################################################
@@ -70,6 +70,10 @@
 # are created in the working directory of the JVM unless an alternative path is
 # specified
 -XX:+HeapDumpOnOutOfMemoryError
+
+# exit right after heap dump on out of memory error. Recommended to also use
+# on java 8 for supported versions (8u92+).
+9-:-XX:+ExitOnOutOfMemoryError
 
 # specify an alternative path for heap dumps; ensure the directory exists and
 # has sufficient space

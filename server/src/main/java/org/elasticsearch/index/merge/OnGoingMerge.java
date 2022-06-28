@@ -34,7 +34,6 @@ public class OnGoingMerge {
         return id;
     }
 
-
     /**
      * Returns the total size in bytes of this merge. Note that this does not
      * indicate the size of the merged segment, but the

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +25,7 @@ import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 /**
  * TransportClient.Builder that installs the XPackPlugin by default.
  */
-@SuppressWarnings({"unchecked","varargs"})
+@SuppressWarnings({ "unchecked", "varargs" })
 public class TestXPackTransportClient extends TransportClient {
 
     @SafeVarargs
@@ -40,7 +41,7 @@ public class TestXPackTransportClient extends TransportClient {
     public void close() {
         super.close();
         if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings) == false
-                || NetworkModule.TRANSPORT_TYPE_SETTING.get(settings).equals(SecurityField.NAME4)) {
+            || NetworkModule.TRANSPORT_TYPE_SETTING.get(settings).equals(SecurityField.NAME4)) {
             try {
                 GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
             } catch (InterruptedException e) {

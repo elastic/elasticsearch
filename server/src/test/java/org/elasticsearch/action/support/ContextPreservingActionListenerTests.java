@@ -93,7 +93,7 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
 
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));
-}
+    }
 
     public void testOriginalContextIsWhenListenerThrows() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -149,12 +149,10 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             final ActionListener<Void> delegate = new ActionListener<Void>() {
                 @Override
-                public void onResponse(Void aVoid) {
-                }
+                public void onResponse(Void aVoid) {}
 
                 @Override
-                public void onFailure(Exception e) {
-                }
+                public void onFailure(Exception e) {}
 
                 @Override
                 public String toString() {

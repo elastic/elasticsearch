@@ -19,9 +19,9 @@ public class MapTests extends ScriptTestCase {
         assertEquals(2, exec(decl + "; return x[0];", true));
         assertEquals(1, exec(decl + "; return x['a'];", true));
         assertEquals(12, exec(decl + "; return x[123.1];", true));
-        assertEquals(val,    exec(decl + "; x[ 0] = params.val; return x[ 0];", singletonMap("val", val), true));
+        assertEquals(val, exec(decl + "; x[ 0] = params.val; return x[ 0];", singletonMap("val", val), true));
         assertEquals("slot", exec(decl + "; x[ 0] = params.val; return x[-5];", singletonMap("val", val), true));
-        assertEquals(val,    exec(decl + "; x[-5] = params.val; return x[-5];", singletonMap("val", val), true));
+        assertEquals(val, exec(decl + "; x[-5] = params.val; return x[-5];", singletonMap("val", val), true));
     }
 
     public void testMapInDefAccesses() {

@@ -34,10 +34,23 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-            "my_feature_field", "type=rank_feature",
-            "my_negative_feature_field", "type=rank_feature,positive_score_impact=false",
-            "my_feature_vector_field", "type=rank_features"))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(
+            "_doc",
+            new CompressedXContent(
+                Strings.toString(
+                    PutMappingRequest.buildFromSimplifiedDef(
+                        "_doc",
+                        "my_feature_field",
+                        "type=rank_feature",
+                        "my_negative_feature_field",
+                        "type=rank_feature,positive_score_impact=false",
+                        "my_feature_vector_field",
+                        "type=rank_features"
+                    )
+                )
+            ),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
     }
 
     @Override
@@ -50,25 +63,25 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
         ScoreFunction function;
         boolean mayUseNegativeField = true;
         switch (random().nextInt(4)) {
-        case 0:
-            mayUseNegativeField = false;
-            function = new ScoreFunction.Log(1 + randomFloat());
-            break;
-        case 1:
-            if (randomBoolean()) {
-                function = new ScoreFunction.Saturation();
-            } else {
-                function = new ScoreFunction.Saturation(randomFloat());
-            }
-            break;
-        case 2:
-            function = new ScoreFunction.Sigmoid(randomFloat(), randomFloat());
-            break;
-        case 3:
-            function = new ScoreFunction.Linear();
-            break;
-        default:
-            throw new AssertionError();
+            case 0:
+                mayUseNegativeField = false;
+                function = new ScoreFunction.Log(1 + randomFloat());
+                break;
+            case 1:
+                if (randomBoolean()) {
+                    function = new ScoreFunction.Saturation();
+                } else {
+                    function = new ScoreFunction.Saturation(randomFloat());
+                }
+                break;
+            case 2:
+                function = new ScoreFunction.Sigmoid(randomFloat(), randomFloat());
+                break;
+            case 3:
+                function = new ScoreFunction.Linear();
+                break;
+            default:
+                throw new AssertionError();
         }
         List<String> fields = new ArrayList<>();
         fields.add("my_feature_field");
@@ -89,40 +102,39 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testDefaultScoreFunction() throws IOException {
-        String query = "{\n" +
-                "    \"rank_feature\" : {\n" +
-                "        \"field\": \"my_feature_field\"\n" +
-                "    }\n" +
-                "}";
+        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"my_feature_field\"\n" + "    }\n" + "}";
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
     public void testIllegalField() {
-        String query = "{\n" +
-                "    \"rank_feature\" : {\n" +
-                "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" +
-                "    }\n" +
-                "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
-        assertEquals("[rank_feature] query only works on [rank_feature] fields and features of [rank_features] fields, not [text]",
-            e.getMessage());
+        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" + "    }\n" + "}";
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext())
+        );
+        assertEquals(
+            "[rank_feature] query only works on [rank_feature] fields and features of [rank_features] fields, not [text]",
+            e.getMessage()
+        );
     }
 
     public void testIllegalCombination() {
-        String query = "{\n" +
-                "    \"rank_feature\" : {\n" +
-                "        \"field\": \"my_negative_feature_field\",\n" +
-                "        \"log\" : {\n" +
-                "            \"scaling_factor\": 4.5\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
+        String query = "{\n"
+            + "    \"rank_feature\" : {\n"
+            + "        \"field\": \"my_negative_feature_field\",\n"
+            + "        \"log\" : {\n"
+            + "            \"scaling_factor\": 4.5\n"
+            + "        }\n"
+            + "    }\n"
+            + "}";
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext())
+        );
         assertEquals(
-                "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
-                e.getMessage());
+            "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
+            e.getMessage()
+        );
     }
 }

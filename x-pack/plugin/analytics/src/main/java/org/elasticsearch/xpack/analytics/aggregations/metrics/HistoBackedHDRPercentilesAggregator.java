@@ -20,11 +20,18 @@ import java.util.Map;
 
 public class HistoBackedHDRPercentilesAggregator extends AbstractHistoBackedHDRPercentilesAggregator {
 
-    public HistoBackedHDRPercentilesAggregator(String name, ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-                             double[] percents, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
-                             Map<String, Object> metadata) throws IOException {
-        super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter,
-            metadata);
+    public HistoBackedHDRPercentilesAggregator(
+        String name,
+        ValuesSource valuesSource,
+        AggregationContext context,
+        Aggregator parent,
+        double[] percents,
+        int numberOfSignificantValueDigits,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter, metadata);
     }
 
     @Override
@@ -52,6 +59,6 @@ public class HistoBackedHDRPercentilesAggregator extends AbstractHistoBackedHDRP
         DoubleHistogram state;
         state = new DoubleHistogram(numberOfSignificantValueDigits);
         state.setAutoResize(true);
-        return new InternalHDRPercentiles(name, keys, state, keyed, format,  metadata());
+        return new InternalHDRPercentiles(name, keys, state, keyed, format, metadata());
     }
 }

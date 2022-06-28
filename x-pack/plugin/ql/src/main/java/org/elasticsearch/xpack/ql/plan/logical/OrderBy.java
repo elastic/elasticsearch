@@ -29,7 +29,7 @@ public class OrderBy extends UnaryPlan {
     }
 
     @Override
-    protected OrderBy replaceChild(LogicalPlan newChild) {
+    public OrderBy replaceChild(LogicalPlan newChild) {
         return new OrderBy(source(), newChild, order);
     }
 
@@ -58,7 +58,6 @@ public class OrderBy extends UnaryPlan {
         }
 
         OrderBy other = (OrderBy) obj;
-        return Objects.equals(order, other.order)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(order, other.order) && Objects.equals(child(), other.child());
     }
 }

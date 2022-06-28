@@ -15,11 +15,12 @@ import java.util.function.Function;
 
 public final class UserAttributeGroupsResolverSettings {
     public static final Setting.AffixSetting<String> ATTRIBUTE = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(LdapRealmSettings.LDAP_TYPE), "user_group_attribute",
-            key -> new Setting<>(key, "memberOf", Function.identity(), Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(LdapRealmSettings.LDAP_TYPE),
+        "user_group_attribute",
+        key -> new Setting<>(key, "memberOf", Function.identity(), Setting.Property.NodeScope)
+    );
 
-    private UserAttributeGroupsResolverSettings() {
-    }
+    private UserAttributeGroupsResolverSettings() {}
 
     public static Set<Setting.AffixSetting<?>> getSettings() {
         return Collections.singleton(ATTRIBUTE);

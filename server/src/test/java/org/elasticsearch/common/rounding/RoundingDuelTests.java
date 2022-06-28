@@ -19,14 +19,15 @@ import java.time.ZoneOffset;
 
 import static org.hamcrest.Matchers.is;
 
-public class RoundingDuelTests extends ESTestCase  {
+public class RoundingDuelTests extends ESTestCase {
 
     // dont include nano/micro seconds as rounding would become zero then and throw an exception
-    private static final String[] ALLOWED_TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
+    private static final String[] ALLOWED_TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m" };
 
     public void testSerialization() throws Exception {
-        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
-            randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
+        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit = randomFrom(
+            org.elasticsearch.common.Rounding.DateTimeUnit.values()
+        );
         org.elasticsearch.common.Rounding rounding;
         boolean oldNextRoundingValueWorks;
         if (randomBoolean()) {
@@ -41,8 +42,7 @@ public class RoundingDuelTests extends ESTestCase  {
         rounding.writeTo(output);
 
         Rounding roundingJoda = Rounding.Streams.read(output.bytes().streamInput());
-        org.elasticsearch.common.Rounding roundingJavaTime =
-            org.elasticsearch.common.Rounding.read(output.bytes().streamInput());
+        org.elasticsearch.common.Rounding roundingJavaTime = org.elasticsearch.common.Rounding.read(output.bytes().streamInput());
 
         int randomInt = randomIntBetween(1, 1_000_000_000);
         assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));
@@ -52,8 +52,9 @@ public class RoundingDuelTests extends ESTestCase  {
     }
 
     public void testDuellingImplementations() {
-        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
-            randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
+        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit = randomFrom(
+            org.elasticsearch.common.Rounding.DateTimeUnit.values()
+        );
         org.elasticsearch.common.Rounding.Prepared rounding;
         Rounding roundingJoda;
 

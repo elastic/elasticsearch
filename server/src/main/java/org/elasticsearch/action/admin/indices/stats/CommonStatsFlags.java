@@ -232,7 +232,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         // 14 was previously used for Suggest
         RequestCache("request_cache", 15),
         Recovery("recovery", 16),
-        Shards("shards", 18);
+        Shards("shard_stats", 18);
 
         private final String restName;
         private final int index;

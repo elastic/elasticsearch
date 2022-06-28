@@ -47,11 +47,11 @@ public class ValuesSourceRegistryTests extends ESTestCase {
             null,
             CoreValuesSourceType.KEYWORD
         );
-        ValuesSourceRegistry.RegistryKey key = new ValuesSourceRegistry.RegistryKey("bogus", HistogramAggregatorSupplier.class);
-        ValuesSourceRegistry registry = new ValuesSourceRegistry(
-            Collections.singletonMap(key, Collections.emptyList()),
-            null
+        ValuesSourceRegistry.RegistryKey<HistogramAggregatorSupplier> key = new ValuesSourceRegistry.RegistryKey<>(
+            "bogus",
+            HistogramAggregatorSupplier.class
         );
+        ValuesSourceRegistry registry = new ValuesSourceRegistry(Collections.singletonMap(key, Collections.emptyList()), null);
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, fieldOnly));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, scriptOnly));
     }

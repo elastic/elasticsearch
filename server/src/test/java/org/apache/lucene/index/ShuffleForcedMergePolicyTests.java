@@ -69,10 +69,8 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     }
 
     @Override
-    protected void assertSegmentInfos(MergePolicy policy, SegmentInfos infos) throws IOException {
-    }
+    protected void assertSegmentInfos(MergePolicy policy, SegmentInfos infos) throws IOException {}
 
     @Override
-    protected void assertMerge(MergePolicy policy, MergePolicy.MergeSpecification merge) throws IOException {
-    }
+    protected void assertMerge(MergePolicy policy, MergePolicy.MergeSpecification merge) throws IOException {}
 }

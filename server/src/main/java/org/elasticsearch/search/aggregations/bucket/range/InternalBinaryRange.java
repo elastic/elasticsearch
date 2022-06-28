@@ -12,12 +12,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,9 +30,9 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableList;
 
 /** A range aggregation for data that is encoded in doc values using a binary representation. */
-public final class InternalBinaryRange
-        extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
-        implements Range {
+public final class InternalBinaryRange extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
+    implements
+        Range {
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
@@ -43,11 +43,18 @@ public final class InternalBinaryRange
         private final long docCount;
         private final InternalAggregations aggregations;
 
-        public Bucket(DocValueFormat format, boolean keyed, String key, BytesRef from, BytesRef to,
-                long docCount, InternalAggregations aggregations) {
+        public Bucket(
+            DocValueFormat format,
+            boolean keyed,
+            String key,
+            BytesRef from,
+            BytesRef to,
+            long docCount,
+            InternalAggregations aggregations
+        ) {
             this.format = format;
             this.keyed = keyed;
-            this.key = key != null ? key : generateKey(from, to, format);
+            this.key = key;
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -55,18 +62,14 @@ public final class InternalBinaryRange
         }
 
         private static String generateKey(BytesRef from, BytesRef to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder()
-                .append(from == null ? "*" : format.format(from))
+            StringBuilder builder = new StringBuilder().append(from == null ? "*" : format.format(from))
                 .append("-")
                 .append(to == null ? "*" : format.format(to));
             return builder.toString();
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.getVersion().onOrAfter(Version.V_6_4_0)
-                ? in.readString()
-                : in.readOptionalString();
-
+            String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
             long docCount = in.readLong();
@@ -77,10 +80,10 @@ public final class InternalBinaryRange
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeString(key);
-            } else {
+            if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
                 out.writeOptionalString(key);
+            } else {
+                out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeBoolean(from != null);
             if (from != null) {
@@ -96,12 +99,12 @@ public final class InternalBinaryRange
 
         @Override
         public Object getKey() {
-            return key;
+            return getKeyAsString();
         }
 
         @Override
         public String getKeyAsString() {
-            return key;
+            return this.key == null ? generateKey(this.from, this.to, this.format) : this.key;
         }
 
         @Override
@@ -116,7 +119,7 @@ public final class InternalBinaryRange
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            String key = this.key;
+            final String key = getKeyAsString();
             if (keyed) {
                 builder.startObject(key);
             } else {
@@ -164,10 +167,10 @@ public final class InternalBinaryRange
 
             if (docCount != bucket.docCount) return false;
             // keyed and format are ignored since they are already tested on the InternalBinaryRange object
-            return Objects.equals(key, bucket.key) &&
-                Objects.equals(from, bucket.from) &&
-                Objects.equals(to, bucket.to) &&
-                Objects.equals(aggregations, bucket.aggregations);
+            return Objects.equals(key, bucket.key)
+                && Objects.equals(from, bucket.from)
+                && Objects.equals(to, bucket.to)
+                && Objects.equals(aggregations, bucket.aggregations);
         }
 
         @Override
@@ -246,8 +249,17 @@ public final class InternalBinaryRange
         List<Bucket> buckets = new ArrayList<>(this.buckets.size());
         for (int i = 0; i < this.buckets.size(); ++i) {
             Bucket b = this.buckets.get(i);
-            buckets.add(new Bucket(format, keyed, b.key, b.from, b.to, docCounts[i],
-                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)));
+            buckets.add(
+                new Bucket(
+                    format,
+                    keyed,
+                    b.key,
+                    b.from,
+                    b.to,
+                    docCounts[i],
+                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)
+                )
+            );
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
@@ -261,8 +273,7 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder,
-            Params params) throws IOException {
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
@@ -279,7 +290,6 @@ public final class InternalBinaryRange
         return builder;
     }
 
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -287,9 +297,7 @@ public final class InternalBinaryRange
         if (super.equals(obj) == false) return false;
 
         InternalBinaryRange that = (InternalBinaryRange) obj;
-        return Objects.equals(buckets, that.buckets)
-            && Objects.equals(format, that.format)
-            && Objects.equals(keyed, that.keyed);
+        return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(keyed, that.keyed);
     }
 
     public int hashCode() {

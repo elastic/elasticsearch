@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Locale;
 
@@ -16,7 +16,10 @@ import java.util.Locale;
  */
 public enum DatafeedState {
 
-    STARTED, STOPPED, STARTING, STOPPING;
+    STARTED,
+    STOPPED,
+    STARTING,
+    STOPPING;
 
     public static final ParseField STATE = new ParseField("state");
 

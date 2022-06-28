@@ -13,16 +13,16 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
@@ -66,8 +66,11 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
     static {
         LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
-        LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
-                (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
+        LENIENT_PARSER.declareObjectArray(
+            Builder::putDatafeeds,
+            (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(),
+            DATAFEEDS_FIELD
+        );
         LENIENT_PARSER.declareBoolean(Builder::isUpgradeMode, UPGRADE_MODE);
         LENIENT_PARSER.declareBoolean(Builder::isResetMode, RESET_MODE);
     }
@@ -114,8 +117,7 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
     }
 
     public Set<String> expandDatafeedIds(String expression, boolean allowNoMatch) {
-        return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException)
-                .expand(expression, allowNoMatch);
+        return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException).expand(expression, allowNoMatch);
     }
 
     public boolean isUpgradeMode() {
@@ -128,7 +130,7 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_0_0_alpha1;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -194,8 +196,10 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        DelegatingMapParams extendedParams =
-                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
+        DelegatingMapParams extendedParams = new DelegatingMapParams(
+            Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"),
+            params
+        );
         mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
         mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
         builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode);
@@ -203,8 +207,12 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
         return builder;
     }
 
-    private static <T extends ToXContent> void mapValuesToXContent(ParseField field, Map<String, T> map, XContentBuilder builder,
-                                                                   Params params) throws IOException {
+    private static <T extends ToXContent> void mapValuesToXContent(
+        ParseField field,
+        Map<String, T> map,
+        XContentBuilder builder,
+        Params params
+    ) throws IOException {
         if (map.isEmpty()) {
             return;
         }
@@ -231,10 +239,13 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
-            this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
-                    MlMetadataDiff::readJobDiffFrom);
-            this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
-                    MlMetadataDiff::readDatafeedDiffFrom);
+            this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new, MlMetadataDiff::readJobDiffFrom);
+            this.datafeeds = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                DatafeedConfig::new,
+                MlMetadataDiff::readDatafeedDiffFrom
+            );
             if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 upgradeMode = in.readBoolean();
             } else {
@@ -276,6 +287,11 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(Job::new, in);
         }
@@ -287,15 +303,13 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         MlMetadata that = (MlMetadata) o;
-        return Objects.equals(jobs, that.jobs) &&
-                Objects.equals(datafeeds, that.datafeeds) &&
-                upgradeMode == that.upgradeMode &&
-                resetMode == that.resetMode;
+        return Objects.equals(jobs, that.jobs)
+            && Objects.equals(datafeeds, that.datafeeds)
+            && upgradeMode == that.upgradeMode
+            && resetMode == that.resetMode;
     }
 
     @Override
@@ -363,9 +377,7 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
             if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
-                datafeedConfig = new DatafeedConfig.Builder(datafeedConfig)
-                    .setHeaders(filterSecurityHeaders(headers))
-                    .build();
+                datafeedConfig = new DatafeedConfig.Builder(datafeedConfig).setHeaders(filterSecurityHeaders(headers)).build();
             }
 
             datafeeds.put(datafeedConfig.getId(), datafeedConfig);
@@ -379,8 +391,9 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
             }
             Optional<DatafeedConfig> existingDatafeed = getDatafeedByJobId(jobId);
             if (existingDatafeed.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("A datafeed [" + existingDatafeed.get().getId()
-                        + "] already exists for job [" + jobId + "]");
+                throw ExceptionsHelper.conflictStatusException(
+                    "A datafeed [" + existingDatafeed.get().getId() + "] already exists for job [" + jobId + "]"
+                );
             }
         }
 
@@ -395,13 +408,13 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
             return this;
         }
 
-        public Builder isUpgradeMode(boolean upgradeMode) {
-            this.upgradeMode = upgradeMode;
+        public Builder isUpgradeMode(boolean isUpgradeMode) {
+            this.upgradeMode = isUpgradeMode;
             return this;
         }
 
-        public Builder isResetMode(boolean resetMode) {
-            this.resetMode = resetMode;
+        public Builder isResetMode(boolean isResetMode) {
+            this.resetMode = isResetMode;
             return this;
         }
 

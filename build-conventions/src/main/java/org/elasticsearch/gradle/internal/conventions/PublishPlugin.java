@@ -76,6 +76,7 @@ public class PublishPlugin implements Plugin<Project> {
                 publication.from(project.getComponents().getByName("java"));
             }
         });
+        @SuppressWarnings("unchecked")
         var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
             Node node = xml.asNode();
@@ -113,7 +114,7 @@ public class PublishPlugin implements Plugin<Project> {
         var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
         var projectVersion = providerFactory.provider(() -> project.getVersion());
         var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
-        generateMavenPoms.all(
+        generateMavenPoms.configureEach(
             pomTask -> pomTask.setDestination(
                 (Callable<String>) () -> String.format(
                     "%s/distributions/%s-%s.pom",
@@ -126,7 +127,7 @@ public class PublishPlugin implements Plugin<Project> {
         var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);
-        mavenPublications.all(publication -> {
+        mavenPublications.configureEach(publication -> {
             // Add git origin info to generated POM files for internal builds
             publication.getPom().withXml(xml -> addScmInfo(xml, gitInfo.get()));
             // have to defer this until archivesBaseName is set
@@ -138,7 +139,7 @@ public class PublishPlugin implements Plugin<Project> {
     private void addNameAndDescriptiontoPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
         var name = project.getName();
         var description = providerFactory.provider(() -> project.getDescription() != null ? project.getDescription() : "");
-        mavenPublications.all(p -> p.getPom().withXml(xml -> {
+        mavenPublications.configureEach(p -> p.getPom().withXml(xml -> {
         var root = xml.asNode();
         root.appendNode("name", name);
         root.appendNode("description", description.get());

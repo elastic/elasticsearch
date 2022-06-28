@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -18,7 +19,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Collections;
 
@@ -78,8 +78,8 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
 
             String tierPreference = getTierPreference(context);
             return tierPreference == null
-                ? lookup -> Collections.emptyList()
-                : lookup -> Collections.singletonList(tierPreference);
+                ? (lookup, ignoredValues) -> Collections.emptyList()
+                : (lookup, ignoredValues) -> Collections.singletonList(tierPreference);
         }
 
         /**
@@ -88,10 +88,13 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
          */
         private String getTierPreference(SearchExecutionContext context) {
             Settings settings = context.getIndexSettings().getSettings();
-            String value = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings);
+            String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 
             if (Strings.hasText(value) == false) {
-                return null;
+                // Starting in 8.0 we should always have a default preference of data_content
+                // but in 7.x it is possible to have null so we default here to make terms_enum
+                // api work. See https://github.com/elastic/elasticsearch/issues/79200
+                return DataTier.DATA_CONTENT;
             }
 
             // Tier preference can be a comma-delimited list of tiers, ordered by preference

@@ -41,7 +41,7 @@ public class PipelineHttpResourceTests extends AbstractPublishableHttpResourceTe
         assertThat(byteStream.available(), is(pipelineBytes.length));
 
         for (final byte pipelineByte : pipelineBytes) {
-            assertThat(pipelineByte, is((byte)byteStream.read()));
+            assertThat(pipelineByte, is((byte) byteStream.read()));
         }
 
         assertThat(byteStream.available(), is(0));
@@ -61,8 +61,7 @@ public class PipelineHttpResourceTests extends AbstractPublishableHttpResourceTe
             // it does not exist because we need to replace it
             final HttpEntity entity = entityForResource(false, pipelineName, minimumVersion);
 
-            doCheckWithStatusCode(resource, "/_ingest/pipeline", pipelineName,
-                                  successfulCheckStatus(), false, entity);
+            doCheckWithStatusCode(resource, "/_ingest/pipeline", pipelineName, successfulCheckStatus(), false, entity);
         }
     }
 

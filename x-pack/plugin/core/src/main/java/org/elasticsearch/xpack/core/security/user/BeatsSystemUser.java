@@ -19,6 +19,6 @@ public class BeatsSystemUser extends User {
     public static final Version DEFINED_SINCE = Version.V_6_3_0;
 
     public BeatsSystemUser(boolean enabled) {
-        super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }

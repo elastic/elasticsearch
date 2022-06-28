@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -22,13 +23,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -61,29 +62,42 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 public class SystemIndices {
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
     public static final String EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_external_system_index_access_origin";
+    public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-8";
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
-    private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
-        TASKS_FEATURE_NAME, new Feature(TASKS_FEATURE_NAME, "Manages task results", singletonList(TASKS_DESCRIPTOR))
+    /**
+     * This is the source for non-plugin system features.
+     */
+    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = singletonMap(
+        TASKS_FEATURE_NAME,
+        new Feature(TASKS_FEATURE_NAME, "Manages task results", singletonList(TASKS_DESCRIPTOR))
     );
+
+    /**
+     * The node's full list of system features is stored here. The map is keyed
+     * on the value of {@link Feature#getName()}, and is used for fast lookup of
+     * feature objects via {@link #getFeature(String)}.
+     */
+    private final Map<String, Feature> featureDescriptors;
 
     private final CharacterRunAutomaton systemIndexAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesAutomaton;
     private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final Predicate<String> systemDataStreamAutomaton;
-    private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
     private final ExecutorSelector executorSelector;
 
     /**
      * Initialize the SystemIndices object
-     * @param pluginAndModulesDescriptors A map of this node's feature names to
-     *                                    feature objects.
+     * @param pluginAndModuleFeatures A list of features from which we will load system indices.
+     *                                These features come from plugins and modules. Non-plugin system
+     *                                features such as Tasks will be added automatically.
      */
-    public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
-        featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+    public SystemIndices(List<Feature> pluginAndModuleFeatures) {
+        featureDescriptors = buildFeatureMap(pluginAndModuleFeatures);
         checkForOverlappingPatterns(featureDescriptors);
+        ensurePatternsAllowSuffix(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         this.systemIndexAutomaton = buildIndexCharacterRunAutomaton(featureDescriptors);
         this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
@@ -91,6 +105,35 @@ public class SystemIndices {
         this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
         this.executorSelector = new ExecutorSelector(this);
+    }
+
+    static void ensurePatternsAllowSuffix(Map<String, Feature> featureDescriptors) {
+        String suffixPattern = "*" + UPGRADED_INDEX_SUFFIX;
+        final List<String> descriptorsWithNoRoomForSuffix = featureDescriptors.values()
+            .stream()
+            .flatMap(
+                feature -> feature.getIndexDescriptors()
+                    .stream()
+                    // The below filter & map are inside the enclosing flapMap so we have access to both the feature and the descriptor
+                    .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
+                    .map(
+                        descriptor -> new ParameterizedMessage(
+                            "pattern [{}] from feature [{}]",
+                            descriptor.getIndexPattern(),
+                            feature.getName()
+                        ).getFormattedMessage()
+                    )
+            )
+            .collect(Collectors.toList());
+        if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
+            throw new IllegalStateException(
+                new ParameterizedMessage(
+                    "the following system index patterns do not allow suffix [{}] required to allow upgrades: [{}]",
+                    UPGRADED_INDEX_SUFFIX,
+                    descriptorsWithNoRoomForSuffix
+                ).getFormattedMessage()
+            );
+        }
     }
 
     private static void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
@@ -115,36 +158,45 @@ public class SystemIndices {
         }
     }
 
-    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> descriptors) {
+    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> featureDescriptors) {
         Map<String, Automaton> productToSystemIndicesMap = new HashMap<>();
-        for (Feature feature : descriptors.values()) {
+        for (Feature feature : featureDescriptors.values()) {
             feature.getIndexDescriptors().forEach(systemIndexDescriptor -> {
                 if (systemIndexDescriptor.isExternal()) {
-                    systemIndexDescriptor.getAllowedElasticProductOrigins().forEach(origin ->
-                        productToSystemIndicesMap.compute(origin, (key, value) -> {
+                    systemIndexDescriptor.getAllowedElasticProductOrigins()
+                        .forEach(origin -> productToSystemIndicesMap.compute(origin, (key, value) -> {
                             Automaton automaton = SystemIndexDescriptor.buildAutomaton(
-                                systemIndexDescriptor.getIndexPattern(), systemIndexDescriptor.getAliasName());
+                                systemIndexDescriptor.getIndexPattern(),
+                                systemIndexDescriptor.getAliasName()
+                            );
                             return value == null ? automaton : Operations.union(value, automaton);
-                        })
-                    );
+                        }));
                 }
             });
             feature.getDataStreamDescriptors().forEach(dataStreamDescriptor -> {
                 if (dataStreamDescriptor.isExternal()) {
-                    dataStreamDescriptor.getAllowedElasticProductOrigins().forEach(origin ->
-                        productToSystemIndicesMap.compute(origin, (key, value) -> {
+                    dataStreamDescriptor.getAllowedElasticProductOrigins()
+                        .forEach(origin -> productToSystemIndicesMap.compute(origin, (key, value) -> {
                             Automaton automaton = SystemIndexDescriptor.buildAutomaton(
-                                dataStreamDescriptor.getBackingIndexPattern(), dataStreamDescriptor.getDataStreamName());
+                                dataStreamDescriptor.getBackingIndexPattern(),
+                                dataStreamDescriptor.getDataStreamName()
+                            );
                             return value == null ? automaton : Operations.union(value, automaton);
-                        })
-                    );
+                        }));
                 }
             });
         }
 
-        return unmodifiableMap(productToSystemIndicesMap.entrySet().stream()
-            .collect(Collectors.toMap(Entry::getKey, entry ->
-                new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE)))));
+        return unmodifiableMap(
+            productToSystemIndicesMap.entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        Entry::getKey,
+                        entry -> new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))
+                    )
+                )
+        );
     }
 
     /**
@@ -189,8 +241,21 @@ public class SystemIndices {
         return systemDataStreamIndicesAutomaton.run(name);
     }
 
+    /**
+     * Checks whether an index is a net-new system index, meaning we can apply non-BWC behavior to it.
+     * @param indexName The index name to check.
+     * @return {@code true} if the given index is covered by a net-new system index descriptor, {@code false} otherwise.
+     */
     public boolean isNetNewSystemIndex(String indexName) {
         return netNewSystemIndexAutomaton.run(indexName);
+    }
+
+    /**
+     * Used to determine which executor should be used for operations on this index. See {@link ExecutorSelector} docs for
+     * details.
+     */
+    public ExecutorSelector getExecutorSelector() {
+        return executorSelector;
     }
 
     /**
@@ -200,7 +265,8 @@ public class SystemIndices {
      * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
-        final List<SystemIndexDescriptor> matchingDescriptors = featureDescriptors.values().stream()
+        final List<SystemIndexDescriptor> matchingDescriptors = featureDescriptors.values()
+            .stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(descriptor -> descriptor.matchesIndexPattern(name))
             .collect(Collectors.toList());
@@ -211,13 +277,20 @@ public class SystemIndices {
             return matchingDescriptors.get(0);
         } else {
             // This should be prevented by failing on overlapping patterns at startup time, but is here just in case.
-            StringBuilder errorMessage = new StringBuilder()
-                .append("index name [")
+            StringBuilder errorMessage = new StringBuilder().append("index name [")
                 .append(name)
                 .append("] is claimed as a system index by multiple system index patterns: [")
-                .append(matchingDescriptors.stream()
-                    .map(descriptor -> "pattern: [" + descriptor.getIndexPattern() +
-                        "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
+                .append(
+                    matchingDescriptors.stream()
+                        .map(
+                            descriptor -> "pattern: ["
+                                + descriptor.getIndexPattern()
+                                + "], description: ["
+                                + descriptor.getDescription()
+                                + "]"
+                        )
+                        .collect(Collectors.joining("; "))
+                );
             // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
             assert false : errorMessage.toString();
             throw new IllegalStateException(errorMessage.toString());
@@ -231,7 +304,8 @@ public class SystemIndices {
      * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemDataStreamDescriptor findMatchingDataStreamDescriptor(String name) {
-        final List<SystemDataStreamDescriptor> matchingDescriptors = featureDescriptors.values().stream()
+        final List<SystemDataStreamDescriptor> matchingDescriptors = featureDescriptors.values()
+            .stream()
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .filter(descriptor -> descriptor.getDataStreamName().equals(name))
             .collect(Collectors.toList());
@@ -242,13 +316,20 @@ public class SystemIndices {
             return matchingDescriptors.get(0);
         } else {
             // This should be prevented by failing on overlapping patterns at startup time, but is here just in case.
-            StringBuilder errorMessage = new StringBuilder()
-                .append("DataStream name [")
+            StringBuilder errorMessage = new StringBuilder().append("DataStream name [")
                 .append(name)
                 .append("] is claimed as a system data stream by multiple descriptors: [")
-                .append(matchingDescriptors.stream()
-                    .map(descriptor -> "name: [" + descriptor.getDataStreamName() +
-                        "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
+                .append(
+                    matchingDescriptors.stream()
+                        .map(
+                            descriptor -> "name: ["
+                                + descriptor.getDataStreamName()
+                                + "], description: ["
+                                + descriptor.getDescription()
+                                + "]"
+                        )
+                        .collect(Collectors.joining("; "))
+                );
             // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
             assert false : errorMessage.toString();
             throw new IllegalStateException(errorMessage.toString());
@@ -291,19 +372,40 @@ public class SystemIndices {
         return automaton::run;
     }
 
-    public Map<String, Feature> getFeatures() {
-        return featureDescriptors;
+    /**
+     * Get a set of feature names. This is useful for checking whether particular
+     * features are present on the node.
+     * @return A set of all feature names
+     */
+    public Set<String> getFeatureNames() {
+        return Collections.unmodifiableSet(featureDescriptors.keySet());
+    }
+
+    /**
+     * Get a feature by name.
+     * @param name Name of a feature.
+     * @return The corresponding feature if it exists on this node, null otherwise.
+     */
+    public Feature getFeature(String name) {
+        return featureDescriptors.get(name);
+    }
+
+    /**
+     * Get a collection of the Features this SystemIndices object is managing.
+     * @return A collection of Features.
+     */
+    public Collection<Feature> getFeatures() {
+        return Collections.unmodifiableCollection(featureDescriptors.values());
     }
 
     private static CharacterRunAutomaton buildIndexCharacterRunAutomaton(Map<String, Feature> descriptors) {
-        Optional<Automaton> automaton = descriptors.values().stream()
-            .map(SystemIndices::featureToIndexAutomaton)
-            .reduce(Operations::union);
+        Optional<Automaton> automaton = descriptors.values().stream().map(SystemIndices::featureToIndexAutomaton).reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
-        Optional<Automaton> automaton = featureDescriptors.values().stream()
+        Optional<Automaton> automaton = featureDescriptors.values()
+            .stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
@@ -312,7 +414,8 @@ public class SystemIndices {
     }
 
     private static Automaton featureToIndexAutomaton(Feature feature) {
-        Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors().stream()
+        Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors()
+            .stream()
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
 
@@ -320,7 +423,8 @@ public class SystemIndices {
     }
 
     private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> descriptors) {
-        Set<String> systemDataStreamNames = descriptors.values().stream()
+        Set<String> systemDataStreamNames = descriptors.values()
+            .stream()
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .collect(Collectors.toSet());
@@ -328,25 +432,25 @@ public class SystemIndices {
     }
 
     private static CharacterRunAutomaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> descriptors) {
-        Optional<Automaton> automaton = descriptors.values().stream()
+        Optional<Automaton> automaton = descriptors.values()
+            .stream()
             .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
             .reduce(Operations::union);
         return new CharacterRunAutomaton(automaton.orElse(EMPTY));
     }
 
     private static Automaton featureToDataStreamBackingIndicesAutomaton(Feature feature) {
-        Optional<Automaton> systemDataStreamAutomaton = feature.getDataStreamDescriptors().stream()
-            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(
-                descriptor.getBackingIndexPattern(),
-                null
-            ))
+        Optional<Automaton> systemDataStreamAutomaton = feature.getDataStreamDescriptors()
+            .stream()
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getBackingIndexPattern(), null))
             .reduce(Operations::union);
         return systemDataStreamAutomaton.orElse(EMPTY);
     }
 
     public SystemDataStreamDescriptor validateDataStreamAccess(String dataStreamName, ThreadContext threadContext) {
         if (systemDataStreamAutomaton.test(dataStreamName)) {
-            SystemDataStreamDescriptor dataStreamDescriptor = featureDescriptors.values().stream()
+            SystemDataStreamDescriptor dataStreamDescriptor = featureDescriptors.values()
+                .stream()
                 .flatMap(feature -> feature.getDataStreamDescriptors().stream())
                 .filter(descriptor -> descriptor.getDataStreamName().equals(dataStreamName))
                 .findFirst()
@@ -360,7 +464,8 @@ public class SystemIndices {
                     if (getProductSystemIndexNamePredicate(threadContext).test(dataStreamName) == false) {
                         throw dataStreamAccessException(
                             threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
-                            dataStreamName);
+                            dataStreamName
+                        );
                     } else {
                         return dataStreamDescriptor;
                     }
@@ -386,21 +491,25 @@ public class SystemIndices {
     public IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
         final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         if (product == null) {
-            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
-                " use and access is reserved for system operations");
+            return new IllegalArgumentException(
+                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " use and access is reserved for system operations"
+            );
         } else {
-            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
-                " use and access is reserved for system operations");
+            return new IllegalArgumentException(
+                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " use and access is reserved for system operations"
+            );
         }
     }
 
     IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
         if (product == null) {
-            return new IllegalArgumentException("Data stream(s) " + Arrays.toString(dataStreamNames) +
-                " use and access is reserved for system operations");
+            return new IllegalArgumentException(
+                "Data stream(s) " + Arrays.toString(dataStreamNames) + " use and access is reserved for system operations"
+            );
         } else {
-            return new IllegalArgumentException("Data stream(s) " + Arrays.toString(dataStreamNames) + " may not be accessed by product ["
-                + product + "]");
+            return new IllegalArgumentException(
+                "Data stream(s) " + Arrays.toString(dataStreamNames) + " may not be accessed by product [" + product + "]"
+            );
         }
     }
 
@@ -447,20 +556,20 @@ public class SystemIndices {
      * Given a collection of {@link SystemIndexDescriptor}s and their sources, checks to see if the index patterns of the listed
      * descriptors overlap with any of the other patterns. If any do, throws an exception.
      *
-     * @param sourceToFeature A map of source (plugin) names to the SystemIndexDescriptors they provide.
+     * @param featureDescriptors A map of feature names to the Features that will provide SystemIndexDescriptors
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
-    static void checkForOverlappingPatterns(Map<String, Feature> sourceToFeature) {
-        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToFeature.entrySet().stream()
-            .flatMap(entry -> entry.getValue().getIndexDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
+    static void checkForOverlappingPatterns(Map<String, Feature> featureDescriptors) {
+        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = featureDescriptors.values()
+            .stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream().map(descriptor -> new Tuple<>(feature.getName(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
             .collect(Collectors.toList());
-        List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = sourceToFeature.entrySet().stream()
-            .filter(entry -> entry.getValue().getDataStreamDescriptors().isEmpty() == false)
-            .flatMap(entry ->
-                entry.getValue().getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
-            .sorted(
-                Comparator.comparing(d -> d.v1() + ":" + d.v2().getDataStreamName())) // Consistent ordering -> consistent error message
+        List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = featureDescriptors.values()
+            .stream()
+            .filter(feature -> feature.getDataStreamDescriptors().isEmpty() == false)
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(feature.getName(), descriptor)))
+            .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getDataStreamName())) // Consistent ordering -> consistent error message
             .collect(Collectors.toList());
 
         // This is O(n^2) with the number of system index descriptors, and each check is quadratic with the number of states in the
@@ -469,27 +578,41 @@ public class SystemIndices {
         sourceDescriptorPair.forEach(descriptorToCheck -> {
             List<Tuple<String, SystemIndexDescriptor>> descriptorsMatchingThisPattern = sourceDescriptorPair.stream()
                 .filter(d -> descriptorToCheck.v2() != d.v2()) // Exclude the pattern currently being checked
-                .filter(d -> overlaps(descriptorToCheck.v2(), d.v2()) ||
-                    (d.v2().getAliasName() != null && descriptorToCheck.v2().matchesIndexPattern(d.v2().getAliasName())))
+                .filter(
+                    d -> overlaps(descriptorToCheck.v2(), d.v2())
+                        || (d.v2().getAliasName() != null && descriptorToCheck.v2().matchesIndexPattern(d.v2().getAliasName()))
+                )
                 .collect(Collectors.toList());
             if (descriptorsMatchingThisPattern.isEmpty() == false) {
-                throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from [" +
-                    descriptorToCheck.v1() + "] overlaps with other system index descriptors: [" +
-                    descriptorsMatchingThisPattern.stream()
-                        .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
-                        .collect(Collectors.joining(", ")));
+                throw new IllegalStateException(
+                    "a system index descriptor ["
+                        + descriptorToCheck.v2()
+                        + "] from ["
+                        + descriptorToCheck.v1()
+                        + "] overlaps with other system index descriptors: ["
+                        + descriptorsMatchingThisPattern.stream()
+                            .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
+                            .collect(Collectors.joining(", "))
+                );
             }
 
             List<Tuple<String, SystemDataStreamDescriptor>> dataStreamsMatching = sourceDataStreamDescriptorPair.stream()
-                .filter(dsTuple -> descriptorToCheck.v2().matchesIndexPattern(dsTuple.v2().getDataStreamName()) ||
-                    overlaps(descriptorToCheck.v2().getIndexPattern(), dsTuple.v2().getBackingIndexPattern()))
+                .filter(
+                    dsTuple -> descriptorToCheck.v2().matchesIndexPattern(dsTuple.v2().getDataStreamName())
+                        || overlaps(descriptorToCheck.v2().getIndexPattern(), dsTuple.v2().getBackingIndexPattern())
+                )
                 .collect(Collectors.toList());
             if (dataStreamsMatching.isEmpty() == false) {
-                throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from [" +
-                    descriptorToCheck.v1() + "] overlaps with one or more data stream descriptors: [" +
-                    dataStreamsMatching.stream()
-                        .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
-                        .collect(Collectors.joining(", ")));
+                throw new IllegalStateException(
+                    "a system index descriptor ["
+                        + descriptorToCheck.v2()
+                        + "] from ["
+                        + descriptorToCheck.v1()
+                        + "] overlaps with one or more data stream descriptors: ["
+                        + dataStreamsMatching.stream()
+                            .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
+                            .collect(Collectors.joining(", "))
+                );
             }
         });
     }
@@ -504,23 +627,22 @@ public class SystemIndices {
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
-    private static Map<String, Feature> buildSystemIndexDescriptorMap(Map<String, Feature> featuresMap) {
-        final Map<String, Feature> map = new HashMap<>(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
-        map.putAll(featuresMap);
+    private static Map<String, Feature> buildFeatureMap(List<Feature> features) {
+        final Map<String, Feature> map = new HashMap<>(features.size() + SERVER_SYSTEM_FEATURE_DESCRIPTORS.size());
+        features.forEach(feature -> map.put(feature.getName(), feature));
         // put the server items last since we expect less of them
-        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.forEach((source, feature) -> {
             if (map.putIfAbsent(source, feature) != null) {
-                throw new IllegalArgumentException("plugin or module attempted to define the same source [" + source +
-                    "] as a built-in system index");
+                throw new IllegalArgumentException(
+                    "plugin or module attempted to define the same source [" + source + "] as a built-in system index"
+                );
             }
         });
         return unmodifiableMap(map);
     }
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return this.featureDescriptors.values().stream()
-            .flatMap(f -> f.getIndexDescriptors().stream())
-            .collect(Collectors.toList());
+        return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).collect(Collectors.toList());
     }
 
     /**
@@ -530,8 +652,13 @@ public class SystemIndices {
      */
     public static void validateFeatureName(String name, String plugin) {
         if (SnapshotsService.NO_FEATURE_STATES_VALUE.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("feature name cannot be reserved name [\"" + SnapshotsService.NO_FEATURE_STATES_VALUE +
-                "\"], but was for plugin [" + plugin + "]");
+            throw new IllegalArgumentException(
+                "feature name cannot be reserved name [\""
+                    + SnapshotsService.NO_FEATURE_STATES_VALUE
+                    + "\"], but was for plugin ["
+                    + plugin
+                    + "]"
+            );
         }
     }
 
@@ -539,31 +666,44 @@ public class SystemIndices {
      * Class holding a description of a stateful feature.
      */
     public static class Feature {
+        private final String name;
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
         private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
+        private final MigrationPreparationHandler preMigrationFunction;
+        private final MigrationCompletionHandler postMigrationFunction;
 
         /**
          * Construct a Feature with a custom cleanup function
+         * @param name The name of the feature
          * @param description Description of the feature
          * @param indexDescriptors Collection of objects describing system indices for this feature
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
          * @param associatedIndexDescriptors Collection of objects describing associated indices for this feature
          * @param cleanUpFunction A function that will clean up the feature's state
+         * @param preMigrationFunction A function that will be called prior to upgrading any of this plugin's system indices
+         * @param postMigrationFunction A function that will be called after upgrading all of this plugin's system indices
          */
         public Feature(
+            String name,
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
             Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
-            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
+            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction,
+            MigrationPreparationHandler preMigrationFunction,
+            MigrationCompletionHandler postMigrationFunction
+        ) {
+            this.name = name;
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.dataStreamDescriptors = dataStreamDescriptors;
             this.associatedIndexDescriptors = associatedIndexDescriptors;
             this.cleanUpFunction = cleanUpFunction;
+            this.preMigrationFunction = preMigrationFunction;
+            this.postMigrationFunction = postMigrationFunction;
         }
 
         /**
@@ -573,11 +713,25 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
-                (clusterService, client, listener) ->
-                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
+            this(
+                name,
+                description,
+                indexDescriptors,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                (clusterService, client, listener) -> cleanUpFeature(
+                    indexDescriptors,
+                    Collections.emptyList(),
+                    name,
+                    clusterService,
+                    client,
+                    listener
+                ),
+                Feature::noopPreMigrationFunction,
+                Feature::noopPostMigrationFunction
             );
         }
+
         /**
          * Construct a Feature using the default clean-up function
          * @param name Name of the feature, used in logging
@@ -585,11 +739,47 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
          */
-        public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors,
-                       Collection<SystemDataStreamDescriptor> dataStreamDescriptors) {
-            this(description, indexDescriptors, dataStreamDescriptors, Collections.emptyList(),
-                (clusterService, client, listener) ->
-                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
+        public Feature(
+            String name,
+            String description,
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<SystemDataStreamDescriptor> dataStreamDescriptors
+        ) {
+            this(
+                name,
+                description,
+                indexDescriptors,
+                dataStreamDescriptors,
+                Collections.emptyList(),
+                (clusterService, client, listener) -> cleanUpFeature(
+                    indexDescriptors,
+                    Collections.emptyList(),
+                    name,
+                    clusterService,
+                    client,
+                    listener
+                ),
+                Feature::noopPreMigrationFunction,
+                Feature::noopPostMigrationFunction
+            );
+        }
+
+        /**
+         * Creates a {@link Feature} from a {@link SystemIndexPlugin}.
+         * @param plugin The {@link SystemIndexPlugin} that adds this feature.
+         * @param settings Node-level settings, as this may impact the descriptors returned by the plugin.
+         * @return A {@link Feature} which represents the feature added by the given plugin.
+         */
+        public static Feature fromSystemIndexPlugin(SystemIndexPlugin plugin, Settings settings) {
+            return new Feature(
+                plugin.getFeatureName(),
+                plugin.getFeatureDescription(),
+                plugin.getSystemIndexDescriptors(settings),
+                plugin.getSystemDataStreamDescriptors(),
+                plugin.getAssociatedIndexDescriptors(),
+                plugin::cleanUpFeature,
+                plugin::prepareForIndicesMigration,
+                plugin::indicesMigrationComplete
             );
         }
 
@@ -613,6 +803,18 @@ public class SystemIndices {
             return cleanUpFunction;
         }
 
+        public String getName() {
+            return name;
+        }
+
+        public MigrationPreparationHandler getPreMigrationFunction() {
+            return preMigrationFunction;
+        }
+
+        public MigrationCompletionHandler getPostMigrationFunction() {
+            return postMigrationFunction;
+        }
+
         /**
          * Clean up the state of a feature
          * @param indexDescriptors List of descriptors of a feature's system indices
@@ -628,7 +830,8 @@ public class SystemIndices {
             String name,
             ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener) {
+            ActionListener<ResetFeatureStateStatus> listener
+        ) {
             Metadata metadata = clusterService.state().getMetadata();
 
             List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
@@ -656,18 +859,60 @@ public class SystemIndices {
                 }
             });
         }
-    }
 
-    public static Feature pluginToFeature(SystemIndexPlugin plugin, Settings settings) {
-        return new Feature(plugin.getFeatureDescription(),
-            plugin.getSystemIndexDescriptors(settings),
-            plugin.getSystemDataStreamDescriptors(),
-            plugin.getAssociatedIndexDescriptors(),
-            plugin::cleanUpFeature);
-    }
+        // No-op pre-migration function to be used as the default in case none are provided.
+        private static void noopPreMigrationFunction(
+            ClusterService clusterService,
+            Client client,
+            ActionListener<Map<String, Object>> listener
+        ) {
+            listener.onResponse(Collections.emptyMap());
+        }
 
-    public ExecutorSelector getExecutorSelector() {
-        return executorSelector;
-    }
+        // No-op pre-migration function to be used as the default in case none are provided.
+        private static void noopPostMigrationFunction(
+            Map<String, Object> preUpgradeMetadata,
+            ClusterService clusterService,
+            Client client,
+            ActionListener<Boolean> listener
+        ) {
+            listener.onResponse(true);
+        }
 
+        /**
+         * Type for the handler that's invoked prior to migrating a Feature's system indices.
+         * See {@link SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
+         */
+        @FunctionalInterface
+        public interface MigrationPreparationHandler {
+            void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
+        }
+
+        /**
+         * Type for the handler that's invoked when all of a feature's system indices have been migrated.
+         * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}.
+         */
+        @FunctionalInterface
+        public interface MigrationCompletionHandler {
+            void indicesMigrationComplete(
+                Map<String, Object> preUpgradeMetadata,
+                ClusterService clusterService,
+                Client client,
+                ActionListener<Boolean> listener
+            );
+        }
+
+        public static Feature pluginToFeature(SystemIndexPlugin plugin, Settings settings) {
+            return new Feature(
+                plugin.getFeatureName(),
+                plugin.getFeatureDescription(),
+                plugin.getSystemIndexDescriptors(settings),
+                plugin.getSystemDataStreamDescriptors(),
+                plugin.getAssociatedIndexDescriptors(),
+                plugin::cleanUpFeature,
+                plugin::prepareForIndicesMigration,
+                plugin::indicesMigrationComplete
+            );
+        }
+    }
 }

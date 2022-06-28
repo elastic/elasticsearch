@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -26,10 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -45,6 +41,11 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -77,11 +78,9 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
     }
 
     public void testTasksAreNotAssignedToShuttingDownNode() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         // Start two nodes, one will be marked as shutting down
-        Settings enabledSettings = Settings.builder().put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true).build();
-        final String node1 = internalCluster().startNode(enabledSettings);
-        final String node2 = internalCluster().startNode(enabledSettings);
+        final String node1 = internalCluster().startNode();
+        final String node2 = internalCluster().startNode();
 
         final String shutdownNode;
         final String candidateNode;
@@ -113,7 +112,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing")
+            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null)
         ).get();
 
         // Tell the persistent task executor it can start allocating the task
@@ -164,6 +163,17 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return Collections.singletonList(
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, "task_name", TestTaskParams::new)
+            );
+        }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return Collections.singletonList(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    TestTaskParams.TASK_NAME,
+                    (p, c) -> TestTaskParams.fromXContent(p)
+                )
             );
         }
     }
@@ -222,13 +232,24 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             return builder;
         }
 
+        public static final ParseField TASK_NAME = new ParseField("task_name");
+        public static final ObjectParser<TestTaskParams, Void> PARSER = new ObjectParser<TestTaskParams, Void>(
+            TASK_NAME.getPreferredName(),
+            true,
+            () -> new TestTaskParams()
+        );
+
+        public static TestTaskParams fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
         public TestTaskParams() {}
 
         public TestTaskParams(StreamInput in) {}
 
         @Override
         public String getWriteableName() {
-            return "task_name";
+            return TASK_NAME.getPreferredName();
         }
 
         @Override

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restApi {
@@ -10,7 +10,7 @@ dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
   // indexing a document directly in a follower index. In a rest test we like to test the exception
@@ -22,4 +22,3 @@ testClusters.all {
   // TODO: reduce the need for superuser here
   user username: 'ccr-user', password: 'ccr-user-password', role: 'superuser'
 }
-

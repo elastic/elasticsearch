@@ -150,6 +150,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
+        @SuppressWarnings("rawtypes")
         ImmutableOpenIntMap that = (ImmutableOpenIntMap) o;
 
         if (map.equals(that.map) == false) return false;
@@ -162,7 +163,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         return map.hashCode();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectHashMap());
 
     @SuppressWarnings("unchecked")
@@ -186,8 +187,8 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
 
         private IntObjectHashMap<VType> map;
 
+        @SuppressWarnings("unchecked")
         public Builder() {
-            //noinspection unchecked
             this(EMPTY);
         }
 

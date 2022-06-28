@@ -4,7 +4,7 @@
 <titleabbrev>Create or update alias</titleabbrev>
 ++++
 
-Adds a data stream or index to an <<alias,alias>>.
+Adds a data stream or index to an <<aliases,alias>>.
 
 [source,console]
 ----

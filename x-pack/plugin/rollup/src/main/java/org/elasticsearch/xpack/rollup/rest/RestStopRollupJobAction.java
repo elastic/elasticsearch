@@ -26,8 +26,8 @@ public class RestStopRollupJobAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return singletonList(
-            Route.builder(POST, "/_rollup/job/{id}/_stop")
-                .replaces(POST, "/_xpack/rollup/job/{id}/_stop", RestApiVersion.V_7).build());
+            Route.builder(POST, "/_rollup/job/{id}/_stop").replaces(POST, "/_xpack/rollup/job/{id}/_stop", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

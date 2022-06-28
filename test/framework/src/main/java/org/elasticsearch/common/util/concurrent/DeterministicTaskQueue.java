@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,7 +70,8 @@ public class DeterministicTaskQueue {
         this(
             // the node name is required by the thread pool but is unused since the thread pool in question doesn't create any threads
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(),
-            ESTestCase.random());
+            ESTestCase.random()
+        );
     }
 
     public long getExecutionDelayVariabilityMillis() {
@@ -207,6 +209,35 @@ public class DeterministicTaskQueue {
         assert deferredTasks.isEmpty() == (nextDeferredTaskExecutionTimeMillis == Long.MAX_VALUE);
     }
 
+    public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor() {
+        return getPrioritizedEsThreadPoolExecutor(Function.identity());
+    }
+
+    public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor(Function<Runnable, Runnable> runnableWrapper) {
+        return new PrioritizedEsThreadPoolExecutor(
+            "DeterministicTaskQueue",
+            1,
+            1,
+            1,
+            TimeUnit.SECONDS,
+            r -> { throw new AssertionError("should not create new threads"); },
+            null,
+            null,
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        ) {
+            @Override
+            public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+                throw new AssertionError("not implemented");
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                final Runnable wrappedCommand = runnableWrapper.apply(command);
+                runnableWrapper.apply(() -> scheduleNow(wrappedCommand)).run();
+            }
+        };
+    }
+
     /**
      * @return A <code>ThreadPool</code> that uses this task queue.
      */
@@ -296,6 +327,11 @@ public class DeterministicTaskQueue {
 
             @Override
             public long relativeTimeInMillis() {
+                return currentTimeMillis;
+            }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
                 return currentTimeMillis;
             }
 
@@ -510,10 +546,7 @@ public class DeterministicTaskQueue {
 
         @Override
         public String toString() {
-            return "DeferredTask{" +
-                "executionTimeMillis=" + executionTimeMillis +
-                ", task=" + task +
-                '}';
+            return "DeferredTask{" + "executionTimeMillis=" + executionTimeMillis + ", task=" + task + '}';
         }
     }
 
@@ -526,7 +559,7 @@ public class DeterministicTaskQueue {
         return new Runnable() {
             @Override
             public void run() {
-                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, nodeId)) {
+                try (CloseableThreadContext.Instance ignored = getLogContext(nodeId)) {
                     runnable.run();
                 }
             }
@@ -536,6 +569,10 @@ public class DeterministicTaskQueue {
                 return nodeId + ": " + runnable.toString();
             }
         };
+    }
+
+    public static CloseableThreadContext.Instance getLogContext(String value) {
+        return CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, value);
     }
 
 }

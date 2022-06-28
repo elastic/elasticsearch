@@ -8,18 +8,18 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * {@link RecallMetric} is a metric that answers the question:
@@ -72,8 +72,11 @@ public class RecallMetric implements EvaluationMetric {
         private static final ParseField AVG_RECALL = new ParseField("avg_recall");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "recall_result",
+            true,
+            a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1])
+        );
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
@@ -121,8 +124,7 @@ public class RecallMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.classes, that.classes)
-                && this.avgRecall == that.avgRecall;
+            return Objects.equals(this.classes, that.classes) && this.avgRecall == that.avgRecall;
         }
 
         @Override

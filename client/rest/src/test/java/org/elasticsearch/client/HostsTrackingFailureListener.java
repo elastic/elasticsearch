@@ -33,28 +33,28 @@ import static org.junit.Assert.assertThat;
  * {@link RestClient.FailureListener} impl that allows to track when it gets called for which host.
  */
 class HostsTrackingFailureListener extends RestClient.FailureListener {
-    private volatile Set<HttpHost> hosts = new HashSet<>();
+    private volatile Set<HttpHost> httpHosts = new HashSet<>();
 
     @Override
     public void onFailure(Node node) {
-        hosts.add(node.getHost());
+        httpHosts.add(node.getHost());
     }
 
     void assertCalled(List<Node> nodes) {
         HttpHost[] hosts = new HttpHost[nodes.size()];
-        for (int i = 0 ; i < nodes.size(); i++) {
+        for (int i = 0; i < nodes.size(); i++) {
             hosts[i] = nodes.get(i).getHost();
         }
         assertCalled(hosts);
     }
 
     void assertCalled(HttpHost... hosts) {
-        assertEquals(hosts.length, this.hosts.size());
-        assertThat(this.hosts, containsInAnyOrder(hosts));
-        this.hosts.clear();
+        assertEquals(hosts.length, this.httpHosts.size());
+        assertThat(this.httpHosts, containsInAnyOrder(hosts));
+        this.httpHosts.clear();
     }
 
     void assertNotCalled() {
-        assertEquals(0, hosts.size());
+        assertEquals(0, httpHosts.size());
     }
 }

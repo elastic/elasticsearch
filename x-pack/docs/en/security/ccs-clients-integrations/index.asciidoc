@@ -1,23 +1,13 @@
 [role="xpack"]
-[[ccs-clients-integrations]]
-== Cross cluster search, clients, and integrations
+[[security-clients-integrations]]
+== Securing clients and integrations
 
-When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search]
-you need to take extra steps to secure communications with the connected
-clusters.
-
-* <<cross-cluster-configuring, Cross Cluster Search and Security>>
-
-You will need to update the configuration for several clients to work with a
-secured cluster:
-
-* <<java-clients, Java Clients>>
-* <<http-clients, HTTP Clients>>
-
+You will need to update the configuration for several <<http-clients,clients>>
+to work with a secured {es} cluster.
 
 The {es} {security-features} enable you to secure your {es} cluster. But
 {es} itself is only one product within the {stack}. It is often the case that
-other products in the stack are connected to the cluster and therefore need to
+other products in the {stack} are connected to the cluster and therefore need to
 be secured as well, or at least communicate with the cluster in a secured way:
 
 * <<hadoop, Apache Hadoop>>
@@ -32,11 +22,9 @@ be secured as well, or at least communicate with the cluster in a secured way:
 * {kibana-ref}/secure-reporting.html[Reporting]
 * {winlogbeat-ref}/securing-winlogbeat.html[Winlogbeat]
 
-include::cross-cluster.asciidoc[]
+include::http.asciidoc[]
 
 include::java.asciidoc[]
-
-include::http.asciidoc[]
 
 include::hadoop.asciidoc[]
 

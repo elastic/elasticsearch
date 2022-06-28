@@ -15,8 +15,10 @@ import org.elasticsearch.common.settings.SecureString;
 /**
  * Builder for the reload secure settings nodes request
  */
-public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationRequestBuilder<NodesReloadSecureSettingsRequest,
-        NodesReloadSecureSettingsResponse, NodesReloadSecureSettingsRequestBuilder> {
+public class NodesReloadSecureSettingsRequestBuilder extends NodesOperationRequestBuilder<
+    NodesReloadSecureSettingsRequest,
+    NodesReloadSecureSettingsResponse,
+    NodesReloadSecureSettingsRequestBuilder> {
 
     public NodesReloadSecureSettingsRequestBuilder(ElasticsearchClient client, NodesReloadSecureSettingsAction action) {
         super(client, action, new NodesReloadSecureSettingsRequest());

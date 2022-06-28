@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.security.support.expressiondsl.expressions;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,7 +16,9 @@ import java.util.Map;
 
 public enum CompositeType {
 
-    ANY("any"), ALL("all"), EXCEPT("except");
+    ANY("any"),
+    ALL("all"),
+    EXCEPT("except");
 
     private static Map<String, CompositeType> nameToType = Collections.unmodifiableMap(initialize());
     private ParseField field;

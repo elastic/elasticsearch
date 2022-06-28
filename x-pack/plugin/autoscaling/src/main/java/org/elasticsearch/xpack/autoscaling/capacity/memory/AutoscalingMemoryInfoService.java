@@ -185,9 +185,9 @@ public class AutoscalingMemoryInfoService {
     }
 
     public AutoscalingMemoryInfo snapshot() {
-        final ImmutableOpenMap<String, Long> nodeToMemory = this.nodeToMemory;
+        final ImmutableOpenMap<String, Long> nodeToMemoryRef = this.nodeToMemory;
         return node -> {
-            Long result = nodeToMemory.get(node.getEphemeralId());
+            Long result = nodeToMemoryRef.get(node.getEphemeralId());
             // noinspection NumberEquality
             if (result == FETCHING_SENTINEL) {
                 return null;

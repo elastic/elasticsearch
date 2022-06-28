@@ -34,7 +34,7 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefTobyteImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; byte b = d;"));
-        assertEquals((byte)0, exec("def d = (byte)0; byte b = d; b"));
+        assertEquals((byte) 0, exec("def d = (byte)0; byte b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (short)0; byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (char)0; byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (int)0; byte b = d;"));
@@ -42,7 +42,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (double)0; byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); byte b = d;"));
-        assertEquals((byte)0, exec("def d = Byte.valueOf(0); byte b = d; b"));
+        assertEquals((byte) 0, exec("def d = Byte.valueOf(0); byte b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Short.valueOf(0); byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Character.valueOf(0); byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Integer.valueOf(0); byte b = d;"));
@@ -55,16 +55,16 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToshortImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; short b = d;"));
-        assertEquals((short)0, exec("def d = (byte)0; short b = d; b"));
-        assertEquals((short)0, exec("def d = (short)0; short b = d; b"));
+        assertEquals((short) 0, exec("def d = (byte)0; short b = d; b"));
+        assertEquals((short) 0, exec("def d = (short)0; short b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (char)0; short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (int)0; short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (long)0; short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (double)0; short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); short b = d;"));
-        assertEquals((short)0, exec("def d = Byte.valueOf(0); short b = d; b"));
-        assertEquals((short)0, exec("def d = Short.valueOf(0); short b = d; b"));
+        assertEquals((short) 0, exec("def d = Byte.valueOf(0); short b = d; b"));
+        assertEquals((short) 0, exec("def d = Short.valueOf(0); short b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Character.valueOf(0); short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Integer.valueOf(0); short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Long.valueOf(0); short b = d;"));
@@ -79,7 +79,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (byte)0; char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (short)0; char b = d;"));
-        assertEquals((char)0, exec("def d = (char)0; char b = d; b"));
+        assertEquals((char) 0, exec("def d = (char)0; char b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (int)0; char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (long)0; char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; char b = d;"));
@@ -87,7 +87,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Byte.valueOf(0); char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Short.valueOf(0); char b = d;"));
-        assertEquals((char)0, exec("def d = Character.valueOf(0); char b = d; b"));
+        assertEquals((char) 0, exec("def d = Character.valueOf(0); char b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Integer.valueOf(0); char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Long.valueOf(0); char b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Float.valueOf(0); char b = d;"));
@@ -119,19 +119,19 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefTolongImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; long b = d;"));
-        assertEquals((long)0, exec("def d = (byte)0; long b = d; b"));
-        assertEquals((long)0, exec("def d = (short)0; long b = d; b"));
-        assertEquals((long)0, exec("def d = (char)0; long b = d; b"));
-        assertEquals((long)0, exec("def d = 0; long b = d; b"));
-        assertEquals((long)0, exec("def d = (long)0; long b = d; b"));
+        assertEquals((long) 0, exec("def d = (byte)0; long b = d; b"));
+        assertEquals((long) 0, exec("def d = (short)0; long b = d; b"));
+        assertEquals((long) 0, exec("def d = (char)0; long b = d; b"));
+        assertEquals((long) 0, exec("def d = 0; long b = d; b"));
+        assertEquals((long) 0, exec("def d = (long)0; long b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (double)0; long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); long b = d;"));
-        assertEquals((long)0, exec("def d = Byte.valueOf(0); long b = d; b"));
-        assertEquals((long)0, exec("def d = Short.valueOf(0); long b = d; b"));
-        assertEquals((long)0, exec("def d = Character.valueOf(0); long b = d; b"));
-        assertEquals((long)0, exec("def d = Integer.valueOf(0); long b = d; b"));
-        assertEquals((long)0, exec("def d = Long.valueOf(0); long b = d; b"));
+        assertEquals((long) 0, exec("def d = Byte.valueOf(0); long b = d; b"));
+        assertEquals((long) 0, exec("def d = Short.valueOf(0); long b = d; b"));
+        assertEquals((long) 0, exec("def d = Character.valueOf(0); long b = d; b"));
+        assertEquals((long) 0, exec("def d = Integer.valueOf(0); long b = d; b"));
+        assertEquals((long) 0, exec("def d = Long.valueOf(0); long b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Float.valueOf(0); long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Double.valueOf(0); long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); long b = d;"));
@@ -140,21 +140,21 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefTodoubleImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; double b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; double b = d;"));
-        assertEquals((double)0, exec("def d = (byte)0; double b = d; b"));
-        assertEquals((double)0, exec("def d = (short)0; double b = d; b"));
-        assertEquals((double)0, exec("def d = (char)0; double b = d; b"));
-        assertEquals((double)0, exec("def d = 0; double b = d; b"));
-        assertEquals((double)0, exec("def d = (long)0; double b = d; b"));
-        assertEquals((double)0, exec("def d = (float)0; double b = d; b"));
-        assertEquals((double)0, exec("def d = (double)0; double b = d; b"));
+        assertEquals((double) 0, exec("def d = (byte)0; double b = d; b"));
+        assertEquals((double) 0, exec("def d = (short)0; double b = d; b"));
+        assertEquals((double) 0, exec("def d = (char)0; double b = d; b"));
+        assertEquals((double) 0, exec("def d = 0; double b = d; b"));
+        assertEquals((double) 0, exec("def d = (long)0; double b = d; b"));
+        assertEquals((double) 0, exec("def d = (float)0; double b = d; b"));
+        assertEquals((double) 0, exec("def d = (double)0; double b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); double b = d;"));
-        assertEquals((double)0, exec("def d = Byte.valueOf(0); double b = d; b"));
-        assertEquals((double)0, exec("def d = Short.valueOf(0); double b = d; b"));
-        assertEquals((double)0, exec("def d = Character.valueOf(0); double b = d; b"));
-        assertEquals((double)0, exec("def d = Integer.valueOf(0); double b = d; b"));
-        assertEquals((double)0, exec("def d = Long.valueOf(0); double b = d; b"));
-        assertEquals((double)0, exec("def d = Float.valueOf(0); double b = d; b"));
-        assertEquals((double)0, exec("def d = Double.valueOf(0); double b = d; b"));
+        assertEquals((double) 0, exec("def d = Byte.valueOf(0); double b = d; b"));
+        assertEquals((double) 0, exec("def d = Short.valueOf(0); double b = d; b"));
+        assertEquals((double) 0, exec("def d = Character.valueOf(0); double b = d; b"));
+        assertEquals((double) 0, exec("def d = Integer.valueOf(0); double b = d; b"));
+        assertEquals((double) 0, exec("def d = Long.valueOf(0); double b = d; b"));
+        assertEquals((double) 0, exec("def d = Float.valueOf(0); double b = d; b"));
+        assertEquals((double) 0, exec("def d = Double.valueOf(0); double b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); double b = d;"));
     }
 
@@ -182,42 +182,42 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefTobyteExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; byte b = (byte)d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; byte b = (byte)d;"));
-        assertEquals((byte)0, exec("def d = (byte)0; byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = (short)0; byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = (char)0; byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = 0; byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = (long)0; byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = (float)0; byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = (double)0; byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (byte)0; byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (short)0; byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (char)0; byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = 0; byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (long)0; byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (float)0; byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (double)0; byte b = (byte)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); byte b = d;"));
-        assertEquals((byte)0, exec("def d = Byte.valueOf(0); byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = Short.valueOf(0); byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = Character.valueOf(0); byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = Integer.valueOf(0); byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = Long.valueOf(0); byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = Float.valueOf(0); byte b = (byte)d; b"));
-        assertEquals((byte)0, exec("def d = Double.valueOf(0); byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Byte.valueOf(0); byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Short.valueOf(0); byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Character.valueOf(0); byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Integer.valueOf(0); byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Long.valueOf(0); byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Float.valueOf(0); byte b = (byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Double.valueOf(0); byte b = (byte)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); byte b = (byte)d;"));
     }
 
     public void testdefToshortExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; short b = (short)d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; short b = (short)d;"));
-        assertEquals((short)0, exec("def d = (byte)0; short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = (short)0; short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = (char)0; short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = 0; short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = (long)0; short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = (float)0; short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = (double)0; short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = (byte)0; short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = (short)0; short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = (char)0; short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = 0; short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = (long)0; short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = (float)0; short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = (double)0; short b = (short)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); short b = d;"));
-        assertEquals((short)0, exec("def d = Byte.valueOf(0); short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = Short.valueOf(0); short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = Character.valueOf(0); short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = Integer.valueOf(0); short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = Long.valueOf(0); short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = Float.valueOf(0); short b = (short)d; b"));
-        assertEquals((short)0, exec("def d = Double.valueOf(0); short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = Byte.valueOf(0); short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = Short.valueOf(0); short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = Character.valueOf(0); short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = Integer.valueOf(0); short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = Long.valueOf(0); short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = Float.valueOf(0); short b = (short)d; b"));
+        assertEquals((short) 0, exec("def d = Double.valueOf(0); short b = (short)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); short b = (short)d;"));
     }
 
@@ -225,21 +225,21 @@ public class DefCastTests extends ScriptTestCase {
         assertEquals('s', exec("def d = 's'; char b = (char)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; char b = (char)d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; char b = (char)d;"));
-        assertEquals((char)0, exec("def d = (byte)0; char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = (short)0; char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = (char)0; char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = 0; char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = (long)0; char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = (float)0; char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = (double)0; char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = (byte)0; char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = (short)0; char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = (char)0; char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = 0; char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = (long)0; char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = (float)0; char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = (double)0; char b = (char)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); char b = d;"));
-        assertEquals((char)0, exec("def d = Byte.valueOf(0); char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = Short.valueOf(0); char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = Character.valueOf(0); char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = Integer.valueOf(0); char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = Long.valueOf(0); char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = Float.valueOf(0); char b = (char)d; b"));
-        assertEquals((char)0, exec("def d = Double.valueOf(0); char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = Byte.valueOf(0); char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = Short.valueOf(0); char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = Character.valueOf(0); char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = Integer.valueOf(0); char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = Long.valueOf(0); char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = Float.valueOf(0); char b = (char)d; b"));
+        assertEquals((char) 0, exec("def d = Double.valueOf(0); char b = (char)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); char b = (char)d;"));
     }
 
@@ -267,63 +267,63 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefTolongExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; long b = (long)d;"));
-        assertEquals((long)0, exec("def d = (byte)0; long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = (short)0; long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = (char)0; long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = 0; long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = (long)0; long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = (float)0; long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = (double)0; long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = (byte)0; long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = (short)0; long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = (char)0; long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = 0; long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = (long)0; long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = (float)0; long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = (double)0; long b = (long)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); long b = d;"));
-        assertEquals((long)0, exec("def d = Byte.valueOf(0); long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = Short.valueOf(0); long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = Character.valueOf(0); long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = Integer.valueOf(0); long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = Long.valueOf(0); long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = Float.valueOf(0); long b = (long)d; b"));
-        assertEquals((long)0, exec("def d = Double.valueOf(0); long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = Byte.valueOf(0); long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = Short.valueOf(0); long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = Character.valueOf(0); long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = Integer.valueOf(0); long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = Long.valueOf(0); long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = Float.valueOf(0); long b = (long)d; b"));
+        assertEquals((long) 0, exec("def d = Double.valueOf(0); long b = (long)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); long b = (long)d;"));
     }
 
     public void testdefTofloatExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; float b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; float b = (float)d;"));
-        assertEquals((float)0, exec("def d = (byte)0; float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = (short)0; float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = (char)0; float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = 0; float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = (long)0; float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = (float)0; float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = (double)0; float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = (byte)0; float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = (short)0; float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = (char)0; float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = 0; float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = (long)0; float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = (float)0; float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = (double)0; float b = (float)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); float b = d;"));
-        assertEquals((float)0, exec("def d = Byte.valueOf(0); float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = Short.valueOf(0); float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = Character.valueOf(0); float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = Integer.valueOf(0); float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = Long.valueOf(0); float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = Float.valueOf(0); float b = (float)d; b"));
-        assertEquals((float)0, exec("def d = Double.valueOf(0); float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = Byte.valueOf(0); float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = Short.valueOf(0); float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = Character.valueOf(0); float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = Integer.valueOf(0); float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = Long.valueOf(0); float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = Float.valueOf(0); float b = (float)d; b"));
+        assertEquals((float) 0, exec("def d = Double.valueOf(0); float b = (float)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); float b = (float)d;"));
     }
 
     public void testdefTodoubleExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; double b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; double b = (double)d;"));
-        assertEquals((double)0, exec("def d = (byte)0; double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = (short)0; double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = (char)0; double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = 0; double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = (long)0; double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = (float)0; double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = (double)0; double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = (byte)0; double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = (short)0; double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = (char)0; double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = 0; double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = (long)0; double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = (float)0; double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = (double)0; double b = (double)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); double b = d;"));
-        assertEquals((double)0, exec("def d = Byte.valueOf(0); double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = Short.valueOf(0); double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = Character.valueOf(0); double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = Integer.valueOf(0); double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = Long.valueOf(0); double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = Float.valueOf(0); double b = (double)d; b"));
-        assertEquals((double)0, exec("def d = Double.valueOf(0); double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = Byte.valueOf(0); double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = Short.valueOf(0); double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = Character.valueOf(0); double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = Integer.valueOf(0); double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = Long.valueOf(0); double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = Float.valueOf(0); double b = (double)d; b"));
+        assertEquals((double) 0, exec("def d = Double.valueOf(0); double b = (double)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); double b = (double)d;"));
     }
 
@@ -351,7 +351,7 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToByteImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Byte b = d;"));
-        assertEquals((byte)0, exec("def d = (byte)0; Byte b = d; b"));
+        assertEquals((byte) 0, exec("def d = (byte)0; Byte b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (short)0; Byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (char)0; Byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (int)0; Byte b = d;"));
@@ -359,7 +359,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; Byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (double)0; Byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Byte b = d;"));
-        assertEquals((byte)0, exec("def d = Byte.valueOf(0); Byte b = d; b"));
+        assertEquals((byte) 0, exec("def d = Byte.valueOf(0); Byte b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Short.valueOf(0); Byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Character.valueOf(0); Byte b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Integer.valueOf(0); Byte b = d;"));
@@ -372,16 +372,16 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToShortImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Short b = d;"));
-        assertEquals((short)0, exec("def d = (byte)0; Short b = d; b"));
-        assertEquals((short)0, exec("def d = (short)0; Short b = d; b"));
+        assertEquals((short) 0, exec("def d = (byte)0; Short b = d; b"));
+        assertEquals((short) 0, exec("def d = (short)0; Short b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (char)0; Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (int)0; Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (long)0; Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (double)0; Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Short b = d;"));
-        assertEquals((short)0, exec("def d = Byte.valueOf(0); Short b = d; b"));
-        assertEquals((short)0, exec("def d = Short.valueOf(0); Short b = d; b"));
+        assertEquals((short) 0, exec("def d = Byte.valueOf(0); Short b = d; b"));
+        assertEquals((short) 0, exec("def d = Short.valueOf(0); Short b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Character.valueOf(0); Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Integer.valueOf(0); Short b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Long.valueOf(0); Short b = d;"));
@@ -396,7 +396,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (byte)0; Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (short)0; Character b = d;"));
-        assertEquals((char)0, exec("def d = (char)0; Character b = d; b"));
+        assertEquals((char) 0, exec("def d = (char)0; Character b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (int)0; Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (long)0; Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; Character b = d;"));
@@ -404,7 +404,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Byte.valueOf(0); Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Short.valueOf(0); Character b = d;"));
-        assertEquals((char)0, exec("def d = Character.valueOf(0); Character b = d; b"));
+        assertEquals((char) 0, exec("def d = Character.valueOf(0); Character b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Integer.valueOf(0); Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Long.valueOf(0); Character b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Float.valueOf(0); Character b = d;"));
@@ -436,19 +436,19 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToLongImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Long b = d;"));
-        assertEquals((long)0, exec("def d = (byte)0; Long b = d; b"));
-        assertEquals((long)0, exec("def d = (short)0; Long b = d; b"));
-        assertEquals((long)0, exec("def d = (char)0; Long b = d; b"));
-        assertEquals((long)0, exec("def d = 0; Long b = d; b"));
-        assertEquals((long)0, exec("def d = (long)0; Long b = d; b"));
+        assertEquals((long) 0, exec("def d = (byte)0; Long b = d; b"));
+        assertEquals((long) 0, exec("def d = (short)0; Long b = d; b"));
+        assertEquals((long) 0, exec("def d = (char)0; Long b = d; b"));
+        assertEquals((long) 0, exec("def d = 0; Long b = d; b"));
+        assertEquals((long) 0, exec("def d = (long)0; Long b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (float)0; Long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (double)0; Long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Long b = d;"));
-        assertEquals((long)0, exec("def d = Byte.valueOf(0); Long b = d; b"));
-        assertEquals((long)0, exec("def d = Short.valueOf(0); Long b = d; b"));
-        assertEquals((long)0, exec("def d = Character.valueOf(0); Long b = d; b"));
-        assertEquals((long)0, exec("def d = Integer.valueOf(0); Long b = d; b"));
-        assertEquals((long)0, exec("def d = Long.valueOf(0); Long b = d; b"));
+        assertEquals((long) 0, exec("def d = Byte.valueOf(0); Long b = d; b"));
+        assertEquals((long) 0, exec("def d = Short.valueOf(0); Long b = d; b"));
+        assertEquals((long) 0, exec("def d = Character.valueOf(0); Long b = d; b"));
+        assertEquals((long) 0, exec("def d = Integer.valueOf(0); Long b = d; b"));
+        assertEquals((long) 0, exec("def d = Long.valueOf(0); Long b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Float.valueOf(0); Long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Double.valueOf(0); Long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Long b = d;"));
@@ -457,20 +457,20 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToFloatImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Float b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Float b = d;"));
-        assertEquals((float)0, exec("def d = (byte)0; Float b = d; b"));
-        assertEquals((float)0, exec("def d = (short)0; Float b = d; b"));
-        assertEquals((float)0, exec("def d = (char)0; Float b = d; b"));
-        assertEquals((float)0, exec("def d = 0; Float b = d; b"));
-        assertEquals((float)0, exec("def d = (long)0; Float b = d; b"));
-        assertEquals((float)0, exec("def d = (float)0; Float b = d; b"));
+        assertEquals((float) 0, exec("def d = (byte)0; Float b = d; b"));
+        assertEquals((float) 0, exec("def d = (short)0; Float b = d; b"));
+        assertEquals((float) 0, exec("def d = (char)0; Float b = d; b"));
+        assertEquals((float) 0, exec("def d = 0; Float b = d; b"));
+        assertEquals((float) 0, exec("def d = (long)0; Float b = d; b"));
+        assertEquals((float) 0, exec("def d = (float)0; Float b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = (double)0; Float b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Float b = d;"));
-        assertEquals((float)0, exec("def d = Byte.valueOf(0); Float b = d; b"));
-        assertEquals((float)0, exec("def d = Short.valueOf(0); Float b = d; b"));
-        assertEquals((float)0, exec("def d = Character.valueOf(0); Float b = d; b"));
-        assertEquals((float)0, exec("def d = Integer.valueOf(0); Float b = d; b"));
-        assertEquals((float)0, exec("def d = Long.valueOf(0); Float b = d; b"));
-        assertEquals((float)0, exec("def d = Float.valueOf(0); Float b = d; b"));
+        assertEquals((float) 0, exec("def d = Byte.valueOf(0); Float b = d; b"));
+        assertEquals((float) 0, exec("def d = Short.valueOf(0); Float b = d; b"));
+        assertEquals((float) 0, exec("def d = Character.valueOf(0); Float b = d; b"));
+        assertEquals((float) 0, exec("def d = Integer.valueOf(0); Float b = d; b"));
+        assertEquals((float) 0, exec("def d = Long.valueOf(0); Float b = d; b"));
+        assertEquals((float) 0, exec("def d = Float.valueOf(0); Float b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Double.valueOf(0); Float b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Float b = d;"));
     }
@@ -478,21 +478,21 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToDoubleImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Double b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Double b = d;"));
-        assertEquals((double)0, exec("def d = (byte)0; Double b = d; b"));
-        assertEquals((double)0, exec("def d = (short)0; Double b = d; b"));
-        assertEquals((double)0, exec("def d = (char)0; Double b = d; b"));
-        assertEquals((double)0, exec("def d = 0; Double b = d; b"));
-        assertEquals((double)0, exec("def d = (long)0; Double b = d; b"));
-        assertEquals((double)0, exec("def d = (float)0; Double b = d; b"));
-        assertEquals((double)0, exec("def d = (double)0; Double b = d; b"));
+        assertEquals((double) 0, exec("def d = (byte)0; Double b = d; b"));
+        assertEquals((double) 0, exec("def d = (short)0; Double b = d; b"));
+        assertEquals((double) 0, exec("def d = (char)0; Double b = d; b"));
+        assertEquals((double) 0, exec("def d = 0; Double b = d; b"));
+        assertEquals((double) 0, exec("def d = (long)0; Double b = d; b"));
+        assertEquals((double) 0, exec("def d = (float)0; Double b = d; b"));
+        assertEquals((double) 0, exec("def d = (double)0; Double b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Double b = d;"));
-        assertEquals((double)0, exec("def d = Byte.valueOf(0); Double b = d; b"));
-        assertEquals((double)0, exec("def d = Short.valueOf(0); Double b = d; b"));
-        assertEquals((double)0, exec("def d = Character.valueOf(0); Double b = d; b"));
-        assertEquals((double)0, exec("def d = Integer.valueOf(0); Double b = d; b"));
-        assertEquals((double)0, exec("def d = Long.valueOf(0); Double b = d; b"));
-        assertEquals((double)0, exec("def d = Float.valueOf(0); Double b = d; b"));
-        assertEquals((double)0, exec("def d = Double.valueOf(0); Double b = d; b"));
+        assertEquals((double) 0, exec("def d = Byte.valueOf(0); Double b = d; b"));
+        assertEquals((double) 0, exec("def d = Short.valueOf(0); Double b = d; b"));
+        assertEquals((double) 0, exec("def d = Character.valueOf(0); Double b = d; b"));
+        assertEquals((double) 0, exec("def d = Integer.valueOf(0); Double b = d; b"));
+        assertEquals((double) 0, exec("def d = Long.valueOf(0); Double b = d; b"));
+        assertEquals((double) 0, exec("def d = Float.valueOf(0); Double b = d; b"));
+        assertEquals((double) 0, exec("def d = Double.valueOf(0); Double b = d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Double b = d;"));
     }
 
@@ -520,42 +520,42 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToByteExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Byte b = (Byte)d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Byte b = (Byte)d;"));
-        assertEquals((byte)0, exec("def d = (byte)0; Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = (short)0; Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = (char)0; Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = 0; Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = (long)0; Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = (float)0; Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = (double)0; Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (byte)0; Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (short)0; Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (char)0; Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = 0; Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (long)0; Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (float)0; Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = (double)0; Byte b = (Byte)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Byte b = d;"));
-        assertEquals((byte)0, exec("def d = Byte.valueOf(0); Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = Short.valueOf(0); Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = Character.valueOf(0); Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = Integer.valueOf(0); Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = Long.valueOf(0); Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = Float.valueOf(0); Byte b = (Byte)d; b"));
-        assertEquals((byte)0, exec("def d = Double.valueOf(0); Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Byte.valueOf(0); Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Short.valueOf(0); Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Character.valueOf(0); Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Integer.valueOf(0); Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Long.valueOf(0); Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Float.valueOf(0); Byte b = (Byte)d; b"));
+        assertEquals((byte) 0, exec("def d = Double.valueOf(0); Byte b = (Byte)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Byte b = (Byte)d;"));
     }
 
     public void testdefToShortExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Short b = (Short)d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Short b = (Short)d;"));
-        assertEquals((short)0, exec("def d = (byte)0; Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = (short)0; Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = (char)0; Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = 0; Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = (long)0; Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = (float)0; Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = (double)0; Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = (byte)0; Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = (short)0; Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = (char)0; Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = 0; Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = (long)0; Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = (float)0; Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = (double)0; Short b = (Short)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Short b = d;"));
-        assertEquals((short)0, exec("def d = Byte.valueOf(0); Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = Short.valueOf(0); Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = Character.valueOf(0); Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = Integer.valueOf(0); Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = Long.valueOf(0); Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = Float.valueOf(0); Short b = (Short)d; b"));
-        assertEquals((short)0, exec("def d = Double.valueOf(0); Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = Byte.valueOf(0); Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = Short.valueOf(0); Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = Character.valueOf(0); Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = Integer.valueOf(0); Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = Long.valueOf(0); Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = Float.valueOf(0); Short b = (Short)d; b"));
+        assertEquals((short) 0, exec("def d = Double.valueOf(0); Short b = (Short)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Short b = (Short)d;"));
     }
 
@@ -563,21 +563,21 @@ public class DefCastTests extends ScriptTestCase {
         assertEquals('s', exec("def d = 's'; Character b = (Character)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Character b = (Character)d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Character b = (Character)d;"));
-        assertEquals((char)0, exec("def d = (byte)0; Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = (short)0; Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = (char)0; Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = 0; Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = (long)0; Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = (float)0; Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = (double)0; Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = (byte)0; Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = (short)0; Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = (char)0; Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = 0; Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = (long)0; Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = (float)0; Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = (double)0; Character b = (Character)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Character b = d;"));
-        assertEquals((char)0, exec("def d = Byte.valueOf(0); Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = Short.valueOf(0); Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = Character.valueOf(0); Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = Integer.valueOf(0); Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = Long.valueOf(0); Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = Float.valueOf(0); Character b = (Character)d; b"));
-        assertEquals((char)0, exec("def d = Double.valueOf(0); Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = Byte.valueOf(0); Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = Short.valueOf(0); Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = Character.valueOf(0); Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = Integer.valueOf(0); Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = Long.valueOf(0); Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = Float.valueOf(0); Character b = (Character)d; b"));
+        assertEquals((char) 0, exec("def d = Double.valueOf(0); Character b = (Character)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Character b = (Character)d;"));
     }
 
@@ -605,63 +605,63 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToLongExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Long b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Long b = (Long)d;"));
-        assertEquals((long)0, exec("def d = (byte)0; Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = (short)0; Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = (char)0; Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = 0; Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = (long)0; Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = (float)0; Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = (double)0; Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = (byte)0; Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = (short)0; Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = (char)0; Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = 0; Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = (long)0; Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = (float)0; Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = (double)0; Long b = (Long)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Long b = d;"));
-        assertEquals((long)0, exec("def d = Byte.valueOf(0); Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = Short.valueOf(0); Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = Character.valueOf(0); Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = Integer.valueOf(0); Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = Long.valueOf(0); Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = Float.valueOf(0); Long b = (Long)d; b"));
-        assertEquals((long)0, exec("def d = Double.valueOf(0); Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = Byte.valueOf(0); Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = Short.valueOf(0); Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = Character.valueOf(0); Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = Integer.valueOf(0); Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = Long.valueOf(0); Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = Float.valueOf(0); Long b = (Long)d; b"));
+        assertEquals((long) 0, exec("def d = Double.valueOf(0); Long b = (Long)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Long b = (Long)d;"));
     }
 
     public void testdefToFloatExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Float b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Float b = (Float)d;"));
-        assertEquals((float)0, exec("def d = (byte)0; Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = (short)0; Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = (char)0; Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = 0; Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = (long)0; Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = (float)0; Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = (double)0; Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = (byte)0; Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = (short)0; Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = (char)0; Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = 0; Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = (long)0; Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = (float)0; Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = (double)0; Float b = (Float)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Float b = d;"));
-        assertEquals((float)0, exec("def d = Byte.valueOf(0); Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = Short.valueOf(0); Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = Character.valueOf(0); Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = Integer.valueOf(0); Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = Long.valueOf(0); Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = Float.valueOf(0); Float b = (Float)d; b"));
-        assertEquals((float)0, exec("def d = Double.valueOf(0); Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = Byte.valueOf(0); Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = Short.valueOf(0); Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = Character.valueOf(0); Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = Integer.valueOf(0); Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = Long.valueOf(0); Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = Float.valueOf(0); Float b = (Float)d; b"));
+        assertEquals((float) 0, exec("def d = Double.valueOf(0); Float b = (Float)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Float b = (Float)d;"));
     }
 
     public void testdefToDoubleExplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Double b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Double b = (Double)d;"));
-        assertEquals((double)0, exec("def d = (byte)0; Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = (short)0; Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = (char)0; Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = 0; Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = (long)0; Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = (float)0; Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = (double)0; Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = (byte)0; Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = (short)0; Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = (char)0; Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = 0; Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = (long)0; Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = (float)0; Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = (double)0; Double b = (Double)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Boolean.valueOf(true); Double b = d;"));
-        assertEquals((double)0, exec("def d = Byte.valueOf(0); Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = Short.valueOf(0); Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = Character.valueOf(0); Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = Integer.valueOf(0); Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = Long.valueOf(0); Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = Float.valueOf(0); Double b = (Double)d; b"));
-        assertEquals((double)0, exec("def d = Double.valueOf(0); Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = Byte.valueOf(0); Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = Short.valueOf(0); Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = Character.valueOf(0); Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = Integer.valueOf(0); Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = Long.valueOf(0); Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = Float.valueOf(0); Double b = (Double)d; b"));
+        assertEquals((double) 0, exec("def d = Double.valueOf(0); Double b = (Double)d; b"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Double b = (Double)d;"));
     }
 
@@ -674,28 +674,31 @@ public class DefCastTests extends ScriptTestCase {
     }
 
     public void testConstFoldingDefCast() {
-        assertFalse((boolean)exec("def chr = 10; return (chr == (char)'x');"));
-        assertFalse((boolean)exec("def chr = 10; return (chr >= (char)'x');"));
-        assertTrue((boolean)exec("def chr = (char)10; return (chr <= (char)'x');"));
-        assertTrue((boolean)exec("def chr = 10; return (chr < (char)'x');"));
-        assertFalse((boolean)exec("def chr = (char)10; return (chr > (char)'x');"));
-        assertFalse((boolean)exec("def chr = 10L; return (chr > (char)'x');"));
-        assertFalse((boolean)exec("def chr = 10F; return (chr > (char)'x');"));
-        assertFalse((boolean)exec("def chr = 10D; return (chr > (char)'x');"));
-        assertFalse((boolean)exec("def chr = (char)10L; return (chr > (byte)10);"));
-        assertFalse((boolean)exec("def chr = (char)10L; return (chr > (double)(byte)(char)10);"));
+        assertFalse((boolean) exec("def chr = 10; return (chr == (char)'x');"));
+        assertFalse((boolean) exec("def chr = 10; return (chr >= (char)'x');"));
+        assertTrue((boolean) exec("def chr = (char)10; return (chr <= (char)'x');"));
+        assertTrue((boolean) exec("def chr = 10; return (chr < (char)'x');"));
+        assertFalse((boolean) exec("def chr = (char)10; return (chr > (char)'x');"));
+        assertFalse((boolean) exec("def chr = 10L; return (chr > (char)'x');"));
+        assertFalse((boolean) exec("def chr = 10F; return (chr > (char)'x');"));
+        assertFalse((boolean) exec("def chr = 10D; return (chr > (char)'x');"));
+        assertFalse((boolean) exec("def chr = (char)10L; return (chr > (byte)10);"));
+        assertFalse((boolean) exec("def chr = (char)10L; return (chr > (double)(byte)(char)10);"));
     }
 
     // TODO: remove this when the transition from Joda to Java datetimes is completed
     public void testdefToZonedDateTime() {
-        assertEquals(0L, exec(
-                "Instant instant = Instant.ofEpochMilli(434931330000L);" +
-                "def d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));" +
-                "def x = new HashMap(); x.put('dt', d);" +
-                "ZonedDateTime t = x['dt'];" +
-                "def y = t;" +
-                "t = y;" +
-                "return ChronoUnit.MILLIS.between(d, t);"
-        ));
+        assertEquals(
+            0L,
+            exec(
+                "Instant instant = Instant.ofEpochMilli(434931330000L);"
+                    + "def d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));"
+                    + "def x = new HashMap(); x.put('dt', d);"
+                    + "ZonedDateTime t = x['dt'];"
+                    + "def y = t;"
+                    + "t = y;"
+                    + "return ChronoUnit.MILLIS.between(d, t);"
+            )
+        );
     }
 }

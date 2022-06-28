@@ -22,7 +22,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-
 public class RolloverRequestTests extends ESTestCase {
     public void testConstructorAndFieldAssignments() {
         // test constructor
@@ -40,9 +39,11 @@ public class RolloverRequestTests extends ESTestCase {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(10000L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(2000));
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(new ByteSizeValue(3000));
-        Condition<?>[] expectedConditions = new Condition<?>[]{
-            maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition
-        };
+        Condition<?>[] expectedConditions = new Condition<?>[] {
+            maxAgeCondition,
+            maxDocsCondition,
+            maxSizeCondition,
+            maxPrimaryShardSizeCondition };
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
@@ -52,8 +53,7 @@ public class RolloverRequestTests extends ESTestCase {
     }
 
     public void testValidation() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            new RolloverRequest(null, null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverRequest(null, null));
         assertEquals("The index alias cannot be null!", exception.getMessage());
     }
 }

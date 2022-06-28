@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -64,9 +64,9 @@ public class DetectorTests extends AbstractXContentTestCase<Detector> {
         detector.setOverFieldName("over_field");
         detector.setPartitionFieldName("partition");
         detector.setUseNull(true);
-        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("partition", "partition_filter"))
-                .setActions(RuleAction.SKIP_RESULT)
-                .build();
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("partition", "partition_filter")).setActions(
+            RuleAction.SKIP_RESULT
+        ).build();
         detector.setRules(Collections.singletonList(rule));
         return detector;
     }

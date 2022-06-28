@@ -11,8 +11,9 @@ package org.elasticsearch.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
-import org.elasticsearch.core.SuppressForbidden;
+
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.InternalSettingsPreparer;
 
@@ -58,11 +59,12 @@ public abstract class EnvironmentAwareCommand extends Command {
             }
             if (settings.containsKey(kvp.key)) {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "setting [%s] already set, saw [%s] and [%s]",
-                        kvp.key,
-                        settings.get(kvp.key),
-                        kvp.value);
+                    Locale.ROOT,
+                    "setting [%s] already set, saw [%s] and [%s]",
+                    kvp.key,
+                    settings.get(kvp.key),
+                    kvp.value
+                );
                 throw new UserException(ExitCodes.USAGE, message);
             }
             settings.put(kvp.key, kvp.value);
@@ -86,10 +88,13 @@ public abstract class EnvironmentAwareCommand extends Command {
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
-        return InternalSettingsPreparer.prepareEnvironment(baseSettings, settings,
+        return InternalSettingsPreparer.prepareEnvironment(
+            baseSettings,
+            settings,
             getConfigPath(esPathConf),
             // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
-            () -> System.getenv("HOSTNAME"));
+            () -> System.getenv("HOSTNAME")
+        );
     }
 
     @SuppressForbidden(reason = "need path to construct environment")
@@ -102,13 +107,13 @@ public abstract class EnvironmentAwareCommand extends Command {
         final String value = System.getProperty(key);
         if (value != null) {
             if (settings.containsKey(setting)) {
-                final String message =
-                        String.format(
-                                Locale.ROOT,
-                                "duplicate setting [%s] found via command-line [%s] and system property [%s]",
-                                setting,
-                                settings.get(setting),
-                                value);
+                final String message = String.format(
+                    Locale.ROOT,
+                    "duplicate setting [%s] found via command-line [%s] and system property [%s]",
+                    setting,
+                    settings.get(setting),
+                    value
+                );
                 throw new IllegalArgumentException(message);
             } else {
                 settings.put(setting, value);

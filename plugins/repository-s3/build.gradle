@@ -1,7 +1,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
@@ -13,7 +13,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 
@@ -76,13 +76,16 @@ tasks.named("bundlePlugin").configure {
   }
 }
 
-task testRepositoryCreds(type: Test) {
+def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
   include '**/RepositoryCredentialsTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
-check.dependsOn(testRepositoryCreds)
 
-test {
+tasks.named('check').configure {
+  dependsOn(testRepositoryCreds)
+}
+
+tasks.named('test').configure {
   // this is tested explicitly in separate test tasks
   exclude '**/RepositoryCredentialsTests.class'
   exclude '**/S3RepositoryThirdPartyTests.class'
@@ -230,7 +233,7 @@ if (useFixture) {
     description = "Runs REST tests using the Minio repository."
     dependsOn tasks.named("bundlePlugin")
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
 
@@ -247,7 +250,6 @@ if (useFixture) {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
     setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000')}" }, IGNORE_VALUE
-    plugin tasks.bundlePlugin.archiveFile
   }
 }
 
@@ -258,7 +260,7 @@ if (useFixture) {
     description = "Runs tests using the ECS repository."
     dependsOn('bundlePlugin')
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
     systemProperty 'tests.rest.blacklist', [
@@ -272,7 +274,6 @@ if (useFixture) {
 
   testClusters.matching { it.name == "yamlRestTestECS" }.configureEach {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
-    plugin tasks.bundlePlugin.archiveFile
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}/ecs_credentials_endpoint" }, IGNORE_VALUE
   }
 }
@@ -297,6 +298,7 @@ tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // classes are missing
+    'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
     'org.apache.avalon.framework.logger.Logger',

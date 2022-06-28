@@ -15,7 +15,8 @@ import java.util.Locale;
 
 public enum TargetType implements Writeable {
 
-    REGRESSION, CLASSIFICATION;
+    REGRESSION,
+    CLASSIFICATION;
 
     public static TargetType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

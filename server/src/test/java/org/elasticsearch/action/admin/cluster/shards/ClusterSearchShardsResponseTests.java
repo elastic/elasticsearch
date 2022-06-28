@@ -47,9 +47,12 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             ShardId shardId = new ShardId(index, randomAlphaOfLength(12), i);
             String nodeId = randomAlphaOfLength(10);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, randomBoolean(), ShardRoutingState.STARTED);
-            clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[]{shardRouting});
-            DiscoveryNode node = new DiscoveryNode(shardRouting.currentNodeId(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)), VersionUtils.randomVersion(random()));
+            clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
+            DiscoveryNode node = new DiscoveryNode(
+                shardRouting.currentNodeId(),
+                new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
+                VersionUtils.randomVersion(random())
+            );
             nodes.add(node);
             AliasFilter aliasFilter;
             if (randomBoolean()) {
@@ -59,18 +62,21 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             }
             indicesAndFilters.put(index, aliasFilter);
         }
-        ClusterSearchShardsResponse clusterSearchShardsResponse = new ClusterSearchShardsResponse(clusterSearchShardsGroups,
-                nodes.toArray(new DiscoveryNode[nodes.size()]), indicesAndFilters);
+        ClusterSearchShardsResponse clusterSearchShardsResponse = new ClusterSearchShardsResponse(
+            clusterSearchShardsGroups,
+            nodes.toArray(new DiscoveryNode[nodes.size()]),
+            indicesAndFilters
+        );
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
-        try(BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             clusterSearchShardsResponse.writeTo(out);
-            try(StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
                 in.setVersion(version);
                 ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse(in);
                 assertArrayEquals(clusterSearchShardsResponse.getNodes(), deserialized.getNodes());

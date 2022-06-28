@@ -39,8 +39,14 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     private final NodeClient client;
 
     @Inject
-    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ClusterService clusterService, ActionFilters actionFilters, NodeClient client) {
+    public TransportMultiSearchAction(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        NodeClient client
+    ) {
         super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -49,9 +55,15 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         this.client = client;
     }
 
-    TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
-                               ClusterService clusterService, int allocatedProcessors,
-                               LongSupplier relativeTimeProvider, NodeClient client) {
+    TransportMultiSearchAction(
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        TransportService transportService,
+        ClusterService clusterService,
+        int allocatedProcessors,
+        LongSupplier relativeTimeProvider,
+        NodeClient client
+    ) {
         super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -110,11 +122,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * @param listener the listener attached to the multi-search request
      */
     void executeSearch(
-            final Queue<SearchRequestSlot> requests,
-            final AtomicArray<MultiSearchResponse.Item> responses,
-            final AtomicInteger responseCounter,
-            final ActionListener<MultiSearchResponse> listener,
-            final long relativeStartTime) {
+        final Queue<SearchRequestSlot> requests,
+        final AtomicArray<MultiSearchResponse.Item> responses,
+        final AtomicInteger responseCounter,
+        final ActionListener<MultiSearchResponse> listener,
+        final long relativeStartTime
+    ) {
         SearchRequestSlot request = requests.poll();
         if (request == null) {
             /*
@@ -155,7 +168,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                     if (thread == Thread.currentThread()) {
                         // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
                         threadPool.generic()
-                                .execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
+                            .execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
                     } else {
                         // we are on a different thread (we went asynchronous), it's safe to recurse
                         executeSearch(requests, responses, responseCounter, listener, relativeStartTime);
@@ -164,8 +177,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
 
             private void finish() {
-                listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]),
-                        buildTookInMillis()));
+                listener.onResponse(
+                    new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]), buildTookInMillis())
+                );
             }
 
             /**

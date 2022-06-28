@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import java.util.Collections;
 
-
 /**
  * A test class which contains a singleton instance of the {@link SystemIndices} class that has been created with no
  * non-standard system indices defined except for those defined within the class itself.
@@ -20,6 +19,6 @@ public class EmptySystemIndices extends SystemIndices {
     public static final SystemIndices INSTANCE = new EmptySystemIndices();
 
     private EmptySystemIndices() {
-        super(Collections.emptyMap());
+        super(Collections.emptyList());
     }
 }

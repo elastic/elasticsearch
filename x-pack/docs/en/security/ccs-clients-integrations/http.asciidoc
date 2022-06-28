@@ -83,7 +83,7 @@ es-secondary-authorization: ApiKey <TOKEN> <1>
 For more information about using {security-features} with the language
 specific clients, refer to:
 
-* {java-rest}/_basic_authentication.html[Java]
+* {java-api-client}/_basic_authentication.html[Java]
 * {jsclient-current}/auth-reference.html[JavaScript]
 * https://www.elastic.co/guide/en/elasticsearch/client/net-api/master/configuration-options.html[.NET]
 * https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl]

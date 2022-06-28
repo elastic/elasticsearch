@@ -23,6 +23,9 @@
       index: test
 
 - do:
+    warnings:
+      - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+      - "Searching frozen indices [test] is deprecated. Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release."
     search:
       rest_total_hits_as_int: true
       index: test
@@ -66,6 +69,9 @@
       index: test*
 
 - do:
+    warnings:
+      - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+      - "Searching frozen indices [test,test-01] is deprecated. Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release."
     search:
       rest_total_hits_as_int: true
       index: _all
@@ -90,7 +96,6 @@
 
 ---
 "Test index options":
-
 - skip:
     version: " - 6.99.99"
     reason: types are required in requests before 7.0.0
@@ -133,6 +138,9 @@
 - match: {hits.total: 0}
 
 - do:
+    warnings:
+      - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+      - "Searching frozen indices [test] is deprecated. Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release."
     search:
       rest_total_hits_as_int: true
       index: _all

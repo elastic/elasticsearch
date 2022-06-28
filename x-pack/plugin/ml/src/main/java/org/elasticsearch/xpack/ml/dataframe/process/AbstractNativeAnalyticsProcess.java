@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
@@ -24,10 +24,16 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     private final String name;
     private final ProcessResultsParser<Result> resultsParser;
 
-    protected AbstractNativeAnalyticsProcess(String name, ConstructingObjectParser<Result, Void> resultParser, String jobId,
-                                             ProcessPipes processPipes, int numberOfFields,
-                                             List<Path> filesToDelete, Consumer<String> onProcessCrash,
-                                             NamedXContentRegistry namedXContentRegistry) {
+    protected AbstractNativeAnalyticsProcess(
+        String name,
+        ConstructingObjectParser<Result, Void> resultParser,
+        String jobId,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
         super(jobId, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.name = Objects.requireNonNull(name);
         this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser), namedXContentRegistry);

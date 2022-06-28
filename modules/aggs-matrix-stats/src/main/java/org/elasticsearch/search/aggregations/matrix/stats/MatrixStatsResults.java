@@ -189,7 +189,7 @@ class MatrixStatsResults implements Writeable {
             // update skewness
             results.skewness.put(fieldName, Math.sqrt(results.docCount) * results.skewness.get(fieldName) / Math.pow(var, 1.5D));
             // update kurtosis
-            results.kurtosis.put(fieldName, (double)results.docCount * results.kurtosis.get(fieldName) / (var * var));
+            results.kurtosis.put(fieldName, (double) results.docCount * results.kurtosis.get(fieldName) / (var * var));
             // update variances
             results.variances.put(fieldName, results.variances.get(fieldName) / nM1);
         }
@@ -224,8 +224,7 @@ class MatrixStatsResults implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MatrixStatsResults that = (MatrixStatsResults) o;
-        return Objects.equals(results, that.results) &&
-            Objects.equals(correlation, that.correlation);
+        return Objects.equals(results, that.results) && Objects.equals(correlation, that.correlation);
     }
 
     @Override

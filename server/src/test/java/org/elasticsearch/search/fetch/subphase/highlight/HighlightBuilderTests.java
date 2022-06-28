@@ -16,24 +16,16 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -42,6 +34,14 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -120,7 +120,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
             XContentBuilder shuffled;
             if (randomBoolean()) {
-                //this way `fields` is printed out as a json array
+                // this way `fields` is printed out as a json array
                 highlightBuilder.useExplicitFieldOrder(true);
                 highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 shuffled = shuffleXContent(builder);
@@ -149,20 +149,24 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownArrayNameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                    "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
-                    "}\n");
+            XContentParseException e = expectParseThrows(
+                XContentParseException.class,
+                "{\n" + "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" + "}\n"
+            );
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                    "  \"fields\" : {\n" +
-                    "     \"body\" : {\n" +
-                    "        \"bad_fieldname\" : [ \"field1\" , \"field2\" ]\n" +
-                    "     }\n" +
-                    "   }\n" +
-                    "}\n");
+            XContentParseException e = expectParseThrows(
+                XContentParseException.class,
+                "{\n"
+                    + "  \"fields\" : {\n"
+                    + "     \"body\" : {\n"
+                    + "        \"bad_fieldname\" : [ \"field1\" , \"field2\" ]\n"
+                    + "     }\n"
+                    + "   }\n"
+                    + "}\n"
+            );
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -180,20 +184,24 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownFieldnameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                    "    \"bad_fieldname\" : \"value\"\n" +
-                    "}\n");
+            XContentParseException e = expectParseThrows(
+                XContentParseException.class,
+                "{\n" + "    \"bad_fieldname\" : \"value\"\n" + "}\n"
+            );
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                    "  \"fields\" : {\n" +
-                    "     \"body\" : {\n" +
-                    "        \"bad_fieldname\" : \"value\"\n" +
-                    "     }\n" +
-                    "   }\n" +
-                    "}\n");
+            XContentParseException e = expectParseThrows(
+                XContentParseException.class,
+                "{\n"
+                    + "  \"fields\" : {\n"
+                    + "     \"body\" : {\n"
+                    + "        \"bad_fieldname\" : \"value\"\n"
+                    + "     }\n"
+                    + "   }\n"
+                    + "}\n"
+            );
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -205,20 +213,24 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownObjectFieldnameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                    "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +
-                    "}\n");
+            XContentParseException e = expectParseThrows(
+                XContentParseException.class,
+                "{\n" + "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" + "}\n"
+            );
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                    "  \"fields\" : {\n" +
-                    "     \"body\" : {\n" +
-                    "        \"bad_fieldname\" : { \"field\" : \"value\" }\n" +
-                    "     }\n" +
-                    "   }\n" +
-                    "}\n");
+            XContentParseException e = expectParseThrows(
+                XContentParseException.class,
+                "{\n"
+                    + "  \"fields\" : {\n"
+                    + "     \"body\" : {\n"
+                    + "        \"bad_fieldname\" : { \"field\" : \"value\" }\n"
+                    + "     }\n"
+                    + "   }\n"
+                    + "}\n"
+            );
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -228,52 +240,76 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testStringInFieldsArray() throws IOException {
         XContentParseException e = expectParseThrows(XContentParseException.class, "{\"fields\" : [ \"junk\" ]}");
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
-        assertThat(e.getCause().getMessage(),
-                containsString("[fields] can be a single object with any number of fields " +
-                    "or an array where each entry is an object with a single field"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "[fields] can be a single object with any number of fields "
+                    + "or an array where each entry is an object with a single field"
+            )
+        );
     }
 
     public void testNoFieldsInObjectInFieldsArray() throws IOException {
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                "  \"fields\" : [ {\n" +
-                "   }] \n" +
-                "}\n");
+        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" + "  \"fields\" : [ {\n" + "   }] \n" + "}\n");
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
-        assertThat(e.getCause().getMessage(),
-                containsString("[fields] can be a single object with any number of fields " +
-                        "or an array where each entry is an object with a single field"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "[fields] can be a single object with any number of fields "
+                    + "or an array where each entry is an object with a single field"
+            )
+        );
     }
 
     public void testTwoFieldsInObjectInFieldsArray() throws IOException {
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                "  \"fields\" : [ {\n" +
-                "     \"body\" : {},\n" +
-                "     \"nope\" : {}\n" +
-                "   }] \n" +
-                "}\n");
+        XContentParseException e = expectParseThrows(
+            XContentParseException.class,
+            "{\n" + "  \"fields\" : [ {\n" + "     \"body\" : {},\n" + "     \"nope\" : {}\n" + "   }] \n" + "}\n"
+        );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
-        assertThat(e.getCause().getMessage(),
-                containsString("[fields] can be a single object with any number of fields " +
-                        "or an array where each entry is an object with a single field"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "[fields] can be a single object with any number of fields "
+                    + "or an array where each entry is an object with a single field"
+            )
+        );
     }
 
-     /**
-     * test that build() outputs a {@link SearchHighlightContext} that is has similar parameters
-     * than what we have in the random {@link HighlightBuilder}
-     */
+    /**
+    * test that build() outputs a {@link SearchHighlightContext} that is has similar parameters
+    * than what we have in the random {@link HighlightBuilder}
+    */
     public void testBuildSearchContextHighlight() throws IOException {
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,
-                null, null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
-                null, null, System::currentTimeMillis, null, null, () -> true, null, emptyMap()) {
+        SearchExecutionContext mockContext = new SearchExecutionContext(
+            0,
+            0,
+            idxSettings,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            namedWriteableRegistry,
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        ) {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(new ContentPath(1)).fieldType();
+                return builder.build(MapperBuilderContext.ROOT).fieldType();
             }
         };
         mockContext.setMapUnmappedFieldAsString(true);
@@ -289,8 +325,11 @@ public class HighlightBuilderTests extends ESTestCase {
                 assertNotNull("expected a highlight builder for field " + field.field(), fieldBuilder);
                 FieldOptions fieldOptions = field.fieldOptions();
 
-                BiConsumer<Function<AbstractHighlighterBuilder<?>, Object>, Function<FieldOptions, Object>> checkSame =
-                        mergeBeforeChek(highlightBuilder, fieldBuilder, fieldOptions);
+                BiConsumer<Function<AbstractHighlighterBuilder<?>, Object>, Function<FieldOptions, Object>> checkSame = mergeBeforeChek(
+                    highlightBuilder,
+                    fieldBuilder,
+                    fieldOptions
+                );
 
                 checkSame.accept(AbstractHighlighterBuilder::boundaryChars, FieldOptions::boundaryChars);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryScannerType, FieldOptions::boundaryScannerType);
@@ -312,8 +351,10 @@ public class HighlightBuilderTests extends ESTestCase {
                 if (fieldBuilder.matchedFields != null) {
                     String[] copy = Arrays.copyOf(fieldBuilder.matchedFields, fieldBuilder.matchedFields.length);
                     Arrays.sort(copy);
-                    assertArrayEquals(copy,
-                            new TreeSet<>(fieldOptions.matchedFields()).toArray(new String[fieldOptions.matchedFields().size()]));
+                    assertArrayEquals(
+                        copy,
+                        new TreeSet<>(fieldOptions.matchedFields()).toArray(new String[fieldOptions.matchedFields().size()])
+                    );
                 } else {
                     assertNull(fieldOptions.matchedFields());
                 }
@@ -339,7 +380,10 @@ public class HighlightBuilderTests extends ESTestCase {
      * @param options the target field options that are checked
      */
     private static BiConsumer<Function<AbstractHighlighterBuilder<?>, Object>, Function<FieldOptions, Object>> mergeBeforeChek(
-            HighlightBuilder highlightBuilder, Field fieldBuilder, FieldOptions options) {
+        HighlightBuilder highlightBuilder,
+        Field fieldBuilder,
+        FieldOptions options
+    ) {
         return (highlightBuilderParameterAccessor, fieldOptionsParameterAccessor) -> {
             Object expectedValue = null;
             Object globalLevelValue = highlightBuilderParameterAccessor.apply(highlightBuilder);
@@ -381,32 +425,41 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingTagsSchema() throws IOException {
 
-        String highlightElement = "{\n" +
-                "    \"tags_schema\" : \"styled\"\n" +
-                "}\n";
+        String highlightElement = "{\n" + "    \"tags_schema\" : \"styled\"\n" + "}\n";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
             HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
-            assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
-                highlightBuilder.preTags());
-            assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
-                highlightBuilder.postTags());
+            assertArrayEquals(
+                "setting tags_schema 'styled' should alter pre_tags",
+                HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
+                highlightBuilder.preTags()
+            );
+            assertArrayEquals(
+                "setting tags_schema 'styled' should alter post_tags",
+                HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
+                highlightBuilder.postTags()
+            );
 
-            highlightElement = "{\n" +
-                "    \"tags_schema\" : \"default\"\n" +
-                "}\n";
+            highlightElement = "{\n" + "    \"tags_schema\" : \"default\"\n" + "}\n";
         }
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
             HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
-            assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
-                highlightBuilder.preTags());
-            assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlightBuilder.DEFAULT_POST_TAGS,
-                highlightBuilder.postTags());
+            assertArrayEquals(
+                "setting tags_schema 'default' should alter pre_tags",
+                HighlightBuilder.DEFAULT_PRE_TAGS,
+                highlightBuilder.preTags()
+            );
+            assertArrayEquals(
+                "setting tags_schema 'default' should alter post_tags",
+                HighlightBuilder.DEFAULT_POST_TAGS,
+                highlightBuilder.postTags()
+            );
 
-            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                "    \"tags_schema\" : \"somthing_else\"\n" +
-                "}\n");
+            XContentParseException e = expectParseThrows(
+                XContentParseException.class,
+                "{\n" + "    \"tags_schema\" : \"somthing_else\"\n" + "}\n"
+            );
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [tags_schema]"));
             assertEquals("Unknown tag schema [somthing_else]", e.getCause().getMessage());
         }
@@ -436,27 +489,24 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     public void testPreTagsWithoutPostTags() throws IOException {
-        ParsingException err = expectParseThrows(ParsingException.class, "{\n" +
-                "    \"pre_tags\" : [\"<a>\"]\n" +
-                "}\n");
+        ParsingException err = expectParseThrows(ParsingException.class, "{\n" + "    \"pre_tags\" : [\"<a>\"]\n" + "}\n");
         assertEquals("pre_tags are set but post_tags are not set", err.getMessage());
 
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
-                "  \"fields\" : {\n" +
-                "     \"body\" : {\n" +
-                "        \"pre_tags\" : [\"<a>\"]\n" +
-                "     }\n" +
-                "   }\n" +
-                "}\n");
+        XContentParseException e = expectParseThrows(
+            XContentParseException.class,
+            "{\n" + "  \"fields\" : {\n" + "     \"body\" : {\n" + "        \"pre_tags\" : [\"<a>\"]\n" + "     }\n" + "   }\n" + "}\n"
+        );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
         assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
         assertEquals("pre_tags are set but post_tags are not set", e.getCause().getCause().getMessage());
     }
 
     public void testInvalidMaxAnalyzedOffset() throws IOException {
-        XContentParseException e = expectParseThrows(XContentParseException.class,
-                "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, 0) + "}");
-        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() +"]"));
+        XContentParseException e = expectParseThrows(
+            XContentParseException.class,
+            "{ \"max_analyzed_offset\" : " + randomIntBetween(-100, 0) + "}"
+        );
+        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
         assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer"));
     }
 
@@ -501,9 +551,9 @@ public class HighlightBuilderTests extends ESTestCase {
         setRandomCommonOptions(testHighlighter);
         testHighlighter.useExplicitFieldOrder(randomBoolean());
         if (randomBoolean()) {
-            testHighlighter.encoder(randomFrom(Arrays.asList(new String[]{"default", "html"})));
+            testHighlighter.encoder(randomFrom(Arrays.asList(new String[] { "default", "html" })));
         }
-        int numberOfFields = randomIntBetween(1,5);
+        int numberOfFields = randomIntBetween(1, 5);
         for (int i = 0; i < numberOfFields; i++) {
             Field field = new Field(i + "_" + randomAlphaOfLengthBetween(1, 10));
             setRandomCommonOptions(field);
@@ -518,7 +568,7 @@ public class HighlightBuilderTests extends ESTestCase {
         return testHighlighter;
     }
 
-    @SuppressWarnings({ "rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
             // need to set this together, otherwise parsing will complain
@@ -540,16 +590,16 @@ public class HighlightBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             QueryBuilder highlightQuery;
             switch (randomInt(2)) {
-            case 0:
-                highlightQuery = new MatchAllQueryBuilder();
-                break;
-            case 1:
-                highlightQuery = new IdsQueryBuilder();
-                break;
-            default:
-            case 2:
-                highlightQuery = new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-                break;
+                case 0:
+                    highlightQuery = new MatchAllQueryBuilder();
+                    break;
+                case 1:
+                    highlightQuery = new IdsQueryBuilder();
+                    break;
+                default:
+                case 2:
+                    highlightQuery = new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+                    break;
             }
             highlightQuery.boost((float) randomDoubleBetween(0, 10, false));
             highlightBuilder.highlightQuery(highlightQuery);
@@ -600,15 +650,15 @@ public class HighlightBuilderTests extends ESTestCase {
             for (int i = 0; i < items; i++) {
                 Object value = null;
                 switch (randomInt(2)) {
-                case 0:
-                    value = randomAlphaOfLengthBetween(1, 10);
-                    break;
-                case 1:
-                    value = Integer.valueOf(randomInt(1000));
-                    break;
-                case 2:
-                    value = Boolean.valueOf(randomBoolean());
-                    break;
+                    case 0:
+                        value = randomAlphaOfLengthBetween(1, 10);
+                        break;
+                    case 1:
+                        value = Integer.valueOf(randomInt(1000));
+                        break;
+                    case 2:
+                        value = Boolean.valueOf(randomBoolean());
+                        break;
                 }
                 options.put(randomAlphaOfLengthBetween(1, 10), value);
             }

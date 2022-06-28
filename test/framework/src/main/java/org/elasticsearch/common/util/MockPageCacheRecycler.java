@@ -39,20 +39,20 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 assert leakReleased : "leak should not have been released already";
                 final T ref = v();
                 if (ref instanceof Object[]) {
-                    Arrays.fill((Object[])ref, 0, Array.getLength(ref), null);
+                    Arrays.fill((Object[]) ref, 0, Array.getLength(ref), null);
                 } else if (ref instanceof byte[]) {
-                    Arrays.fill((byte[])ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
+                    Arrays.fill((byte[]) ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
                 } else if (ref instanceof long[]) {
-                    Arrays.fill((long[])ref, 0, Array.getLength(ref), random.nextLong());
+                    Arrays.fill((long[]) ref, 0, Array.getLength(ref), random.nextLong());
                 } else if (ref instanceof int[]) {
-                    Arrays.fill((int[])ref, 0, Array.getLength(ref), random.nextInt());
+                    Arrays.fill((int[]) ref, 0, Array.getLength(ref), random.nextInt());
                 } else if (ref instanceof double[]) {
-                    Arrays.fill((double[])ref, 0, Array.getLength(ref), random.nextDouble() - 0.5);
+                    Arrays.fill((double[]) ref, 0, Array.getLength(ref), random.nextDouble() - 0.5);
                 } else if (ref instanceof float[]) {
-                    Arrays.fill((float[])ref, 0, Array.getLength(ref), random.nextFloat() - 0.5f);
+                    Arrays.fill((float[]) ref, 0, Array.getLength(ref), random.nextFloat() - 0.5f);
                 } else {
                     for (int i = 0; i < Array.getLength(ref); ++i) {
-                            Array.set(ref, i, (byte) random.nextInt(256));
+                        Array.set(ref, i, (byte) random.nextInt(256));
                     }
                 }
                 v.close();
@@ -75,7 +75,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<byte[]> bytePage(boolean clear) {
         final V<byte[]> page = super.bytePage(clear);
         if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, (byte)random.nextInt(1<<8));
+            Arrays.fill(page.v(), 0, page.v().length, (byte) random.nextInt(1 << 8));
         }
         return wrap(page);
     }

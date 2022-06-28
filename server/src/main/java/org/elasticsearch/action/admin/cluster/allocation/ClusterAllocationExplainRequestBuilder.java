@@ -14,10 +14,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Builder for requests to explain the allocation of a shard in the cluster
  */
-public class ClusterAllocationExplainRequestBuilder
-        extends MasterNodeOperationRequestBuilder<ClusterAllocationExplainRequest,
-                                                          ClusterAllocationExplainResponse,
-                                                          ClusterAllocationExplainRequestBuilder> {
+public class ClusterAllocationExplainRequestBuilder extends MasterNodeOperationRequestBuilder<
+    ClusterAllocationExplainRequest,
+    ClusterAllocationExplainResponse,
+    ClusterAllocationExplainRequestBuilder> {
 
     public ClusterAllocationExplainRequestBuilder(ElasticsearchClient client, ClusterAllocationExplainAction action) {
         super(client, action, new ClusterAllocationExplainRequest());

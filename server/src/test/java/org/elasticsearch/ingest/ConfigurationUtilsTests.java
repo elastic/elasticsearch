@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -100,8 +100,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         try {
             ConfigurationUtils.readStringOrIntProperty(null, null, config, "arr", null);
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo(
-                "[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
+            assertThat(e.getMessage(), equalTo("[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
         }
     }
 
@@ -119,11 +118,15 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(readMediaType, equalTo(expectedMediaType));
 
         // invalid media type
-        expectedMediaType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
-            () -> randomAlphaOfLengthBetween(5, 9));
+        expectedMediaType = randomValueOtherThanMany(
+            m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9)
+        );
         config.put("media_type", expectedMediaType);
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", ""));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", "")
+        );
         assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
 
         // missing media type with invalid default
@@ -132,15 +135,19 @@ public class ConfigurationUtilsTests extends ESTestCase {
             () -> randomAlphaOfLengthBetween(5, 9)
         );
         config.remove("media_type");
-        e = expectThrows(ElasticsearchException.class,
-            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", invalidDefaultMediaType));
+        e = expectThrows(
+            ElasticsearchException.class,
+            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", invalidDefaultMediaType)
+        );
         assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + invalidDefaultMediaType + "]"));
     }
 
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
-        Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, tag, description, config) -> processor);
+        Map<String, Processor.Factory> registry = Collections.singletonMap(
+            "test_processor",
+            (factories, tag, description, config) -> processor
+        );
 
         List<Map<String, Object>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();
@@ -158,8 +165,10 @@ public class ConfigurationUtilsTests extends ESTestCase {
             unknownTaggedConfig.put("description", "my_description");
         }
         config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry)
+        );
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
         assertThat(e.getMetadata("es.processor_type"), equalTo(Collections.singletonList("unknown_processor")));
@@ -192,19 +201,20 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
         List<Map<String, Object>> config3 = new ArrayList<>();
         config3.add(Collections.singletonMap("test_processor", null));
-        ElasticsearchParseException e3 = expectThrows(ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry));
+        ElasticsearchParseException e3 = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry)
+        );
         assertThat(e3.getMetadata("es.processor_type"), equalTo(Collections.singletonList("test_processor")));
         assertThat(e3.getMessage(), equalTo("processor config cannot be [null]"));
     }
 
     public void testReadProcessorNullDescription() throws Exception {
         Processor processor = new TestProcessor("tag", "type", null, (ingestDocument) -> {});
-        Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
-                assertNull(description);
-                return processor;
-            });
+        Map<String, Processor.Factory> registry = Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
+            assertNull(description);
+            return processor;
+        });
 
         List<Map<String, Object>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();
@@ -217,11 +227,10 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessorDescription() throws Exception {
         String testDescription = randomAlphaOfLengthBetween(10, 20);
         Processor processor = new TestProcessor("tag", "type", testDescription, (ingestDocument) -> {});
-        Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
-                assertThat(description, equalTo(processor.getDescription()));
-                return processor;
-            });
+        Map<String, Processor.Factory> registry = Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
+            assertThat(description, equalTo(processor.getDescription()));
+            return processor;
+        });
 
         List<Map<String, Object>> config = new ArrayList<>();
         Map<String, Object> processorConfig = new HashMap<>();
@@ -234,11 +243,10 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
     public void testReadProcessorFromObjectOrMap() throws Exception {
         Processor processor = mock(Processor.class);
-        Map<String, Processor.Factory> registry =
-            Collections.singletonMap("script", (processorFactories, tag, description, config) -> {
-                config.clear();
-                return processor;
-            });
+        Map<String, Processor.Factory> registry = Collections.singletonMap("script", (processorFactories, tag, description, config) -> {
+            config.clear();
+            return processor;
+        });
 
         Object emptyConfig = Collections.emptyMap();
         Processor processor1 = ConfigurationUtils.readProcessor(registry, scriptService, "script", emptyConfig);
@@ -250,8 +258,10 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
         Object invalidConfig = 12L;
 
-        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig));
+        ElasticsearchParseException ex = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig)
+        );
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
     }
 
@@ -260,8 +270,13 @@ public class ConfigurationUtilsTests extends ESTestCase {
         when(scriptService.isLangSupported(anyString())).thenReturn(true);
         String propertyValue = randomAlphaOfLength(10);
         TemplateScript.Factory result;
-        result = ConfigurationUtils.compileTemplate(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-            propertyValue, scriptService);
+        result = ConfigurationUtils.compileTemplate(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            propertyValue,
+            scriptService
+        );
         assertThat(result.newInstance(null).execute(), equalTo(propertyValue));
         verify(scriptService, times(0)).compile(any(), any());
     }
@@ -273,8 +288,13 @@ public class ConfigurationUtilsTests extends ESTestCase {
         String compiledValue = randomAlphaOfLength(10);
         when(scriptService.compile(any(), any())).thenReturn(new TestTemplateService.MockTemplateScript.Factory(compiledValue));
         TemplateScript.Factory result;
-        result = ConfigurationUtils.compileTemplate(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
-            propertyValue, scriptService);
+        result = ConfigurationUtils.compileTemplate(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            propertyValue,
+            scriptService
+        );
         assertThat(result.newInstance(null).execute(), equalTo(compiledValue));
         verify(scriptService, times(1)).compile(any(), any());
     }

@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -40,7 +41,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<GetShardSnapshotRequest, GetShardSnapshotResponse> {
-
+    private static final Comparator<ShardSnapshotInfo> LATEST_SNAPSHOT_COMPARATOR = Comparator.comparing(ShardSnapshotInfo::getStartedAt)
+        .thenComparing(snapshotInfo -> snapshotInfo.getSnapshot().getSnapshotId());
     private final IndexSnapshotsService indexSnapshotsService;
 
     @Inject
@@ -120,19 +122,19 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
     private GetShardSnapshotResponse transformToResponse(
         Collection<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> shardSnapshots
     ) {
-        final Map<String, ShardSnapshotInfo> repositoryShardSnapshot = shardSnapshots.stream()
+        final Optional<ShardSnapshotInfo> latestSnapshot = shardSnapshots.stream()
             .map(Tuple::v1)
             .filter(Objects::nonNull)
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .collect(Collectors.toMap(ShardSnapshotInfo::getRepository, Function.identity()));
+            .max(LATEST_SNAPSHOT_COMPARATOR);
 
         final Map<String, RepositoryException> failures = shardSnapshots.stream()
             .map(Tuple::v2)
             .filter(Objects::nonNull)
             .collect(Collectors.toMap(RepositoryException::repository, Function.identity()));
 
-        return new GetShardSnapshotResponse(repositoryShardSnapshot, failures);
+        return new GetShardSnapshotResponse(latestSnapshot.orElse(null), failures);
     }
 
     private Set<String> getRequestedRepositories(GetShardSnapshotRequest request, ClusterState state) {

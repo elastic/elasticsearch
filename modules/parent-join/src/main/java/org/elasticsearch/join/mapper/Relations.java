@@ -37,8 +37,7 @@ class Relations {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Relations relation = (Relations) o;
-        return Objects.equals(parent, relation.parent) &&
-            Objects.equals(children, relation.children);
+        return Objects.equals(parent, relation.parent) && Objects.equals(children, relation.children);
     }
 
     @Override

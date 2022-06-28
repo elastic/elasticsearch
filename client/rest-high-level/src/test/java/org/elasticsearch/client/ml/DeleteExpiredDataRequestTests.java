@@ -7,15 +7,14 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
 
 public class DeleteExpiredDataRequestTests extends AbstractXContentTestCase<DeleteExpiredDataRequest> {
 
@@ -25,14 +24,17 @@ public class DeleteExpiredDataRequestTests extends AbstractXContentTestCase<Dele
         (a) -> new DeleteExpiredDataRequest((String) a[0], (Float) a[1], (TimeValue) a[2])
     );
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(),
-            new ParseField(DeleteExpiredDataRequest.JOB_ID));
-        PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(),
-            new ParseField(DeleteExpiredDataRequest.REQUESTS_PER_SECOND));
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DeleteExpiredDataRequest.JOB_ID));
+        PARSER.declareFloat(
+            ConstructingObjectParser.optionalConstructorArg(),
+            new ParseField(DeleteExpiredDataRequest.REQUESTS_PER_SECOND)
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), DeleteExpiredDataRequest.TIMEOUT),
             new ParseField(DeleteExpiredDataRequest.TIMEOUT),
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
     }
 
     @Override
@@ -40,7 +42,8 @@ public class DeleteExpiredDataRequestTests extends AbstractXContentTestCase<Dele
         return new DeleteExpiredDataRequest(
             randomBoolean() ? null : randomAlphaOfLength(6),
             randomBoolean() ? null : randomFloat(),
-            randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "test"));
+            randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "test")
+        );
     }
 
     @Override

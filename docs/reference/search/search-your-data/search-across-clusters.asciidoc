@@ -1,11 +1,9 @@
 [[modules-cross-cluster-search]]
 == Search across clusters
 
-*{ccs-cap}* lets you run a single search request against one or more
-<<modules-remote-clusters,remote clusters>>. For example, you can use a {ccs} to
-filter and analyze log data stored on clusters in different data centers.
-
-IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
+*{ccs-cap}* lets you run a single search request against one or more remote
+clusters. For example, you can use a {ccs} to filter and analyze log data stored
+on clusters in different data centers.
 
 [discrete]
 [[ccs-supported-apis]]
@@ -20,6 +18,39 @@ The following APIs support {ccs}:
 * <<multi-search-template,Multi search template>>
 * <<search-field-caps,Field capabilities>>
 * experimental:[] <<eql-search-api,EQL search>>
+* experimental:[] <<sql-search-api,SQL search>>
+* <<search-vector-tile-api,Vector tile search>>
+
+[discrete]
+[[ccs-prereqs]]
+=== Prerequisites
+
+* {ccs-cap} requires remote clusters. To set up remote clusters on {ess},
+see link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. If you
+run {es} on your own hardware, see <<remote-clusters>>.
++
+To ensure your remote cluster configuration supports {ccs}, see
+<<ccs-supported-configurations>>.
+
+* The local coordinating node must have the
+<<remote-node,`remote_cluster_client`>> node role.
+
+[[ccs-gateway-seed-nodes]]
+* If you use <<sniff-mode,sniff mode>>, the local coordinating node
+must be able to connect to seed and gateway nodes on the remote cluster.
++
+We recommend using gateway nodes capable of serving as coordinating nodes.
+The seed nodes can be a subset of these gateway nodes.
+
+[[ccs-proxy-mode]]
+* If you use <<proxy-mode,proxy mode>>, the local coordinating node must be able
+to connect to the configured `proxy_address`. The proxy at this address must be
+able to route connections to gateway and coordinating nodes on the remote
+cluster.
+
+* {ccs-cap} requires different security privileges on the local cluster and
+remote cluster. See <<remote-clusters-privileges-ccs>> and
+<<clusters-privileges-ccs-kibana>>.
 
 [discrete]
 [[ccs-example]]
@@ -29,14 +60,8 @@ The following APIs support {ccs}:
 [[ccs-remote-cluster-setup]]
 ==== Remote cluster setup
 
-To perform a {ccs}, you must have at least one remote cluster configured.
-
-TIP: If you want to search across clusters in the cloud, you can
-link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
-can search across clusters and <<ccr-getting-started,set up {ccr}>>.
-
 The following <<cluster-update-settings,cluster update settings>> API request
-adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
+adds three remote clusters: `cluster_one`, `cluster_two`, and `cluster_three`.
 
 [source,console]
 --------------------------------
@@ -71,6 +96,9 @@ PUT _cluster/settings
 [discrete]
 [[ccs-search-remote-cluster]]
 ==== Search a single remote cluster
+
+In the search request, you specify data streams and indices on a remote cluster
+as `<remote_cluster_name>:<target>``.
 
 The following <<search-search,search>> API request searches the
 `my-index-000001` index on a single remote cluster, `cluster_one`.
@@ -264,16 +292,29 @@ means the document came from the local cluster.
 
 [discrete]
 [[skip-unavailable-clusters]]
-=== Skip unavailable clusters
+=== Optional remote clusters
 
-By default, a {ccs} returns an error if *any* cluster in the request is
-unavailable.
+By default, a {ccs} fails if a remote cluster in the request returns an
+error or is unavailable. Use the `skip_unavailable` cluster
+setting to mark a specific remote cluster as optional for {ccs}.
 
-To skip an unavailable cluster during a {ccs}, set the
-<<skip-unavailable,`skip_unavailable`>> cluster setting to `true`.
+If `skip_unavailable` is `true`, a {ccs}:
 
-The following <<cluster-update-settings,cluster update settings>> API request
-changes `cluster_two`'s `skip_unavailable` setting to `true`.
+* Skips the remote cluster if its nodes are unavailable during the search. The
+response's `_cluster.skipped` value contains a count of any skipped clusters.
+
+* Ignores errors returned by the remote cluster, such as errors related to
+unavailable shards or indices. This can include errors related to search
+parameters such as <<multi-index,`allow_no_indices`>> and
+<<multi-index,`ignore_unavailable`>>.
+
+* Ignores the <<search-partial-responses,`allow_partial_search_results`>>
+parameter and the related `search.default_allow_partial_results` cluster setting
+when searching the remote cluster. This means searches on the remote cluster may
+return partial results.
+
+The following <<cluster-update-settings,cluster update settings>>
+API request changes `cluster_two`'s `skip_unavailable` setting to `true`.
 
 [source,console]
 --------------------------------
@@ -288,30 +329,6 @@ PUT _cluster/settings
 
 If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
-
-[discrete]
-[[ccs-gateway-seed-nodes]]
-=== Selecting gateway and seed nodes in sniff mode
-
-For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
-seed nodes need to be accessible from the local cluster via your network.
-
-By default, any non-<<master-node,master-eligible>> node can act as a
-gateway node. If wanted, you can define the gateway nodes for a cluster by
-setting `cluster.remote.node.attr.gateway` to `true`.
-
-For {ccs}, we recommend you use gateway nodes that are capable of serving as
-<<coordinating-node,coordinating nodes>> for search requests. If
-wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
-
-[discrete]
-[[ccs-proxy-mode]]
-=== {ccs-cap} in proxy mode
-
-<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
-connections connect to the configured `proxy_address`. Any desired connection
-routing to gateway or <<coordinating-node,coordinating nodes>> must
-be implemented by the intermediate proxy at this configured address.
 
 [discrete]
 [[ccs-network-delays]]
@@ -338,6 +355,9 @@ setting the <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> parameter to
 low latency.
 +
 See <<ccs-unmin-roundtrips>> to learn how this option works.
+
+NOTE: The <<search-vector-tile-api,vector tile search API>> always minimizes
+network roundtrips and doesn't include the `ccs_minimize_roundtrips` parameter.
 
 [discrete]
 [[ccs-min-roundtrips]]
@@ -414,14 +434,19 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported configurations
 
-Generally, <<gateway-nodes-selection,cross-cluster search>> can search remote
-clusters that are one major version ahead or behind the coordinating node's
-version.
+To run a {ccs}, the local and remote clusters must be compatible as outlined
+in the following matrix.
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
 
-Cross-cluster search can also search remote clusters that are being
+[%collapsible%open]
+.Version compatibility matrix
+====
+include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
+====
+
+{ccs-cap} can also search remote clusters that are being
 <<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
 "upgrade to" version are compatible with the gateway node.
 

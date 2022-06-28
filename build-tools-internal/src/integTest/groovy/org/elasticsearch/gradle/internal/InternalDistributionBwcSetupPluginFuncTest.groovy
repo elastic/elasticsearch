@@ -17,6 +17,7 @@ import spock.lang.Unroll
 /*
  * Test is ignored on ARM since this test case tests the ability to build certain older BWC branches that we don't support on ARM
  */
+
 @IgnoreIf({ Architecture.current() == Architecture.AARCH64 })
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
@@ -65,18 +66,16 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         """
         when:
         def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
-                ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
+                ":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin",
                 "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
                 .build()
         then:
         result.task(":distribution:bwc:${bwcProject}:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
         assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}")
 
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName
@@ -138,9 +137,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "assemble task triggered"
         result.output.contains("[7.10.1] > Task :distribution:archives:darwin-tar:assemble")
-        normalized(result.output)
-                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.10/distribution/archives/darwin-tar/" +
-                        "build/distributions/elasticsearch-7.10.1-SNAPSHOT-darwin-x86_64.tar.gz")
+        result.output.contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.10/distribution/archives/darwin-tar/" +
+                "build/distributions/elasticsearch-7.10.1-SNAPSHOT-darwin-x86_64.tar.gz")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
@@ -177,11 +175,9 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
         result.output.contains("[7.12.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-        normalized(result.output)
-                .contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-7.x/" +
                         "distribution/archives/darwin-tar/build/install")
-        normalized(result.output)
-                .contains("nested folder /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-7.x/" +
                         "distribution/archives/darwin-tar/build/install/elasticsearch-7.12.0-SNAPSHOT")
     }
 }

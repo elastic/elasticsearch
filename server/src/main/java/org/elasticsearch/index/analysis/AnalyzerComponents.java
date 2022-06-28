@@ -25,8 +25,7 @@ public final class AnalyzerComponents {
     private final TokenFilterFactory[] tokenFilters;
     private final AnalysisMode analysisMode;
 
-    AnalyzerComponents(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-                       TokenFilterFactory[] tokenFilters) {
+    AnalyzerComponents(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
 
         this.tokenizerFactory = tokenizerFactory;
         this.charFilters = charFilters;
@@ -38,8 +37,13 @@ public final class AnalyzerComponents {
         this.analysisMode = mode;
     }
 
-    static AnalyzerComponents createComponents(String name, Settings analyzerSettings, final Map<String, TokenizerFactory> tokenizers,
-            final Map<String, CharFilterFactory> charFilters, final Map<String, TokenFilterFactory> tokenFilters) {
+    static AnalyzerComponents createComponents(
+        String name,
+        Settings analyzerSettings,
+        final Map<String, TokenizerFactory> tokenizers,
+        final Map<String, CharFilterFactory> charFilters,
+        final Map<String, TokenFilterFactory> tokenFilters
+    ) {
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");
@@ -48,7 +52,8 @@ public final class AnalyzerComponents {
         TokenizerFactory tokenizer = tokenizers.get(tokenizerName);
         if (tokenizer == null) {
             throw new IllegalArgumentException(
-                    "Custom Analyzer [" + name + "] failed to find tokenizer under name " + "[" + tokenizerName + "]");
+                "Custom Analyzer [" + name + "] failed to find tokenizer under name " + "[" + tokenizerName + "]"
+            );
         }
 
         List<String> charFilterNames = analyzerSettings.getAsList("char_filter");
@@ -57,7 +62,8 @@ public final class AnalyzerComponents {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
                 throw new IllegalArgumentException(
-                        "Custom Analyzer [" + name + "] failed to find char_filter under name " + "[" + charFilterName + "]");
+                    "Custom Analyzer [" + name + "] failed to find char_filter under name " + "[" + charFilterName + "]"
+                );
             }
             charFiltersList.add(charFilter);
         }
@@ -68,14 +74,18 @@ public final class AnalyzerComponents {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
                 throw new IllegalArgumentException(
-                        "Custom Analyzer [" + name + "] failed to find filter under name " + "[" + tokenFilterName + "]");
+                    "Custom Analyzer [" + name + "] failed to find filter under name " + "[" + tokenFilterName + "]"
+                );
             }
             tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
             tokenFilterList.add(tokenFilter);
         }
 
-        return new AnalyzerComponents(tokenizer, charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-                tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]));
+        return new AnalyzerComponents(
+            tokenizer,
+            charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
+        );
     }
 
     public TokenizerFactory getTokenizerFactory() {

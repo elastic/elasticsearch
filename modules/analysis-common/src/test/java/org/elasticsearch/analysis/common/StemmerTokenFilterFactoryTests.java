@@ -39,13 +39,13 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         for (int i = 0; i < iters; i++) {
             Version v = VersionUtils.randomVersion(random());
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.my_english.type", "stemmer")
-                    .put("index.analysis.filter.my_english.language", "english")
-                    .put("index.analysis.analyzer.my_english.tokenizer","whitespace")
-                    .put("index.analysis.analyzer.my_english.filter","my_english")
-                    .put(SETTING_VERSION_CREATED,v)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.my_english.type", "stemmer")
+                .put("index.analysis.filter.my_english.language", "english")
+                .put("index.analysis.analyzer.my_english.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.my_english.filter", "my_english")
+                .put(SETTING_VERSION_CREATED, v)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
 
             ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_english");
@@ -56,7 +56,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
             NamedAnalyzer analyzer = indexAnalyzers.get("my_english");
             assertThat(create, instanceOf(PorterStemFilter.class));
-            assertAnalyzesTo(analyzer, "consolingly", new String[]{"consolingli"});
+            assertAnalyzesTo(analyzer, "consolingly", new String[] { "consolingli" });
         }
     }
 
@@ -66,13 +66,13 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
             Version v = VersionUtils.randomVersion(random());
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.my_porter2.type", "stemmer")
-                    .put("index.analysis.filter.my_porter2.language", "porter2")
-                    .put("index.analysis.analyzer.my_porter2.tokenizer","whitespace")
-                    .put("index.analysis.analyzer.my_porter2.filter","my_porter2")
-                    .put(SETTING_VERSION_CREATED,v)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.my_porter2.type", "stemmer")
+                .put("index.analysis.filter.my_porter2.language", "porter2")
+                .put("index.analysis.analyzer.my_porter2.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.my_porter2.filter", "my_porter2")
+                .put(SETTING_VERSION_CREATED, v)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
 
             ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_porter2");
@@ -83,18 +83,23 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
             NamedAnalyzer analyzer = indexAnalyzers.get("my_porter2");
             assertThat(create, instanceOf(SnowballFilter.class));
-            assertAnalyzesTo(analyzer, "possibly", new String[]{"possibl"});
+            assertAnalyzesTo(analyzer, "possibly", new String[] { "possibl" });
         }
     }
 
     public void testMultipleLanguagesThrowsException() throws IOException {
         Version v = VersionUtils.randomVersion(random());
-        Settings settings = Settings.builder().put("index.analysis.filter.my_english.type", "stemmer")
-                .putList("index.analysis.filter.my_english.language", "english", "light_english").put(SETTING_VERSION_CREATED, v)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.my_english.type", "stemmer")
+            .putList("index.analysis.filter.my_english.language", "english", "light_english")
+            .put(SETTING_VERSION_CREATED, v)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN)
+        );
         assertEquals("Invalid stemmer class specified: [english, light_english]", e.getMessage());
     }
 }

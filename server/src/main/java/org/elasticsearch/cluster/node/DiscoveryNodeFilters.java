@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,8 +24,15 @@ import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
-    static final Set<String> NON_ATTRIBUTE_NAMES =
-        org.elasticsearch.core.Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
+    static final Set<String> NON_ATTRIBUTE_NAMES = org.elasticsearch.core.Set.of(
+        "_ip",
+        "_host_ip",
+        "_publish_ip",
+        "host",
+        "_id",
+        "_name",
+        "name"
+    );
 
     public enum OpType {
         AND,
@@ -73,7 +80,8 @@ public class DiscoveryNodeFilters {
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
-        for (String value : values) {
+        for (String ipOrHost : values) {
+            String value = InetAddresses.isInetAddress(ipOrHost) ? NetworkAddress.format(InetAddresses.forString(ipOrHost)) : ipOrHost;
             boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);
             if (matchIp) {
                 return matchIp;
@@ -93,7 +101,8 @@ public class DiscoveryNodeFilters {
             return null;
         }
 
-        Map<String, String[]> newFilters = original.filters.entrySet().stream()
+        Map<String, String[]> newFilters = original.filters.entrySet()
+            .stream()
             // Remove all entries that start with "_tier", as these will be handled elsewhere
             .filter(entry -> {
                 String attr = entry.getKey();

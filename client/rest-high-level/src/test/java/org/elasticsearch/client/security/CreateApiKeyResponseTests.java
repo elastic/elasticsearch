@@ -8,19 +8,21 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,6 +33,7 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         final String name = randomAlphaOfLength(5);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         final Instant expiration = randomBoolean() ? null : Instant.ofEpochMilli(10000);
+        final String encoded = Base64.getEncoder().encodeToString((id + ":" + apiKey).getBytes(StandardCharsets.UTF_8));
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
@@ -44,6 +47,9 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         } finally {
             Arrays.fill(charBytes, (byte) 0);
         }
+        if (randomBoolean()) {
+            builder.field("encoded", encoded);
+        }
         builder.endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
@@ -51,6 +57,7 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         assertThat(response.getId(), equalTo(id));
         assertThat(response.getName(), equalTo(name));
         assertThat(response.getKey(), equalTo(apiKey));
+        assertThat(response.getEncoded().toString(), equalTo(encoded));
         if (expiration != null) {
             assertThat(response.getExpiration(), equalTo(expiration));
         }
@@ -63,28 +70,43 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         final Instant expiration = Instant.ofEpochMilli(10000);
         CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyResponse(name, id, apiKey, expiration);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createApiKeyResponse, (original) -> {
-            return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createApiKeyResponse, (original) -> {
-            return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
-        }, CreateApiKeyResponseTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            createApiKeyResponse,
+            (original) -> {
+                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
+            }
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            createApiKeyResponse,
+            (original) -> {
+                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), original.getExpiration());
+            },
+            CreateApiKeyResponseTests::mutateTestItem
+        );
     }
 
     private static CreateApiKeyResponse mutateTestItem(CreateApiKeyResponse original) {
         switch (randomIntBetween(0, 3)) {
-        case 0:
-            return new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
-        case 1:
-            return new CreateApiKeyResponse(original.getName(), randomAlphaOfLengthBetween(4, 8), original.getKey(),
-                    original.getExpiration());
-        case 2:
-            return new CreateApiKeyResponse(original.getName(), original.getId(), UUIDs.randomBase64UUIDSecureString(),
-                    original.getExpiration());
-        case 3:
-            return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), Instant.ofEpochMilli(150000));
-        default:
-            return new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
+            case 0:
+                return new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
+            case 1:
+                return new CreateApiKeyResponse(
+                    original.getName(),
+                    randomAlphaOfLengthBetween(4, 8),
+                    original.getKey(),
+                    original.getExpiration()
+                );
+            case 2:
+                return new CreateApiKeyResponse(
+                    original.getName(),
+                    original.getId(),
+                    UUIDs.randomBase64UUIDSecureString(),
+                    original.getExpiration()
+                );
+            case 3:
+                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), Instant.ofEpochMilli(150000));
+            default:
+                return new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
         }
     }
 }

@@ -37,7 +37,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *             by position. In addition, values that use the standard {@literal @Inject} constructor
  *             annotation are eligible for method interception.
  */
-@Target({CONSTRUCTOR})
+@Target({ CONSTRUCTOR })
 @Retention(RUNTIME)
 @Deprecated
 public @interface AssistedInject {

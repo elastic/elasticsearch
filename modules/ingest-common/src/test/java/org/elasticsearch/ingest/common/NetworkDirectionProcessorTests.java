@@ -166,16 +166,12 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         config.put("internal_networks", networks);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(
-                null,
-                processorTag,
-                null,
-                config
-            )
+            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config)
         );
-        assertThat(e.getMessage(), containsString(
-            "[internal_networks] and [internal_networks_field] cannot both be used in the same processor"
-        ));
+        assertThat(
+            e.getMessage(),
+            containsString("[internal_networks] and [internal_networks_field] cannot both be used in the same processor")
+        );
     }
 
     private void testNetworkDirectionProcessor(

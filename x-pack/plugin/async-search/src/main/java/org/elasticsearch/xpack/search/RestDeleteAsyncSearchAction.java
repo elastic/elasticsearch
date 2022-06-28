@@ -10,9 +10,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
-
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 
 import java.io.IOException;
 import java.util.List;

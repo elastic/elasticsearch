@@ -52,10 +52,10 @@ public class EqlFunctionRegistry extends FunctionRegistry {
     }
 
     private FunctionDefinition[][] functions() {
-        return new FunctionDefinition[][]{
+        return new FunctionDefinition[][] {
             // Scalar functions
             // String
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Between.class, Between::new, "between"),
                 def(CIDRMatch.class, CIDRMatch::new, "cidrmatch"),
                 def(Concat.class, Concat::new, "concat"),
@@ -66,18 +66,15 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 def(ToString.class, ToString::new, "string"),
                 def(StringContains.class, StringContains::new, "stringcontains"),
                 def(Substring.class, Substring::new, "substring"),
-                def(Wildcard.class, Wildcard::new, "wildcard"),
-            },
+                def(Wildcard.class, Wildcard::new, "wildcard"), },
             // Arithmetic
-            new FunctionDefinition[]{
+            new FunctionDefinition[] {
                 def(Add.class, Add::new, "add"),
                 def(Div.class, Div::new, "divide"),
                 def(Mod.class, Mod::new, "modulo"),
                 def(Mul.class, Mul::new, "multiply"),
                 def(ToNumber.class, ToNumber::new, "number"),
-                def(Sub.class, Sub::new, "subtract"),
-            }
-        };
+                def(Sub.class, Sub::new, "subtract"), } };
     }
 
     @Override
@@ -147,11 +144,13 @@ public class EqlFunctionRegistry extends FunctionRegistry {
             } else if (hasMinimumTwo == false && children.size() != 3) {
                 throw new QlIllegalArgumentException("expects exactly three arguments");
             }
-            return ctorRef.build(source,
+            return ctorRef.build(
+                source,
                 children.get(0),
                 children.get(1),
                 children.size() == 3 ? children.get(2) : null,
-                defaultSensitivityIfNotSet(caseInsensitive));
+                defaultSensitivityIfNotSet(caseInsensitive)
+            );
         };
         return def(function, builder, names);
     }
@@ -164,9 +163,11 @@ public class EqlFunctionRegistry extends FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a quaternary function.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function,
-                                                                 QuaternaryBuilderCaseAwareBuilder<T> ctorRef,
-                                                                 String... names) {
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        QuaternaryBuilderCaseAwareBuilder<T> ctorRef,
+        String... names
+    ) {
         EqlFunctionBuilder builder = (source, children, caseInsensitive) -> {
             boolean hasMinimumThree = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumThree && (children.size() > 4 || children.size() < 3)) {
@@ -174,12 +175,14 @@ public class EqlFunctionRegistry extends FunctionRegistry {
             } else if (hasMinimumThree == false && children.size() != 4) {
                 throw new QlIllegalArgumentException("expects exactly four arguments");
             }
-            return ctorRef.build(source,
+            return ctorRef.build(
+                source,
                 children.get(0),
                 children.get(1),
                 children.get(2),
                 children.size() == 4 ? children.get(3) : null,
-                defaultSensitivityIfNotSet(caseInsensitive));
+                defaultSensitivityIfNotSet(caseInsensitive)
+            );
         };
         return def(function, builder, names);
     }
@@ -192,17 +195,21 @@ public class EqlFunctionRegistry extends FunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a quaternary function.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function,
-                                                                 UnaryVariadicCaseAwareBuilder<T> ctorRef,
-                                                                 String... names) {
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        UnaryVariadicCaseAwareBuilder<T> ctorRef,
+        String... names
+    ) {
         EqlFunctionBuilder builder = (source, children, caseInsensitive) -> {
             if (children.size() < 2) {
                 throw new QlIllegalArgumentException("expects at least two arguments");
             }
-            return ctorRef.build(source,
+            return ctorRef.build(
+                source,
                 children.get(0),
                 children.subList(1, children.size()),
-                defaultSensitivityIfNotSet(caseInsensitive));
+                defaultSensitivityIfNotSet(caseInsensitive)
+            );
         };
         return def(function, builder, names);
     }

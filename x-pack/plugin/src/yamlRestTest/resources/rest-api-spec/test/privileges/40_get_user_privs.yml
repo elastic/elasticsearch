@@ -303,7 +303,7 @@ teardown:
 
   - length: { "applications" : 3 }
   - contains: { "applications" : { "application" : "app-dne", "privileges" : [ "all" ], "resources" : [ "*" ] } }
-  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "user", "dne" ], "resources" : [ "*" ] } }
+  - contains: { "applications" : { "application" : "test-app", "privileges" : [ "dne", "user" ], "resources" : [ "*" ] } }
   - contains: { "applications" : { "application" : "test-app", "privileges" : [ "read" ], "resources" : [ "object/1", "object/2" ] } }
 
   - match: { "run_as" : [ "app-*", "test-*" ] }

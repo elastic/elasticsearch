@@ -9,11 +9,11 @@ package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Date;
@@ -41,16 +41,21 @@ public class Influencer implements ToXContentObject {
     public static final ParseField RESULTS_FIELD = new ParseField("influencers");
 
     public static final ConstructingObjectParser<Influencer, Void> PARSER = new ConstructingObjectParser<>(
-            RESULT_TYPE_FIELD.getPreferredName(), true,
-            a -> new Influencer((String) a[0], (String) a[1], (String) a[2], (Date) a[3], (long) a[4]));
+        RESULT_TYPE_FIELD.getPreferredName(),
+        true,
+        a -> new Influencer((String) a[0], (String) a[1], (String) a[2], (Date) a[3], (long) a[4])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
-                Result.TIMESTAMP, ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(Influencer::setProbability, PROBABILITY);
@@ -144,8 +149,17 @@ public class Influencer implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, influenceField, influenceValue, initialInfluencerScore,
-                influencerScore, probability, isInterim, bucketSpan);
+        return Objects.hash(
+            jobId,
+            timestamp,
+            influenceField,
+            influenceValue,
+            initialInfluencerScore,
+            influencerScore,
+            probability,
+            isInterim,
+            bucketSpan
+        );
     }
 
     @Override
@@ -163,11 +177,14 @@ public class Influencer implements ToXContentObject {
         }
 
         Influencer other = (Influencer) obj;
-        return Objects.equals(jobId, other.jobId) && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(influenceField, other.influenceField)
-                && Objects.equals(influenceValue, other.influenceValue)
-                && Double.compare(initialInfluencerScore, other.initialInfluencerScore) == 0
-                && Double.compare(influencerScore, other.influencerScore) == 0 && Double.compare(probability, other.probability) == 0
-                && (isInterim == other.isInterim) && (bucketSpan == other.bucketSpan);
+        return Objects.equals(jobId, other.jobId)
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(influenceField, other.influenceField)
+            && Objects.equals(influenceValue, other.influenceValue)
+            && Double.compare(initialInfluencerScore, other.initialInfluencerScore) == 0
+            && Double.compare(influencerScore, other.influencerScore) == 0
+            && Double.compare(probability, other.probability) == 0
+            && (isInterim == other.isInterim)
+            && (bucketSpan == other.bucketSpan);
     }
 }

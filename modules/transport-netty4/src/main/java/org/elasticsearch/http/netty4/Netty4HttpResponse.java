@@ -12,6 +12,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -40,4 +41,3 @@ public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpR
         return requestHeaders;
     }
 }
-

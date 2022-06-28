@@ -21,15 +21,14 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.util.AttributeKey;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -38,6 +37,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,19 +67,29 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public class Netty4Transport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
-    public static final Setting<Integer> WORKER_COUNT =
-        new Setting<>("transport.netty.worker_count",
-            (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
-            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
+    public static final Setting<Integer> WORKER_COUNT = new Setting<>(
+        "transport.netty.worker_count",
+        (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
+        (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"),
+        Property.NodeScope
+    );
 
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-        "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
-        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
-        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
-    public static final Setting<Integer> NETTY_BOSS_COUNT =
-        intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
+        "transport.netty.receive_predictor_size",
+        new ByteSizeValue(64, ByteSizeUnit.KB),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN = byteSizeSetting(
+        "transport.netty.receive_predictor_min",
+        NETTY_RECEIVE_PREDICTOR_SIZE,
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting(
+        "transport.netty.receive_predictor_max",
+        NETTY_RECEIVE_PREDICTOR_SIZE,
+        Property.NodeScope
+    );
+    public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
@@ -88,9 +99,16 @@ public class Netty4Transport extends TcpTransport {
     private volatile Bootstrap clientBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
-    public Netty4Transport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
-                           PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                           CircuitBreakerService circuitBreakerService, SharedGroupFactory sharedGroupFactory) {
+    public Netty4Transport(
+        Settings settings,
+        Version version,
+        ThreadPool threadPool,
+        NetworkService networkService,
+        PageCacheRecycler pageCacheRecycler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        CircuitBreakerService circuitBreakerService,
+        SharedGroupFactory sharedGroupFactory
+    ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
@@ -102,8 +120,11 @@ public class Netty4Transport extends TcpTransport {
         if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
             recvByteBufAllocator = new FixedRecvByteBufAllocator((int) receivePredictorMax.getBytes());
         } else {
-            recvByteBufAllocator = new AdaptiveRecvByteBufAllocator((int) receivePredictorMin.getBytes(),
-                (int) receivePredictorMin.getBytes(), (int) receivePredictorMax.getBytes());
+            recvByteBufAllocator = new AdaptiveRecvByteBufAllocator(
+                (int) receivePredictorMin.getBytes(),
+                (int) receivePredictorMin.getBytes(),
+                (int) receivePredictorMax.getBytes()
+            );
         }
     }
 
@@ -114,12 +135,11 @@ public class Netty4Transport extends TcpTransport {
             sharedGroup = sharedGroupFactory.getTransportGroup();
             clientBootstrap = createClientBootstrap(sharedGroup);
             if (NetworkService.NETWORK_SERVER.get(settings)) {
-                for (ProfileSettings profileSettings : profileSettings) {
+                for (ProfileSettings profileSettings : profileSettingsSet) {
                     createServerBootstrap(profileSettings, sharedGroup);
                     bindServer(profileSettings);
                 }
             }
-            super.doStart();
             success = true;
         } finally {
             if (success == false) {
@@ -128,9 +148,9 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private Bootstrap createClientBootstrap(SharedGroupFactory.SharedGroup sharedGroup) {
+    private Bootstrap createClientBootstrap(SharedGroupFactory.SharedGroup sharedGroupForBootstrap) {
         final Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(sharedGroup.getLowLevelGroup());
+        bootstrap.group(sharedGroupForBootstrap.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configured allocator
         assert Netty4NioSocketChannel.class.isAssignableFrom(NettyAllocator.getChannelType());
@@ -179,17 +199,24 @@ public class Netty4Transport extends TcpTransport {
         return bootstrap;
     }
 
-    private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroup) {
+    private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroupForServerBootstrap) {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
-            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
-                name, sharedGroupFactory.getTransportWorkerCount(), profileSettings.portOrRange, profileSettings.bindHosts,
-                profileSettings.publishHosts, receivePredictorMin, receivePredictorMax);
+            logger.debug(
+                "using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
+                name,
+                sharedGroupFactory.getTransportWorkerCount(),
+                profileSettings.portOrRange,
+                profileSettings.bindHosts,
+                profileSettings.publishHosts,
+                receivePredictorMin,
+                receivePredictorMax
+            );
         }
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
-        serverBootstrap.group(sharedGroup.getLowLevelGroup());
+        serverBootstrap.group(sharedGroupForServerBootstrap.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configuredAllocator
         serverBootstrap.channel(NettyAllocator.getServerChannelType());

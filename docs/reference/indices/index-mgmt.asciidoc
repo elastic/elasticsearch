@@ -144,7 +144,7 @@ image::images/index-mgmt/management_index_component_template.png[Component templ
 section blank.
 
 . Define a mapping that contains an <<object,object>> field named `geo` with a
-child <<geo-point,geo-point>> field named `coordinates`:
+child <<geo-point,`geo_point`>> field named `coordinates`:
 +
 [role="screenshot"]
 image::images/index-mgmt/management-index-templates-mappings.png[Mapped fields page]

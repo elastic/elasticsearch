@@ -34,19 +34,25 @@ import java.util.Objects;
 public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
 
     public ClientYamlDocsTestClient(
-            final ClientYamlSuiteRestSpec restSpec,
-            final RestClient restClient,
-            final List<HttpHost> hosts,
-            final Version esVersion,
-            final Version masterVersion,
-            final String os,
-            final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes) {
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts,
+        final Version esVersion,
+        final Version masterVersion,
+        final String os,
+        final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
+    ) {
         super(restSpec, restClient, hosts, esVersion, masterVersion, os, clientBuilderWithSniffedNodes);
     }
 
     @Override
-    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity,
-            Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
+    public ClientYamlTestResponse callApi(
+        String apiName,
+        Map<String, String> params,
+        HttpEntity entity,
+        Map<String, String> headers,
+        NodeSelector nodeSelector
+    ) throws IOException {
 
         if ("raw".equals(apiName)) {
             // Raw requests don't use the rest spec at all and are configured entirely by their parameters

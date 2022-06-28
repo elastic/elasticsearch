@@ -24,7 +24,6 @@ import java.util.Map;
  * retrieves the field values from _source and returns them as document fields.
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
@@ -33,8 +32,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         }
 
         if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
-            throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is disabled " +
-                "in the mappings for index [" + fetchContext.getIndexName() + "]");
+            throw new IllegalArgumentException(
+                "Unable to retrieve the requested [fields] since _source is disabled "
+                    + "in the mappings for index ["
+                    + fetchContext.getIndexName()
+                    + "]"
+            );
         }
 
         FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());

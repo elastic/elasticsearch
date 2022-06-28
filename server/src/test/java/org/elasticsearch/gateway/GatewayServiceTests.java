@@ -44,14 +44,28 @@ import static org.hamcrest.Matchers.hasItem;
 public class GatewayServiceTests extends ESTestCase {
 
     private GatewayService createService(final Settings.Builder settings) {
-        final ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null);
-        final AllocationService allocationService = new AllocationService(new AllocationDeciders(new HashSet<>(
-            Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), new ReplicaAfterPrimaryActiveAllocationDecider()))),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE);
+        final ClusterService clusterService = new ClusterService(
+            Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null
+        );
+        final AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(
+                new HashSet<>(
+                    Arrays.asList(
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY,
+                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
+                        new ReplicaAfterPrimaryActiveAllocationDecider()
+                    )
+                )
+            ),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
         return new GatewayService(settings.build(), allocationService, clusterService, null, null, null);
     }
 
@@ -67,8 +81,7 @@ public class GatewayServiceTests extends ESTestCase {
         // ensure settings override default
         final TimeValue timeValue = TimeValue.timeValueHours(3);
         // ensure default is set when setting expected_nodes
-        service = createService(Settings.builder().put("gateway.recover_after_time",
-            timeValue.toString()));
+        service = createService(Settings.builder().put("gateway.recover_after_time", timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
     }
 
@@ -76,16 +89,16 @@ public class GatewayServiceTests extends ESTestCase {
         GatewayService service = createService(Settings.builder());
 
         service = createService(Settings.builder().put("gateway.expected_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_NODES_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.EXPECTED_NODES_SETTING });
 
         service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_MASTER_NODES_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.EXPECTED_MASTER_NODES_SETTING });
 
         service = createService(Settings.builder().put("gateway.recover_after_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_NODES_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.RECOVER_AFTER_NODES_SETTING });
 
         service = createService(Settings.builder().put("gateway.recover_after_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING });
     }
 
     public void testRecoverStateUpdateTask() throws Exception {
@@ -98,8 +111,9 @@ public class GatewayServiceTests extends ESTestCase {
             nodeId
         );
         ClusterState stateWithBlock = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build()).
-                blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build()).build();
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+            .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
+            .build();
 
         ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
         assertNotEquals(recoveredState, stateWithBlock);

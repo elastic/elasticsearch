@@ -58,9 +58,10 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), randomBoolean());
             } else {
                 Exception exception = randomFrom(
-                        new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
-                        new IllegalStateException(randomAlphaOfLength(5)),
-                        new IllegalArgumentException(randomAlphaOfLength(5)));
+                    new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
+                    new IllegalStateException(randomAlphaOfLength(5)),
+                    new IllegalArgumentException(randomAlphaOfLength(5))
+                );
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), new MonitoringBulkResponse.Error(exception));
             }
 

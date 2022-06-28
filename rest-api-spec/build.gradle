@@ -1,8 +1,10 @@
+
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restTests {
@@ -12,17 +14,27 @@ restResources {
 
 // REST API specifications are published under the Apache 2.0 License
 ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+
+configurations {
+  // configuration to make use by external yaml rest test plugin in our examples
+  // easy and efficient
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
 
 artifacts {
+  basicRestSpecs(new File(projectDir, "src/main/resources"))
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-testClusters.all {
+testClusters.configureEach {
   module ':modules:mapper-extras'
 }
-
 
 tasks.named("test").configure {enabled = false }
 tasks.named("jarHell").configure {enabled = false }

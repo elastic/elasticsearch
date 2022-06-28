@@ -28,8 +28,10 @@ public class AnalyzerCasterTests extends ESTestCase {
         assertEquals(expected, cast.targetType);
 
         if (mustBeExplicit) {
-            ClassCastException error = expectThrows(ClassCastException.class,
-                    () -> AnalyzerCaster.getLegalCast(location, actual, expected, false, false));
+            ClassCastException error = expectThrows(
+                ClassCastException.class,
+                () -> AnalyzerCaster.getLegalCast(location, actual, expected, false, false)
+            );
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
             cast = AnalyzerCaster.getLegalCast(location, actual, expected, false, false);

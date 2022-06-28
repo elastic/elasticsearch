@@ -29,12 +29,13 @@ public abstract class CandidateGenerator {
     public Candidate createCandidate(BytesRef term, boolean userInput) throws IOException {
         return createCandidate(term, termStats(term), 1.0, userInput);
     }
+
     public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore) throws IOException {
         return createCandidate(term, termStats, channelScore, false);
     }
 
-    public abstract Candidate createCandidate(BytesRef term, TermStats termStats,
-                                                double channelScore, boolean userInput) throws IOException;
+    public abstract Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput)
+        throws IOException;
 
     public abstract CandidateSet drawCandidates(CandidateSet set) throws IOException;
 }

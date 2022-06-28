@@ -20,7 +20,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           pagerank: 10
           url_length: 50
@@ -28,7 +28,7 @@ setup:
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body:
           pagerank: 100
           url_length: 20

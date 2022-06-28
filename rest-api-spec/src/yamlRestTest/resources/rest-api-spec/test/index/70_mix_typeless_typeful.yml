@@ -19,7 +19,7 @@
  - do:
       index:
           index:  index
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - match:   { _index:   "index" }
@@ -31,7 +31,7 @@
       get: # not using typeless API on purpose
           index:  index
           type:   not_doc
-          id:     1
+          id:     "1"
 
  - match:   { _index:   "index" }
  - match:   { _type:    "not_doc" } # the important bit to check
@@ -82,7 +82,7 @@
   - do:
       index:
         index:  index
-        id:     2
+        id:     "2"
         body:   { new_field: value }
 
   - match:   { _index:   "index" }
@@ -94,7 +94,7 @@
       get: # using typeful API on purpose
         index:  index
         type:   not_doc
-        id:     2
+        id:     "2"
 
   - match:   { _index:   "index" }
   - match:   { _type:    "not_doc" }

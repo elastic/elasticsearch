@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -23,8 +23,12 @@ import java.util.Arrays;
 public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseExecutionInfo> {
 
     static PhaseExecutionInfo randomPhaseExecutionInfo(String phaseName) {
-        return new PhaseExecutionInfo(randomAlphaOfLength(5), PhaseTests.randomTestPhase(phaseName),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        return new PhaseExecutionInfo(
+            randomAlphaOfLength(5),
+            PhaseTests.randomTestPhase(phaseName),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
     String phaseName;
@@ -75,13 +79,18 @@ public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseEx
     }
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Arrays
-            .asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new)));
+        return new NamedWriteableRegistry(
+            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
+        );
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(CollectionUtils.appendToCopy(ClusterModule.getNamedXWriteables(),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse)));
+        return new NamedXContentRegistry(
+            CollectionUtils.appendToCopy(
+                ClusterModule.getNamedXWriteables(),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse)
+            )
+        );
     }
 }

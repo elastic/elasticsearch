@@ -1,0 +1,5 @@
+pr: 82849
+summary: Emit `trace.id` into audit logs
+area: "Audit"
+type: enhancement
+issues: []

@@ -23,6 +23,11 @@ There are several thread pools, but the important ones include:
     Thread pool type is `fixed_auto_queue_size` with a size of `1`, and initial
     queue_size of `100`.
 
+`search_coordination`::
+    For lightweight search-related coordination operations. Thread pool type is
+    `fixed` with a size of a max of `min(5, (`<<node.processors,
+`# of allocated processors`>>`) / 2)`, and queue_size of `1000`.
+
 `get`::
     For get operations. Thread pool type is `fixed`
     with a size of <<node.processors, `# of allocated processors`>>,
@@ -46,7 +51,7 @@ There are several thread pools, but the important ones include:
 `snapshot_meta`::
     For snapshot repository metadata read operations. Thread pool type is `scaling` with a
     keep-alive of `5m` and a max of `min(50, (`<<node.processors,
-    `# of allocated processors`>>` pass:[ * ]3))`.
+    `# of allocated processors`>>`* 3))`.
 
 `warmer`::
     For segment warm-up operations. Thread pool type is `scaling` with a
@@ -114,9 +119,10 @@ There are several thread pools, but the important ones include:
     `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
     and queue_size of `1000`.
 
-Changing a specific thread pool can be done by setting its type-specific
-parameters; for example, changing the number of threads in the `write` thread
-pool:
+Thread pool settings are <<static-cluster-setting,static>> and can be changed by
+editing `elasticsearch.yml`. Changing a specific thread pool can be done by
+setting its type-specific parameters; for example, changing the number of
+threads in the `write` thread pool:
 
 [source,yaml]
 --------------------------------------------------

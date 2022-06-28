@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractInternalTerms;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.D
 
 public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms, InternalMultiTerms.Bucket> {
 
-    public static TermsComparator TERMS_COMPARATOR = new TermsComparator();
+    public static final TermsComparator TERMS_COMPARATOR = new TermsComparator();
 
     public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket implements KeyComparable<Bucket> {
 
@@ -159,6 +160,27 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         @Override
         public int compareKey(Bucket other) {
             return TERMS_COMPARATOR.compare(terms, other.terms);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            Bucket other = (Bucket) obj;
+            if (showDocCountError && docCountError != other.docCountError) {
+                return false;
+            }
+            return docCount == other.docCount
+                && aggregations.equals(other.aggregations)
+                && showDocCountError == other.showDocCountError
+                && terms.equals(other.terms)
+                && keyConverters.equals(other.keyConverters);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(docCount, aggregations, showDocCountError, showDocCountError ? docCountError : -1, terms, keyConverters);
         }
     }
 
@@ -328,6 +350,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     protected InternalMultiTerms create(
         String name,
         List<Bucket> buckets,
@@ -373,7 +396,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    protected long getDocCountError() {
+    protected Long getDocCountError() {
         return docCountError;
     }
 
@@ -393,11 +416,13 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
         return new Bucket(prototype.terms, docCount, aggs, prototype.showDocCountError, docCountError, formats, keyConverters);
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public InternalMultiTerms create(List<Bucket> buckets) {
         return new InternalMultiTerms(
             name,
@@ -471,9 +496,9 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     private InternalAggregation promoteToDouble(InternalAggregation aggregation, boolean[] needsPromotion) {
         InternalMultiTerms multiTerms = (InternalMultiTerms) aggregation;
-        List<Bucket> buckets = multiTerms.getBuckets();
+        List<Bucket> multiTermsBuckets = multiTerms.getBuckets();
         List<List<Object>> newKeys = new ArrayList<>();
-        for (InternalMultiTerms.Bucket bucket : buckets) {
+        for (InternalMultiTerms.Bucket bucket : multiTermsBuckets) {
             newKeys.add(new ArrayList<>(bucket.terms.size()));
         }
 
@@ -483,20 +508,20 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             DocValueFormat format = formats.get(i);
             if (needsPromotion[i]) {
                 newKeyConverters.add(KeyConverter.DOUBLE);
-                for (int j = 0; j < buckets.size(); j++) {
-                    newKeys.get(j).add(converter.toDouble(format, buckets.get(j).terms.get(i)));
+                for (int j = 0; j < multiTermsBuckets.size(); j++) {
+                    newKeys.get(j).add(converter.toDouble(format, multiTermsBuckets.get(j).terms.get(i)));
                 }
             } else {
                 newKeyConverters.add(converter);
-                for (int j = 0; j < buckets.size(); j++) {
-                    newKeys.get(j).add(buckets.get(j).terms.get(i));
+                for (int j = 0; j < multiTermsBuckets.size(); j++) {
+                    newKeys.get(j).add(multiTermsBuckets.get(j).terms.get(i));
                 }
             }
         }
 
-        List<Bucket> newBuckets = new ArrayList<>(buckets.size());
-        for (int i = 0; i < buckets.size(); i++) {
-            Bucket oldBucket = buckets.get(i);
+        List<Bucket> newBuckets = new ArrayList<>(multiTermsBuckets.size());
+        for (int i = 0; i < multiTermsBuckets.size(); i++) {
+            Bucket oldBucket = multiTermsBuckets.get(i);
             newBuckets.add(
                 new Bucket(
                     newKeys.get(i),
@@ -607,5 +632,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             buckets,
             docCountError
         );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

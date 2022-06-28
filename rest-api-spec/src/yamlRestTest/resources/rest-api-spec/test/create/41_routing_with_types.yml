@@ -19,7 +19,7 @@
       create:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           body:    { foo: bar }
 
@@ -27,7 +27,7 @@
       get:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           routing: 5
           stored_fields:  [_routing]
 
@@ -39,5 +39,5 @@
       get:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
 

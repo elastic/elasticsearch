@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 
@@ -17,17 +17,19 @@ import java.util.stream.Stream;
 public class FrequencyEncodingSizeTests extends SizeEstimatorTestCase<FrequencyEncodingSize, FrequencyEncoding> {
 
     static FrequencyEncodingSize createRandom() {
-        return new FrequencyEncodingSize(randomInt(100),
+        return new FrequencyEncodingSize(
             randomInt(100),
-            Stream.generate(() -> randomIntBetween(5, 10))
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()));
+            randomInt(100),
+            Stream.generate(() -> randomIntBetween(5, 10)).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
     }
 
     static FrequencyEncodingSize translateToEstimate(FrequencyEncoding encoding) {
-        return new FrequencyEncodingSize(encoding.getField().length(),
+        return new FrequencyEncodingSize(
+            encoding.getField().length(),
             encoding.getFeatureName().length(),
-            encoding.getFrequencyMap().keySet().stream().map(String::length).collect(Collectors.toList()));
+            encoding.getFrequencyMap().keySet().stream().map(String::length).collect(Collectors.toList())
+        );
     }
 
     @Override

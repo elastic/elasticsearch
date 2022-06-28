@@ -120,7 +120,7 @@ public class BasicQueryClient implements QueryClient {
         final int topListSize = counter / listSize;
 
         // pre-allocate the response matrix
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         List<SearchHit>[] hits = new List[topListSize];
         for (int i = 0; i < hits.length; i++) {
             hits[i] = Arrays.asList(new SearchHit[listSize]);
@@ -167,8 +167,11 @@ public class BasicQueryClient implements QueryClient {
                     positions.forEach(pos -> {
                         SearchHit previous = seq.get(pos / listSize).set(pos % listSize, doc);
                         if (previous != null) {
-                            throw new EqlIllegalArgumentException("Overriding sequence match [{}] with [{}]",
-                                new HitReference(previous), docRef);
+                            throw new EqlIllegalArgumentException(
+                                "Overriding sequence match [{}] with [{}]",
+                                new HitReference(previous),
+                                docRef
+                            );
                         }
                     });
                 }

@@ -12,9 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -83,6 +83,7 @@ public class InboundDecoder implements Releasable {
                     return 0;
                 } else {
                     this.decompressor = decompressor;
+                    fragmentConsumer.accept(this.decompressor.getScheme());
                 }
             }
             int remainingToConsume = totalNetworkSize - bytesConsumed;

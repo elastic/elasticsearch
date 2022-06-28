@@ -46,19 +46,25 @@ public class GetServiceAccountsRequestTests extends ESTestCase {
         final String serviceName = namespace == null ? null : (randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null);
 
         final GetServiceAccountsRequest request = new GetServiceAccountsRequest(namespace, serviceName);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
             original -> new GetServiceAccountsRequest(request.getNamespace(), request.getServiceName()),
-            this::mutateInstance);
+            this::mutateInstance
+        );
     }
 
     private GetServiceAccountsRequest mutateInstance(GetServiceAccountsRequest request) {
         switch (randomIntBetween(0, 1)) {
             case 0:
-                return new GetServiceAccountsRequest(randomValueOtherThan(request.getNamespace(),
-                    () -> randomAlphaOfLengthBetween(3, 8)), request.getServiceName());
+                return new GetServiceAccountsRequest(
+                    randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                    request.getServiceName()
+                );
             default:
-                return new GetServiceAccountsRequest(request.getNamespace(),
-                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)));
+                return new GetServiceAccountsRequest(
+                    request.getNamespace(),
+                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
+                );
         }
     }
 }

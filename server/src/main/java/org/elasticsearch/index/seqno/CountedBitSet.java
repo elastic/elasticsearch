@@ -9,7 +9,6 @@
 package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * A {@link CountedBitSet} wraps a {@link FixedBitSet} but automatically releases the internal bitset
@@ -17,7 +16,6 @@ import org.apache.lucene.util.RamUsageEstimator;
  * these numbers are likely to form contiguous ranges (eg. filling all bits).
  */
 public final class CountedBitSet {
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CountedBitSet.class);
     private short onBits; // Number of bits are set.
     private FixedBitSet bitset;
 

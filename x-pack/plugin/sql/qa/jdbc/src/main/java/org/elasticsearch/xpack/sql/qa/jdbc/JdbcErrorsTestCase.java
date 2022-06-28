@@ -107,7 +107,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         index("test", body -> body.field("foo", 1));
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT SCORE().bar FROM test").executeQuery());
-            assertThat(e.getMessage(), startsWith("line 1:15: extraneous input '.' expecting {<EOF>, ','"));
+            assertThat(e.getMessage(), startsWith("line 1:15: mismatched input '.' expecting {<EOF>, "));
         }
     }
 

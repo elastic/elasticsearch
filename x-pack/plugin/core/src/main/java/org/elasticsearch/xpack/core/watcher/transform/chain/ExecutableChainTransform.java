@@ -57,8 +57,15 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
             Transform.Result result = transform.execute(ctx, payload);
             results.add(result);
             if (result.status() == Transform.Result.Status.FAILURE) {
-                return new ChainTransform.Result(format("failed to execute [{}] transform for [{}]. failed to execute sub-transform [{}]",
-                        ChainTransform.TYPE, ctx.id(), transform.type()), results);
+                return new ChainTransform.Result(
+                    format(
+                        "failed to execute [{}] transform for [{}]. failed to execute sub-transform [{}]",
+                        ChainTransform.TYPE,
+                        ctx.id(),
+                        transform.type()
+                    ),
+                    results
+                );
             }
             payload = result.payload();
         }

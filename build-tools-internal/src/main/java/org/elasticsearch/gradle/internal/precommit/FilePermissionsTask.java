@@ -7,15 +7,6 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -23,6 +14,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
@@ -31,6 +23,15 @@ import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -75,6 +76,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
      * Returns the files this task will check
      */
     @InputFiles
+    @IgnoreEmptyDirectories
     @SkipWhenEmpty
     public FileCollection getFiles() {
         return getSources().get()

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,8 +56,9 @@ public class CronSchedule extends CronnableSchedule {
                             crons.add(parser.text());
                             break;
                         default:
-                            throw new ElasticsearchParseException("could not parse [cron] schedule. expected a string value in the cron " +
-                                    "array but found [" + token + "]");
+                            throw new ElasticsearchParseException(
+                                "could not parse [cron] schedule. expected a string value in the cron " + "array but found [" + token + "]"
+                            );
                     }
                 }
                 if (crons.isEmpty()) {
@@ -70,8 +71,12 @@ public class CronSchedule extends CronnableSchedule {
                 }
 
             } else {
-                throw new ElasticsearchParseException("could not parse [cron] schedule. expected either a cron string value or an array " +
-                        "of cron string values, but found [" + token + "]");
+                throw new ElasticsearchParseException(
+                    "could not parse [cron] schedule. expected either a cron string value or an array "
+                        + "of cron string values, but found ["
+                        + token
+                        + "]"
+                );
             }
         }
     }

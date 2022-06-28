@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -28,6 +27,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.UpdateSettingsStep;
 import org.junit.After;
@@ -60,19 +60,28 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver expressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             return Collections.singletonList(service);
         }
 
     }
+
     public static class SettingsListenerModule extends AbstractModule {
 
         private final SettingsTestingService service;
+
         SettingsListenerModule(SettingsTestingService service) {
             this.service = service;
         }
@@ -83,6 +92,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
         }
 
     }
+
     static class SettingsTestingService {
 
         public static final String INVALID_VALUE = "INVALID";
@@ -93,8 +103,8 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             this.value = value;
         }
 
-        void validate(String value) {
-            if (value.equals(INVALID_VALUE)) {
+        void validate(String valueToCheck) {
+            if (valueToCheck.equals(INVALID_VALUE)) {
                 throw new IllegalArgumentException("[" + INVALID_VALUE + "] is not supported");
             }
         }
@@ -104,6 +114,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
         }
 
     }
+
     @After
     public void resetSettingValue() {
         service.resetValues();
@@ -115,8 +126,7 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateSettingsStepRetriesOnError() throws InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .build()).get());
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().build()).get());
 
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         ClusterState state = clusterService.state();
@@ -129,12 +139,15 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
         // fail the first setting update by using an invalid valid
         Settings invalidValueSetting = Settings.builder().put("index.test.setting", INVALID_VALUE).build();
         UpdateSettingsStep step = new UpdateSettingsStep(
-            new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
-            invalidValueSetting);
+            new StepKey("hot", "action", "updateSetting"),
+            new StepKey("hot", "action", "validate"),
+            client(),
+            invalidValueSetting
+        );
 
-        step.performAction(indexMetadata, state, observer, new ActionListener<Boolean>() {
+        step.performAction(indexMetadata, state, observer, new ActionListener<Void>() {
             @Override
-            public void onResponse(Boolean complete) {
+            public void onResponse(Void complete) {
                 latch.countDown();
                 fail("expected the test to fail when updating the setting to an invalid value");
             }
@@ -146,14 +159,16 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                 // use a valid setting value so the second update call is successful
                 Settings validIndexSetting = Settings.builder().put("index.test.setting", "valid").build();
                 UpdateSettingsStep step = new UpdateSettingsStep(
-                    new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
-                    validIndexSetting);
+                    new StepKey("hot", "action", "updateSetting"),
+                    new StepKey("hot", "action", "validate"),
+                    client(),
+                    validIndexSetting
+                );
 
-                step.performAction(indexMetadata, state, observer, new ActionListener<Boolean>() {
+                step.performAction(indexMetadata, state, observer, new ActionListener<Void>() {
                     @Override
-                    public void onResponse(Boolean complete) {
+                    public void onResponse(Void complete) {
                         latch.countDown();
-                        assertThat(complete, is(true));
                     }
 
                     @Override

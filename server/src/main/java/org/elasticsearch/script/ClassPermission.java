@@ -66,37 +66,41 @@ public final class ClassPermission extends BasicPermission {
     public static final String STANDARD = "<<STANDARD>>";
     /** Typical set of classes for scripting: basic data types, math, dates, and simple collections */
     // this is the list from the old grovy sandbox impl (+ some things like String, Iterator, etc that were missing)
-    public static final Set<String> STANDARD_CLASSES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            // jdk classes
-            java.lang.Boolean.class.getName(),
-            java.lang.Byte.class.getName(),
-            java.lang.Character.class.getName(),
-            java.lang.Double.class.getName(),
-            java.lang.Integer.class.getName(),
-            java.lang.Long.class.getName(),
-            java.lang.Math.class.getName(),
-            java.lang.Object.class.getName(),
-            java.lang.Short.class.getName(),
-            java.lang.String.class.getName(),
-            java.math.BigDecimal.class.getName(),
-            java.util.ArrayList.class.getName(),
-            java.util.Arrays.class.getName(),
-            java.util.Date.class.getName(),
-            java.util.HashMap.class.getName(),
-            java.util.HashSet.class.getName(),
-            java.util.Iterator.class.getName(),
-            java.util.List.class.getName(),
-            java.util.Map.class.getName(),
-            java.util.Set.class.getName(),
-            java.util.UUID.class.getName(),
-            // joda-time
-            org.joda.time.DateTime.class.getName(),
-            org.joda.time.DateTimeUtils.class.getName(),
-            org.joda.time.DateTimeZone.class.getName(),
-            org.joda.time.Instant.class.getName(),
-            org.joda.time.ReadableDateTime.class.getName(),
-            org.joda.time.ReadableInstant.class.getName()
-     )));
+    public static final Set<String> STANDARD_CLASSES = Collections.unmodifiableSet(
+        new HashSet<>(
+            Arrays.asList(
+                // jdk classes
+                java.lang.Boolean.class.getName(),
+                java.lang.Byte.class.getName(),
+                java.lang.Character.class.getName(),
+                java.lang.Double.class.getName(),
+                java.lang.Integer.class.getName(),
+                java.lang.Long.class.getName(),
+                java.lang.Math.class.getName(),
+                java.lang.Object.class.getName(),
+                java.lang.Short.class.getName(),
+                java.lang.String.class.getName(),
+                java.math.BigDecimal.class.getName(),
+                java.util.ArrayList.class.getName(),
+                java.util.Arrays.class.getName(),
+                java.util.Date.class.getName(),
+                java.util.HashMap.class.getName(),
+                java.util.HashSet.class.getName(),
+                java.util.Iterator.class.getName(),
+                java.util.List.class.getName(),
+                java.util.Map.class.getName(),
+                java.util.Set.class.getName(),
+                java.util.UUID.class.getName(),
+                // joda-time
+                org.joda.time.DateTime.class.getName(),
+                org.joda.time.DateTimeUtils.class.getName(),
+                org.joda.time.DateTimeZone.class.getName(),
+                org.joda.time.Instant.class.getName(),
+                org.joda.time.ReadableDateTime.class.getName(),
+                org.joda.time.ReadableInstant.class.getName()
+            )
+        )
+    );
 
     /**
      * Creates a new ClassPermission object.

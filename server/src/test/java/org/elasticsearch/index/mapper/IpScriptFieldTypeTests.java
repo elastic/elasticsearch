@@ -26,10 +26,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -53,21 +54,17 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
-        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom formats"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom formats"));
         e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
-        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom time zones"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom time zones"));
     }
 
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}"))));
             iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(
-                    new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.2\", \"192.168.1\"]}"))
-                )
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.2\", \"192.168.1\"]}")))
             );
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
@@ -107,15 +104,9 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
@@ -140,15 +131,9 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.4\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -159,8 +144,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 IpScriptFieldData.IpScriptDocValues bytes = (IpScriptFieldData.IpScriptDocValues) getDoc().get("test");
@@ -168,7 +153,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }
@@ -176,9 +161,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
             iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -190,12 +173,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}"))));
             iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -217,12 +196,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1\"]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1\"]}"))));
             iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -243,33 +218,21 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1.1\"]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1.1\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0.1\"]}"))));
             iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(
-                            org.elasticsearch.core.List.of("192.168.0.1", "1.1.1.1"),
-                            mockContext()
-                        )
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("192.168.0.1", "1.1.1.1"), mockContext())
                     ),
                     equalTo(2)
                 );
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(
-                            org.elasticsearch.core.List.of("192.168.0.0/16", "1.1.1.1"),
-                            mockContext()
-                        )
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("192.168.0.0/16", "1.1.1.1"), mockContext())
                     ),
                     equalTo(3)
                 );

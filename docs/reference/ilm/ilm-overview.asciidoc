@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[overview-index-lifecycle-management]]
 == {ilm-init} overview
 

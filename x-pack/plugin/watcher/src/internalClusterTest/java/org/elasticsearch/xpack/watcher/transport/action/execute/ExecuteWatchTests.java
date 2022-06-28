@@ -35,13 +35,14 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         WatcherClient watcherClient = watcherClient();
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? 2099")))
-                        .input(simpleInput("foo", "bar"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
+            .setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/5 * * * * ? 2099")))
+                    .input(simpleInput("foo", "bar"))
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("log", loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -77,14 +78,15 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         final WatcherClient watcherClient = watcherClient();
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("1s"))) // run every second so we can ack it
-                        .input(simpleInput("foo", "bar"))
-                        .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
+            .setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("1s"))) // run every second so we can ack it
+                    .input(simpleInput("foo", "bar"))
+                    .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("log", loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -112,12 +114,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             // lets wait for the watch to be ackable
             timeWarp().trigger("_id");
 
-            String[] actionIds = randomFrom(
-                    new String[] { "_all" },
-                    new String[] { "log" },
-                    new String[] { "foo", "_all" },
-                    null
-            );
+            String[] actionIds = randomFrom(new String[] { "_all" }, new String[] { "log" }, new String[] { "foo", "_all" }, null);
             AckWatchRequestBuilder ackWatchRequestBuilder = watcherClient.prepareAckWatch("_id");
             if (actionIds != null) {
                 ackWatchRequestBuilder.setActionIds(actionIds);
@@ -132,8 +129,8 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         }
 
         ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id")
-                .setActionMode(randomBoolean() ? "log" : "_all", mode)
-                .get();
+            .setActionMode(randomBoolean() ? "log" : "_all", mode)
+            .get();
         assertThat(response, notNullValue());
         assertThat(response.getRecordId(), notNullValue());
         Wid wid = new Wid(response.getRecordId());

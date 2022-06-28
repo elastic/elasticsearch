@@ -67,7 +67,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  index-auto-configure
-        id:       1
+        id:       "1"
         op_type:  create
         body:   { foo: bar, "@timestamp": "2020-12-12" }
 
@@ -77,6 +77,6 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  index-limited
-        id:       1
+        id:       "1"
         op_type:  create
         body:   { "@timestamp": "2020-12-12" }

@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -85,8 +85,10 @@ public class HistoryStoreTests extends ESTestCase {
         when(clusterState.nodes()).thenReturn(discoveryNodes);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(randomFrom(Arrays.asList(Version.V_7_0_0, Version.V_7_7_0)));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
-        BulkProcessor bulkProcessor
-                = BulkProcessor.builder(client::bulk, listener, "HistoryStoreTests").setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener, "HistoryStoreTests")
+            .setConcurrentRequests(0)
+            .setBulkActions(1)
+            .build();
         historyStore = new HistoryStore(bulkProcessor, () -> clusterState);
     }
 
@@ -105,9 +107,10 @@ public class HistoryStoreTests extends ESTestCase {
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-            if (indexRequest.id().equals(wid.value()) &&
-                indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(index)) {
-                listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
+            if (indexRequest.id().equals(wid.value()) && indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(index)) {
+                listener.onResponse(
+                    new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1)
+                );
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
             }
@@ -173,7 +176,7 @@ public class HistoryStoreTests extends ESTestCase {
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexResponse indexResponse = mock(IndexResponse.class);
-            listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
+            listener.onResponse(new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1));
             return null;
         }).when(client).bulk(requestCaptor.capture(), any());
 
@@ -191,14 +194,22 @@ public class HistoryStoreTests extends ESTestCase {
         assertThat(indexedJson, not(containsString(password)));
     }
 
-    private void assertHistoryIndexName(String indexTemplateVersion){
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli((long) 0).atZone(ZoneOffset.UTC), clusterState),
-            equalTo(".watcher-history-" + indexTemplateVersion + "-1970.01.01"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(100000000000L).atZone(ZoneOffset.UTC), clusterState),
-            equalTo(".watcher-history-" + indexTemplateVersion + "-1973.03.03"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(1416582852000L).atZone(ZoneOffset.UTC), clusterState),
-            equalTo(".watcher-history-" + indexTemplateVersion + "-2014.11.21"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(2833165811000L).atZone(ZoneOffset.UTC), clusterState),
-            equalTo(".watcher-history-" + indexTemplateVersion + "-2059.10.12"));
+    private void assertHistoryIndexName(String indexTemplateVersion) {
+        assertThat(
+            getHistoryIndexNameForTime(Instant.ofEpochMilli((long) 0).atZone(ZoneOffset.UTC), clusterState),
+            equalTo(".watcher-history-" + indexTemplateVersion + "-1970.01.01")
+        );
+        assertThat(
+            getHistoryIndexNameForTime(Instant.ofEpochMilli(100000000000L).atZone(ZoneOffset.UTC), clusterState),
+            equalTo(".watcher-history-" + indexTemplateVersion + "-1973.03.03")
+        );
+        assertThat(
+            getHistoryIndexNameForTime(Instant.ofEpochMilli(1416582852000L).atZone(ZoneOffset.UTC), clusterState),
+            equalTo(".watcher-history-" + indexTemplateVersion + "-2014.11.21")
+        );
+        assertThat(
+            getHistoryIndexNameForTime(Instant.ofEpochMilli(2833165811000L).atZone(ZoneOffset.UTC), clusterState),
+            equalTo(".watcher-history-" + indexTemplateVersion + "-2059.10.12")
+        );
     }
 }

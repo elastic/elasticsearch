@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
-
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;

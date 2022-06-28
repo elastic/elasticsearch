@@ -28,10 +28,8 @@ public class RestUpgradeStatusActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(GET, "/_upgrade")
-                .deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_upgrade")
-                .deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/_upgrade").deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_upgrade").deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
         );
     }
 

@@ -28,7 +28,6 @@ import java.util.List;
  * Specifying {@code "docvalue_fields": ["field1", "field2"]}
  */
 public final class FetchDocValuesPhase implements FetchSubPhase {
-
     private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
 
@@ -39,12 +38,15 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             return null;
         }
 
-        if (context.docValuesContext().fields().stream()
-                .map(f -> f.format)
-                .anyMatch(USE_DEFAULT_FORMAT::equals)) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "explicit_default_format",
-                    "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
-                    "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
+        if (context.docValuesContext().fields().stream().map(f -> f.format).anyMatch(USE_DEFAULT_FORMAT::equals)) {
+            DEPRECATION_LOGGER.critical(
+                DeprecationCategory.API,
+                "explicit_default_format",
+                "["
+                    + USE_DEFAULT_FORMAT
+                    + "] is a special format that was only used to "
+                    + "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore."
+            );
         }
 
         /*
@@ -59,10 +61,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                 continue;
             }
             String format = USE_DEFAULT_FORMAT.equals(fieldAndFormat.format) ? null : fieldAndFormat.format;
-            ValueFetcher fetcher = new DocValueFetcher(
-                ft.docValueFormat(format, null),
-                context.searchLookup().getForField(ft)
-            );
+            ValueFetcher fetcher = new DocValueFetcher(ft.docValueFormat(format, null), context.searchLookup().getForField(ft));
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
 
@@ -84,7 +83,10 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(f.field, hitField);
                     }
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup()));
+                    List<Object> ignoredValues = new ArrayList<>();
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup(), ignoredValues));
+                    // Doc value fetches should not return any ignored values
+                    assert ignoredValues.isEmpty();
                 }
             }
         };

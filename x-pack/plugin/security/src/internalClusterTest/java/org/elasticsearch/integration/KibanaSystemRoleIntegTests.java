@@ -28,43 +28,32 @@ public class KibanaSystemRoleIntegTests extends SecurityIntegTestCase {
     @Override
     public String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() +
-            "my_kibana_system:" + usersPasswdHashed;
+        return super.configUsers() + "my_kibana_system:" + usersPasswdHashed;
     }
 
     @Override
     public String configUsersRoles() {
-        return super.configUsersRoles() +
-                "kibana_system:my_kibana_system";
+        return super.configUsersRoles() + "kibana_system:my_kibana_system";
     }
 
-
     public void testCreateIndexDeleteInKibanaIndex() throws Exception {
-        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
+        final String index = randomBoolean() ? ".kibana" : ".kibana-" + randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
 
         if (randomBoolean()) {
-            CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue("my_kibana_system", USERS_PASSWD)))
-                    .admin().indices().prepareCreate(index).get();
+            CreateIndexResponse createIndexResponse = client().filterWithHeader(
+                singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("my_kibana_system", USERS_PASSWD))
+            ).admin().indices().prepareCreate(index).get();
             assertThat(createIndexResponse.isAcknowledged(), is(true));
         }
 
-        IndexResponse response = client()
-                .filterWithHeader(singletonMap("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue("my_kibana_system", USERS_PASSWD)))
-                .prepareIndex()
-                .setIndex(index)
-                .setType("dashboard")
-                .setSource("foo", "bar")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
+        IndexResponse response = client().filterWithHeader(
+            singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("my_kibana_system", USERS_PASSWD))
+        ).prepareIndex().setIndex(index).setType("dashboard").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
 
-        DeleteResponse deleteResponse = client()
-                .filterWithHeader(singletonMap("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue("my_kibana_system", USERS_PASSWD)))
-                .prepareDelete(index, "dashboard", response.getId())
-                .get();
+        DeleteResponse deleteResponse = client().filterWithHeader(
+            singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("my_kibana_system", USERS_PASSWD))
+        ).prepareDelete(index, "dashboard", response.getId()).get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }
 }

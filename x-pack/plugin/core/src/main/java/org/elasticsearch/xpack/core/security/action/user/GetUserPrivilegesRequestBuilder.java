@@ -12,8 +12,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder for checking a user's privileges
  */
-public class GetUserPrivilegesRequestBuilder
-        extends ActionRequestBuilder<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
+public class GetUserPrivilegesRequestBuilder extends ActionRequestBuilder<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
 
     public GetUserPrivilegesRequestBuilder(ElasticsearchClient client) {
         super(client, GetUserPrivilegesAction.INSTANCE, new GetUserPrivilegesRequest());

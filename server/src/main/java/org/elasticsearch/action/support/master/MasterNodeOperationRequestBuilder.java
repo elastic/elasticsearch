@@ -8,18 +8,21 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 /**
  * Base request builder for master node operations
  */
-public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNodeRequest<Request>, Response extends ActionResponse,
-        RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response> {
+public abstract class MasterNodeOperationRequestBuilder<
+    Request extends MasterNodeRequest<Request>,
+    Response extends ActionResponse,
+    RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+        Request,
+        Response> {
 
     protected MasterNodeOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

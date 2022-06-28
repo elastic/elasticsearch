@@ -14,40 +14,37 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase {
 
-    private static final String ROLES =
-                    "role_a:\n" +
-                    "  cluster: [ all ]\n" +
-                    "\n" +
-                    "role_b:\n" +
-                    "  cluster: [ monitor ]\n" +
-                    "\n" +
-                    "role_c:\n" +
-                    "  indices:\n" +
-                    "    - names: 'someindex'\n" +
-                    "      privileges: [ all ]\n" +
-                    "role_d:\n" +
-                    "  cluster: [ create_snapshot ]\n" +
-                    "\n" +
-                    "role_e:\n" +
-                    "  cluster: [ monitor_snapshot]\n";
+    private static final String ROLES = "role_a:\n"
+        + "  cluster: [ all ]\n"
+        + "\n"
+        + "role_b:\n"
+        + "  cluster: [ monitor ]\n"
+        + "\n"
+        + "role_c:\n"
+        + "  indices:\n"
+        + "    - names: 'someindex'\n"
+        + "      privileges: [ all ]\n"
+        + "role_d:\n"
+        + "  cluster: [ create_snapshot ]\n"
+        + "\n"
+        + "role_e:\n"
+        + "  cluster: [ monitor_snapshot]\n";
 
-    private static final String USERS_ROLES =
-                    "role_a:user_a\n" +
-                    "role_b:user_b\n" +
-                    "role_c:user_c\n" +
-                    "role_d:user_d\n" +
-                    "role_e:user_e\n";
+    private static final String USERS_ROLES = "role_a:user_a\n"
+        + "role_b:user_b\n"
+        + "role_c:user_c\n"
+        + "role_d:user_d\n"
+        + "role_e:user_e\n";
 
     private static Path repositoryLocation;
 
@@ -68,9 +65,7 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings())
-                .put("path.repo", repositoryLocation)
-                .build();
+        return Settings.builder().put(super.nodeSettings()).put("path.repo", repositoryLocation).build();
     }
 
     @Override
@@ -82,12 +77,22 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
     protected String configUsers() {
         final Hasher passwdHasher = getFastStoredHashAlgoForTests();
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        return super.configUsers() +
-            "user_a:" + usersPasswdHashed + "\n" +
-            "user_b:" + usersPasswdHashed + "\n" +
-            "user_c:" + usersPasswdHashed + "\n" +
-            "user_d:" + usersPasswdHashed + "\n" +
-            "user_e:" + usersPasswdHashed + "\n";
+        return super.configUsers()
+            + "user_a:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_b:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_c:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_d:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_e:"
+            + usersPasswdHashed
+            + "\n";
     }
 
     @Override
@@ -118,9 +123,17 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
         assertAccessIsAllowed("user_b", "GET", "/_nodes/stats");
         assertAccessIsAllowed("user_b", "GET", "/_nodes/hot_threads");
         assertAccessIsAllowed("user_b", "GET", "/_nodes/infos");
+        // monitoring allows template retrieval (because it's implied by having read access to cluster state
+        assertAccessIsAllowed("user_b", "GET", "/_cat/templates/" + (randomBoolean() ? "" : randomAlphaOfLengthBetween(2, 8)));
+        assertAccessIsAllowed("user_b", "GET", "/_template/");
+        assertAccessIsAllowed("user_b", "GET", "/_index_template/");
+        assertAccessIsAllowed("user_b", "GET", "/_component_template/");
         // but no admin stuff
         assertAccessIsDenied("user_b", "POST", "/_cluster/reroute");
         assertAccessIsDenied("user_b", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
+        assertAccessIsDenied("user_b", "DELETE", "/_template/" + randomAlphaOfLengthBetween(2, 8));
+        assertAccessIsDenied("user_b", "DELETE", "/_index_template/" + randomAlphaOfLengthBetween(2, 8));
+        assertAccessIsDenied("user_b", "DELETE", "/_component_template/" + randomAlphaOfLengthBetween(2, 8));
 
         // sorry user_c, you are not allowed anything
         assertAccessIsDenied("user_c", "GET", "/_cluster/state");
@@ -161,8 +174,14 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
     }
 
     public void testThatSnapshotAndRestore() throws Exception {
-        String repoJson = Strings.toString(jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",
-                repositoryLocation.toString()).endObject().endObject());
+        String repoJson = Strings.toString(
+            jsonBuilder().startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("location", repositoryLocation.toString())
+                .endObject()
+                .endObject()
+        );
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_d", "PUT", "/_snapshot/my-repo", repoJson);
@@ -234,9 +253,13 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress =
-                client().admin().cluster().state(new ClusterStateRequest()).get().getState().custom(SnapshotsInProgress.TYPE);
-            assertThat(snapshotsInProgress.entries(), Matchers.empty());
+            SnapshotsInProgress snapshotsInProgress = client().admin()
+                .cluster()
+                .state(new ClusterStateRequest())
+                .get()
+                .getState()
+                .custom(SnapshotsInProgress.TYPE);
+            assertTrue(snapshotsInProgress.isEmpty());
         });
     }
 }

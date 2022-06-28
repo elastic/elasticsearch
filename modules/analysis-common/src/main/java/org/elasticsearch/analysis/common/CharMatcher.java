@@ -57,16 +57,16 @@ public interface CharMatcher {
             @Override
             public boolean isTokenChar(int c) {
                 switch (Character.getType(c)) {
-                case Character.START_PUNCTUATION:
-                case Character.END_PUNCTUATION:
-                case Character.OTHER_PUNCTUATION:
-                case Character.CONNECTOR_PUNCTUATION:
-                case Character.DASH_PUNCTUATION:
-                case Character.INITIAL_QUOTE_PUNCTUATION:
-                case Character.FINAL_QUOTE_PUNCTUATION:
-                    return true;
-                default:
-                    return false;
+                    case Character.START_PUNCTUATION:
+                    case Character.END_PUNCTUATION:
+                    case Character.OTHER_PUNCTUATION:
+                    case Character.CONNECTOR_PUNCTUATION:
+                    case Character.DASH_PUNCTUATION:
+                    case Character.INITIAL_QUOTE_PUNCTUATION:
+                    case Character.FINAL_QUOTE_PUNCTUATION:
+                        return true;
+                    default:
+                        return false;
                 }
             }
         },
@@ -74,13 +74,13 @@ public interface CharMatcher {
             @Override
             public boolean isTokenChar(int c) {
                 switch (Character.getType(c)) {
-                case Character.CURRENCY_SYMBOL:
-                case Character.MATH_SYMBOL:
-                case Character.OTHER_SYMBOL:
-                case Character.MODIFIER_SYMBOL:
-                    return true;
-                 default:
-                     return false;
+                    case Character.CURRENCY_SYMBOL:
+                    case Character.MATH_SYMBOL:
+                    case Character.OTHER_SYMBOL:
+                    case Character.MODIFIER_SYMBOL:
+                        return true;
+                    default:
+                        return false;
                 }
             }
         }
@@ -88,36 +88,39 @@ public interface CharMatcher {
 
     final class Builder {
         private final Set<CharMatcher> matchers;
+
         Builder() {
             matchers = new HashSet<>();
         }
+
         public Builder or(CharMatcher matcher) {
             matchers.add(matcher);
             return this;
         }
+
         public CharMatcher build() {
             switch (matchers.size()) {
-            case 0:
-                return new CharMatcher() {
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        return false;
-                    }
-                };
-            case 1:
-                return matchers.iterator().next();
-            default:
-                return new CharMatcher() {
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        for (CharMatcher matcher : matchers) {
-                            if (matcher.isTokenChar(c)) {
-                                return true;
-                            }
+                case 0:
+                    return new CharMatcher() {
+                        @Override
+                        public boolean isTokenChar(int c) {
+                            return false;
                         }
-                        return false;
-                    }
-                };
+                    };
+                case 1:
+                    return matchers.iterator().next();
+                default:
+                    return new CharMatcher() {
+                        @Override
+                        public boolean isTokenChar(int c) {
+                            for (CharMatcher matcher : matchers) {
+                                if (matcher.isTokenChar(c)) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }
+                    };
             }
         }
     }

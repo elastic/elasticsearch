@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[logstash-api-put-pipeline]]
 === Create or update {ls} pipeline API
 ++++
@@ -53,7 +52,7 @@ documentation].
 
 `pipeline_metadata`::
 (Required, object)
-Optional metadata about the pipeline. May have any contents. This metadata is
+Arbitrary metadata about the pipeline. May have any contents. This metadata is
 not generated or used by {es} or {ls}.
 
 `pipeline_settings`::

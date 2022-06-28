@@ -11,12 +11,13 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,12 +39,14 @@ class FlattenedFieldParser {
     private final int ignoreAbove;
     private final String nullValue;
 
-    FlattenedFieldParser(String rootFieldName,
-                         String keyedFieldName,
-                         MappedFieldType fieldType,
-                         int depthLimit,
-                         int ignoreAbove,
-                         String nullValue) {
+    FlattenedFieldParser(
+        String rootFieldName,
+        String keyedFieldName,
+        MappedFieldType fieldType,
+        int depthLimit,
+        int ignoreAbove,
+        String nullValue
+    ) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
         this.fieldType = fieldType;
@@ -62,9 +65,7 @@ class FlattenedFieldParser {
         return fields;
     }
 
-    private void parseObject(XContentParser parser,
-                             ContentPath path,
-                             List<IndexableField> fields) throws IOException {
+    private void parseObject(XContentParser parser, ContentPath path, List<IndexableField> fields) throws IOException {
         String currentName = null;
         while (true) {
             XContentParser.Token token = parser.nextToken();
@@ -81,10 +82,7 @@ class FlattenedFieldParser {
         }
     }
 
-    private void parseArray(XContentParser parser,
-                            ContentPath path,
-                            String currentName,
-                            List<IndexableField> fields) throws IOException {
+    private void parseArray(XContentParser parser, ContentPath path, String currentName, List<IndexableField> fields) throws IOException {
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
@@ -94,11 +92,13 @@ class FlattenedFieldParser {
         }
     }
 
-    private void parseFieldValue(XContentParser.Token token,
-                                 XContentParser parser,
-                                 ContentPath path,
-                                 String currentName,
-                                 List<IndexableField> fields) throws IOException {
+    private void parseFieldValue(
+        XContentParser.Token token,
+        XContentParser parser,
+        ContentPath path,
+        String currentName,
+        List<IndexableField> fields
+    ) throws IOException {
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
             validateDepthLimit(path);
@@ -120,36 +120,53 @@ class FlattenedFieldParser {
         }
     }
 
-    private void addField(ContentPath path,
-                          String currentName,
-                          String value,
-                          List<IndexableField> fields) {
+    private void addField(ContentPath path, String currentName, String value, List<IndexableField> fields) {
         if (value.length() > ignoreAbove) {
             return;
         }
 
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
-            throw new IllegalArgumentException("Keys in [flattened] fields cannot contain the reserved character \\0."
-                + " Offending key: [" + key + "].");
+            throw new IllegalArgumentException(
+                "Keys in [flattened] fields cannot contain the reserved character \\0." + " Offending key: [" + key + "]."
+            );
         }
         String keyedValue = createKeyedValue(key, value);
-
+        BytesRef bytesKeyedValue = new BytesRef(keyedValue);
+        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
+        // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
+        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
+            String msg = "Flattened field ["
+                + rootFieldName
+                + "] contains one immense field"
+                + " whose keyed encoding is longer than the allowed max length of "
+                + IndexWriter.MAX_TERM_LENGTH
+                + " bytes. Key length: "
+                + key.length()
+                + ", value length: "
+                + value.length()
+                + " for key starting with ["
+                + key.substring(0, Math.min(key.length(), 50))
+                + "]";
+            throw new IllegalArgumentException(msg);
+        }
+        BytesRef bytesValue = new BytesRef(value);
         if (fieldType.isSearchable()) {
-            fields.add(new StringField(rootFieldName, new BytesRef(value), Field.Store.NO));
-            fields.add(new StringField(keyedFieldName, new BytesRef(keyedValue), Field.Store.NO));
+            fields.add(new StringField(rootFieldName, bytesValue, Field.Store.NO));
+            fields.add(new StringField(keyedFieldName, bytesKeyedValue, Field.Store.NO));
         }
 
         if (fieldType.hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(rootFieldName, new BytesRef(value)));
-            fields.add(new SortedSetDocValuesField(keyedFieldName, new BytesRef(keyedValue)));
+            fields.add(new SortedSetDocValuesField(rootFieldName, bytesValue));
+            fields.add(new SortedSetDocValuesField(keyedFieldName, bytesKeyedValue));
         }
     }
 
     private void validateDepthLimit(ContentPath path) {
         if (path.length() + 1 > depthLimit) {
-            throw new IllegalArgumentException("The provided [flattened] field [" + rootFieldName +"]" +
-                " exceeds the maximum depth limit of [" + depthLimit + "].");
+            throw new IllegalArgumentException(
+                "The provided [flattened] field [" + rootFieldName + "]" + " exceeds the maximum depth limit of [" + depthLimit + "]."
+            );
         }
     }
 
@@ -159,7 +176,7 @@ class FlattenedFieldParser {
 
     static BytesRef extractKey(BytesRef keyedValue) {
         int length;
-        for (length = 0; length < keyedValue.length; length++){
+        for (length = 0; length < keyedValue.length; length++) {
             if (keyedValue.bytes[keyedValue.offset + length] == SEPARATOR_BYTE) {
                 break;
             }
@@ -169,12 +186,12 @@ class FlattenedFieldParser {
 
     static BytesRef extractValue(BytesRef keyedValue) {
         int length;
-        for (length = 0; length < keyedValue.length; length++){
+        for (length = 0; length < keyedValue.length; length++) {
             if (keyedValue.bytes[keyedValue.offset + length] == SEPARATOR_BYTE) {
                 break;
             }
         }
         int valueStart = keyedValue.offset + length + 1;
-        return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - valueStart );
-    }    
+        return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - valueStart);
+    }
 }

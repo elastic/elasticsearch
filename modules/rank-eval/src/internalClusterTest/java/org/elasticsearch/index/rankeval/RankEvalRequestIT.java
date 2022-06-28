@@ -56,7 +56,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME, "1")
-                .setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
+            .setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622)
+            .get();
         client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME, "2")
             .setSource("id", 2, "text", "amsterdam", "population", 851573)
             .get();
@@ -93,26 +94,22 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
         testQuery.sort("id");
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
-                createRelevant("2", "3", "4", "5"), testQuery);
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
 
         specifications.add(amsterdamRequest);
-        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"),
-                testQuery);
+        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"), testQuery);
         berlinRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
         specifications.add(berlinRequest);
 
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
-                RankEvalAction.INSTANCE, new RankEvalRequest());
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
         String indexToUse = randomBoolean() ? TEST_INDEX : INDEX_ALIAS;
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices(indexToUse))
-                .actionGet();
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices(indexToUse)).actionGet();
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the
         // second is 1/6, divided by 2 to get the average
         double expectedPrecision = (1.0 / 6.0 + 4.0 / 6.0) / 2.0;
@@ -173,19 +170,23 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         List<RatedRequest> specifications = new ArrayList<>();
         List<RatedDocument> ratedDocs = Arrays.asList(
-                new RatedDocument(TEST_INDEX, "1", 3),
-                new RatedDocument(TEST_INDEX, "2", 2),
-                new RatedDocument(TEST_INDEX, "3", 3),
-                new RatedDocument(TEST_INDEX, "4", 0),
-                new RatedDocument(TEST_INDEX, "5", 1),
-                new RatedDocument(TEST_INDEX, "6", 2));
+            new RatedDocument(TEST_INDEX, "1", 3),
+            new RatedDocument(TEST_INDEX, "2", 2),
+            new RatedDocument(TEST_INDEX, "3", 3),
+            new RatedDocument(TEST_INDEX, "4", 0),
+            new RatedDocument(TEST_INDEX, "5", 1),
+            new RatedDocument(TEST_INDEX, "6", 2)
+        );
         specifications.add(new RatedRequest("amsterdam_query", ratedDocs, testQuery));
 
         DiscountedCumulativeGain metric = new DiscountedCumulativeGain(false, null, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
-                new RankEvalRequest(task, new String[] { TEST_INDEX }));
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(
+            client(),
+            RankEvalAction.INSTANCE,
+            new RankEvalRequest(task, new String[] { TEST_INDEX })
+        );
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getMetricScore(), 10E-14);
@@ -212,8 +213,11 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         MeanReciprocalRank metric = new MeanReciprocalRank(1, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
-                new RankEvalRequest(task, new String[] { TEST_INDEX }));
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(
+            client(),
+            RankEvalAction.INSTANCE,
+            new RankEvalRequest(task, new String[] { TEST_INDEX })
+        );
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         // the expected reciprocal rank for the amsterdam_query is 1/5
@@ -244,20 +248,21 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
         amsterdamQuery.query(new MatchAllQueryBuilder());
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
-                createRelevant("2", "3", "4", "5"), amsterdamQuery);
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", createRelevant("2", "3", "4", "5"), amsterdamQuery);
         specifications.add(amsterdamRequest);
 
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
         brokenQuery.query(QueryBuilders.termQuery("population", "noStringOnNumericFields"));
-        RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"),
-                brokenQuery);
+        RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"), brokenQuery);
         specifications.add(brokenRequest);
 
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
-                new RankEvalRequest(task, new String[] { TEST_INDEX }));
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(
+            client(),
+            RankEvalAction.INSTANCE,
+            new RankEvalRequest(task, new String[] { TEST_INDEX })
+        );
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();

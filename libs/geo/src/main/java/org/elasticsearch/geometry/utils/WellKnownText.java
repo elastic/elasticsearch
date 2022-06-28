@@ -46,8 +46,7 @@ public class WellKnownText {
     private static final String EOF = "END-OF-STREAM";
     private static final String EOL = "END-OF-LINE";
 
-    private WellKnownText() {
-    }
+    private WellKnownText() {}
 
     public static String toWKT(Geometry geometry) {
         StringBuilder builder = new StringBuilder();
@@ -270,8 +269,8 @@ public class WellKnownText {
         throw new IllegalArgumentException("Unknown geometry type: " + type);
     }
 
-    private static GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream, boolean coerce)
-        throws IOException, ParseException {
+    private static GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream, boolean coerce) throws IOException,
+        ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return GeometryCollection.EMPTY;
         }
@@ -416,8 +415,9 @@ public class WellKnownText {
     private static void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts, boolean coerce) {
         if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {
             int last = lats.size() - 1;
-            if (lats.get(0).equals(lats.get(last)) == false || lons.get(0).equals(lons.get(last)) == false ||
-                (alts.isEmpty() == false && alts.get(0).equals(alts.get(last)) == false)) {
+            if (lats.get(0).equals(lats.get(last)) == false
+                || lons.get(0).equals(lons.get(last)) == false
+                || (alts.isEmpty() == false && alts.get(0).equals(alts.get(last)) == false)) {
                 lons.add(lons.get(0));
                 lats.add(lats.get(0));
                 if (alts.isEmpty() == false) {
@@ -455,7 +455,6 @@ public class WellKnownText {
         nextCloser(stream);
         return new Rectangle(minLon, maxLon, maxLat, minLat);
     }
-
 
     private static Circle parseCircle(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
@@ -531,8 +530,7 @@ public class WellKnownText {
         if (next.equals(EMPTY) || next.equals(LPAREN)) {
             return next;
         }
-        throw new ParseException("expected " + EMPTY + " or " + LPAREN
-            + " but found: " + tokenString(stream), stream.lineno());
+        throw new ParseException("expected " + EMPTY + " or " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
     private static String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
@@ -561,8 +559,7 @@ public class WellKnownText {
         if (token.equals(COMMA) || token.equals(RPAREN)) {
             return token;
         }
-        throw new ParseException("expected " + COMMA + " or " + RPAREN
-            + " but found: " + tokenString(stream), stream.lineno());
+        throw new ParseException("expected " + COMMA + " or " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
     private static String getWKTName(Geometry geometry) {

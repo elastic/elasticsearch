@@ -11,21 +11,26 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class TimeSyncConfigTests
-        extends AbstractResponseTestCase<org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig, TimeSyncConfig> {
+public class TimeSyncConfigTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig,
+    TimeSyncConfig> {
 
     public static org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig randomTimeSyncConfig() {
-        return new org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig(randomAlphaOfLengthBetween(1, 10),
-                new TimeValue(randomNonNegativeLong()));
+        return new org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig(
+            randomAlphaOfLengthBetween(1, 10),
+            new TimeValue(randomNonNegativeLong())
+        );
     }
 
-    public static void assertHlrcEquals(org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig serverTestInstance,
-            TimeSyncConfig clientInstance) {
+    public static void assertHlrcEquals(
+        org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig serverTestInstance,
+        TimeSyncConfig clientInstance
+    ) {
         assertEquals(serverTestInstance.getField(), clientInstance.getField());
         assertEquals(serverTestInstance.getDelay(), clientInstance.getDelay());
     }
@@ -41,8 +46,10 @@ public class TimeSyncConfigTests
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig serverTestInstance,
-            TimeSyncConfig clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig serverTestInstance,
+        TimeSyncConfig clientInstance
+    ) {
         assertHlrcEquals(serverTestInstance, clientInstance);
     }
 

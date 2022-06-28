@@ -58,15 +58,19 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             assertThat(futures.get(i).get().getId(), equalTo(taskIds[i]));
         }
 
-        PersistentTasksCustomMetadata tasksInProgress = internalCluster().clusterService().state().getMetadata()
-                .custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasksInProgress = internalCluster().clusterService()
+            .state()
+            .getMetadata()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(numberOfTasks));
 
         // Make sure that at least one of the tasks is running
         assertBusy(() -> {
             // Wait for the task to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                    .getTasks().size(), greaterThan(0));
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                greaterThan(0)
+            );
         });
 
         // Restart cluster
@@ -84,19 +88,28 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         logger.info("Waiting for {} tasks to start", numberOfTasks);
         assertBusy(() -> {
             // Wait for all tasks to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                            .getTasks().size(), equalTo(numberOfTasks));
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                equalTo(numberOfTasks)
+            );
         });
 
         logger.info("Complete all tasks");
         // Complete the running task and make sure it finishes properly
-        assertThat(new TestPersistentTasksPlugin.TestTasksRequestBuilder(client()).setOperation("finish").get().getTasks().size(),
-                equalTo(numberOfTasks));
+        assertThat(
+            new TestPersistentTasksPlugin.TestTasksRequestBuilder(client()).setOperation("finish").get().getTasks().size(),
+            equalTo(numberOfTasks)
+        );
 
         assertBusy(() -> {
             // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksCustomMetadata) internalCluster().clusterService().state().getMetadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE)).tasks(), empty());
+            assertThat(
+                ((PersistentTasksCustomMetadata) internalCluster().clusterService()
+                    .state()
+                    .getMetadata()
+                    .custom(PersistentTasksCustomMetadata.TYPE)).tasks(),
+                empty()
+            );
         });
 
     }

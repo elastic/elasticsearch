@@ -8,12 +8,13 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.TrustManagerFactory;
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import javax.net.ssl.TrustManagerFactory;
 
 /**
  * Utility class for handling the standard setting keys for use in SSL configuration.
@@ -57,7 +58,7 @@ public class SslConfigurationKeys {
     public static final String TRUSTSTORE_SECURE_PASSWORD = "truststore.secure_password";
     /**
      * The password for the file configured in {@link #TRUSTSTORE_PATH}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
+     * The use of this setting {@link #isDeprecatedWarning(String) is deprecated}.
      */
     public static final String TRUSTSTORE_LEGACY_PASSWORD = "truststore.password";
     /**
@@ -82,7 +83,7 @@ public class SslConfigurationKeys {
     public static final String KEYSTORE_SECURE_PASSWORD = "keystore.secure_password";
     /**
      * The password for the file configured in {@link #KEYSTORE_PATH}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
+     * The use of this setting {@link #isDeprecatedWarning(String) is deprecated}.
      */
     public static final String KEYSTORE_LEGACY_PASSWORD = "keystore.password";
     /**
@@ -92,7 +93,7 @@ public class SslConfigurationKeys {
     public static final String KEYSTORE_SECURE_KEY_PASSWORD = "keystore.secure_key_password";
     /**
      * The password for the key within the {@link #KEYSTORE_PATH configured keystore}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
+     * The use of this setting {@link #isDeprecatedWarning(String) is deprecated}.
      * If no key password is specified, it will default to the keystore password.
      */
     public static final String KEYSTORE_LEGACY_KEY_PASSWORD = "keystore.key_password";
@@ -102,7 +103,7 @@ public class SslConfigurationKeys {
     public static final String KEYSTORE_TYPE = "keystore.type";
     /**
      * The {@link javax.net.ssl.KeyManagerFactory#getAlgorithm() key management algorithm} to use when
-     * connstructing a Key manager from a {@link #KEYSTORE_PATH keystore}.
+     * constructing a Key manager from a {@link #KEYSTORE_PATH keystore}.
      */
     public static final String KEYSTORE_ALGORITHM = "keystore.algorithm";
     // -- PEM
@@ -121,11 +122,14 @@ public class SslConfigurationKeys {
     public static final String KEY_SECURE_PASSPHRASE = "secure_key_passphrase";
     /**
      * The password to read the configured {@link #KEY}, as a non-secure setting.
-     * The use of this setting {@link #isDeprecated(String) is deprecated}.
+     * The use of this setting {@link #isDeprecatedWarning(String) is deprecated}.
      */
     public static final String KEY_LEGACY_PASSPHRASE = "key_passphrase";
 
-    private static final Set<String> DEPRECATED_KEYS = new HashSet<>(
+    /**
+     * Warning severity deprecated keys
+     */
+    private static final Set<String> DEPRECATED_WARNING_KEYS = new HashSet<>(
         Arrays.asList(TRUSTSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_KEY_PASSWORD, KEY_LEGACY_PASSPHRASE)
     );
 
@@ -138,10 +142,20 @@ public class SslConfigurationKeys {
      */
     public static List<String> getStringKeys() {
         return Arrays.asList(
-            VERIFICATION_MODE, CLIENT_AUTH,
-            TRUSTSTORE_PATH, TRUSTSTORE_LEGACY_PASSWORD, TRUSTSTORE_TYPE, TRUSTSTORE_TYPE,
-            KEYSTORE_PATH, KEYSTORE_LEGACY_PASSWORD, KEYSTORE_LEGACY_KEY_PASSWORD, KEYSTORE_TYPE, KEYSTORE_ALGORITHM,
-            CERTIFICATE, KEY, KEY_LEGACY_PASSPHRASE
+            VERIFICATION_MODE,
+            CLIENT_AUTH,
+            TRUSTSTORE_PATH,
+            TRUSTSTORE_LEGACY_PASSWORD,
+            TRUSTSTORE_TYPE,
+            TRUSTSTORE_TYPE,
+            KEYSTORE_PATH,
+            KEYSTORE_LEGACY_PASSWORD,
+            KEYSTORE_LEGACY_KEY_PASSWORD,
+            KEYSTORE_TYPE,
+            KEYSTORE_ALGORITHM,
+            CERTIFICATE,
+            KEY,
+            KEY_LEGACY_PASSPHRASE
         );
     }
 
@@ -161,10 +175,10 @@ public class SslConfigurationKeys {
     }
 
     /**
-     * @return {@code true} if the provided key is a deprecated setting
+     * @return {@code true} if the provided key is a deprecated setting at warning severity
      */
-    public static boolean isDeprecated(String key) {
-        return DEPRECATED_KEYS.contains(key);
+    public static boolean isDeprecatedWarning(String key) {
+        return DEPRECATED_WARNING_KEYS.contains(key);
     }
 
 }

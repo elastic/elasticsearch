@@ -13,10 +13,10 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ public class XContentMapValues {
         return values;
     }
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings({ "unchecked" })
     private static void extractRawValues(List<Object> values, Map<String, Object> part, String[] pathElements, int index) {
         if (index == pathElements.length) {
             return;
@@ -84,7 +84,7 @@ public class XContentMapValues {
         }
     }
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings({ "unchecked" })
     private static void extractRawValues(List<Object> values, List<Object> part, String[] pathElements, int index) {
         for (Object value : part) {
             if (value == null) {
@@ -141,16 +141,17 @@ public class XContentMapValues {
             } else if (extractedValue instanceof Map) {
                 // nested field has an object value in the _source. This just means the nested field has just one inner object,
                 // which is valid, but uncommon.
-                return Collections.singletonList((Map<?, ?>)extractedValue);
+                return Collections.singletonList((Map<?, ?>) extractedValue);
             } else {
-                throw new IllegalStateException("Cannot extract nested source from path [" + nestedPath +
-                    "]: got [" + extractedValue + "]");
+                throw new IllegalStateException(
+                    "Cannot extract nested source from path [" + nestedPath + "]: got [" + extractedValue + "]"
+                );
             }
         }
         if (nestedParsedSource == null) {
             return null;
         }
-        // In some circumstances, we can end up with arrays of arrays of nested objects.  A nested
+        // In some circumstances, we can end up with arrays of arrays of nested objects. A nested
         // source should always be a Map, so we iterate down through the arrays to pull out the
         // leaf maps
         List<Map<?, ?>> flattenedSource = new ArrayList<>();
@@ -162,8 +163,7 @@ public class XContentMapValues {
         for (Object object : source) {
             if (object instanceof Map) {
                 extracted.add((Map<?, ?>) object);
-            }
-            else if (object instanceof List) {
+            } else if (object instanceof List) {
                 extractObjects((List<?>) object, extracted);
             }
         }
@@ -189,10 +189,7 @@ public class XContentMapValues {
         return extractValue(pathElements, 0, map, nullValue);
     }
 
-    private static Object extractValue(String[] pathElements,
-                                       int index,
-                                       Object currentValue,
-                                       Object nullValue) {
+    private static Object extractValue(String[] pathElements, int index, Object currentValue, Object nullValue) {
         if (currentValue instanceof List) {
             List<?> valueList = (List<?>) currentValue;
             List<Object> newList = new ArrayList<>(valueList.size());
@@ -289,10 +286,7 @@ public class XContentMapValues {
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
 
-        return (map) -> filter(map,
-            include, 0,
-            exclude, 0,
-            matchAllAutomaton);
+        return (map) -> filter(map, include, 0, exclude, 0, matchAllAutomaton);
     }
 
     /** Make matches on objects also match dots in field names.
@@ -317,10 +311,14 @@ public class XContentMapValues {
         return state;
     }
 
-    private static Map<String, Object> filter(Map<String, ?> map,
-            CharacterRunAutomaton includeAutomaton, int initialIncludeState,
-            CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
-            CharacterRunAutomaton matchAllAutomaton) {
+    private static Map<String, Object> filter(
+        Map<String, ?> map,
+        CharacterRunAutomaton includeAutomaton,
+        int initialIncludeState,
+        CharacterRunAutomaton excludeAutomaton,
+        int initialExcludeState,
+        CharacterRunAutomaton matchAllAutomaton
+    ) {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
@@ -364,16 +362,28 @@ public class XContentMapValues {
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> valueAsMap = (Map<String, Object>) value;
-                Map<String, Object> filteredValue = filter(valueAsMap,
-                        subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
+                Map<String, Object> filteredValue = filter(
+                    valueAsMap,
+                    subIncludeAutomaton,
+                    subIncludeState,
+                    excludeAutomaton,
+                    excludeState,
+                    matchAllAutomaton
+                );
                 if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
 
             } else if (value instanceof Iterable) {
 
-                List<Object> filteredValue = filter((Iterable<?>) value,
-                        subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
+                List<Object> filteredValue = filter(
+                    (Iterable<?>) value,
+                    subIncludeAutomaton,
+                    subIncludeState,
+                    excludeAutomaton,
+                    excludeState,
+                    matchAllAutomaton
+                );
                 if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
@@ -381,8 +391,7 @@ public class XContentMapValues {
             } else {
 
                 // leaf property
-                if (includeAutomaton.isAccept(includeState)
-                        && (excludeState == -1 || excludeAutomaton.isAccept(excludeState) == false)) {
+                if (includeAutomaton.isAccept(includeState) && (excludeState == -1 || excludeAutomaton.isAccept(excludeState) == false)) {
                     filtered.put(key, value);
                 }
 
@@ -392,10 +401,14 @@ public class XContentMapValues {
         return filtered;
     }
 
-    private static List<Object> filter(Iterable<?> iterable,
-            CharacterRunAutomaton includeAutomaton, int initialIncludeState,
-            CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
-            CharacterRunAutomaton matchAllAutomaton) {
+    private static List<Object> filter(
+        Iterable<?> iterable,
+        CharacterRunAutomaton includeAutomaton,
+        int initialIncludeState,
+        CharacterRunAutomaton excludeAutomaton,
+        int initialExcludeState,
+        CharacterRunAutomaton matchAllAutomaton
+    ) {
         List<Object> filtered = new ArrayList<>();
         boolean isInclude = includeAutomaton.isAccept(initialIncludeState);
         for (Object value : iterable) {
@@ -406,14 +419,26 @@ public class XContentMapValues {
                     excludeState = excludeAutomaton.step(excludeState, '.');
                 }
                 @SuppressWarnings("unchecked")
-                Map<String, Object> filteredValue = filter((Map<String, ?>) value,
-                        includeAutomaton, includeState, excludeAutomaton, excludeState, matchAllAutomaton);
+                Map<String, Object> filteredValue = filter(
+                    (Map<String, ?>) value,
+                    includeAutomaton,
+                    includeState,
+                    excludeAutomaton,
+                    excludeState,
+                    matchAllAutomaton
+                );
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
                 }
             } else if (value instanceof Iterable) {
-                List<Object> filteredValue = filter((Iterable<?>) value,
-                        includeAutomaton, initialIncludeState, excludeAutomaton, initialExcludeState, matchAllAutomaton);
+                List<Object> filteredValue = filter(
+                    (Iterable<?>) value,
+                    includeAutomaton,
+                    initialIncludeState,
+                    excludeAutomaton,
+                    initialExcludeState,
+                    matchAllAutomaton
+                );
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
                 }

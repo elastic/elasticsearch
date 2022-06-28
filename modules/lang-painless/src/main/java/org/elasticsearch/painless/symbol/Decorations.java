@@ -80,7 +80,7 @@ public class Decorations {
 
     }
 
-    public static class TargetType implements Decoration  {
+    public static class TargetType implements Decoration {
 
         private final Class<?> targetType;
 
@@ -365,6 +365,10 @@ public class Decorations {
         }
     }
 
+    public interface DynamicInvocation extends Condition {
+
+    }
+
     public static class GetterPainlessMethod implements Decoration {
 
         private final PainlessMethod getterPainlessMethod;
@@ -414,6 +418,19 @@ public class Decorations {
 
         public LocalFunction getLocalFunction() {
             return localFunction;
+        }
+    }
+
+    public static class ThisPainlessMethod implements Decoration {
+
+        private final PainlessMethod thisPainlessMethod;
+
+        public ThisPainlessMethod(PainlessMethod thisPainlessMethod) {
+            this.thisPainlessMethod = Objects.requireNonNull(thisPainlessMethod);
+        }
+
+        public PainlessMethod getThisPainlessMethod() {
+            return thisPainlessMethod;
         }
     }
 
@@ -597,6 +614,7 @@ public class Decorations {
 
     public static class Converter implements Decoration {
         private final LocalFunction converter;
+
         public Converter(LocalFunction converter) {
             this.converter = converter;
         }

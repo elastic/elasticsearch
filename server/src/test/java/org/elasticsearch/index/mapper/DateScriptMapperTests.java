@@ -55,9 +55,7 @@ public class DateScriptMapperTests extends MapperScriptTestCase<DateFieldScript.
 
     @Override
     protected DateFieldScript.Factory errorThrowingScript() {
-        return factory(s -> {
-            throw new UnsupportedOperationException("Oops");
-        });
+        return factory(s -> { throw new UnsupportedOperationException("Oops"); });
     }
 
     @Override

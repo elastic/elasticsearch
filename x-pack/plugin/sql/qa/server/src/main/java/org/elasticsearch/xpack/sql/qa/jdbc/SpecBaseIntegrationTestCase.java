@@ -54,8 +54,8 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @Before
     public void setupTestDataIfNeeded() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/" + indexName())).getStatusLine().getStatusCode() == 404) {
-            loadDataset(client());
+        if (provisioningClient().performRequest(new Request("HEAD", "/" + indexName())).getStatusLine().getStatusCode() == 404) {
+            loadDataset(provisioningClient());
         }
     }
 
@@ -86,11 +86,15 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     public final void test() throws Throwable {
         try {
-            assumeFalse("Test marked as Ignored", testName.endsWith("-Ignore"));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled());
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
+    }
+
+    public boolean isEnabled() {
+        return testName.endsWith("-Ignore") == false;
     }
 
     /**
@@ -115,7 +119,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     // TODO: use UTC for now until deciding on a strategy for handling date extraction
     @Override
     protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
+        Properties connectionProperties = super.connectionProperties(); // sets up the credentials (if any)
         connectionProperties.setProperty(JDBC_TIMEZONE, "UTC");
         return connectionProperties;
     }

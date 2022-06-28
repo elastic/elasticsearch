@@ -41,8 +41,8 @@ public class TikaDocTests extends ESTestCase {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmp)) {
             for (Path doc : stream) {
-              logger.debug("parsing: {}", doc);
-              assertParseable(doc);
+                logger.debug("parsing: {}", doc);
+                assertParseable(doc);
             }
         }
     }

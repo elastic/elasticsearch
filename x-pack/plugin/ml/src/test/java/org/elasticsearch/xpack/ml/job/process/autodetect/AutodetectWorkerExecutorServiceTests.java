@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.isA;
 
 public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
 
@@ -39,6 +40,33 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
         expectThrows(EsRejectedExecutionException.class, () -> executor.execute(() -> {}));
     }
 
+    public void testAutodetectWorkerExecutorService_SubmitAfterShutdownWithAbstractRunnable() {
+        AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+
+        threadPool.generic().execute(() -> executor.start());
+        executor.shutdown();
+        AtomicBoolean rejected = new AtomicBoolean(false);
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void onRejection(Exception e) {
+                assertThat(e, isA(EsRejectedExecutionException.class));
+                rejected.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called after the worker is shutdown");
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                fail("doRun should not be called after the worker is shutdown");
+            }
+        });
+
+        assertTrue(rejected.get());
+    }
+
     public void testAutodetectWorkerExecutorService_TasksNotExecutedCallHandlerOnShutdown() throws Exception {
         AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
 
@@ -50,8 +78,7 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
         executor.execute(() -> {
             try {
                 latch.await();
-            } catch (InterruptedException e) {
-            }
+            } catch (InterruptedException e) {}
         });
 
         AtomicBoolean runnableShouldNotBeCalled = new AtomicBoolean(false);
@@ -59,7 +86,7 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
 
         AtomicInteger onFailureCallCount = new AtomicInteger();
         AtomicInteger doRunCallCount = new AtomicInteger();
-        for (int i=0; i<2; i++) {
+        for (int i = 0; i < 2; i++) {
             executor.execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -87,13 +114,9 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
     public void testAutodetectWorkerExecutorServiceDoesNotSwallowErrors() {
         AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
         if (randomBoolean()) {
-            executor.submit(() -> {
-                throw new Error("future error");
-            });
+            executor.submit(() -> { throw new Error("future error"); });
         } else {
-            executor.execute(() -> {
-                throw new Error("future error");
-            });
+            executor.execute(() -> { throw new Error("future error"); });
         }
         Error e = expectThrows(Error.class, () -> executor.start());
         assertThat(e.getMessage(), containsString("future error"));

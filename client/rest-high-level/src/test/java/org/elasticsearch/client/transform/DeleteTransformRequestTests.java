@@ -16,7 +16,6 @@ public class DeleteTransformRequestTests extends ESTestCase {
 
     public void testValidate() {
         assertFalse(new DeleteTransformRequest("valid-id").validate().isPresent());
-        assertThat(new DeleteTransformRequest(null).validate().get().getMessage(),
-                containsString("transform id must not be null"));
+        assertThat(new DeleteTransformRequest(null).validate().get().getMessage(), containsString("transform id must not be null"));
     }
 }

@@ -9,7 +9,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.FailedNodeException;
@@ -34,8 +34,11 @@ public class Gateway {
 
     private final int minimumMasterNodes;
 
-    public Gateway(final Settings settings, final ClusterService clusterService,
-                   final TransportNodesListGatewayMetaState listGatewayMetaState) {
+    public Gateway(
+        final Settings settings,
+        final ClusterService clusterService,
+        final TransportNodesListGatewayMetaState listGatewayMetaState
+    ) {
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
@@ -67,8 +70,8 @@ public class Gateway {
             } else if (nodeState.metadata().version() > electedGlobalState.version()) {
                 electedGlobalState = nodeState.metadata();
             }
-            for (final ObjectCursor<IndexMetadata> cursor : nodeState.metadata().indices().values()) {
-                indices.addTo(cursor.value.getIndex(), 1);
+            for (final IndexMetadata indexMetadata : nodeState.metadata().indices().values()) {
+                indices.addTo(indexMetadata.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {

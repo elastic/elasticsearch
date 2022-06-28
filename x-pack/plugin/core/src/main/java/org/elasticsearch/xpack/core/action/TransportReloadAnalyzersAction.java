@@ -43,21 +43,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 /**
  * Indices clear cache action.
  */
-public class TransportReloadAnalyzersAction
-        extends TransportBroadcastByNodeAction<ReloadAnalyzersRequest, ReloadAnalyzersResponse, ReloadResult> {
+public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeAction<
+    ReloadAnalyzersRequest,
+    ReloadAnalyzersResponse,
+    ReloadResult> {
 
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
     private final IndicesService indicesService;
 
     @Inject
-    public TransportReloadAnalyzersAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ReloadAnalyzerAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ReloadAnalyzersRequest::new, ThreadPool.Names.MANAGEMENT, false);
+    public TransportReloadAnalyzersAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ReloadAnalyzerAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            ReloadAnalyzersRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            false
+        );
         this.indicesService = indicesService;
     }
 
@@ -67,12 +81,20 @@ public class TransportReloadAnalyzersAction
     }
 
     @Override
-    protected ReloadAnalyzersResponse newResponse(ReloadAnalyzersRequest request, int totalShards, int successfulShards, int failedShards,
-            List<ReloadResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected ReloadAnalyzersResponse newResponse(
+        ReloadAnalyzersRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ReloadResult> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<String, ReloadDetails>();
         for (ReloadResult result : responses) {
             if (reloadedIndicesDetails.containsKey(result.index)) {
-                reloadedIndicesDetails.get(result.index).merge(result);;
+                reloadedIndicesDetails.get(result.index).merge(result);
+                ;
             } else {
                 HashSet<String> nodeIds = new HashSet<String>();
                 nodeIds.add(result.nodeId);
@@ -89,8 +111,12 @@ public class TransportReloadAnalyzersAction
     }
 
     @Override
-    protected void shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<ReloadResult> listener) {
+    protected void shardOperation(
+        ReloadAnalyzersRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<ReloadResult> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             logger.info("reloading analyzers for index shard " + shardRouting);
             IndexService indexService = indicesService.indexService(shardRouting.index());

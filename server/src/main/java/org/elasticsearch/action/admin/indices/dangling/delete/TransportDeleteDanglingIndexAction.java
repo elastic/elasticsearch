@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.dangling.delete;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -101,7 +102,8 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
                 clusterService.submitStateUpdateTask(
-                    taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
+                    taskSource,
+                    new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
                         @Override
                         public ClusterState execute(final ClusterState currentState) {
                             return deleteDanglingIndex(currentState, indexToDelete);
@@ -156,35 +158,35 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     }
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
-        this.nodeClient.execute(ListDanglingIndicesAction.INSTANCE, new ListDanglingIndicesRequest(indexUUID), listener.delegateFailure(
-                (l, response) -> {
-                    if (response.hasFailures()) {
-                        final String nodeIds = response.failures()
-                            .stream()
-                            .map(FailedNodeException::nodeId)
-                            .collect(Collectors.joining(","));
-                        ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
+        this.nodeClient.execute(
+            ListDanglingIndicesAction.INSTANCE,
+            new ListDanglingIndicesRequest(indexUUID),
+            listener.delegateFailure((l, response) -> {
+                if (response.hasFailures()) {
+                    final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
+                    ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
 
-                        for (FailedNodeException failure : response.failures()) {
-                            logger.error("Failed to query node [" + failure.nodeId() + "]", failure);
-                            e.addSuppressed(failure);
-                        }
-
-                        l.onFailure(e);
-                        return;
+                    for (FailedNodeException failure : response.failures()) {
+                        logger.error("Failed to query node [" + failure.nodeId() + "]", failure);
+                        e.addSuppressed(failure);
                     }
 
-                    final List<NodeListDanglingIndicesResponse> nodes = response.getNodes();
+                    l.onFailure(e);
+                    return;
+                }
 
-                    for (NodeListDanglingIndicesResponse nodeResponse : nodes) {
-                        for (DanglingIndexInfo each : nodeResponse.getDanglingIndices()) {
-                            if (each.getIndexUUID().equals(indexUUID)) {
-                                l.onResponse(new Index(each.getIndexName(), each.getIndexUUID()));
-                                return;
-                            }
+                final List<NodeListDanglingIndicesResponse> nodes = response.getNodes();
+
+                for (NodeListDanglingIndicesResponse nodeResponse : nodes) {
+                    for (DanglingIndexInfo each : nodeResponse.getDanglingIndices()) {
+                        if (each.getIndexUUID().equals(indexUUID)) {
+                            l.onResponse(new Index(each.getIndexName(), each.getIndexUUID()));
+                            return;
                         }
                     }
-                    l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
-                }));
+                }
+                l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+            })
+        );
     }
 }

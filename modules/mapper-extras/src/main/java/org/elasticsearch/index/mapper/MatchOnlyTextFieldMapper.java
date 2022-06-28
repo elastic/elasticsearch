@@ -41,7 +41,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -72,10 +72,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    private static Builder builder(FieldMapper in) {
-        return ((MatchOnlyTextFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Version indexCreatedVersion;
@@ -91,41 +87,32 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
-        }
-
-        public Builder addMultiField(FieldMapper.Builder builder) {
-            this.multiFieldsBuilder.add(builder);
-            return this;
+            this.analyzers = new TextParams.Analyzers(
+                indexAnalyzers,
+                m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
+                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap
+            );
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta);
+            return org.elasticsearch.core.List.of(meta);
         }
 
-        private MatchOnlyTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
+        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
-            TextSearchInfo tsi = new TextSearchInfo(fieldType, null, searchAnalyzer, searchQuoteAnalyzer);
-            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(buildFullName(contentPath), tsi, indexAnalyzer, meta.getValue());
+            TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
+            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(context.buildFullName(name), tsi, indexAnalyzer, meta.getValue());
             return ft;
         }
 
         @Override
-        public MatchOnlyTextFieldMapper build(ContentPath contentPath) {
-            MatchOnlyTextFieldType tft = buildFieldType(Defaults.FIELD_TYPE, contentPath);
-            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
-            return new MatchOnlyTextFieldMapper(
-                name,
-                Defaults.FIELD_TYPE,
-                tft,
-                analyzers.getIndexAnalyzer(),
-                multiFields,
-                copyTo.build(),
-                this
-            );
+        public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
+            MatchOnlyTextFieldType tft = buildFieldType(context);
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, multiFields, copyTo.build(), this);
         }
     }
 
@@ -139,19 +126,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
-            this.textFieldType = new TextFieldType(name);
-        }
-
-        public MatchOnlyTextFieldType(String name, boolean stored, Map<String, String> meta) {
-            super(
-                name,
-                true,
-                stored,
-                false,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                meta
-            );
-            this.indexAnalyzer = Lucene.STANDARD_ANALYZER;
             this.textFieldType = new TextFieldType(name);
         }
 
@@ -179,8 +153,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
-        private Function<LeafReaderContext,CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
-                SearchExecutionContext searchExecutionContext) {
+        private Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
+            SearchExecutionContext searchExecutionContext
+        ) {
             if (searchExecutionContext.isSourceEnabled() == false) {
                 throw new IllegalArgumentException(
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
@@ -193,7 +168,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return docID -> {
                     try {
                         sourceLookup.setSegmentAndDocument(context, docID);
-                        return valueFetcher.fetchValues(sourceLookup);
+                        return valueFetcher.fetchValues(sourceLookup, new ArrayList<>());
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -203,13 +178,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
             return new ConstantScoreQuery(
-                new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
+                new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer)
+            );
         }
 
         private IntervalsSource toIntervalsSource(
-                IntervalsSource source,
-                Query approximation,
-                SearchExecutionContext searchExecutionContext) {
+            IntervalsSource source,
+            Query approximation,
+            SearchExecutionContext searchExecutionContext
+        ) {
             return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
         }
 
@@ -243,10 +220,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource fuzzyIntervals(String term, int maxDistance, int prefixLength,
-                boolean transpositions, SearchExecutionContext context) {
-            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term),
-                maxDistance, prefixLength, 128, transpositions);
+        public IntervalsSource fuzzyIntervals(
+            String term,
+            int maxDistance,
+            int prefixLength,
+            boolean transpositions,
+            SearchExecutionContext context
+        ) {
+            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term), maxDistance, prefixLength, 128, transpositions);
             fuzzyQuery.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
             IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), term);
             return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);
@@ -257,7 +238,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return toIntervalsSource(
                 Intervals.wildcard(pattern),
                 new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
-                context);
+                context
+            );
         }
 
         @Override
@@ -292,28 +274,33 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    private final Builder builder;
+    private final Version indexCreatedVersion;
+    private final IndexAnalyzers indexAnalyzers;
+    private final NamedAnalyzer indexAnalyzer;
+    private final int positionIncrementGap;
     private final FieldType fieldType;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
         FieldType fieldType,
         MatchOnlyTextFieldType mappedFieldType,
-        NamedAnalyzer indexAnalyzer,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builder.analyzers.getIndexAnalyzer(), multiFields, copyTo);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
-        this.builder = builder;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
+        this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
+        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers).init(this);
     }
 
     @Override

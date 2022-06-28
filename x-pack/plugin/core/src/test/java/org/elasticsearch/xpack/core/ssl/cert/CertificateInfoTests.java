@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
-
 import java.io.IOException;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
@@ -20,9 +19,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class CertificateInfoTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final X509Certificate certificate = CertParsingUtils.
-                readX509Certificates(Collections.singletonList(getDataPath
-                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")))[0];
+        final X509Certificate certificate = CertParsingUtils.readX509Certificates(
+            Collections.singletonList(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+        )[0];
         final CertificateInfo cert1 = new CertificateInfo("/path/to/cert.jks", "jks", "key", true, certificate);
         final CertificateInfo cert2 = serializeAndDeserialize(cert1);
         final CertificateInfo cert3 = serializeAndDeserialize(cert2);

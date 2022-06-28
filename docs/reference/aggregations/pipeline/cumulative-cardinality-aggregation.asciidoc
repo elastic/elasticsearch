@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-pipeline-cumulative-cardinality-aggregation]]
 === Cumulative cardinality aggregation
 ++++

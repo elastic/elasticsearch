@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 /**
  * Removes job data that expired with respect to their retention period.
@@ -39,16 +39,16 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(float requestsPerSecond,
-                       ActionListener<Boolean> listener,
-                       Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSecond, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
         removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
     }
 
-    private void removeData(Iterator<Job> jobIterator,
-                            float requestsPerSecond,
-                            ActionListener<Boolean> listener,
-                            Supplier<Boolean> isTimedOutSupplier) {
+    private void removeData(
+        Iterator<Job> jobIterator,
+        float requestsPerSecond,
+        ActionListener<Boolean> listener,
+        BooleanSupplier isTimedOutSupplier
+    ) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
@@ -60,7 +60,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
-        if (isTimedOutSupplier.get()) {
+        if (isTimedOutSupplier.getAsBoolean()) {
             listener.onResponse(false);
             return;
         }
@@ -71,18 +71,19 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
-        calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(
-                response -> {
-                    if (response == null) {
-                        removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
-                    } else {
-                        removeDataBefore(job, requestsPerSecond, response.latestTimeMs, response.cutoffEpochMs, ActionListener.wrap(
-                                r -> removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier),
-                                listener::onFailure));
-                    }
-                },
-                listener::onFailure
-        ));
+        calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(response -> {
+            if (response == null) {
+                removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
+            } else {
+                removeDataBefore(
+                    job,
+                    requestsPerSecond,
+                    response.latestTimeMs,
+                    response.cutoffEpochMs,
+                    ActionListener.wrap(r -> removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier), listener::onFailure)
+                );
+            }
+        }, listener::onFailure));
     }
 
     abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener);
@@ -131,8 +132,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
                 return false;
             }
             CutoffDetails that = (CutoffDetails) other;
-            return this.latestTimeMs == that.latestTimeMs &&
-                this.cutoffEpochMs == that.cutoffEpochMs;
+            return this.latestTimeMs == that.latestTimeMs && this.cutoffEpochMs == that.cutoffEpochMs;
         }
     }
 }

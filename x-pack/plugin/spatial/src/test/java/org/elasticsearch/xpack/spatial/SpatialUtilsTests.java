@@ -23,14 +23,16 @@ public class SpatialUtilsTests extends ESTestCase {
         final Circle circle = randomValueOtherThanMany(
             c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) < c.getRadiusMeters()
                 || SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) < c.getRadiusMeters(),
-            () -> GeometryTestUtils.randomCircle(true));
+            () -> GeometryTestUtils.randomCircle(true)
+        );
         doRegularGeoShapePolygon(circle);
     }
 
     public void testCircleContainsNorthPole() {
         final Circle circle = randomValueOtherThanMany(
             c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) >= c.getRadiusMeters(),
-            () -> GeometryTestUtils.randomCircle(true));
+            () -> GeometryTestUtils.randomCircle(true)
+        );
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
         assertThat(ex.getMessage(), containsString("contains the north pole"));
     }
@@ -38,7 +40,8 @@ public class SpatialUtilsTests extends ESTestCase {
     public void testCircleContainsSouthPole() {
         final Circle circle = randomValueOtherThanMany(
             c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) >= c.getRadiusMeters(),
-            () -> GeometryTestUtils.randomCircle(true));
+            () -> GeometryTestUtils.randomCircle(true)
+        );
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
         assertThat(ex.getMessage(), containsString("contains the south pole"));
     }
@@ -54,9 +57,8 @@ public class SpatialUtilsTests extends ESTestCase {
         // check there are numSides edges
         assertThat(numPoints, equalTo(numSides + 1));
         // check that all the points are about a radius away from the center
-        for (int i = 0; i < numPoints ; i++) {
-            double actualDistance = SloppyMath
-                .haversinMeters(circle.getY(), circle.getX(), outerShell.getY(i), outerShell.getX(i));
+        for (int i = 0; i < numPoints; i++) {
+            double actualDistance = SloppyMath.haversinMeters(circle.getY(), circle.getX(), outerShell.getY(i), outerShell.getX(i));
             assertThat(actualDistance, closeTo(circle.getRadiusMeters(), 0.1));
         }
     }
@@ -76,7 +78,7 @@ public class SpatialUtilsTests extends ESTestCase {
         // check there are numSides edges
         assertThat(numPoints, equalTo(numSides + 1));
         // check that all the points are about a radius away from the center
-        for (int i = 0; i < numPoints ; i++) {
+        for (int i = 0; i < numPoints; i++) {
             double deltaX = circle.getX() - outerShell.getX(i);
             double deltaY = circle.getY() - outerShell.getY(i);
             double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);

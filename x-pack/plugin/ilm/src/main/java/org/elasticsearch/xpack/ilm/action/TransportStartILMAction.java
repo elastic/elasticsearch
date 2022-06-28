@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -28,20 +27,31 @@ import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 public class TransportStartILMAction extends AcknowledgedTransportMasterNodeAction<StartILMRequest> {
 
     @Inject
-    public TransportStartILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(StartILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StartILMRequest::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportStartILMAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            StartILMAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            StartILMRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
     protected void masterOperation(StartILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update", new AckedClusterStateUpdateTask(request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return (OperationModeUpdateTask.ilmMode(OperationMode.RUNNING)).execute(currentState);
-            }
-        });
+        clusterService.submitStateUpdateTask(
+            "ilm_operation_mode_update[running]",
+            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(OperationMode.RUNNING), request, listener)
+        );
     }
 
     @Override

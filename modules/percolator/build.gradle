@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -16,7 +16,6 @@ esplugin {
 
 dependencies {
   testImplementation project(':modules:parent-join')
-  testImplementation project(':modules:geo')
 }
 
 restResources {

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[set-up-lifecycle-policy]]
 == Configure a lifecycle policy [[ilm-policy-definition]]
 

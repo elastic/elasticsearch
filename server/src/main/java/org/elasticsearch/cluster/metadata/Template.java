@@ -9,23 +9,26 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -41,13 +44,26 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     private static final ParseField ALIASES = new ParseField("aliases");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>("template", false,
-        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2]));
+    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
+        "template",
+        false,
+        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-            new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))), MAPPINGS);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            XContentParser.Token token = p.currentToken();
+            if (token == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
+            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                return new CompressedXContent(p.binaryValue());
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
+            } else {
+                throw new IllegalArgumentException("Unexpected token: " + token);
+            }
+        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -140,9 +156,9 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             return false;
         }
         Template other = (Template) obj;
-        return Objects.equals(settings, other.settings) &&
-            Objects.equals(mappings, other.mappings) &&
-            Objects.equals(aliases, other.aliases);
+        return Objects.equals(settings, other.settings)
+            && mappingsEquals(this.mappings, other.mappings)
+            && Objects.equals(aliases, other.aliases);
     }
 
     @Override
@@ -159,11 +175,17 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             builder.endObject();
         }
         if (this.mappings != null) {
-            Map<String, Object> uncompressedMapping =
-                XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
-            if (uncompressedMapping.size() > 0) {
-                builder.field(MAPPINGS.getPreferredName());
-                builder.map(reduceMapping(uncompressedMapping));
+            String context = params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+            boolean binary = params.paramAsBoolean("binary", false);
+            if (Metadata.CONTEXT_MODE_API.equals(context) || binary == false) {
+                Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON)
+                    .v2();
+                if (uncompressedMapping.size() > 0) {
+                    builder.field(MAPPINGS.getPreferredName());
+                    builder.map(reduceMapping(uncompressedMapping));
+                }
+            } else {
+                builder.field(MAPPINGS.getPreferredName(), mappings.compressed());
             }
         }
         if (this.aliases != null) {
@@ -178,11 +200,33 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+    static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
         if (mapping.size() == 1 && MapperService.SINGLE_MAPPING_NAME.equals(mapping.keySet().iterator().next())) {
             return (Map<String, Object>) mapping.values().iterator().next();
         } else {
             return mapping;
         }
+    }
+
+    static boolean mappingsEquals(CompressedXContent m1, CompressedXContent m2) {
+        if (m1 == m2) {
+            return true;
+        }
+
+        if (m1 == null || m2 == null) {
+            return false;
+        }
+
+        if (m1.equals(m2)) {
+            return true;
+        }
+
+        Map<String, Object> thisUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m1.uncompressed(), true, XContentType.JSON).v2()
+        );
+        Map<String, Object> otherUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
+        );
+        return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
     }
 }

@@ -19,14 +19,19 @@ import java.util.Base64;
 public class RuntimeFieldsFeatureSetUsageTests extends ESTestCase {
 
     public void testSerializationBWC() throws IOException {
-        String stats = "DnJ1bnRpbWVfZmllbGRzAQEBBHR5cGUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+        String stats = "DnJ1bnRpbWVfZmllbGRzAQEBBHR5cGUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
         byte[] bytes = Base64.getDecoder().decode(stats);
-        RuntimeFieldsFeatureSetUsage deserialized = deserialize(bytes,
-            VersionUtils.randomVersionBetween(random(), RuntimeFieldsFeatureSetUsage.MINIMAL_SUPPORTED_VERSION, Version.V_7_12_0));
+        RuntimeFieldsFeatureSetUsage deserialized = deserialize(
+            bytes,
+            VersionUtils.randomVersionBetween(random(), RuntimeFieldsFeatureSetUsage.MINIMAL_SUPPORTED_VERSION, Version.V_7_12_0)
+        );
 
-        Version version = VersionUtils.randomVersionBetween(random(),
-            RuntimeFieldsFeatureSetUsage.MINIMAL_SUPPORTED_VERSION, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(
+            random(),
+            RuntimeFieldsFeatureSetUsage.MINIMAL_SUPPORTED_VERSION,
+            Version.CURRENT
+        );
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
         deserialized.writeTo(out);

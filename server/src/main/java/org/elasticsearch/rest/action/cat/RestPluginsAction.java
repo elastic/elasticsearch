@@ -18,7 +18,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -60,8 +60,7 @@ public class RestPluginsAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) throws Exception {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear()
-                    .addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
+                nodesInfoRequest.clear().addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final NodesInfoResponse nodesInfoResponse) throws Exception {
@@ -102,17 +101,17 @@ public class RestPluginsAction extends AbstractCatAction {
             if (plugins == null) {
                 continue;
             }
-            for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
-                if (pluginInfo.getType() == PluginType.BOOTSTRAP && includeBootstrapPlugins == false) {
+            for (PluginDescriptor pluginDescriptor : plugins.getPluginInfos()) {
+                if (pluginDescriptor.getType() == PluginType.BOOTSTRAP && includeBootstrapPlugins == false) {
                     continue;
                 }
                 table.startRow();
                 table.addCell(node.getId());
                 table.addCell(node.getName());
-                table.addCell(pluginInfo.getName());
-                table.addCell(pluginInfo.getVersion());
-                table.addCell(pluginInfo.getDescription());
-                table.addCell(pluginInfo.getType().toString().toLowerCase(Locale.ROOT));
+                table.addCell(pluginDescriptor.getName());
+                table.addCell(pluginDescriptor.getVersion());
+                table.addCell(pluginDescriptor.getDescription());
+                table.addCell(pluginDescriptor.getType().toString().toLowerCase(Locale.ROOT));
                 table.endRow();
             }
         }

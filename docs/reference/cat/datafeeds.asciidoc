@@ -1,10 +1,16 @@
 [role="xpack"]
-[testenv="platinum"]
 [[cat-datafeeds]]
 === cat {dfeeds} API
 ++++
 <titleabbrev>cat {dfeeds}</titleabbrev>
 ++++
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<ml-get-datafeed-stats,get datafeed statistics API>>.
+====
 
 Returns configuration and usage information about {dfeeds}.
 
@@ -29,7 +35,7 @@ Returns configuration and usage information about {dfeeds}.
 {dfeeds-cap} retrieve data from {es} for analysis by {anomaly-jobs}. For more 
 information, see {ml-docs}/ml-dfeeds.html[{dfeeds-cap}].
 
-NOTE: This API returns a maximum of 10,000 jobs.
+NOTE: This API returns a maximum of 10,000 {dfeeds}.
 
 [[cat-datafeeds-path-params]]
 ==== {api-path-parms-title}
@@ -41,9 +47,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 [[cat-datafeeds-query-params]]
 ==== {api-query-parms-title}
 
+`allow_no_datafeeds`::
+(Optional, Boolean) deprecated:[7.10,Use `allow_no_match` instead.]
+
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-datafeeds]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 

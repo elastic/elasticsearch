@@ -8,7 +8,7 @@
  - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - match:   { _version: 1 }
@@ -16,6 +16,6 @@
  - do:
       delete:
           index:  test_1
-          id:     1
+          id:     "1"
 
  - match:   { _version: 2 }

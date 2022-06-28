@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.client;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @deprecated {@link TransportClient} is deprecated in favour of the high-level REST client and will be removed in Elasticsearch 8.0
  */
-@SuppressWarnings({"unchecked","varargs"})
+@SuppressWarnings({ "unchecked", "varargs" })
 @Deprecated
 public class PreBuiltXPackTransportClient extends PreBuiltTransportClient {
 
@@ -43,8 +44,11 @@ public class PreBuiltXPackTransportClient extends PreBuiltTransportClient {
         this(settings, plugins, null);
     }
 
-    public PreBuiltXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins,
-                                        HostFailureListener hostFailureListener) {
+    public PreBuiltXPackTransportClient(
+        Settings settings,
+        Collection<Class<? extends Plugin>> plugins,
+        HostFailureListener hostFailureListener
+    ) {
         super(settings, addPlugins(plugins, Collections.singletonList(XPackClientPlugin.class)), hostFailureListener);
     }
 

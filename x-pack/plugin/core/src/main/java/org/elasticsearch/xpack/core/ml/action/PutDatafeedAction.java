@@ -16,9 +16,9 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
@@ -50,8 +50,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
             this.datafeed = datafeed;
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -111,7 +110,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
+                // the acknowledged flag was removed
                 in.readBoolean();
             }
             datafeed = new DatafeedConfig(in);
@@ -124,7 +123,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
+                // the acknowledged flag is no longer supported
                 out.writeBoolean(true);
             }
             datafeed.writeTo(out);

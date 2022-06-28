@@ -21,12 +21,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
@@ -85,8 +85,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
-                new ShardId(new Index("foo", "_na_"), 1));
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(directory),
+            new ShardId(new Index("foo", "_na_"), 1)
+        );
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
@@ -109,20 +111,23 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         // verify for each children
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId("child0_" + parent)),
-                indexSearcher, aggregation -> {
-                assertEquals("Expected one result for min-aggregation for parent: " + parent +
-                        ", but had aggregation-results: " + aggregation,
-                    1, aggregation.getDocCount());
-                assertEquals(expectedParentChildRelations.get(parent).v2(),
-                        ((InternalMin) aggregation.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId("child0_" + parent)), indexSearcher, aggregation -> {
+                assertEquals(
+                    "Expected one result for min-aggregation for parent: " + parent + ", but had aggregation-results: " + aggregation,
+                    1,
+                    aggregation.getDocCount()
+                );
+                assertEquals(
+                    expectedParentChildRelations.get(parent).v2(),
+                    ((InternalMin) aggregation.getAggregations().get("in_parent")).getValue(),
+                    Double.MIN_VALUE
+                );
             });
         }
 
         indexReader.close();
         directory.close();
     }
-
 
     public void testParentChildTerms() throws IOException {
         Directory directory = newDirectory();
@@ -134,13 +139,13 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         SortedMap<Integer, Long> entries = new TreeMap<>();
         for (Tuple<Integer, Integer> value : expectedParentChildRelations.values()) {
             Long l = entries.computeIfAbsent(value.v2(), integer -> 0L);
-            entries.put(value.v2(), l+1);
+            entries.put(value.v2(), l + 1);
         }
         List<Map.Entry<Integer, Long>> sortedValues = new ArrayList<>(entries.entrySet());
         sortedValues.sort((o1, o2) -> {
             // sort larger values first
             int ret = o2.getValue().compareTo(o1.getValue());
-            if(ret != 0) {
+            if (ret != 0) {
                 return ret;
             }
 
@@ -148,8 +153,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             return o1.getKey().compareTo(o2.getKey());
         });
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
-            new ShardId(new Index("foo", "_na_"), 1));
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(directory),
+            new ShardId(new Index("foo", "_na_"), 1)
+        );
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
@@ -167,7 +174,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             for (Map.Entry<Integer, Long> entry : sortedValues) {
                 LongTerms.Bucket bucket = valueTermsBuckets.get(i);
                 assertEquals(entry.getKey().longValue(), bucket.getKeyAsNumber());
-                assertEquals(entry.getValue(), (Long)bucket.getDocCount());
+                assertEquals(entry.getValue(), (Long) bucket.getDocCount());
 
                 i++;
             }
@@ -187,11 +194,13 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         SortedMap<Integer, Long> sortedValues = new TreeMap<>();
         for (Tuple<Integer, Integer> value : expectedParentChildRelations.values()) {
             Long l = sortedValues.computeIfAbsent(value.v2(), integer -> 0L);
-            sortedValues.put(value.v2(), l+1);
+            sortedValues.put(value.v2(), l + 1);
         }
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
-            new ShardId(new Index("foo", "_na_"), 1));
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(directory),
+            new ShardId(new Index("foo", "_na_"), 1)
+        );
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
@@ -233,18 +242,18 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
     private static List<Field> createParentDocument(String id, int value) {
         return Arrays.asList(
-                new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
-                new StringField("join_field", PARENT_TYPE, Field.Store.NO),
-                createJoinField(PARENT_TYPE, id),
-                new SortedNumericDocValuesField("number", value)
+            new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
+            new StringField("join_field", PARENT_TYPE, Field.Store.NO),
+            createJoinField(PARENT_TYPE, id),
+            new SortedNumericDocValuesField("number", value)
         );
     }
 
     private static List<Field> createChildDocument(String childId, String parentId, int value) {
         return Arrays.asList(
-                new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
-                new StringField("join_field", CHILD_TYPE, Field.Store.NO),
-                createJoinField(PARENT_TYPE, parentId),
+            new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
+            new StringField("join_field", CHILD_TYPE, Field.Store.NO),
+            createJoinField(PARENT_TYPE, parentId),
             new SortedNumericDocValuesField("subNumber", value)
         );
     }
@@ -253,8 +262,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
-    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify)
-            throws IOException {
+    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify) throws IOException {
 
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
@@ -264,8 +272,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         verify.accept(result);
     }
 
-    private void testCaseTerms(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify)
-            throws IOException {
+    private void testCaseTerms(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify) throws IOException {
 
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").field("number"));
@@ -276,12 +283,13 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
     }
 
     // run a terms aggregation on the number in child-documents, then a parent aggregation and then terms on the parent-number
-    private void testCaseTermsParentTerms(Query query, IndexSearcher indexSearcher, Consumer<LongTerms> verify)
-            throws IOException {
-        AggregationBuilder aggregationBuilder =
-            new TermsAggregationBuilder("subvalue_terms").field("subNumber").
-                subAggregation(new ParentAggregationBuilder("to_parent", CHILD_TYPE).
-                    subAggregation(new TermsAggregationBuilder("value_terms").field("number")));
+    private void testCaseTermsParentTerms(Query query, IndexSearcher indexSearcher, Consumer<LongTerms> verify) throws IOException {
+        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("subvalue_terms").field("subNumber")
+            .subAggregation(
+                new ParentAggregationBuilder("to_parent", CHILD_TYPE).subAggregation(
+                    new TermsAggregationBuilder("value_terms").field("number")
+                )
+            );
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
@@ -294,14 +302,13 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new ParentJoinPlugin());
     }
 
-
     static MappedFieldType[] withJoinFields(MappedFieldType... fieldTypes) {
         MappedFieldType[] result = new MappedFieldType[fieldTypes.length + 2];
         System.arraycopy(fieldTypes, 0, result, 0, fieldTypes.length);
 
         int i = fieldTypes.length;
         result[i++] = new ParentJoinFieldMapper.Builder("join_field").addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-            .build(new ContentPath(0))
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         result[i++] = new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false);
         assert i == result.length;

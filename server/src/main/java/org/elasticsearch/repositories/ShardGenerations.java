@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
@@ -23,6 +24,9 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Represents the current {@link ShardGeneration} for each shard in a repository.
+ */
 public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
@@ -31,17 +35,20 @@ public final class ShardGenerations {
      * Special generation that signifies that a shard is new and the repository does not yet contain a valid
      * {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for it.
      */
-    public static final String NEW_SHARD_GEN = "_new";
+    public static final ShardGeneration NEW_SHARD_GEN = new ShardGeneration("_new");
 
     /**
      * Special generation that signifies that the shard has been deleted from the repository.
      * This generation is only used during computations. It should never be written to disk.
      */
-    public static final String DELETED_SHARD_GEN = "_deleted";
+    public static final ShardGeneration DELETED_SHARD_GEN = new ShardGeneration("_deleted");
 
-    private final Map<IndexId, List<String>> shardGenerations;
+    /**
+     * For each index, the list of shard generations for its shards (i.e. the generation for shard i is at the i'th position of the list)
+     */
+    private final Map<IndexId, List<ShardGeneration>> shardGenerations;
 
-    private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
+    private ShardGenerations(Map<IndexId, List<ShardGeneration>> shardGenerations) {
         this.shardGenerations = org.elasticsearch.core.Map.copyOf(shardGenerations);
     }
 
@@ -56,11 +63,11 @@ public final class ShardGenerations {
      * @return given shard generation or {@code null} if it was filtered out or {@code null} was passed
      */
     @Nullable
-    public static String fixShardGeneration(@Nullable String shardGeneration) {
+    public static ShardGeneration fixShardGeneration(@Nullable ShardGeneration shardGeneration) {
         if (shardGeneration == null) {
             return null;
         }
-        return IS_NUMBER.matcher(shardGeneration).matches() ? null : shardGeneration;
+        return IS_NUMBER.matcher(shardGeneration.toString()).matches() ? null : shardGeneration;
     }
 
     /**
@@ -87,16 +94,16 @@ public final class ShardGenerations {
      * @param previous Previous {@code ShardGenerations}
      * @return Map of obsolete shard index generations in indices that are still tracked by this instance
      */
-    public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(ShardGenerations previous) {
-        final Map<IndexId, Map<Integer, String>> result = new HashMap<>();
+    public Map<IndexId, Map<Integer, ShardGeneration>> obsoleteShardGenerations(ShardGenerations previous) {
+        final Map<IndexId, Map<Integer, ShardGeneration>> result = new HashMap<>();
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
-            final List<String> updatedGenerations = shardGenerations.get(indexId);
-            final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
+            final List<ShardGeneration> updatedGenerations = shardGenerations.get(indexId);
+            final Map<Integer, ShardGeneration> obsoleteShardIndices = new HashMap<>();
             assert updatedGenerations != null
                 : "Index [" + indexId + "] present in previous shard generations, but missing from updated generations";
             for (int i = 0; i < Math.min(oldGens.size(), updatedGenerations.size()); i++) {
-                final String oldGeneration = oldGens.get(i);
-                final String updatedGeneration = updatedGenerations.get(i);
+                final ShardGeneration oldGeneration = oldGens.get(i);
+                final ShardGeneration updatedGeneration = updatedGenerations.get(i);
                 // If we had a previous generation that is different from an updated generation it's obsolete
                 // Since this method assumes only additions and no removals of shards, a null updated generation means no update
                 if (updatedGeneration != null && oldGeneration != null && oldGeneration.equals(updatedGeneration) == false) {
@@ -126,15 +133,15 @@ public final class ShardGenerations {
      * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
      */
     @Nullable
-    public String getShardGen(IndexId indexId, int shardId) {
-        final List<String> generations = shardGenerations.get(indexId);
+    public ShardGeneration getShardGen(IndexId indexId, int shardId) {
+        final List<ShardGeneration> generations = shardGenerations.get(indexId);
         if (generations == null || generations.size() < shardId + 1) {
             return null;
         }
         return generations.get(shardId);
     }
 
-    public List<String> getGens(IndexId indexId) {
+    public List<ShardGeneration> getGens(IndexId indexId) {
         return shardGenerations.getOrDefault(indexId, Collections.emptyList());
     }
 
@@ -166,7 +173,7 @@ public final class ShardGenerations {
 
     public static final class Builder {
 
-        private final Map<IndexId, Map<Integer, String>> generations = new HashMap<>();
+        private final Map<IndexId, Map<Integer, ShardGeneration>> generations = new HashMap<>();
 
         /**
          * Filters out all generations that don't belong to any of the supplied {@code indices} and prunes all {@link #DELETED_SHARD_GEN}
@@ -178,11 +185,11 @@ public final class ShardGenerations {
         public Builder retainIndicesAndPruneDeletes(Set<IndexId> indices) {
             generations.keySet().retainAll(indices);
             for (IndexId index : indices) {
-                final Map<Integer, String> shards = generations.getOrDefault(index, Collections.emptyMap());
-                final Iterator<Map.Entry<Integer, String>> iterator = shards.entrySet().iterator();
+                final Map<Integer, ShardGeneration> shards = generations.getOrDefault(index, Collections.emptyMap());
+                final Iterator<Map.Entry<Integer, ShardGeneration>> iterator = shards.entrySet().iterator();
                 while (iterator.hasNext()) {
-                    Map.Entry<Integer, String> entry = iterator.next();
-                    final String generation = entry.getValue();
+                    Map.Entry<Integer, ShardGeneration> entry = iterator.next();
+                    final ShardGeneration generation = entry.getValue();
                     if (generation.equals(DELETED_SHARD_GEN)) {
                         iterator.remove();
                     }
@@ -197,7 +204,7 @@ public final class ShardGenerations {
         public Builder putAll(ShardGenerations shardGenerations) {
             shardGenerations.shardGenerations.forEach((indexId, gens) -> {
                 for (int i = 0; i < gens.size(); i++) {
-                    final String gen = gens.get(i);
+                    final ShardGeneration gen = gens.get(i);
                     if (gen != null) {
                         put(indexId, i, gen);
                     }
@@ -206,8 +213,13 @@ public final class ShardGenerations {
             return this;
         }
 
-        public Builder put(IndexId indexId, int shardId, String generation) {
-            String existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+        public Builder put(IndexId indexId, int shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
+            // only track generations for successful shard status values
+            return put(indexId, shardId, status.state().failed() ? null : status.generation());
+        }
+
+        public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {
+            ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
             return this;
@@ -220,7 +232,7 @@ public final class ShardGenerations {
                 final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
                 // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
                 // a map entry.
-                final String[] gens = new String[size];
+                final ShardGeneration[] gens = new ShardGeneration[size];
                 entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
                 return Collections.unmodifiableList(Arrays.asList(gens));
             })));

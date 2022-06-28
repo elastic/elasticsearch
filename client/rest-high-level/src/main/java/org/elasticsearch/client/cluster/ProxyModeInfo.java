@@ -60,10 +60,10 @@ public class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ProxyModeInfo otherProxy = (ProxyModeInfo) o;
-        return maxSocketConnections == otherProxy.maxSocketConnections &&
-                numSocketsConnected == otherProxy.numSocketsConnected &&
-                Objects.equals(address, otherProxy.address) &&
-                Objects.equals(serverName, otherProxy.serverName);
+        return maxSocketConnections == otherProxy.maxSocketConnections
+            && numSocketsConnected == otherProxy.numSocketsConnected
+            && Objects.equals(address, otherProxy.address)
+            && Objects.equals(serverName, otherProxy.serverName);
     }
 
     @Override

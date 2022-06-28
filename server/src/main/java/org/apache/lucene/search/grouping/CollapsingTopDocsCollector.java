@@ -141,13 +141,14 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * @param topN              How many top groups to keep.
      * @param after             The field values to search after. Can be null.
      */
-    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField,
-                                                              MappedFieldType collapseFieldType,
-                                                              Sort sort,
-                                                              int topN,
-                                                              @Nullable FieldDoc after)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType),
-                collapseField, sort, topN, after);
+    public static CollapsingTopDocsCollector<?> createNumeric(
+        String collapseField,
+        MappedFieldType collapseFieldType,
+        Sort sort,
+        int topN,
+        @Nullable FieldDoc after
+    ) {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType), collapseField, sort, topN, after);
     }
 
     /**
@@ -164,12 +165,13 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * @param topN              How many top groups to keep.
      * @param after             The field values to search after. Can be null.
      */
-    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField,
-                                                              MappedFieldType collapseFieldType,
-                                                              Sort sort,
-                                                              int topN,
-                                                              @Nullable FieldDoc after)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType),
-                collapseField, sort, topN, after);
+    public static CollapsingTopDocsCollector<?> createKeyword(
+        String collapseField,
+        MappedFieldType collapseFieldType,
+        Sort sort,
+        int topN,
+        @Nullable FieldDoc after
+    ) {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN, after);
     }
 }

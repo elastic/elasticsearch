@@ -18,7 +18,7 @@ public class IndexShardNotRecoveringException extends IllegalIndexShardStateExce
         super(shardId, currentState, "Shard not in recovering state");
     }
 
-    public IndexShardNotRecoveringException(StreamInput in) throws IOException{
+    public IndexShardNotRecoveringException(StreamInput in) throws IOException {
         super(in);
     }
 }

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -16,7 +16,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.CLI;
 
 final class JdbcTestUtils {
 
@@ -124,7 +124,7 @@ final class JdbcTestUtils {
             data.add(entry);
         }
 
-        BasicFormatter formatter = new BasicFormatter(cols, data, CLI);
+        SimpleFormatter formatter = new SimpleFormatter(cols, data, CLI);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
 }

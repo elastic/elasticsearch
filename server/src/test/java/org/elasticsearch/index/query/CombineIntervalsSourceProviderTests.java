@@ -10,9 +10,9 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,9 +34,9 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         switch (between(0, 3)) {
             case 0:
-                subSources = subSources == null ?
-                    IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) :
-                    null;
+                subSources = subSources == null
+                    ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
+                    : null;
                 break;
             case 1:
                 ordered = ordered == false;
@@ -45,9 +45,9 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
                 maxGaps++;
                 break;
             case 3:
-                filter = filter == null ?
-                    IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                    FilterIntervalsSourceProviderTests.mutateFilter(filter);
+                filter = filter == null
+                    ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                    : FilterIntervalsSourceProviderTests.mutateFilter(filter);
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

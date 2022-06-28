@@ -34,9 +34,7 @@ public class CcrClient {
         this.client = Objects.requireNonNull(client, "client");
     }
 
-    public void putFollow(
-            final PutFollowAction.Request request,
-            final ActionListener<PutFollowAction.Response> listener) {
+    public void putFollow(final PutFollowAction.Request request, final ActionListener<PutFollowAction.Response> listener) {
         client.execute(PutFollowAction.INSTANCE, request, listener);
     }
 
@@ -56,9 +54,7 @@ public class CcrClient {
         return listener;
     }
 
-    public void followStats(
-            final FollowStatsAction.StatsRequest request,
-            final ActionListener<FollowStatsAction.StatsResponses> listener) {
+    public void followStats(final FollowStatsAction.StatsRequest request, final ActionListener<FollowStatsAction.StatsResponses> listener) {
         client.execute(FollowStatsAction.INSTANCE, request, listener);
     }
 
@@ -68,8 +64,7 @@ public class CcrClient {
         return listener;
     }
 
-    public void stats(final CcrStatsAction.Request request,
-                      final ActionListener<CcrStatsAction.Response> listener) {
+    public void stats(final CcrStatsAction.Request request, final ActionListener<CcrStatsAction.Response> listener) {
         client.execute(CcrStatsAction.INSTANCE, request, listener);
     }
 
@@ -110,8 +105,9 @@ public class CcrClient {
     }
 
     public void putAutoFollowPattern(
-            final PutAutoFollowPatternAction.Request request,
-            final ActionListener<AcknowledgedResponse> listener) {
+        final PutAutoFollowPatternAction.Request request,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         client.execute(PutAutoFollowPatternAction.INSTANCE, request, listener);
     }
 
@@ -122,8 +118,9 @@ public class CcrClient {
     }
 
     public void deleteAutoFollowPattern(
-            final DeleteAutoFollowPatternAction.Request request,
-            final ActionListener<AcknowledgedResponse> listener) {
+        final DeleteAutoFollowPatternAction.Request request,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         client.execute(DeleteAutoFollowPatternAction.INSTANCE, request, listener);
     }
 
@@ -135,7 +132,8 @@ public class CcrClient {
 
     public void getAutoFollowPattern(
         final GetAutoFollowPatternAction.Request request,
-        final ActionListener<GetAutoFollowPatternAction.Response> listener) {
+        final ActionListener<GetAutoFollowPatternAction.Response> listener
+    ) {
         client.execute(GetAutoFollowPatternAction.INSTANCE, request, listener);
     }
 

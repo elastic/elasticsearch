@@ -68,6 +68,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -317,13 +318,39 @@ public class RestoreService implements ClusterStateApplier {
             Collections.addAll(requestIndices, indicesInRequest);
         }
 
+        // Determine system indices to restore from requested feature states
+        final Map<String, List<String>> featureStatesToRestore = getFeatureStatesToRestore(request, snapshotInfo, snapshot);
+        final Set<String> featureStateIndices = featureStatesToRestore.values()
+            .stream()
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
+
+        final Set<String> featureStateDataStreams = featureStatesToRestore.keySet().stream().filter(featureName -> {
+            if (systemIndices.getFeatureNames().contains(featureName)) {
+                return true;
+            }
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Restoring snapshot[{}] skipping feature [{}] because it is not available in this cluster",
+                    snapshotInfo.snapshotId(),
+                    featureName
+                )
+            );
+            return false;
+        })
+            .map(systemIndices::getFeature)
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .collect(Collectors.toSet());
+
         // Get data stream metadata for requested data streams
         Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result = getDataStreamsToRestore(
             repository,
             snapshotId,
             snapshotInfo,
             globalMetadata,
-            requestIndices,
+            // include system data stream names in argument to this method
+            Stream.concat(requestIndices.stream(), featureStateDataStreams.stream()).collect(Collectors.toList()),
             request.includeAliases()
         );
         Map<String, DataStream> dataStreamsToRestore = result.v1();
@@ -339,13 +366,6 @@ public class RestoreService implements ClusterStateApplier {
             .map(Index::getName)
             .collect(Collectors.toSet());
         requestIndices.addAll(dataStreamIndices);
-
-        // Determine system indices to restore from requested feature states
-        final Map<String, List<String>> featureStatesToRestore = getFeatureStatesToRestore(request, snapshotInfo, snapshot);
-        final Set<String> featureStateIndices = featureStatesToRestore.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet());
 
         // Resolve the indices that were directly requested
         final List<String> requestedIndicesInSnapshot = filterIndices(
@@ -374,7 +394,7 @@ public class RestoreService implements ClusterStateApplier {
         // log a deprecation warning if the any of the indexes to delete were included in the request and the snapshot
         // is from a version that should have feature states
         if (snapshotInfo.version().onOrAfter(FEATURE_STATES_VERSION) && explicitlyRequestedSystemIndices.isEmpty() == false) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.API,
                 "restore-system-index-from-snapshot",
                 "Restoring system indices by name is deprecated. Use feature states instead. System indices: "
@@ -564,7 +584,7 @@ public class RestoreService implements ClusterStateApplier {
 
         final List<String> featuresNotOnThisNode = featureStatesToRestore.keySet()
             .stream()
-            .filter(featureName -> systemIndices.getFeatures().containsKey(featureName) == false)
+            .filter(s -> systemIndices.getFeatureNames().contains(s) == false)
             .collect(Collectors.toList());
         if (featuresNotOnThisNode.isEmpty() == false) {
             throw new SnapshotRestoreException(
@@ -593,7 +613,7 @@ public class RestoreService implements ClusterStateApplier {
 
         return Collections.unmodifiableSet(
             featureStatesToRestore.stream()
-                .map(featureName -> systemIndices.getFeatures().get(featureName))
+                .map(systemIndices::getFeature)
                 .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
                 .flatMap(feature -> feature.getIndexDescriptors().stream())
                 .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
@@ -803,11 +823,11 @@ public class RestoreService implements ClusterStateApplier {
         ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards
     ) {
         boolean hasFailed = false;
-        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
-            if (status.value.state().completed() == false) {
+        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
+            if (status.state().completed() == false) {
                 return nonCompletedState;
             }
-            if (status.value.state() == RestoreInProgress.State.FAILURE) {
+            if (status.state() == RestoreInProgress.State.FAILURE) {
                 hasFailed = true;
             }
         }
@@ -819,8 +839,8 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     public static boolean completed(ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
-        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
-            if (status.value.state().completed() == false) {
+        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
+            if (status.state().completed() == false) {
                 return false;
             }
         }
@@ -829,8 +849,8 @@ public class RestoreService implements ClusterStateApplier {
 
     public static int failedShards(ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
         int failedShards = 0;
-        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
-            if (status.value.state() == RestoreInProgress.State.FAILURE) {
+        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
+            if (status.state() == RestoreInProgress.State.FAILURE) {
                 failedShards++;
             }
         }
@@ -1233,8 +1253,8 @@ public class RestoreService implements ClusterStateApplier {
                             indexMdBuilder.removeAllAliases();
                         }
                         // Add existing aliases
-                        for (ObjectCursor<AliasMetadata> alias : currentIndexMetadata.getAliases().values()) {
-                            indexMdBuilder.putAlias(alias.value);
+                        for (AliasMetadata alias : currentIndexMetadata.getAliases().values()) {
+                            indexMdBuilder.putAlias(alias);
                         }
                     } else {
                         ensureNoAliasNameConflicts(snapshotIndexMetadata);
@@ -1364,8 +1384,8 @@ public class RestoreService implements ClusterStateApplier {
             }
             if (metadata.templates() != null) {
                 // TODO: Should all existing templates be deleted first?
-                for (ObjectCursor<IndexTemplateMetadata> cursor : metadata.templates().values()) {
-                    mdBuilder.put(cursor.value);
+                for (IndexTemplateMetadata cursor : metadata.templates().values()) {
+                    mdBuilder.put(cursor);
                 }
             }
             if (metadata.customs() != null) {
@@ -1516,7 +1536,7 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private void ensureValidIndexName(ClusterState currentState, IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
-        final boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(snapshotIndexMetadata.getSettings());
+        final boolean isHidden = snapshotIndexMetadata.isHidden();
         createIndexService.validateIndexName(renamedIndexName, currentState);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);

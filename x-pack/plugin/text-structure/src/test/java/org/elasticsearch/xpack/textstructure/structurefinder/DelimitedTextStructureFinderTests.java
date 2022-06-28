@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.supercsv.prefs.CsvPreference;
@@ -15,8 +16,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -27,7 +30,9 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
@@ -985,11 +990,14 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
                 explanation,
                 columnNames,
                 1,
+                ',',
                 ",",
                 "\"",
                 mappings,
+                Collections.emptyList(),
                 timeFieldName,
-                timeFieldFormat
+                timeFieldFormat,
+                NOOP_TIMEOUT_CHECKER
             )
         );
         assertThat(explanation, contains("Not creating a multi-line start pattern as no sampled message spanned multiple lines"));
@@ -1003,16 +1011,19 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         TimestampFormatFinder timeFieldFormat = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
         timeFieldFormat.addSample("2020-01-30T15:05:09");
         Map<String, Object> mappings = new TreeMap<>();
+        Map<String, Object> sampleRecord = new HashMap<>();
         for (String columnName : columnNames) {
             if (columnName.equals(timeFieldName)) {
                 mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "date"));
+                sampleRecord.put(columnName, "2020-01-30T15:05:09");
             } else {
-                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text"));
+                sampleRecord.put(columnName, randomAlphaOfLength(10));
             }
         }
 
         String expected = "^"
-            + Stream.generate(() -> ".*?,").limit(timeFieldColumnIndex).collect(Collectors.joining())
+            + Stream.generate(() -> "[^,]*?,").limit(timeFieldColumnIndex).collect(Collectors.joining())
             + "\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}";
         assertEquals(
             expected,
@@ -1020,11 +1031,14 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
                 explanation,
                 columnNames,
                 2,
+                ',',
                 ",",
                 "\"",
                 mappings,
+                Collections.singletonList(sampleRecord),
                 timeFieldName,
-                timeFieldFormat
+                timeFieldFormat,
+                NOOP_TIMEOUT_CHECKER
             )
         );
         assertThat(explanation, contains("Created a multi-line start pattern based on timestamp column [" + timeFieldName + "]"));
@@ -1038,20 +1052,24 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             "(?:true|false)",
             "[+-]?\\d+",
             "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?" }[randomIndex];
+        String sampleValue = new String[] { "true", "42", "3.1415927" }[randomIndex];
         List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
         int chosenFieldColumnIndex = randomIntBetween(0, columnNames.size() - 2);
         String chosenField = columnNames.get(chosenFieldColumnIndex);
         Map<String, Object> mappings = new TreeMap<>();
+        Map<String, Object> sampleRecord = new HashMap<>();
         for (String columnName : columnNames) {
             if (columnName.equals(chosenField)) {
                 mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, type));
+                sampleRecord.put(columnName, sampleValue);
             } else {
-                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text"));
+                sampleRecord.put(columnName, randomAlphaOfLength(10));
             }
         }
 
         String expected = "^"
-            + Stream.generate(() -> ".*?,").limit(chosenFieldColumnIndex).collect(Collectors.joining())
+            + Stream.generate(() -> "[^,]*?,").limit(chosenFieldColumnIndex).collect(Collectors.joining())
             + "(?:"
             + expectedTypePattern
             + "|\""
@@ -1059,9 +1077,65 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             + "\"),";
         assertEquals(
             expected,
-            DelimitedTextStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null)
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
+                explanation,
+                columnNames,
+                2,
+                ',',
+                ",",
+                "\"",
+                mappings,
+                Collections.singletonList(sampleRecord),
+                null,
+                null,
+                NOOP_TIMEOUT_CHECKER
+            )
         );
         assertThat(explanation, contains("Created a multi-line start pattern based on [" + type + "] column [" + chosenField + "]"));
+    }
+
+    public void testMultilineStartPatternFromKeywordField() {
+
+        List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
+        int chosenFieldColumnIndex = randomIntBetween(0, columnNames.size() - 2);
+        String chosenFieldName = columnNames.get(chosenFieldColumnIndex);
+        Map<String, Object> mappings = new TreeMap<>();
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, Object> sampleRecord = new HashMap<>();
+            for (String columnName : columnNames) {
+                if (record == 0) {
+                    mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"));
+                }
+                if (columnName.equals(chosenFieldName)) {
+                    sampleRecord.put(columnName, randomFrom("A1", "B2", "C3"));
+                } else {
+                    sampleRecord.put(columnName, randomAlphaOfLength(5));
+                }
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        String expected = "^"
+            + Stream.generate(() -> "[^,]*?,").limit(chosenFieldColumnIndex).collect(Collectors.joining())
+            + "(?:(?:A1|B2|C3)|\"(?:A1|B2|C3)\"),";
+        assertEquals(
+            expected,
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
+                explanation,
+                columnNames,
+                2,
+                ',',
+                ",",
+                "\"",
+                mappings,
+                sampleRecords,
+                null,
+                null,
+                NOOP_TIMEOUT_CHECKER
+            )
+        );
+        assertThat(explanation, contains("Created a multi-line start pattern based on [keyword] column [" + chosenFieldName + "]"));
     }
 
     public void testMultilineStartPatternDeterminationTooHard() {
@@ -1069,11 +1143,94 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
         Map<String, Object> mappings = new TreeMap<>();
         for (String columnName : columnNames) {
-            mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+            mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text"));
         }
 
-        assertNull(DelimitedTextStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null));
+        assertNull(
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
+                explanation,
+                columnNames,
+                2,
+                ',',
+                ",",
+                "\"",
+                mappings,
+                Collections.emptyList(),
+                null,
+                null,
+                NOOP_TIMEOUT_CHECKER
+            )
+        );
         assertThat(explanation, contains("Failed to create a suitable multi-line start pattern"));
+    }
+
+    public void testColumnValueContainsDelimiterOrLineBreak() {
+
+        int failingRecord = randomIntBetween(0, 99);
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, String> sampleRecord = new HashMap<>();
+            for (int column = 0; column < 3; ++column) {
+                sampleRecord.put(
+                    "col" + column,
+                    (record == failingRecord && column == 1) ? "a" + randomFrom(",", "\n") + "b" : randomAlphaOfLength(3)
+                );
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col0", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+        assertTrue(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col1", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+        assertFalse(DelimitedTextStructureFinder.columnValueContainsDelimiterOrLineBreak("col2", ',', sampleRecords, NOOP_TIMEOUT_CHECKER));
+    }
+
+    public void testFindLowCardinalityKeywordPatternSucceeds() {
+
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, String> sampleRecord = new HashMap<>();
+            for (int column = 0; column < 10; ++column) {
+                sampleRecord.put("col" + column, (column == 1) ? randomFrom("A1", "B.", "C?") : randomAlphaOfLength(3));
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        assertThat(
+            DelimitedTextStructureFinder.findLowCardinalityKeywordPattern("col1", sampleRecords, NOOP_TIMEOUT_CHECKER),
+            is("(?:A1|B\\.|C\\?)")
+        );
+    }
+
+    public void testFindLowCardinalityKeywordPatternFails() {
+
+        int failingRecord = randomIntBetween(0, 99);
+        List<Map<String, ?>> sampleRecords = new ArrayList<>();
+        for (int record = 0; record < 100; ++record) {
+            Map<String, String> sampleRecord = new HashMap<>();
+            for (int column = 0; column < 10; ++column) {
+                sampleRecord.put(
+                    "col" + column,
+                    (column == 1 || (record == failingRecord && column == 6)) ? randomFrom("A1", "B.", "C?") : randomAlphaOfLength(3)
+                );
+            }
+            sampleRecords.add(sampleRecord);
+        }
+
+        assertThat(DelimitedTextStructureFinder.findLowCardinalityKeywordPattern("col1", sampleRecords, NOOP_TIMEOUT_CHECKER), nullValue());
+    }
+
+    public void testContainsLastLine() {
+
+        Set<String> values = Sets.newHashSet("A1", "B2", "C3");
+
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "A1"));
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "B2"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "C2"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "D4"));
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "A1\nB2"));
+        assertTrue(DelimitedTextStructureFinder.containsLastLine(values, "B1\nA2\nC3"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "A1\nB2\nC2"));
+        assertFalse(DelimitedTextStructureFinder.containsLastLine(values, "A1\nB2\nC3\n"));
     }
 
     static Map<String, Object> randomCsvProcessorSettings() {

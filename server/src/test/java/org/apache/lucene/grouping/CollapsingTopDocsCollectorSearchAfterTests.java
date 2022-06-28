@@ -46,7 +46,9 @@ import java.util.Set;
 public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
     interface CollapsingDocValuesProducer<T extends Comparable<?>> {
         T randomGroup(int maxGroup);
+
         void add(Document doc, T value);
+
         SortField sortField(boolean reversed);
     }
 
@@ -56,8 +58,11 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
         assertSearchCollapse(dvProducers, numeric, true);
     }
 
-    private <T extends Comparable<T>> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers,
-                                                                boolean numeric, boolean reverseSort) throws IOException {
+    private <T extends Comparable<T>> void assertSearchCollapse(
+        CollapsingDocValuesProducer<T> dvProducers,
+        boolean numeric,
+        boolean reverseSort
+    ) throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
 
@@ -89,7 +94,7 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
         MappedFieldType fieldType = new MockFieldMapper.FakeFieldType(sortField.getField());
         Sort sort = new Sort(sortField);
 
-        Comparator<T> comparator = reverseSort ? Collections.reverseOrder(): Comparator.naturalOrder();
+        Comparator<T> comparator = reverseSort ? Collections.reverseOrder() : Comparator.naturalOrder();
         List<T> sortedValues = new ArrayList<>(values);
         sortedValues.sort(comparator);
 
@@ -99,7 +104,7 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
             expectedNumGroups++;
         }
 
-        FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[]{sortedValues.get(randomIndex)});
+        FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { sortedValues.get(randomIndex) });
         CollapsingTopDocsCollector<?> collapsingCollector = numeric
             ? CollapsingTopDocsCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
             : CollapsingTopDocsCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);

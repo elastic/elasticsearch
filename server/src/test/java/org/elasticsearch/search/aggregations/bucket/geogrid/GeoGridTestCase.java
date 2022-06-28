@@ -18,14 +18,13 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends InternalGeoGrid<B>>
-        extends InternalMultiBucketAggregationTestCase<T> {
+public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends InternalGeoGrid<B>> extends
+    InternalMultiBucketAggregationTestCase<T> {
 
     /**
      * Instantiate a {@link InternalGeoGrid}-derived class using the same parameters as constructor.
      */
-    protected abstract T createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
-                                               Map<String, Object> metadata);
+    protected abstract T createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
 
     /**
      * Instantiate a {@link InternalGeoGridBucket}-derived class using the same parameters as constructor.
@@ -57,14 +56,19 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
         final int precision = randomPrecision();
         int size = randomNumberOfBuckets();
         List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        final List<Long> seen = new ArrayList<>(size);
+        int finalSize = 0;
         for (int i = 0; i < size; i++) {
             double latitude = randomDoubleBetween(-90.0, 90.0, false);
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
-
             long hashAsLong = longEncode(longitude, latitude, precision);
-            buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+            if (seen.contains(hashAsLong) == false) { // make sure we don't add twice the same bucket
+                buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+                seen.add(hashAsLong);
+                finalSize++;
+            }
         }
-        return createInternalGeoGrid(name, size, buckets, metadata);
+        return createInternalGeoGrid(name, finalSize, buckets, metadata);
     }
 
     @Override
@@ -72,6 +76,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
         Map<Long, List<B>> map = new HashMap<>();
         for (T input : inputs) {
             for (GeoGrid.Bucket bucketBase : input.getBuckets()) {
+                @SuppressWarnings("unchecked")
                 B bucket = (B) bucketBase;
                 List<B> buckets = map.get(bucket.hashAsLong);
                 if (buckets == null) {
@@ -118,33 +123,34 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
         List<InternalGeoGridBucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            buckets = new ArrayList<>(buckets);
-            buckets.add(
-                    createInternalGeoGridBucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
-            break;
-        case 2:
-            size = size + between(1, 10);
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(
+                    createInternalGeoGridBucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY)
+                );
+                break;
+            case 2:
+                size = size + between(1, 10);
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return createInternalGeoGrid(name, size, buckets, metadata);
     }
 
     public void testCreateFromBuckets() {
-       InternalGeoGrid original = createTestInstance();
-       assertThat(original, equalTo(original.create(original.buckets)));
+        InternalGeoGrid<?> original = createTestInstance();
+        assertThat(original, equalTo(original.create(original.buckets)));
     }
 }

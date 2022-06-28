@@ -12,7 +12,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder used to populate a {@link SamlPrepareAuthenticationRequest}
  */
-public final class SamlPrepareAuthenticationRequestBuilder extends ActionRequestBuilder<SamlPrepareAuthenticationRequest,
+public final class SamlPrepareAuthenticationRequestBuilder extends ActionRequestBuilder<
+    SamlPrepareAuthenticationRequest,
     SamlPrepareAuthenticationResponse> {
 
     public SamlPrepareAuthenticationRequestBuilder(ElasticsearchClient client) {

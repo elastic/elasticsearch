@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -199,13 +199,13 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
             return false;
         }
         GetRecordsRequest other = (GetRecordsRequest) obj;
-        return Objects.equals(jobId, other.jobId) &&
-                Objects.equals(excludeInterim, other.excludeInterim) &&
-                Objects.equals(recordScore, other.recordScore) &&
-                Objects.equals(pageParams, other.pageParams) &&
-                Objects.equals(start, other.start) &&
-                Objects.equals(end, other.end) &&
-                Objects.equals(sort, other.sort) &&
-                Objects.equals(descending, other.descending);
+        return Objects.equals(jobId, other.jobId)
+            && Objects.equals(excludeInterim, other.excludeInterim)
+            && Objects.equals(recordScore, other.recordScore)
+            && Objects.equals(pageParams, other.pageParams)
+            && Objects.equals(start, other.start)
+            && Objects.equals(end, other.end)
+            && Objects.equals(sort, other.sort)
+            && Objects.equals(descending, other.descending);
     }
 }

@@ -22,10 +22,13 @@ public final class TLSLicenseBootstrapCheck implements BootstrapCheck {
         if (XPackSettings.TRANSPORT_SSL_ENABLED.get(context.settings()) == false) {
             License license = LicenseService.getLicense(context.metadata());
             if (XPackLicenseState.isTransportTlsRequired(license, context.settings())) {
-                return BootstrapCheckResult.failure("Transport SSL must be enabled if security is enabled on a [" +
-                    license.operationMode().description() + "] license. " +
-                    "Please set [xpack.security.transport.ssl.enabled] to [true] or disable security by setting " +
-                    "[xpack.security.enabled] to [false]");
+                return BootstrapCheckResult.failure(
+                    "Transport SSL must be enabled if security is enabled on a ["
+                        + license.operationMode().description()
+                        + "] license. "
+                        + "Please set [xpack.security.transport.ssl.enabled] to [true] or disable security by setting "
+                        + "[xpack.security.enabled] to [false]"
+                );
             }
         }
         return BootstrapCheckResult.success();

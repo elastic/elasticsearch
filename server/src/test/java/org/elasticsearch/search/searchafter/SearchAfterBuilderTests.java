@@ -18,17 +18,17 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -193,11 +193,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                 continue;
             }
             XContentBuilder xContent = XContentFactory.contentBuilder(type);
-            xContent.startObject()
-                .startArray("search_after")
-                    .value(new BigDecimal("9223372036854776003.3"))
-                .endArray()
-                .endObject();
+            xContent.startObject().startArray("search_after").value(new BigDecimal("9223372036854776003.3")).endArray().endObject();
             try (XContentParser parser = createParser(xContent)) {
                 parser.nextToken();
                 parser.nextToken();
@@ -263,8 +259,13 @@ public class SearchAfterBuilderTests extends ESTestCase {
             }
 
             @Override
-            public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-                    int bucketSize, BucketedSort.ExtraData extra) {
+            public BucketedSort newBucketedSort(
+                BigArrays bigArrays,
+                SortOrder sortOrder,
+                DocValueFormat format,
+                int bucketSize,
+                BucketedSort.ExtraData extra
+            ) {
                 return null;
             }
         };

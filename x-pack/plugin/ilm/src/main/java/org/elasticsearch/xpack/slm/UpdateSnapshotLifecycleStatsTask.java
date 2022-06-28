@@ -40,19 +40,26 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
         }
 
         SnapshotLifecycleStats newMetrics = currentSlmMeta.getStats().merge(runStats);
-        SnapshotLifecycleMetadata newSlmMeta = new SnapshotLifecycleMetadata(currentSlmMeta.getSnapshotConfigurations(),
-            currentSlmMeta.getOperationMode(), newMetrics);
+        SnapshotLifecycleMetadata newSlmMeta = new SnapshotLifecycleMetadata(
+            currentSlmMeta.getSnapshotConfigurations(),
+            currentSlmMeta.getOperationMode(),
+            newMetrics
+        );
 
         return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentMeta)
-                .putCustom(SnapshotLifecycleMetadata.TYPE, newSlmMeta))
+            .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, newSlmMeta))
             .build();
     }
 
     @Override
     public void onFailure(String source, Exception e) {
-        logger.error(new ParameterizedMessage("failed to update cluster state with snapshot lifecycle stats, " +
-            "source: [{}], missing stats: [{}]", source, runStats),
-            e);
+        logger.error(
+            new ParameterizedMessage(
+                "failed to update cluster state with snapshot lifecycle stats, " + "source: [{}], missing stats: [{}]",
+                source,
+                runStats
+            ),
+            e
+        );
     }
 }

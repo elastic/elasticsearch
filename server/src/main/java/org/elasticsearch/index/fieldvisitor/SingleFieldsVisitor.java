@@ -9,10 +9,10 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Uid;
-import org.apache.lucene.util.BytesRef;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;

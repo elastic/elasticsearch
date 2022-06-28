@@ -9,14 +9,14 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A response for a create index action.
@@ -24,8 +24,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     private static final ParseField INDEX = new ParseField("index");
-    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>("create_index",
-        true, args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "create_index",
+        true,
+        args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2])
+    );
 
     static {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);

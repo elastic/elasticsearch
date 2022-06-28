@@ -12,8 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -22,8 +22,7 @@ public class ShutdownPluginsStatus implements Writeable, ToXContentObject {
     private final SingleNodeShutdownMetadata.Status status;
 
     public ShutdownPluginsStatus(boolean safeToShutdown) {
-        this.status = safeToShutdown ? SingleNodeShutdownMetadata.Status.COMPLETE :
-            SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = safeToShutdown ? SingleNodeShutdownMetadata.Status.COMPLETE : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
     }
 
     public ShutdownPluginsStatus(StreamInput in) throws IOException {

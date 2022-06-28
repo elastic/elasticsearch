@@ -69,8 +69,12 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         for (int i = 0; i < settings.length; i += 2) {
             keystore.setString(settings[i], settings[i + 1].toCharArray());
         }
-        keystore.save(env.configFile(), password.toCharArray());
+        saveKeystore(keystore, password);
         return keystore;
+    }
+
+    void saveKeystore(KeyStoreWrapper keystore, String password) throws Exception {
+        keystore.save(env.configFile(), password.toCharArray());
     }
 
     KeyStoreWrapper loadKeystore(String password) throws Exception {

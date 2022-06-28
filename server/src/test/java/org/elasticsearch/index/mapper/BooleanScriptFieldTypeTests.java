@@ -29,20 +29,21 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -127,8 +128,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
@@ -136,7 +137,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }
@@ -239,9 +240,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("true", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(0));
                 assertThat(
-                    searcher.count(
-                        build("xor_param", org.elasticsearch.core.Map.of("param", false)).termQuery(true, mockContext())
-                    ),
+                    searcher.count(build("xor_param", org.elasticsearch.core.Map.of("param", false)).termQuery(true, mockContext())),
                     equalTo(1)
                 );
             }
@@ -255,9 +254,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(null, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(0));
                 assertThat(
-                    searcher.count(
-                        build("xor_param", org.elasticsearch.core.Map.of("param", false)).termQuery(false, mockContext())
-                    ),
+                    searcher.count(build("xor_param", org.elasticsearch.core.Map.of("param", false)).termQuery(false, mockContext())),
                     equalTo(1)
                 );
             }
@@ -280,21 +277,15 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     equalTo(1)
                 );
                 assertThat(
-                    searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("true", "true"), mockContext())
-                    ),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("true", "true"), mockContext())),
                     equalTo(1)
                 );
                 assertThat(
-                    searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(false, false), mockContext())
-                    ),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(false, false), mockContext())),
                     equalTo(0)
                 );
                 assertThat(
-                    searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, false), mockContext())
-                    ),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, false), mockContext())),
                     equalTo(1)
                 );
             }
@@ -304,15 +295,11 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
-                    searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(false, false), mockContext())
-                    ),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(false, false), mockContext())),
                     equalTo(1)
                 );
                 assertThat(
-                    searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("false", "false"), mockContext())
-                    ),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("false", "false"), mockContext())),
                     equalTo(1)
                 );
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(singletonList(null), mockContext())), equalTo(1));
@@ -321,9 +308,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     equalTo(0)
                 );
                 assertThat(
-                    searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, false), mockContext())
-                    ),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, false), mockContext())),
                     equalTo(1)
                 );
             }
@@ -331,10 +316,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     public void testEmptyTermsQueryDegeneratesIntoMatchNone() {
-        assertThat(
-            simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(), mockContext()),
-            instanceOf(MatchNoDocsQuery.class)
-        );
+        assertThat(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(), mockContext()), instanceOf(MatchNoDocsQuery.class));
     }
 
     @Override
@@ -352,7 +334,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     public void testDualingQueries() throws IOException {
-        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE).build(new ContentPath());
+        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE).build(MapperBuilderContext.ROOT);
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";

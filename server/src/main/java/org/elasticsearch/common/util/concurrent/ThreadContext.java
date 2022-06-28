@@ -11,16 +11,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +40,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
-
+import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
@@ -109,23 +107,34 @@ public final class ThreadContext implements Writeable {
         /**
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * The same is applied to Task.TRACE_ID.
          * Otherwise when context is stash, it should be empty.
          */
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            ThreadContextStruct threadContextStruct =
-                DEFAULT_CONTEXT.putHeaders(MapBuilder.<String, String>newMapBuilder()
-                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
-                    .immutableMap());
+
+        if (HEADERS_TO_COPY.stream().anyMatch(header -> context.requestHeaders.containsKey(header))) {
+            Map<String, String> map = headers(context, HEADERS_TO_COPY);
+            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
             threadLocal.set(threadContextStruct);
         } else {
             threadLocal.set(DEFAULT_CONTEXT);
         }
+
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
             // uncaught exception
             threadLocal.set(context);
         };
+    }
+
+    private Map<String, String> headers(ThreadContextStruct context, Set<String> headersToCopy) {
+        Map<String, String> map = new HashMap<>(headersToCopy.size(), 1);
+        for (String header : headersToCopy) {
+            if (context.requestHeaders.containsKey(header)) {
+                map.put(header, context.requestHeaders.get(header));
+            }
+        }
+        return map;
     }
 
     /**
@@ -202,9 +211,13 @@ public final class ThreadContext implements Writeable {
             }
         }
         if (newTransientHeaders != null) {
-            ThreadContextStruct threadContextStruct = new ThreadContextStruct(originalContext.requestHeaders,
-                    originalContext.responseHeaders, newTransientHeaders, originalContext.isSystemContext,
-                    originalContext.warningHeadersSize);
+            ThreadContextStruct threadContextStruct = new ThreadContextStruct(
+                originalContext.requestHeaders,
+                originalContext.responseHeaders,
+                newTransientHeaders,
+                originalContext.isSystemContext,
+                originalContext.warningHeadersSize
+            );
             threadLocal.set(threadContextStruct);
         }
         // this is the context when this method returns
@@ -268,7 +281,7 @@ public final class ThreadContext implements Writeable {
     }
 
     public void setHeaders(Tuple<Map<String, String>, Map<String, Set<String>>> headerTuple) {
-        final Map<String, String>  requestHeaders = headerTuple.v1();
+        final Map<String, String> requestHeaders = headerTuple.v1();
         final Map<String, Set<String>> responseHeaders = headerTuple.v2();
         final ThreadContextStruct struct;
         if (requestHeaders.isEmpty() && responseHeaders.isEmpty()) {
@@ -306,7 +319,7 @@ public final class ThreadContext implements Writeable {
      */
     public String getHeader(String key) {
         String value = threadLocal.get().requestHeaders.get(key);
-        if (value == null)  {
+        if (value == null) {
             return defaultHeader.get(key);
         }
         return value;
@@ -482,14 +495,18 @@ public final class ThreadContext implements Writeable {
 
     private static final class ThreadContextStruct {
 
-        private static final ThreadContextStruct EMPTY =
-            new ThreadContextStruct(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
+        private static final ThreadContextStruct EMPTY = new ThreadContextStruct(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            false
+        );
 
         private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
         private final Map<String, Set<String>> responseHeaders;
         private final boolean isSystemContext;
-        //saving current warning headers' size not to recalculate the size with every new warning header
+        // saving current warning headers' size not to recalculate the size with every new warning header
         private final long warningHeadersSize;
 
         private ThreadContextStruct setSystemContext() {
@@ -499,9 +516,12 @@ public final class ThreadContext implements Writeable {
             return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, true);
         }
 
-        private ThreadContextStruct(Map<String, String> requestHeaders,
-                                    Map<String, Set<String>> responseHeaders,
-                                    Map<String, Object> transientHeaders, boolean isSystemContext) {
+        private ThreadContextStruct(
+            Map<String, String> requestHeaders,
+            Map<String, Set<String>> responseHeaders,
+            Map<String, Object> transientHeaders,
+            boolean isSystemContext
+        ) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
@@ -509,10 +529,13 @@ public final class ThreadContext implements Writeable {
             this.warningHeadersSize = 0L;
         }
 
-        private ThreadContextStruct(Map<String, String> requestHeaders,
-                                    Map<String, Set<String>> responseHeaders,
-                                    Map<String, Object> transientHeaders, boolean isSystemContext,
-                                    long warningHeadersSize) {
+        private ThreadContextStruct(
+            Map<String, String> requestHeaders,
+            Map<String, Set<String>> responseHeaders,
+            Map<String, Object> transientHeaders,
+            boolean isSystemContext,
+            long warningHeadersSize
+        ) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
@@ -561,8 +584,8 @@ public final class ThreadContext implements Writeable {
                 String key = entry.getKey();
                 final Set<String> existingValues = newResponseHeaders.get(key);
                 if (existingValues != null) {
-                    final Set<String> newValues =
-                            Stream.concat(entry.getValue().stream(), existingValues.stream()).collect(LINKED_HASH_SET_COLLECTOR);
+                    final Set<String> newValues = Stream.concat(entry.getValue().stream(), existingValues.stream())
+                        .collect(LINKED_HASH_SET_COLLECTOR);
                     newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
                 } else {
                     newResponseHeaders.put(key, entry.getValue());
@@ -571,25 +594,43 @@ public final class ThreadContext implements Writeable {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
-        private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue,
-                final int maxWarningHeaderCount, final long maxWarningHeaderSize) {
+        private ThreadContextStruct putResponse(
+            final String key,
+            final String value,
+            final Function<String, String> uniqueValue,
+            final int maxWarningHeaderCount,
+            final long maxWarningHeaderSize
+        ) {
             assert value != null;
             long newWarningHeaderSize = warningHeadersSize;
-            //check if we can add another warning header - if max size within limits
-            if (key.equals("Warning") && (maxWarningHeaderSize != -1)) { //if size is NOT unbounded, check its limits
+            // check if we can add another warning header - if max size within limits
+            if (key.equals("Warning") && (maxWarningHeaderSize != -1)) { // if size is NOT unbounded, check its limits
                 if (warningHeadersSize > maxWarningHeaderSize) { // if max size has already been reached before
-                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
-                            + maxWarningHeaderSize + "] bytes set in ["
-                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
+                    logger.warn(
+                        "Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize
+                            + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey()
+                            + "]!"
+                    );
                     return this;
                 }
                 newWarningHeaderSize += "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
                 if (newWarningHeaderSize > maxWarningHeaderSize) {
-                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
-                            + maxWarningHeaderSize + "] bytes set in ["
-                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
-                    return new ThreadContextStruct(requestHeaders, responseHeaders,
-                        transientHeaders, isSystemContext, newWarningHeaderSize);
+                    logger.warn(
+                        "Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize
+                            + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey()
+                            + "]!"
+                    );
+                    return new ThreadContextStruct(
+                        requestHeaders,
+                        responseHeaders,
+                        transientHeaders,
+                        isSystemContext,
+                        newWarningHeaderSize
+                    );
                 }
             }
 
@@ -608,13 +649,17 @@ public final class ThreadContext implements Writeable {
                 newResponseHeaders.put(key, Collections.singleton(value));
             }
 
-            //check if we can add another warning header - if max count within limits
-            if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { //if count is NOT unbounded, check its limits
+            // check if we can add another warning header - if max count within limits
+            if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { // if count is NOT unbounded, check its limits
                 final int warningHeaderCount = newResponseHeaders.containsKey("Warning") ? newResponseHeaders.get("Warning").size() : 0;
                 if (warningHeaderCount > maxWarningHeaderCount) {
-                    logger.warn("Dropping a warning header, as their total count reached the maximum allowed of ["
-                            + maxWarningHeaderCount + "] set in ["
-                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "]!");
+                    logger.warn(
+                        "Dropping a warning header, as their total count reached the maximum allowed of ["
+                            + maxWarningHeaderCount
+                            + "] set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey()
+                            + "]!"
+                    );
                     return this;
                 }
             }
@@ -668,7 +713,7 @@ public final class ThreadContext implements Writeable {
 
         @Override
         public void run() {
-            try (ThreadContext.StoredContext ignore = stashContext()){
+            try (ThreadContext.StoredContext ignore = stashContext()) {
                 ctx.restore();
                 in.run();
             }
@@ -769,8 +814,9 @@ public final class ThreadContext implements Writeable {
             return Function.identity();
         }
 
-        private static final Set<Characteristics> CHARACTERISTICS =
-                Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+        private static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(
+            EnumSet.of(Collector.Characteristics.IDENTITY_FINISH)
+        );
 
         @Override
         public Set<Characteristics> characteristics() {

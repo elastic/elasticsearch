@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -19,7 +19,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Get builtin privileges response
@@ -51,8 +51,7 @@ public final class GetBuiltinPrivilegesResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetBuiltinPrivilegesResponse that = (GetBuiltinPrivilegesResponse) o;
-        return Objects.equals(this.clusterPrivileges, that.clusterPrivileges)
-        && Objects.equals(this.indexPrivileges, that.indexPrivileges);
+        return Objects.equals(this.clusterPrivileges, that.clusterPrivileges) && Objects.equals(this.indexPrivileges, that.indexPrivileges);
     }
 
     @Override
@@ -60,11 +59,12 @@ public final class GetBuiltinPrivilegesResponse {
         return Objects.hash(clusterPrivileges, indexPrivileges);
     }
 
-
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GetBuiltinPrivilegesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_builtin_privileges", true,
-        args -> new GetBuiltinPrivilegesResponse((Collection<String>) args[0], (Collection<String>) args[1]));
+        "get_builtin_privileges",
+        true,
+        args -> new GetBuiltinPrivilegesResponse((Collection<String>) args[0], (Collection<String>) args[1])
+    );
 
     static {
         PARSER.declareStringArray(constructorArg(), new ParseField("cluster"));

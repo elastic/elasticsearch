@@ -42,7 +42,6 @@ public class PlanExecutor {
 
     private final Metrics metrics;
 
-
     public PlanExecutor(Client client, IndexResolver indexResolver, CircuitBreaker circuitBreaker) {
         this.client = client;
         this.indexResolver = indexResolver;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
-
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -18,13 +17,15 @@ import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 
-
 public class ShapeQueryBuilderOverPointTests extends ShapeQueryBuilderTests {
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
-            fieldName(), "type=point"))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(
+            docType,
+            new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType, fieldName(), "type=point"))),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
     }
 
     @Override

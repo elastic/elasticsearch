@@ -9,12 +9,12 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +28,8 @@ public class UpgradeJobModelSnapshotRequest implements Validatable, ToXContentOb
     private static final ConstructingObjectParser<UpgradeJobModelSnapshotRequest, Void> PARSER = new ConstructingObjectParser<>(
         "upgrade_job_snapshot_request",
         true,
-        a -> new UpgradeJobModelSnapshotRequest((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3]));
+        a -> new UpgradeJobModelSnapshotRequest((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -43,10 +44,7 @@ public class UpgradeJobModelSnapshotRequest implements Validatable, ToXContentOb
     private final Boolean waitForCompletion;
 
     UpgradeJobModelSnapshotRequest(String jobId, String snapshotId, String timeout, Boolean waitForCompletion) {
-        this(jobId,
-            snapshotId,
-            timeout == null ? null : TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()),
-            waitForCompletion);
+        this(jobId, snapshotId, timeout == null ? null : TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()), waitForCompletion);
     }
 
     public UpgradeJobModelSnapshotRequest(String jobId, String snapshotId, TimeValue timeValue, Boolean waitForCompletion) {
@@ -81,10 +79,10 @@ public class UpgradeJobModelSnapshotRequest implements Validatable, ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UpgradeJobModelSnapshotRequest request = (UpgradeJobModelSnapshotRequest) o;
-        return Objects.equals(jobId, request.jobId) &&
-            Objects.equals(timeout, request.timeout) &&
-            Objects.equals(waitForCompletion, request.waitForCompletion) &&
-            Objects.equals(snapshotId, request.snapshotId);
+        return Objects.equals(jobId, request.jobId)
+            && Objects.equals(timeout, request.timeout)
+            && Objects.equals(waitForCompletion, request.waitForCompletion)
+            && Objects.equals(snapshotId, request.snapshotId);
     }
 
     @Override

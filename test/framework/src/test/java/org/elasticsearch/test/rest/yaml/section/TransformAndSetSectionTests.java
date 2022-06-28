@@ -9,9 +9,9 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.Stash;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -27,9 +27,7 @@ import static org.mockito.Mockito.when;
 public class TransformAndSetSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testParseSingleValue() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                        "{ key: value }"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ key: value }");
 
         TransformAndSetSection transformAndSet = TransformAndSetSection.parse(parser);
         assertThat(transformAndSet, notNullValue());
@@ -39,9 +37,7 @@ public class TransformAndSetSectionTests extends AbstractClientYamlTestFragmentP
     }
 
     public void testParseMultipleValues() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                        "{ key1: value1, key2: value2 }"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ key1: value1, key2: value2 }");
 
         TransformAndSetSection transformAndSet = TransformAndSetSection.parse(parser);
         assertThat(transformAndSet, notNullValue());
@@ -69,15 +65,15 @@ public class TransformAndSetSectionTests extends AbstractClientYamlTestFragmentP
         verify(executionContext).response("id");
         verify(executionContext).response("api_key");
         verify(executionContext).stash();
-        assertThat(stash.getValue("$login_creds"),
-                equalTo(Base64.getEncoder().encodeToString("user:password".getBytes(StandardCharsets.UTF_8))));
+        assertThat(
+            stash.getValue("$login_creds"),
+            equalTo(Base64.getEncoder().encodeToString("user:password".getBytes(StandardCharsets.UTF_8)))
+        );
         verifyNoMoreInteractions(executionContext);
     }
 
     public void testParseSetSectionNoValues() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{ }"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ }");
 
         Exception e = expectThrows(ParsingException.class, () -> TransformAndSetSection.parse(parser));
         assertThat(e.getMessage(), is("transform_and_set section must set at least a value"));

@@ -40,7 +40,8 @@ public final class MlConfigIndex {
             "/org/elasticsearch/xpack/core/ml/config_index_mappings.json",
             Version.CURRENT.toString(),
             MAPPINGS_VERSION_VARIABLE,
-            Collections.singletonMap("xpack.ml.mapping_type", mappingType));
+            Collections.singletonMap("xpack.ml.mapping_type", mappingType)
+        );
     }
 
     public static Settings settings() {

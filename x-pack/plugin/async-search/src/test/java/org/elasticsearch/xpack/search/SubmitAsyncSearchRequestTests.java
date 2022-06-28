@@ -36,7 +36,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         final SubmitAsyncSearchRequest searchRequest;
         if (randomBoolean()) {
             searchRequest = new SubmitAsyncSearchRequest(generateRandomStringArray(10, 10, false, false));
-        }  else {
+        } else {
             searchRequest = new SubmitAsyncSearchRequest();
         }
         if (randomBoolean()) {
@@ -51,8 +51,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
                 .indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
-            searchRequest.getSearchRequest()
-                .preference(randomAlphaOfLengthBetween(3, 10));
+            searchRequest.getSearchRequest().preference(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {
             searchRequest.getSearchRequest().requestCache(randomBoolean());
@@ -126,9 +125,14 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
 
     public void testTaskDescription() {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder()), "index");
+            new SearchSourceBuilder().query(new MatchAllQueryBuilder()),
+            "index"
+        );
         Task task = request.createTask(1, "type", "action", null, Collections.emptyMap());
-        assertEquals("waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[5d], request=indices[index], " +
-            "types[], search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]", task.getDescription());
+        assertEquals(
+            "waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[5d], request=indices[index], "
+                + "types[], search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]",
+            task.getDescription()
+        );
     }
 }

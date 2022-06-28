@@ -38,7 +38,7 @@
     unfair. -->
   <module name="LineLength">
     <property name="max" value="140" />
-    <property name="ignorePattern" value="^ *\* *https?://[^ ]+$" />
+    <property name="ignorePattern" value="^(?:(?:package|import) .*| *\* *https?://[^ ]+)$" />
   </module>
 
   <module name="TreeWalker">
@@ -94,6 +94,31 @@
     <!-- Checks that all java files have a package declaration and that it
       lines up with the directory structure. -->
     <module name="PackageDeclaration" />
+
+    <!-- Checks that a local variable or a parameter does not shadow a field that is defined in the same class. -->
+    <!-- Use a forked version that understands setters that don't start with "set". -->
+    <!-- Notes on `ignoredMethodNames`:
+
+        * `createParser` creates objects so should be considered a sort-of constructor
+        * `createComponents` by its nature ends up referring to fields
+          a lot, and there's no benefit to flagging shadowed variables in
+          those methods.
+    -->
+    <!-- Disabled until existing violations are fixed -->
+    <!--
+    <module name="org.elasticsearch.gradle.internal.checkstyle.HiddenFieldCheck">
+        <property name="ignoreConstructorParameter" value="true" />
+        <property name="ignoreConstructorBody" value="true"/>
+        <property name="ignoreConstructorMethods" value="(?:ConstructingObjectParser)$"/>
+        <property name="ignoreSetter" value="true" />
+        <property name="minLineCount" value="5" />
+        <property name="ignoreFormat" value="^(?:threadPool)$"/>
+        <property name="ignoreAbstractMethods" value="true"/>
+        <property name="ignoreMethodNames" value="^(?:createParser|createComponents)$"/>
+        <property name="setterCanReturnItsClass" value="true"/>
+        <message key="hidden.field" value="''{0}'' hides a field." />
+    </module>
+    -->
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use

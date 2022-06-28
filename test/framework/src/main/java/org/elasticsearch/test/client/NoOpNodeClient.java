@@ -26,6 +26,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
@@ -36,6 +37,8 @@ import java.util.function.Supplier;
  * See also {@link NoOpClient} if you do not specifically need a {@link NodeClient}.
  */
 public class NoOpNodeClient extends NodeClient {
+
+    private final AtomicLong executionCount = new AtomicLong(0);
 
     /**
      * Build with {@link ThreadPool}. This {@linkplain ThreadPool} is terminated on {@link #close()}.
@@ -52,8 +55,12 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        executionCount.incrementAndGet();
         listener.onResponse(null);
     }
 
@@ -68,15 +75,23 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        executionCount.incrementAndGet();
         listener.onResponse(null);
         return null;
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        TaskListener<Response> listener
+    ) {
+        executionCount.incrementAndGet();
         listener.onResponse(null, null);
         return null;
     }
@@ -98,5 +113,9 @@ public class NoOpNodeClient extends NodeClient {
         } catch (Exception e) {
             throw new ElasticsearchException(e.getMessage(), e);
         }
+    }
+
+    public long getExecutionCount() {
+        return executionCount.get();
     }
 }

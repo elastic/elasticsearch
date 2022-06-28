@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.action.util;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,15 +94,15 @@ public class QueryPageTests extends AbstractWireSerializingTestCase<QueryPage<Qu
         List<QueryPageTests.QueryPageTester> page = instance.results();
         long count = instance.count();
         switch (between(0, 1)) {
-        case 0:
-            page = new ArrayList<>(page);
-            page.add(new QueryPageTests.QueryPageTester(randomAlphaOfLength(10), randomLong()));
-            break;
-        case 1:
-            count += between(1, 20);
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                page = new ArrayList<>(page);
+                page.add(new QueryPageTests.QueryPageTester(randomAlphaOfLength(10), randomLong()));
+                break;
+            case 1:
+                count += between(1, 20);
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new QueryPage<>(page, count, resultsField);
     }

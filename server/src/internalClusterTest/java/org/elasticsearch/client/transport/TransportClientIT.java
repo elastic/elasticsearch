@@ -47,16 +47,21 @@ public class TransportClientIT extends ESIntegTestCase {
     }
 
     public void testNodeVersionIsUpdated() throws IOException, NodeValidationException {
-        TransportClient client = (TransportClient)  internalCluster().client();
-        try (Node node = new MockNode(Settings.builder()
-                .put(internalCluster().getDefaultSettings())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("node.name", "testNodeVersionIsUpdated")
-                .put("transport.type", getTestTransportType())
-                .put(nonDataNode())
-                .put("cluster.name", "foobar")
-                .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), "testNodeVersionIsUpdated")
-                .build(), Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class)).start()) {
+        TransportClient client = (TransportClient) internalCluster().client();
+        try (
+            Node node = new MockNode(
+                Settings.builder()
+                    .put(internalCluster().getDefaultSettings())
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    .put("node.name", "testNodeVersionIsUpdated")
+                    .put("transport.type", getTestTransportType())
+                    .put(nonDataNode())
+                    .put("cluster.name", "foobar")
+                    .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), "testNodeVersionIsUpdated")
+                    .build(),
+                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class)
+            ).start()
+        ) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.
@@ -79,7 +84,7 @@ public class TransportClientIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientSettingIsSet() {
-        TransportClient client = (TransportClient)  internalCluster().client();
+        TransportClient client = (TransportClient) internalCluster().client();
         Settings settings = client.injector.getInstance(Settings.class);
         assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("transport"));
     }

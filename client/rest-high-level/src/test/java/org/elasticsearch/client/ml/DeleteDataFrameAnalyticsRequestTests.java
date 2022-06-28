@@ -22,7 +22,9 @@ public class DeleteDataFrameAnalyticsRequestTests extends ESTestCase {
     }
 
     public void testValidate_Failure() {
-        assertThat(new DeleteDataFrameAnalyticsRequest(null).validate().get().getMessage(),
-            containsString("data frame analytics id must not be null"));
+        assertThat(
+            new DeleteDataFrameAnalyticsRequest(null).validate().get().getMessage(),
+            containsString("data frame analytics id must not be null")
+        );
     }
 }

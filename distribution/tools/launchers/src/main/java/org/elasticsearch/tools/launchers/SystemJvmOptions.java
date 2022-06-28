@@ -55,9 +55,11 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
+                "-Dlog4j2.formatMsgNoLookups=true",
 
                 javaLocaleProviders(),
-                maybeAddOpensJavaIoToAllUnnamed()
+                maybeAddOpensJavaIoToAllUnnamed(),
+                maybeAllowSecurityManager()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
@@ -65,6 +67,15 @@ final class SystemJvmOptions {
     private static String maybeShowCodeDetailsInExceptionMessages() {
         if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
             return "-XX:+ShowCodeDetailsInExceptionMessages";
+        } else {
+            return "";
+        }
+    }
+
+    // The security manager needs to be explicitly allowed on JDK 18+.
+    private static String maybeAllowSecurityManager() {
+        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 18) {
+            return "-Djava.security.manager=allow";
         } else {
             return "";
         }

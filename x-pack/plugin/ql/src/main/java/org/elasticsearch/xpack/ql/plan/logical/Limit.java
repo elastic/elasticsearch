@@ -27,7 +27,7 @@ public class Limit extends UnaryPlan {
     }
 
     @Override
-    protected Limit replaceChild(LogicalPlan newChild) {
+    public Limit replaceChild(LogicalPlan newChild) {
         return new Limit(source(), limit, newChild);
     }
 
@@ -56,7 +56,6 @@ public class Limit extends UnaryPlan {
 
         Limit other = (Limit) obj;
 
-        return Objects.equals(limit, other.limit)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(limit, other.limit) && Objects.equals(child(), other.child());
     }
 }

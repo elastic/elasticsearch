@@ -1033,7 +1033,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));
                 }
             }
-            if (preserveReposUponCompletion() == false) {
+            if (preserveReposUponCompletion() == false && inProgressSnapshots.containsKey(repoName) == false) {
                 deleteRepository(repoName);
             }
         }

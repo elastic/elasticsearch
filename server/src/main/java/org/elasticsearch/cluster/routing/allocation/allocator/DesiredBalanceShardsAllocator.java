@@ -182,8 +182,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
         if (logger.isTraceEnabled()) {
             if (hasChanges) {
-                logChanges(currentDesiredBalance, newDesiredBalance);
-                logger.trace("desired balance changed: {}", newDesiredBalance);
+                logger.trace("desired balance changed: {}\n{}", newDesiredBalance, diff(currentDesiredBalance, newDesiredBalance));
             } else {
                 logger.trace("desired balance unchanged: {}", newDesiredBalance);
             }
@@ -192,7 +191,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         return hasChanges;
     }
 
-    private static void logChanges(DesiredBalance old, DesiredBalance updated) {
+    private static String diff(DesiredBalance old, DesiredBalance updated) {
         var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
         var diff = Sets.difference(Sets.union(old.assignments().keySet(), updated.assignments().keySet()), intersection);
 
@@ -210,6 +209,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             var updatedAssignment = updated.getAssignment(shardId);
             builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" --> ").append(updatedAssignment);
         }
-        logger.trace("desired balance updated: {}", builder.append(newLine).toString());
+        return builder.append(newLine).toString();
     }
 }

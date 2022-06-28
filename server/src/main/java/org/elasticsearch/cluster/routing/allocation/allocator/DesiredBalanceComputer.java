@@ -172,8 +172,7 @@ public class DesiredBalanceComputer {
         // time too. But maybe it needs special handling anyway since reconciliation also tries to respect allocation rules.
 
         boolean hasChanges = false;
-        do {
-
+        for (int i = 0; true; i++) {
             if (hasChanges) {
                 final var unassigned = routingNodes.unassigned();
 
@@ -211,9 +210,20 @@ public class DesiredBalanceComputer {
             // TODO what if we never converge?
             // TODO maybe expose interim desired balances computed here
 
-            // NB we run at least one iteration, but if another reroute happened meanwhile then publish the interim state and restart the
-            // calculation
-        } while (hasChanges && isFresh.test(desiredBalanceInput));
+            if (i % 100 == 0) {
+                logger.trace("desired balance computation is still not completed after {} iterations", i);
+            }
+            if (hasChanges == false) {
+                logger.trace("desired balance computation converged after {} iterations", i);
+                break;
+            }
+            if (isFresh.test(desiredBalanceInput) == false) {
+                // we run at least one iteration, but if another reroute happened meanwhile
+                // then publish the interim state and restart the calculation
+                logger.trace("newer cluster state received, publishing incomplete desired balance and restarting computation");
+                break;
+            }
+        }
 
         final var assignments = new HashMap<ShardId, ShardAssignment>();
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
@@ -221,11 +231,19 @@ public class DesiredBalanceComputer {
         }
 
         for (var ignored : routingNodes.unassigned().ignored()) {
-            assert ignored.unassignedInfo() != null;
-            assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
-                || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
-                || (ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED && hasChanges)
-                : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
+            var info = ignored.unassignedInfo();
+            assert info != null
+                && (info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
+                    || info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                    || info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED)
+                : "Unexpected stats in: " + info;
+
+            if (hasChanges == false && info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+                // Simulation could not progress due to missing information in any of the deciders.
+                // Currently, this could happen if `HasFrozenCacheAllocationDecider` is still fetching the data.
+                // Progress would be made after the followup reroute call.
+                hasChanges = true;
+            }
 
             var unassigned = ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO;
             assignments.compute(
@@ -241,12 +259,6 @@ public class DesiredBalanceComputer {
             );
 
         }
-
-        logger.trace(
-            hasChanges
-                ? "newer cluster state received, publishing incomplete desired balance and restarting computation"
-                : "desired balance computation converged"
-        );
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments);

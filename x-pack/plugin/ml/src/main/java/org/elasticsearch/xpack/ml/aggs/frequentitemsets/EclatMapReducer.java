@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,6 +23,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.AbstractMapReducer;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
@@ -111,7 +111,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
     // cache for marking transactions visited, memory usage: ((BITSET_CACHE_TRAVERSAL_DEPTH -2) * BITSET_CACHE_NUMBER_OF_TRANSACTIONS) / 8
     private static final int MAX_BITSET_CACHE_NUMBER_OF_TRANSACTIONS = 65536;
-    private static final int BITSET_CACHE_TRAVERSAL_DEPTH = 20;
+    private static final int BITSET_CACHE_TRAVERSAL_DEPTH = 60;
 
     private final double minimumSupport;
     private final int minimumSetSize;
@@ -267,12 +267,12 @@ public final class EclatMapReducer extends AbstractMapReducer<
         final long totalTransactionCount = transactionStore.getTotalTransactionCount();
 
         long minCount = (long) Math.ceil(totalTransactionCount * minimumSupport);
-        FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, size, minCount);
-        long numberOfSetsChecked = 0;
 
         try (
+            TopItemIds topItemIds = transactionStore.getTopItemIds();
             CountingItemSetTraverser setTraverser = new CountingItemSetTraverser(
                 transactionStore,
+                topItemIds,
                 BITSET_CACHE_TRAVERSAL_DEPTH,
                 (int) Math.min(MAX_BITSET_CACHE_NUMBER_OF_TRANSACTIONS, totalTransactionCount),
                 minCount
@@ -284,8 +284,10 @@ public final class EclatMapReducer extends AbstractMapReducer<
                 minCount,
                 transactionStore.getTotalItemCount()
             );
-
+            FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, topItemIds, size, minCount);
+            long numberOfSetsChecked = 0;
             long previousMinCount = 0;
+
             while (setTraverser.next(minCount)) {
                 if (numberOfSetsChecked % ITERATION_CHECK_INTERVAL == 0) {
                     logger.debug("checked {} sets", numberOfSetsChecked);
@@ -325,8 +327,11 @@ public final class EclatMapReducer extends AbstractMapReducer<
                     if (setTraverser.atLeaf()
                         && setTraverser.hasBeenVisited() == false
                         && setTraverser.getCount() >= minCount
-                        && setTraverser.getItemSet().length >= minimumSetSize) {
-                        minCount = collector.add(setTraverser.getItemSet(), setTraverser.getCount());
+                        && setTraverser.getItemSetBitSet().cardinality() >= minimumSetSize) {
+
+                        logger.trace("add after prune");
+
+                        minCount = collector.add(setTraverser.getItemSetBitSet(), setTraverser.getCount());
                         // no need to set visited, as we are on a leaf
                     }
 
@@ -341,19 +346,17 @@ public final class EclatMapReducer extends AbstractMapReducer<
                  *
                  * iff the count of the subset is higher, collect
                  */
-                if (setTraverser.hasPredecessorBeenVisited() == false
-                    && setTraverser.getItemSet().length > minimumSetSize
-                    && setTraverser.getCount() < setTraverser.getPreviousCount()) {
+                if (setTraverser.hasParentBeenVisited() == false
+                    && setTraverser.getItemSetBitSet().cardinality() > minimumSetSize
+                    && setTraverser.getCount() < setTraverser.getParentCount()) {
                     // add the set without the last item
 
-                    LongsRef subItemSet = setTraverser.getItemSet().clone();
-                    subItemSet.length--;
-                    minCount = collector.add(subItemSet, setTraverser.getPreviousCount());
+                    minCount = collector.add(setTraverser.getParentItemSetBitSet(), setTraverser.getParentCount());
                 }
 
                 // closed set criteria: the predecessor is no longer of interest: either we reported in the previous step or we found a
                 // super set
-                setTraverser.setPredecessorVisited();
+                setTraverser.setParentVisited();
 
                 /**
                  * Iff the traverser reached a leaf, the item set can not be further expanded, e.g. we reached [f]:
@@ -368,8 +371,8 @@ public final class EclatMapReducer extends AbstractMapReducer<
                  *
                  * Note: this also covers the last item, e.g. [a, x, y]
                  */
-                if (setTraverser.atLeaf() && setTraverser.getItemSet().length >= minimumSetSize) {
-                    minCount = collector.add(setTraverser.getItemSet(), setTraverser.getCount());
+                if (setTraverser.atLeaf() && setTraverser.getItemSetBitSet().cardinality() >= minimumSetSize) {
+                    minCount = collector.add(setTraverser.getItemSetBitSet(), setTraverser.getCount());
                     // no need to set visited, as we are on a leaf
                 }
 
@@ -382,30 +385,28 @@ public final class EclatMapReducer extends AbstractMapReducer<
                     logger.debug("adjusting min count to {}", minCount);
                 }
             }
+            FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);
+            final long eclatRuntimeNanos = System.nanoTime() - relativeStartNanos;
+
+            return new EclatResult(
+                topFrequentItems,
+                Map.of(
+                    "total_items",
+                    transactionStore.getTotalItemCount(),
+                    "total_transactions",
+                    transactionStore.getTotalTransactionCount(),
+                    "unique_items",
+                    transactionStore.getUniqueItemsCount(),
+                    "start_min_count",
+                    (long) (totalTransactionCount * minimumSupport),
+                    "end_min_count",
+                    minCount,
+                    "eclat_runtime_ms",
+                    TimeUnit.NANOSECONDS.toMillis(eclatRuntimeNanos),
+                    "item_sets_checked",
+                    numberOfSetsChecked
+                )
+            );
         }
-
-        FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);
-
-        final long eclatRuntimeNanos = System.nanoTime() - relativeStartNanos;
-
-        return new EclatResult(
-            topFrequentItems,
-            Map.of(
-                "total_items",
-                transactionStore.getTotalItemCount(),
-                "total_transactions",
-                transactionStore.getTotalTransactionCount(),
-                "unique_items",
-                transactionStore.getUniqueItemsCount(),
-                "start_min_count",
-                (long) (totalTransactionCount * minimumSupport),
-                "end_min_count",
-                minCount,
-                "eclat_runtime_ms",
-                TimeUnit.NANOSECONDS.toMillis(eclatRuntimeNanos),
-                "item_sets_checked",
-                numberOfSetsChecked
-            )
-        );
     }
 }

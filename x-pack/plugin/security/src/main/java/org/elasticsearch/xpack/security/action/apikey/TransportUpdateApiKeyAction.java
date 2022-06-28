@@ -30,9 +30,7 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
-
     private final CompositeRolesStore rolesStore;
-
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject

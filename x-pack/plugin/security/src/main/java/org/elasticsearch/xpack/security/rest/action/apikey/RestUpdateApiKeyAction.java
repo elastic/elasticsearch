@@ -43,7 +43,7 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 
-    public RestUpdateApiKeyAction(Settings settings, XPackLicenseState licenseState) {
+    public RestUpdateApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 

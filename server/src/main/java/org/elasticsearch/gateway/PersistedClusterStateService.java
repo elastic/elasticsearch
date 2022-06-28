@@ -112,7 +112,7 @@ import static org.elasticsearch.core.Strings.format;
  * +--------------------------------+-------------------+----------------------------------------------+--------+-------------+
  * | GLOBAL_TYPE_NAME  == "global"  | (none)            | Global metadata                              | large docs are       |
  * | INDEX_TYPE_NAME   == "index"   | "index_uuid"      | Index metadata                               | split into pages     |
- * | MAPPING_TYPE_NAME == "mapping" | "mapping_hash"    | Mapping metadata                             | split into pages     |
+ * | MAPPING_TYPE_NAME == "mapping" | "mapping_hash"    | Mapping metadata                             |                      |
  * +--------------------------------+-------------------+----------------------------------------------+--------+-------------+
  *
  * Additionally each commit has the following user data:

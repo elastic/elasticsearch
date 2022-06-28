@@ -336,7 +336,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * This simulates recoveries from old indices or even without checksums and makes sure if we fail during finalization
      * we also check if the primary is ok. Without the relevant checks this test fails with a RED cluster
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testCorruptionOnNetworkLayerFinalizingRecovery() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
@@ -400,7 +399,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * Tests corruption that happens on the network layer and that the primary does not get affected by corruption that happens on the way
      * to the replica. The file on disk stays uncorrupted
      */
-    public void testCorruptionOnNetworkLayer() throws ExecutionException, InterruptedException {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
+    public void testCorruptionOnNetworkLayer() throws InterruptedException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
         if (cluster().numDataNodes() < 3) {

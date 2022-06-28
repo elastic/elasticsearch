@@ -1007,7 +1007,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public IndexLongFieldRange getTimeSeriesTimestampRange() {
-        return IndexSettings.MODE.get(settings).getConfiguredTimestampRange(settings);
+        return IndexSettings.MODE.get(settings).getConfiguredTimestampRange(this);
     }
 
     @Override

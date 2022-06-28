@@ -108,7 +108,7 @@ public enum IndexMode {
         }
 
         @Override
-        public IndexLongFieldRange getConfiguredTimestampRange(Settings indexSettings) {
+        public IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata) {
             return null;
         }
     },
@@ -194,9 +194,9 @@ public enum IndexMode {
         }
 
         @Override
-        public IndexLongFieldRange getConfiguredTimestampRange(Settings indexSettings) {
-            long min = IndexSettings.TIME_SERIES_START_TIME.get(indexSettings).toEpochMilli();
-            long max = IndexSettings.TIME_SERIES_END_TIME.get(indexSettings).toEpochMilli();
+        public IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata) {
+            long min = indexMetadata.getTimeSeriesStart().toEpochMilli();
+            long max = indexMetadata.getTimeSeriesEnd().toEpochMilli();
             return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max));
         }
     };
@@ -303,9 +303,10 @@ public enum IndexMode {
     /**
      * @return the time range based on the provided index settings and index mode implementation.
      *         Otherwise <code>null</code> is returned.
+     * @param indexMetadata
      */
     @Nullable
-    public abstract IndexLongFieldRange getConfiguredTimestampRange(Settings indexSettings);
+    public abstract IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata);
 
     public static IndexMode fromString(String value) {
         return switch (value) {

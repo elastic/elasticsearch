@@ -1,23 +1,21 @@
-[[ingest-attachment]]
-=== Ingest Attachment Processor Plugin
+[[attachment]]
+=== Attachment processor
+++++
+<titleabbrev>Attachment</titleabbrev>
+++++
 
-The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
+The attachment processor lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
 using the Apache text extraction library https://tika.apache.org/[Tika].
-
-You can use the ingest attachment plugin as a replacement for the mapper attachment plugin.
 
 The source field must be a base64 encoded binary. If you do not want to incur
 the overhead of converting back and forth between base64, you can use the CBOR
 format instead of JSON and specify the field as a bytes array instead of a string
 representation. The processor will skip the base64 decoding then.
 
-:plugin_name: ingest-attachment
-include::install_remove.asciidoc[]
+[[using-attachment]]
+==== Using the attachment processor in a pipeline
 
-[[using-ingest-attachment]]
-==== Using the Attachment Processor in a Pipeline
-
-[[ingest-attachment-options]]
+[[attachment-options]]
 .Attachment options
 [options="header"]
 |======
@@ -33,7 +31,7 @@ include::install_remove.asciidoc[]
 |======
 
 [discrete]
-[[ingest-attachment-json-ex]]
+[[attachment-json-ex]]
 ==== Example
 
 If attaching files to JSON documents, you must first encode the file as a base64
@@ -98,7 +96,7 @@ The document's `attachment` object contains extracted properties for the file:
 NOTE: Keeping the binary as a field within the document might consume a lot of resources. It is highly recommended
       to remove that field from the document. Set `remove_binary` to `true` to automatically remove the field.
 
-[[ingest-attachment-fields]]
+[[attachment-fields]]
 ==== Exported fields
 
 The fields which might be extracted from a document are:
@@ -154,7 +152,7 @@ NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
 
-[[ingest-attachment-cbor]]
+[[attachment-cbor]]
 ==== Use the attachment processor with CBOR
 
 To avoid encoding and decoding JSON to base64, you can instead pass CBOR data to
@@ -201,7 +199,7 @@ with open(file, 'rb') as f:
   )
 ----
 
-[[ingest-attachment-extracted-chars]]
+[[attachment-extracted-chars]]
 ==== Limit the number of extracted chars
 
 To prevent extracting too many chars and overload the node memory, the number of chars being used for extraction
@@ -310,8 +308,8 @@ Returns this:
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
-[[ingest-attachment-with-arrays]]
-==== Using the Attachment Processor with arrays
+[[attachment-with-arrays]]
+==== Using the attachment processor with arrays
 
 To use the attachment processor within an array of attachments the
 {ref}/foreach-processor.html[foreach processor] is required. This

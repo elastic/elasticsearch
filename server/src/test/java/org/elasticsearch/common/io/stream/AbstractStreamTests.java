@@ -257,11 +257,13 @@ public abstract class AbstractStreamTests extends ESTestCase {
             in -> in.readList(FooBar::new)
         );
 
-        runWriteReadOptionalCollectionTest(
+        runWriteReadCollectionTest(
             () -> new FooBar(randomInt(), randomInt()),
             StreamOutput::writeOptionalCollection,
             in -> in.readOptionalList(FooBar::new)
         );
+
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalCollection(null), in -> in.readOptionalList(FooBar::new));
     }
 
     public void testStringCollection() throws IOException {
@@ -274,6 +276,10 @@ public abstract class AbstractStreamTests extends ESTestCase {
             StreamOutput::writeOptionalStringCollection,
             StreamInput::readOptionalStringList
         );
+    }
+
+    public void testOptionalStringCollectionWithNullInput() throws IOException {
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalStringCollection(null), StreamInput::readOptionalStringList);
     }
 
     private <T> void runWriteReadCollectionTest(
@@ -294,26 +300,15 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
     }
 
-    private <T> void runWriteReadOptionalCollectionTest(
-        final Supplier<T> supplier,
-        final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
+    private <T> void runWriteReadOptionalCollectionWithNullInput(
+        final CheckedConsumer<StreamOutput, IOException> writer,
         final CheckedFunction<StreamInput, Collection<T>, IOException> reader
     ) throws IOException {
-        final boolean present = randomBoolean();
-        final Collection<T> collection;
-        if (present) {
-            final int length = randomIntBetween(0, 10);
-            collection = new ArrayList<>(length);
-            for (int i = 0; i < length; i++) {
-                collection.add(supplier.get());
-            }
-        } else {
-            collection = null;
-        }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            writer.accept(out, collection);
+            writer.accept(out);
+            out.writeOptionalCollection(null);
             try (StreamInput in = getStreamInput(out.bytes())) {
-                assertThat(collection, equalTo(reader.apply(in)));
+                assertNull(reader.apply(in));
             }
         }
     }

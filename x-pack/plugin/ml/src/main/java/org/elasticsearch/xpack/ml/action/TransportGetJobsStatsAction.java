@@ -130,7 +130,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         GetJobsStatsAction.Request request,
         JobTask task,
         ActionListener<QueryPage<JobStats>> listener

@@ -113,7 +113,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        final Task actionTask,
         final FollowStatsAction.StatsRequest request,
         final ShardFollowNodeTask task,
         final ActionListener<FollowStatsAction.StatsResponse> listener

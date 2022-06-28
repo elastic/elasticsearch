@@ -634,7 +634,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(
-                    Task transportTask,
+                    Task actionTask,
                     TestTasksRequest request,
                     Task task,
                     ActionListener<TestTaskResponse> listener
@@ -725,7 +725,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
                 @Override
                 protected void taskOperation(
-                    Task transportTask,
+                    Task actionTask,
                     TestTasksRequest request,
                     Task task,
                     ActionListener<TestTaskResponse> listener

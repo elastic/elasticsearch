@@ -206,17 +206,12 @@ public abstract class TransportTasksAction<
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
-     * @param transportTask The related transport task. Can be used to create a task ID to handle upstream transport cancellations.
+     * @param actionTask The related transport action task. Can be used to create a task ID to handle upstream transport cancellations.
      * @param request the original transport request
      * @param task the task on which the operation is taking place
      * @param listener the listener to signal.
      */
-    protected abstract void taskOperation(
-        Task transportTask,
-        TasksRequest request,
-        OperationTask task,
-        ActionListener<TaskResponse> listener
-    );
+    protected abstract void taskOperation(Task actionTask, TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
     private class AsyncAction {
 

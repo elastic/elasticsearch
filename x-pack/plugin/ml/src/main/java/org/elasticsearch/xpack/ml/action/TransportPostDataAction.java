@@ -51,7 +51,7 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         PostDataAction.Request request,
         JobTask task,
         ActionListener<PostDataAction.Response> listener

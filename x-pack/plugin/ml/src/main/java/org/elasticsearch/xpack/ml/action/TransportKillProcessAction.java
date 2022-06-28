@@ -80,7 +80,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         KillProcessAction.Request request,
         JobTask jobTask,
         ActionListener<KillProcessAction.Response> listener

@@ -86,7 +86,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         ForecastJobAction.Request request,
         JobTask task,
         ActionListener<ForecastJobAction.Response> listener

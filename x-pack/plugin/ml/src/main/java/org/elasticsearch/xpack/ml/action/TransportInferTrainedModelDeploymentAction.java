@@ -138,7 +138,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         InferTrainedModelDeploymentAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener

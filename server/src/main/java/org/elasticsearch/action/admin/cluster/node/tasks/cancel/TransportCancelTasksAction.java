@@ -89,7 +89,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         CancelTasksRequest request,
         CancellableTask cancellableTask,
         ActionListener<TaskInfo> listener

@@ -42,7 +42,7 @@ public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateP
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         UpdateProcessAction.Request request,
         JobTask task,
         ActionListener<UpdateProcessAction.Response> listener

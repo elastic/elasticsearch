@@ -50,7 +50,7 @@ public class TransportStartRollupAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         StartRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<StartRollupJobAction.Response> listener

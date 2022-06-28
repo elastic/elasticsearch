@@ -52,7 +52,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     }
 
     @Override
-    protected void taskOperation(Task transportTask, RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(Task actionTask, RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
         rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
     }
 

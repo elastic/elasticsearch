@@ -41,7 +41,7 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         PersistJobAction.Request request,
         JobTask task,
         ActionListener<PersistJobAction.Response> listener

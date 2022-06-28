@@ -68,7 +68,7 @@ public class TransportStopRollupAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         StopRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<StopRollupJobAction.Response> listener

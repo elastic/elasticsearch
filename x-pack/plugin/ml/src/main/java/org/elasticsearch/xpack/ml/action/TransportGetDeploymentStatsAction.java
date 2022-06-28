@@ -274,7 +274,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         GetDeploymentStatsAction.Request request,
         TrainedModelDeploymentTask task,
         ActionListener<AssignmentStats> listener

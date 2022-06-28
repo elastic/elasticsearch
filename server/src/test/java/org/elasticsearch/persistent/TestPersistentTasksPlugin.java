@@ -563,12 +563,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        protected void taskOperation(
-            Task transportTask,
-            TestTasksRequest request,
-            TestTask task,
-            ActionListener<TestTaskResponse> listener
-        ) {
+        protected void taskOperation(Task actionTask, TestTasksRequest request, TestTask task, ActionListener<TestTaskResponse> listener) {
             task.setOperation(request.operation);
             listener.onResponse(new TestTaskResponse());
         }

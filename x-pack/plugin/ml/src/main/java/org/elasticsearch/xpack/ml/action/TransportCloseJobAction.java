@@ -416,7 +416,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         CloseJobAction.Request request,
         JobTask jobTask,
         ActionListener<CloseJobAction.Response> listener

@@ -43,7 +43,7 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
 
     @Override
     protected void taskOperation(
-        Task transportTask,
+        Task actionTask,
         FlushJobAction.Request request,
         JobTask task,
         ActionListener<FlushJobAction.Response> listener

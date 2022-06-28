@@ -966,6 +966,7 @@ public class IngestDocumentTests extends ESTestCase {
             Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
             sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
+        sourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
@@ -978,6 +979,7 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> otherSourceAndMetadata;
         if (randomBoolean()) {
             otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
+            otherSourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
             changed = true;
         } else {
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);

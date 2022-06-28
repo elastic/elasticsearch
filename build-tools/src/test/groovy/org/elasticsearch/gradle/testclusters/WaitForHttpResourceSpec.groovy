@@ -17,7 +17,7 @@ import java.security.cert.X509Certificate
 
 class WaitForHttpResourceSpec extends Specification {
 
-    def "build thrust store from file"() {
+    def "build trust store from file"() {
         given:
         WaitForHttpResource http = new WaitForHttpResource(new URL("https://localhost/"))
         URL ca = getClass().getResource("/ca.p12")

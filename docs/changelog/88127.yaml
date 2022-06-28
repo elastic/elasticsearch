@@ -1,0 +1,5 @@
+pr: 88127
+summary: Stream input and output support for optional collections
+area: Infra/Core
+type: enhancement
+issues: []

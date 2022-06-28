@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -87,6 +88,8 @@ public class RoutingAllocation {
      * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
      * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
      * @param clusterState cluster state before rerouting
+     * @param clusterInfo information about node disk usage and shard disk usage
+     * @param shardSizeInfo information about snapshot shard sizes
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(
@@ -166,6 +169,11 @@ public class RoutingAllocation {
 
     public SnapshotShardSizeInfo snapshotShardSizeInfo() {
         return shardSizeInfo;
+    }
+
+    @Nullable
+    public DesiredNodes desiredNodes() {
+        return DesiredNodes.latestFromClusterState(clusterState);
     }
 
     /**

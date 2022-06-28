@@ -1141,7 +1141,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         if (tailLogs) {
             if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
-                LOGGER.error("\n=== {} `{}` ===", description, this);
+                LOGGER.lifecycle("\n=== {} `{}` ===", description, this);
             }
             if (errorsAndWarnings.isEmpty() == false) {
                 LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");

@@ -1,0 +1,5 @@
+pr: 87491
+summary: Update http client version
+area: "Infra/Core, Other"
+type: enhancement
+issues: []

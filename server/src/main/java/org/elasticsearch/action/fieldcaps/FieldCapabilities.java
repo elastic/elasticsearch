@@ -381,6 +381,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * Whether this field is a label in any indices.
      */
     public boolean isLabel() {
+        // NOTE: it would be nice to be able to add here an additional condition "isTimestampField() == false"
+        // which we need to check outside this method to identify a label field.
         return isAggregatable() && isDimension() == false && isMetadataField() == false;
     }
 

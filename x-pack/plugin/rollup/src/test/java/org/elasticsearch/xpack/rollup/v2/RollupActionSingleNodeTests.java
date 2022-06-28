@@ -92,6 +92,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 
@@ -112,6 +113,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_LABEL_IPv4_ADDRESS = "label_ipv4_address";
     public static final String FIELD_LABEL_IPv6_ADDRESS = "label_ipv6_address";
     public static final String FIELD_LABEL_DATE = "label_date";
+    public static final String FIELD_LABEL_KEYWORD_ARRAY = "label_keyword_array";
+    public static final String FIELD_LABEL_DOUBLE_ARRAY = "label_double_array";
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
@@ -195,7 +198,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 FIELD_LABEL_IPv6_ADDRESS,
                 "type=ip",
                 FIELD_LABEL_DATE,
-                "type=date,format=date_optional_time"
+                "type=date,format=date_optional_time",
+                FIELD_LABEL_KEYWORD_ARRAY,
+                "type=keyword",
+                FIELD_LABEL_DOUBLE_ARRAY,
+                "type=double"
             )
             .get();
     }
@@ -209,6 +216,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             String labelIpv4Address = NetworkAddress.format(randomIp(true));
             String labelIpv6Address = NetworkAddress.format(randomIp(false));
             Date labelDateValue = randomDate();
+            int keywordArraySize = randomIntBetween(3, 10);
+            String[] keywordArray = new String[keywordArraySize];
+            for (int i = 0; i < keywordArraySize; ++i) {
+                keywordArray[i] = randomAlphaOfLength(10);
+            }
+            int doubleArraySize = randomIntBetween(3, 10);
+            double[] doubleArray = new double[doubleArraySize];
+            for (int i = 0; i < doubleArraySize; ++i) {
+                doubleArray[i] = randomDouble();
+            }
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
@@ -225,6 +242,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)
                 .field(FIELD_LABEL_IPv6_ADDRESS, labelIpv6Address)
                 .field(FIELD_LABEL_DATE, labelDateValue)
+                .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
+                .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
                 .endObject();
         };
         bulkIndex(sourceSupplier);
@@ -549,8 +568,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
                         Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
                         Map<String, DocumentField> rollupHitDocumentFields = rollupHit.getDocumentFields();
-                        assertEquals(originalHitDocumentFields, rollupHitDocumentFields);
-
+                        List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
+                        List<DocumentField> rollupFields = rollupHitDocumentFields.values().stream().toList();
+                        List<Object> originalFieldsList = originalFields.stream().flatMap(x -> x.getValues().stream()).toList();
+                        List<Object> rollupFieldsList = rollupFields.stream().flatMap(x -> x.getValues().stream()).toList();
+                        originalFieldsList.forEach(field -> { assertTrue(rollupFieldsList.contains(field)); });
+                        rollupFieldsList.forEach(field -> { assertTrue(originalFieldsList.contains(field)); });
                         // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
                         // `counter`. This way we can actually check that the label value stored in the rollup index
                         // is the last value (which is what we store for a metric of type counter) by comparing the metric
@@ -564,8 +587,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                         if (labelAsMetric.isPresent()) {
                             double metricValue = ((Max) labelAsMetric.get()).value();
                             assertEquals(metricValue, rollupLabelValue);
+                            assertEquals(metricValue, originalLabelValue);
                         }
-                        assertEquals(originalLabelValue, rollupLabelValue);
                     }
                 }
             }

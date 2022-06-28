@@ -296,11 +296,12 @@ class RollupShardIndexer {
 
                         if (leafField.advanceExact(docId)) {
                             int docValueCount = leafField.docValueCount();
-                            final Object value = leafField.nextValue();
+                            Object[] values = new Object[docValueCount];
 
                             for (int i = 0; i < docValueCount; i++) {
-                                rollupBucketBuilder.collect(fieldName, () -> value);
+                                values[i] = leafField.nextValue();
                             }
+                            rollupBucketBuilder.collect(fieldName, () -> values);
                         }
                     }
                     docsProcessed++;
@@ -363,10 +364,11 @@ class RollupShardIndexer {
             return this;
         }
 
-        public void collect(final String field, final Supplier<?> fieldValueSupplier) {
-            final Object value = fieldValueSupplier.get();
+        public void collect(final String field, final Supplier<Object[]> fieldValueSupplier) {
+            final Object[] value = fieldValueSupplier.get();
             if (metricFieldProducers.containsKey(field)) {
-                collectMetric(field, value);
+                // TODO: missing support for array metrics
+                collectMetric(field, value[0]);
             } else if (labelFieldProducers.containsKey(field)) {
                 collectLabel(field, value);
             } else {

@@ -370,7 +370,11 @@ class RollupShardIndexer {
                 // TODO: missing support for array metrics
                 collectMetric(field, value[0]);
             } else if (labelFieldProducers.containsKey(field)) {
-                collectLabel(field, value);
+                if (value.length == 1) {
+                    collectLabel(field, value[0]);
+                } else {
+                    collectLabel(field, value);
+                }
             } else {
                 throw new IllegalArgumentException(
                     "Field '"

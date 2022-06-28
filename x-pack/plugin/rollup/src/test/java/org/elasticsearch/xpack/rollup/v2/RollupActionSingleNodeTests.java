@@ -92,7 +92,6 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 
@@ -572,8 +571,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                         List<DocumentField> rollupFields = rollupHitDocumentFields.values().stream().toList();
                         List<Object> originalFieldsList = originalFields.stream().flatMap(x -> x.getValues().stream()).toList();
                         List<Object> rollupFieldsList = rollupFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        originalFieldsList.forEach(field -> { assertTrue(rollupFieldsList.contains(field)); });
-                        rollupFieldsList.forEach(field -> { assertTrue(originalFieldsList.contains(field)); });
+                        originalFieldsList.forEach(field -> assertTrue(rollupFieldsList.contains(field)));
+                        rollupFieldsList.forEach(field -> assertTrue(originalFieldsList.contains(field)));
                         // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
                         // `counter`. This way we can actually check that the label value stored in the rollup index
                         // is the last value (which is what we store for a metric of type counter) by comparing the metric

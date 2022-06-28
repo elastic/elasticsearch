@@ -11,20 +11,27 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShapeFieldData {
+final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoPoint> {
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonShapeDVAtomicShapeFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+    LatLonShapeDVAtomicShapeFieldData(
+        LeafReader reader,
+        String fieldName,
+        ToScriptFieldFactory<ShapeValues<GeoPoint>> toScriptFieldFactory
+    ) {
         super(toScriptFieldFactory);
         this.reader = reader;
         this.fieldName = fieldName;
@@ -46,7 +53,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
     }
 
     @Override
-    public GeoShapeValues getGeoShapeValues() {
+    public ShapeValues<GeoPoint> getShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
             final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue();

@@ -62,8 +62,14 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoSha
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.InternalGeoHexGrid;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroid;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -158,7 +164,15 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 GeoHexGridAggregationBuilder.NAME,
                 GeoHexGridAggregationBuilder::new,
                 usage.track(SpatialStatsAction.Item.GEOHEX, checkLicense(GeoHexGridAggregationBuilder.PARSER, GEO_HEX_AGG_FEATURE))
-            ).addResultReader(InternalGeoHexGrid::new).setAggregatorRegistrar(this::registerGeoHexGridAggregator)
+            ).addResultReader(InternalGeoHexGrid::new).setAggregatorRegistrar(this::registerGeoHexGridAggregator),
+            new AggregationSpec(
+                CartesianCentroidAggregationBuilder.NAME,
+                CartesianCentroidAggregationBuilder::new,
+                usage.track(
+                    SpatialStatsAction.Item.CARTESIANCENTROID,
+                    checkLicense(CartesianCentroidAggregationBuilder.PARSER, GEO_CENTROID_AGG_FEATURE)
+                )
+            ).addResultReader(InternalCartesianCentroid::new).setAggregatorRegistrar(this::registerCartesianCentroidAggregator)
         );
     }
 
@@ -184,7 +198,32 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
                     return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
-                throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
+                throw LicenseUtils.newComplianceException(GeoCentroidAggregationBuilder.NAME + " aggregation on geo_shape fields");
+            },
+            true
+        );
+    }
+
+    private void registerCartesianCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            CartesianCentroidAggregationBuilder.REGISTRY_KEY,
+            CartesianShapeValuesSourceType.instance(),
+            (name, valuesSourceConfig, context, parent, metadata) -> {
+                if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
+                    return new CartesianShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
+                }
+                throw LicenseUtils.newComplianceException(CartesianCentroidAggregationBuilder.NAME + " aggregation on shape fields");
+            },
+            true
+        );
+        builder.register(
+            CartesianCentroidAggregationBuilder.REGISTRY_KEY,
+            CartesianPointValuesSourceType.instance(),
+            (name, valuesSourceConfig, context, parent, metadata) -> {
+                if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
+                    return new CartesianCentroidAggregator(name, valuesSourceConfig, context, parent, metadata);
+                }
+                throw LicenseUtils.newComplianceException(CartesianCentroidAggregationBuilder.NAME + " aggregation on point fields");
             },
             true
         );

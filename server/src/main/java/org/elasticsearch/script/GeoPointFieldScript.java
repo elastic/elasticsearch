@@ -13,11 +13,8 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -29,12 +26,12 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
  * Script producing geo points. Similarly to what {@link LatLonDocValuesField} does,
  * it encodes the points as a long value.
  */
-public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
+public abstract class GeoPointFieldScript extends AbstractPointFieldScript<GeoPoint> {
     public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_field", Factory.class);
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+        public LeafFactory<GeoPoint> newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
             return ctx -> new GeoPointFieldScript(field, params, lookup, ctx) {
                 @Override
                 public void execute() {
@@ -52,7 +49,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
         return (leafFieldName, params, searchLookup) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
-            return (LeafFactory) ctx -> {
+            return (LeafFactory<GeoPoint>) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
                 return new GeoPointFieldScript(leafFieldName, params, searchLookup, ctx) {
                     @Override
@@ -69,68 +66,30 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         };
     }
 
-    @SuppressWarnings("unused")
-    public static final String[] PARAMETERS = {};
-
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
-    }
-
-    public interface LeafFactory {
-        GeoPointFieldScript newInstance(LeafReaderContext ctx);
+        LeafFactory<GeoPoint> newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+        super(fieldName, params, searchLookup, ctx, new GeoPointFieldScriptEncoder());
     }
 
-    /**
-     * Consumers must copy the emitted GeoPoint(s) if stored.
-     */
-    public void runGeoPointForDoc(int doc, Consumer<GeoPoint> consumer) {
-        runForDoc(doc);
-        GeoPoint point = new GeoPoint();
-        for (int i = 0; i < count(); i++) {
-            final int lat = (int) (values()[i] >>> 32);
-            final int lon = (int) (values()[i] & 0xFFFFFFFF);
-            point.reset(GeoEncodingUtils.decodeLatitude(lat), GeoEncodingUtils.decodeLongitude(lon));
-            consumer.accept(point);
-        }
-    }
-
-    @Override
-    protected List<Object> extractFromSource(String path) {
-        Object value = XContentMapValues.extractValue(path, sourceLookup.source());
-        if (value instanceof List<?>) {
-            @SuppressWarnings("unchecked")
-            List<Object> list = (List<Object>) value;
-            if (list.size() > 0 && list.get(0) instanceof Number) {
-                // [2, 1]: two values but one single point, return it as a list or each value will be seen as a different geopoint.
-                return Collections.singletonList(list);
+    public static class GeoPointFieldScriptEncoder implements PointFieldScriptEncoder<GeoPoint> {
+        /**
+         * Consumers must copy the emitted GeoPoint(s) if stored.
+         */
+        public void consumeValues(long[] values, int count, Consumer<GeoPoint> consumer) {
+            GeoPoint point = new GeoPoint();
+            for (int i = 0; i < count; i++) {
+                final int lat = (int) (values[i] >>> 32);
+                final int lon = (int) (values[i] & 0xFFFFFFFF);
+                point.reset(GeoEncodingUtils.decodeLatitude(lat), GeoEncodingUtils.decodeLongitude(lon));
+                consumer.accept(point);
             }
-            // e.g. [ [2,1], {lat:2, lon:1} ]
-            return list;
-        }
-        // e.g. {lat: 2, lon: 1}
-        return Collections.singletonList(value);
-    }
-
-    @Override
-    protected void emitFromObject(Object value) {
-        if (value instanceof List<?> values) {
-            if (values.size() > 0 && values.get(0) instanceof Number) {
-                emitPoint(value);
-            } else {
-                for (Object point : values) {
-                    emitPoint(point);
-                }
-            }
-        } else {
-            emitPoint(value);
         }
     }
 
-    private void emitPoint(Object point) {
+    protected void emitPoint(Object point) {
         if (point != null) {
             try {
                 GeoPoint geoPoint = GeoUtils.parseGeoPoint(point, true);
@@ -145,18 +104,5 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         int latitudeEncoded = encodeLatitude(lat);
         int longitudeEncoded = encodeLongitude(lon);
         emit((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL));
-    }
-
-    public static class Emit {
-        private final GeoPointFieldScript script;
-
-        public Emit(GeoPointFieldScript script) {
-            this.script = script;
-        }
-
-        public void emit(double lat, double lon) {
-            script.checkMaxSize(script.count());
-            script.emit(lat, lon);
-        }
     }
 }

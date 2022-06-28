@@ -8,15 +8,16 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.script.AbstractPointFieldScript;
 
 import java.util.Arrays;
 
 public final class GeoPointScriptDocValues extends AbstractSortedNumericDocValues {
-    private final GeoPointFieldScript script;
+    private final AbstractPointFieldScript<GeoPoint> script;
     private int cursor;
 
-    GeoPointScriptDocValues(GeoPointFieldScript script) {
+    GeoPointScriptDocValues(AbstractPointFieldScript<GeoPoint> script) {
         this.script = script;
     }
 

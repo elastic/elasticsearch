@@ -7,28 +7,35 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
+import org.elasticsearch.index.fielddata.LeafPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
-public abstract class AbstractLeafGeoPointFieldData extends LeafGeoPointFieldData {
+public abstract class AbstractLeafGeoPointFieldData extends LeafPointFieldData<GeoPoint> {
 
-    protected final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory;
 
-    public AbstractLeafGeoPointFieldData(ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory) {
+    public AbstractLeafGeoPointFieldData(ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory) {
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
+    public final MultiGeoPointValues getPointValues() {
+        return new MultiGeoPointValues(getSortedNumericDocValues());
+    }
+
+    @Override
     public final SortedBinaryDocValues getBytesValues() {
-        return FieldData.toString(getGeoPointValues());
+        return FieldData.toString(getPointValues());
     }
 
     @Override
     public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-        return toScriptFieldFactory.getScriptFieldFactory(getGeoPointValues(), name);
+        return toScriptFieldFactory.getScriptFieldFactory(getPointValues(), name);
     }
 }

@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 
@@ -33,7 +35,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     @Override
-    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+    public int setValues(GeoShapeCellValues values, ShapeValues.ShapeValue<GeoPoint> geoValue) throws IOException {
 
         if (precision == 0) {
             return 1;
@@ -53,7 +55,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
 
     protected int setValuesByBruteForceScan(
         GeoShapeCellValues values,
-        GeoShapeValues.GeoShapeValue geoValue,
+        ShapeValues.ShapeValue<GeoPoint> geoValue,
         GeoShapeValues.BoundingBox bounds
     ) throws IOException {
         // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I can
@@ -80,9 +82,9 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     /**
-     * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
+     * Sets a singular doc-value for the {@link ShapeValues.ShapeValue<GeoPoint>}.
      */
-    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
+    protected int setValue(GeoShapeCellValues docValues, ShapeValues.ShapeValue<GeoPoint> geoValue, GeoShapeValues.BoundingBox bounds)
         throws IOException {
         String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
         if (relateTile(geoValue, hash) != GeoRelation.QUERY_DISJOINT) {
@@ -93,7 +95,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return 0;
     }
 
-    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
+    private GeoRelation relateTile(ShapeValues.ShapeValue<GeoPoint> geoValue, String hash) throws IOException {
         if (validHash(hash)) {
             final Rectangle rectangle = Geohash.toBoundingBox(hash);
             int minX = GeoEncodingUtils.encodeLongitude(rectangle.getMinLon());
@@ -105,26 +107,30 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return GeoRelation.QUERY_DISJOINT;
     }
 
-    protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, GeoShapeValues.GeoShapeValue geoValue)
-        throws IOException {
+    protected int setValuesByRasterization(
+        String hash,
+        GeoShapeCellValues values,
+        int valuesIndex,
+        ShapeValues.ShapeValue<GeoPoint> geoValue
+    ) throws IOException {
         String[] hashes = Geohash.getSubGeohashes(hash);
-        for (int i = 0; i < hashes.length; i++) {
-            GeoRelation relation = relateTile(geoValue, hashes[i]);
+        for (String s : hashes) {
+            GeoRelation relation = relateTile(geoValue, s);
             if (relation == GeoRelation.QUERY_CROSSES) {
-                if (hashes[i].length() == precision) {
+                if (s.length() == precision) {
                     values.resizeCell(valuesIndex + 1);
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
-                    valuesIndex = setValuesByRasterization(hashes[i], values, valuesIndex, geoValue);
+                    valuesIndex = setValuesByRasterization(s, values, valuesIndex, geoValue);
                 }
             } else if (relation == GeoRelation.QUERY_INSIDE) {
-                if (hashes[i].length() == precision) {
+                if (s.length() == precision) {
                     values.resizeCell(valuesIndex + 1);
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
                     int numTilesAtPrecision = getNumTilesAtPrecision(precision, hash.length());
                     values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
-                    valuesIndex = setValuesForFullyContainedTile(hashes[i], values, valuesIndex, precision);
+                    valuesIndex = setValuesForFullyContainedTile(s, values, valuesIndex, precision);
                 }
             }
         }
@@ -149,12 +155,12 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
 
     protected int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
         String[] hashes = Geohash.getSubGeohashes(hash);
-        for (int i = 0; i < hashes.length; i++) {
-            if (validHash(hashes[i])) {
-                if (hashes[i].length() == targetPrecision) {
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+        for (String s : hashes) {
+            if (validHash(s)) {
+                if (s.length() == targetPrecision) {
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
-                    valuesIndex = setValuesForFullyContainedTile(hashes[i], values, valuesIndex, targetPrecision);
+                    valuesIndex = setValuesForFullyContainedTile(s, values, valuesIndex, targetPrecision);
                 }
             }
         }

@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
@@ -29,51 +27,15 @@ import java.io.IOException;
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
  */
-public final class MultiGeoPointValues {
-
+public class MultiGeoPointValues extends MultiPointValues<GeoPoint> {
     private final GeoPoint point = new GeoPoint();
-    private final SortedNumericDocValues numericValues;
 
-    /**
-     * Creates a new {@link MultiGeoPointValues} instance
-     */
     public MultiGeoPointValues(SortedNumericDocValues numericValues) {
-        this.numericValues = numericValues;
+        super(numericValues);
     }
 
-    /**
-     * Advance this instance to the given document id
-     * @return true if there is a value for this document
-     */
-    public boolean advanceExact(int doc) throws IOException {
-        return numericValues.advanceExact(doc);
-    }
-
-    /**
-     * Return the number of geo points the current document has.
-     */
-    public int docValueCount() {
-        return numericValues.docValueCount();
-    }
-
-    /**
-     * Return the next value associated with the current document. This must not be
-     * called more than {@link #docValueCount()} times.
-     *
-     * Note: the returned {@link GeoPoint} might be shared across invocations.
-     *
-     * @return the next value for the current docID set to {@link #advanceExact(int)}.
-     */
+    @Override
     public GeoPoint nextValue() throws IOException {
         return point.resetFromEncoded(numericValues.nextValue());
     }
-
-    /**
-     * Returns a single-valued view of the {@link MultiGeoPointValues} if possible, otherwise null.
-     */
-    GeoPointValues getGeoPointValues() {
-        final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
-        return singleton != null ? new GeoPointValues(singleton) : null;
-    }
-
 }

@@ -35,7 +35,13 @@ import java.util.List;
 
 public class ShapeQueryProcessor {
 
-    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+    public Query shapeQuery(
+        Geometry shape,
+        String fieldName,
+        ShapeRelation relation,
+        SearchExecutionContext context,
+        boolean hasDocValues
+    ) {
         validateIsShapeFieldType(fieldName, context);
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
@@ -44,7 +50,7 @@ public class ShapeQueryProcessor {
         if (shape == null) {
             return new MatchNoDocsQuery();
         }
-        return getVectorQueryFromShape(shape, fieldName, relation, context);
+        return getVectorQueryFromShape(shape, fieldName, relation, context, hasDocValues);
     }
 
     private void validateIsShapeFieldType(String fieldName, SearchExecutionContext context) {
@@ -57,13 +63,20 @@ public class ShapeQueryProcessor {
         }
     }
 
-    private Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+    private Query getVectorQueryFromShape(
+        Geometry queryShape,
+        String fieldName,
+        ShapeRelation relation,
+        SearchExecutionContext context,
+        boolean hasDocValues
+    ) {
         final LuceneGeometryCollector visitor = new LuceneGeometryCollector(fieldName, context);
         queryShape.visit(visitor);
         final List<XYGeometry> geometries = visitor.geometries();
         if (geometries.size() == 0) {
             return new MatchNoDocsQuery();
         }
+        // TODO use hasDocValues
         return XYShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries.toArray(new XYGeometry[geometries.size()]));
     }
 

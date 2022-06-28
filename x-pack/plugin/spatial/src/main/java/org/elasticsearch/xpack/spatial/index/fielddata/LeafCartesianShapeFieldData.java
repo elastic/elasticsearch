@@ -12,10 +12,10 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 /**
  * {@link LeafFieldData} specialization for geo shapes.
  */
-public interface LeafGeoShapeFieldData extends LeafFieldData {
+public interface LeafCartesianShapeFieldData extends LeafFieldData {
     /**
      * Return geo shape values.
      */
-    GeoShapeValues getGeoShapeValues();
+    CartesianShapeValues getShapeValues();
 
 }

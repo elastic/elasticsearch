@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -202,7 +203,7 @@ class AggregationToJsonProcessor {
             queueDocToWrite(keyValuePairs, docCount);
         }
 
-        addedLeafKeys.forEach(k -> keyValuePairs.remove(k));
+        addedLeafKeys.forEach(keyValuePairs::remove);
     }
 
     private void processDateHistogram(Histogram agg) throws IOException {
@@ -380,7 +381,7 @@ class AggregationToJsonProcessor {
         } else if (agg instanceof Percentiles) {
             return processPercentiles((Percentiles) agg);
         } else if (agg instanceof GeoCentroid) {
-            return processGeoCentroid((GeoCentroid) agg);
+            return processGeoCentroid((GeoCentroid<GeoPoint>) agg);
         } else {
             throw new IllegalArgumentException("Unsupported aggregation type [" + agg.getName() + "]");
         }
@@ -398,7 +399,7 @@ class AggregationToJsonProcessor {
         return false;
     }
 
-    private boolean processGeoCentroid(GeoCentroid agg) {
+    private boolean processGeoCentroid(GeoCentroid<GeoPoint> agg) {
         if (agg.count() > 0) {
             keyValuePairs.put(agg.getName(), agg.centroid().getLat() + "," + agg.centroid().getLon());
             return true;

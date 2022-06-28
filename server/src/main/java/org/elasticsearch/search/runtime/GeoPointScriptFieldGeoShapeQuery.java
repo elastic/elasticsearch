@@ -11,14 +11,15 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.AbstractPointFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
 import java.util.Objects;
 
-public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFieldQuery {
+public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFieldQuery<GeoPoint> {
 
     private final SpatialPredicate predicate;
     private final LatLonGeometry[] geometries;
@@ -26,7 +27,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
 
     public GeoPointScriptFieldGeoShapeQuery(
         Script script,
-        GeoPointFieldScript.LeafFactory leafFactory,
+        AbstractPointFieldScript.LeafFactory<GeoPoint> leafFactory,
         String fieldName,
         ShapeRelation relation,
         LatLonGeometry... geometries

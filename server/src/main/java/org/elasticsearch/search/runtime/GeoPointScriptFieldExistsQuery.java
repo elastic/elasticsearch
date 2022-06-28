@@ -8,11 +8,12 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.script.AbstractPointFieldScript;
 import org.elasticsearch.script.Script;
 
-public class GeoPointScriptFieldExistsQuery extends AbstractGeoPointScriptFieldQuery {
-    public GeoPointScriptFieldExistsQuery(Script script, GeoPointFieldScript.LeafFactory leafFactory, String fieldName) {
+public class GeoPointScriptFieldExistsQuery extends AbstractGeoPointScriptFieldQuery<GeoPoint> {
+    public GeoPointScriptFieldExistsQuery(Script script, AbstractPointFieldScript.LeafFactory<GeoPoint> leafFactory, String fieldName) {
         super(script, leafFactory, fieldName);
     }
 

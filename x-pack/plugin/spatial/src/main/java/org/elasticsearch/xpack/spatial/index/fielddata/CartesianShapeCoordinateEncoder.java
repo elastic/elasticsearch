@@ -9,39 +9,46 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.geo.XYEncodingUtils;
 
-// TODO make cartesian
-final class ShapeCoordinateEncoder implements CoordinateEncoder {
+final class CartesianShapeCoordinateEncoder implements CoordinateEncoder {
+
+    private int encode(double value) {
+        if (value == Double.NEGATIVE_INFINITY) {
+            return Integer.MIN_VALUE;
+        }
+        if (value == Double.POSITIVE_INFINITY) {
+            return Integer.MAX_VALUE;
+        }
+        return XYEncodingUtils.encode((float) value);
+    }
+
+    private double decode(int value) {
+        if (value == Integer.MIN_VALUE) {
+            return Double.NEGATIVE_INFINITY;
+        }
+        if (value == Integer.MAX_VALUE) {
+            return Double.POSITIVE_INFINITY;
+        }
+        return XYEncodingUtils.decode(value);
+    }
 
     @Override
     public int encodeX(double x) {
-        if (x == Double.NEGATIVE_INFINITY) {
-            return Integer.MIN_VALUE;
-        }
-        if (x == Double.POSITIVE_INFINITY) {
-            return Integer.MAX_VALUE;
-        }
-        return XYEncodingUtils.encode((float) x);
+        return encode(x);
     }
 
     @Override
     public int encodeY(double y) {
-        if (y == Double.NEGATIVE_INFINITY) {
-            return Integer.MIN_VALUE;
-        }
-        if (y == Double.POSITIVE_INFINITY) {
-            return Integer.MAX_VALUE;
-        }
-        return XYEncodingUtils.encode((float) y);
+        return encode(y);
     }
 
     @Override
     public double decodeX(int x) {
-        return XYEncodingUtils.decode(x);
+        return decode(x);
     }
 
     @Override
     public double decodeY(int y) {
-        return XYEncodingUtils.decode(y);
+        return decode(y);
     }
 
     @Override

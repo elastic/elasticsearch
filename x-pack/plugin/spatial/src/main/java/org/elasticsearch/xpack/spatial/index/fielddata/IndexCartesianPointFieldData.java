@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexPointFieldData;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 /**
- * Specialization of {@link IndexFieldData} for geo shapes.
+ * Specialization of {@link IndexFieldData} for cartesian points.
  */
-public interface IndexGeoShapeFieldData extends IndexFieldData<LeafGeoShapeFieldData> {}
+public interface IndexCartesianPointFieldData extends IndexPointFieldData<CartesianPoint> {}

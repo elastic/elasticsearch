@@ -8,14 +8,15 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 /**
  * Interface for {@link GeoCentroidAggregator}
+ * TODO: since this is generic to both geo and cartesian, we should rename the class
  */
-public interface GeoCentroid extends Aggregation {
-    GeoPoint centroid();
+public interface GeoCentroid<T extends ToXContentFragment> extends Aggregation {
+    T centroid();
 
     long count();
 }

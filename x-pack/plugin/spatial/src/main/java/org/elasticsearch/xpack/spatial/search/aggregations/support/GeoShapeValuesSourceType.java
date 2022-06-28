@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
@@ -18,16 +17,15 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 
-// TODO make for cartesian
-public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
+public class GeoShapeValuesSourceType extends ShapeValuesSourceType<GeoPoint> {
 
     static GeoShapeValuesSourceType INSTANCE = new GeoShapeValuesSourceType();
 
@@ -41,16 +39,10 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
-    public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-        // TODO (support scripts)
-        throw new UnsupportedOperationException("geo_shape");
-    }
-
-    @Override
     public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-        boolean isGeoPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
-        boolean isGeoShape = fieldContext.indexFieldData() instanceof IndexGeoShapeFieldData;
-        if (isGeoPoint == false && isGeoShape == false) {
+        boolean isPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
+        boolean isShape = fieldContext.indexFieldData() instanceof IndexShapeFieldData;
+        if (isPoint == false && isShape == false) {
             throw new IllegalArgumentException(
                 "Expected geo_point or geo_shape type on field ["
                     + fieldContext.field()
@@ -59,10 +51,10 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
                     + "]"
             );
         }
-        if (isGeoPoint) {
+        if (isPoint) {
             return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
         }
-        return new GeoShapeValuesSource.Fielddata((IndexGeoShapeFieldData) fieldContext.indexFieldData());
+        return new GeoShapeValuesSource.Fielddata((IndexShapeFieldData<GeoPoint>) fieldContext.indexFieldData());
     }
 
     @Override
@@ -72,12 +64,12 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
         DocValueFormat docValueFormat,
         AggregationContext context
     ) {
-        GeoShapeValuesSource geoShapeValuesSource = (GeoShapeValuesSource) valuesSource;
-        final GeoShapeValues.GeoShapeValue missing = GeoShapeValues.GeoShapeValue.missing(rawMissing.toString());
+        GeoShapeValuesSource shapeValuesSource = (GeoShapeValuesSource) valuesSource;
+        final ShapeValues.ShapeValue<GeoPoint> missing = GeoShapeValues.EMPTY.missing(rawMissing.toString());
         return new GeoShapeValuesSource() {
             @Override
-            public GeoShapeValues geoShapeValues(LeafReaderContext context) {
-                GeoShapeValues values = geoShapeValuesSource.geoShapeValues(context);
+            public GeoShapeValues shapeValues(LeafReaderContext context) {
+                ShapeValues<org.elasticsearch.common.geo.GeoPoint> values = shapeValuesSource.shapeValues(context);
                 return new GeoShapeValues() {
 
                     private boolean exists;
@@ -96,20 +88,20 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
                     }
 
                     @Override
-                    public GeoShapeValue value() throws IOException {
+                    public ShapeValue<org.elasticsearch.common.geo.GeoPoint> value() throws IOException {
                         return exists ? values.value() : missing;
                     }
 
                     @Override
                     public String toString() {
-                        return "anon MultiGeoShapeValues of [" + super.toString() + "]";
+                        return "anon MultiShapeValues of [" + super.toString() + "]";
                     }
                 };
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return MissingValues.replaceMissing(geoShapeValuesSource.bytesValues(context), new BytesRef(missing.toString()));
+                return MissingValues.replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
             }
         };
     }
@@ -117,10 +109,5 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     @Override
     public String typeName() {
         return "geoshape";
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
     }
 }

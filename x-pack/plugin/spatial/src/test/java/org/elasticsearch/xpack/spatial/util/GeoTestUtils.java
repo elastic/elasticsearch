@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer;
 
 import java.io.IOException;
 
@@ -51,6 +52,13 @@ public class GeoTestUtils {
     public static BinaryShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
         BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
+        field.add(indexer.indexShape(geometry), geometry);
+        return field;
+    }
+
+    public static BinaryShapeDocValuesField binaryCartesianShapeDocValuesField(String name, Geometry geometry) {
+        ShapeIndexer indexer = new ShapeIndexer(name);
+        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.Cartesian);
         field.add(indexer.indexShape(geometry), geometry);
         return field;
     }

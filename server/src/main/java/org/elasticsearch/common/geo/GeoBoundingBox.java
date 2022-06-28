@@ -10,26 +10,23 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.Objects;
 
 /**
  * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
-public class GeoBoundingBox implements ToXContentFragment, Writeable {
+public class GeoBoundingBox extends BoundingBox<GeoPoint> {
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     static final ParseField TOP_FIELD = new ParseField("top");
@@ -43,58 +40,35 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
     public static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
     public static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
 
-    private final GeoPoint topLeft;
-    private final GeoPoint bottomRight;
-
     public GeoBoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
-        this.topLeft = topLeft;
-        this.bottomRight = bottomRight;
+        super(topLeft, bottomRight);
     }
 
     public GeoBoundingBox(StreamInput input) throws IOException {
-        this.topLeft = input.readGeoPoint();
-        this.bottomRight = input.readGeoPoint();
+        super(input.readGeoPoint(), input.readGeoPoint());
     }
 
-    public boolean isUnbounded() {
-        return Double.isNaN(topLeft.lon())
-            || Double.isNaN(topLeft.lat())
-            || Double.isNaN(bottomRight.lon())
-            || Double.isNaN(bottomRight.lat());
-    }
-
-    public GeoPoint topLeft() {
-        return topLeft;
-    }
-
-    public GeoPoint bottomRight() {
-        return bottomRight;
-    }
-
+    @Override
     public double top() {
         return topLeft.lat();
     }
 
+    @Override
     public double bottom() {
         return bottomRight.lat();
     }
 
+    @Override
     public double left() {
         return topLeft.lon();
     }
 
+    @Override
     public double right() {
         return bottomRight.lon();
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        toXContentFragment(builder, true);
-        builder.endObject();
-        return builder;
-    }
-
     public XContentBuilder toXContentFragment(XContentBuilder builder, boolean buildLatLonFields) throws IOException {
         if (buildLatLonFields) {
             builder.startObject(TOP_LEFT_FIELD.getPreferredName());
@@ -139,24 +113,6 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeGeoPoint(topLeft);
         out.writeGeoPoint(bottomRight);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GeoBoundingBox that = (GeoBoundingBox) o;
-        return topLeft.equals(that.topLeft) && bottomRight.equals(that.bottomRight);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(topLeft, bottomRight);
-    }
-
-    @Override
-    public String toString() {
-        return "BBOX (" + topLeft.lon() + ", " + bottomRight.lon() + ", " + topLeft.lat() + ", " + bottomRight.lat() + ")";
     }
 
     /**
@@ -242,5 +198,4 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
         GeoPoint bottomRight = new GeoPoint(bottom, right);
         return new GeoBoundingBox(topLeft, bottomRight);
     }
-
 }

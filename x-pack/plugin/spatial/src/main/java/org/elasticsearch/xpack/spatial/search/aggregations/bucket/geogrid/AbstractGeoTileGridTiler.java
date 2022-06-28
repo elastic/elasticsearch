@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 
@@ -47,7 +49,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
      * @return the number of tiles set by the shape
      */
     @Override
-    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+    public int setValues(GeoShapeCellValues values, ShapeValues.ShapeValue<GeoPoint> geoValue) throws IOException {
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
@@ -75,7 +77,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         }
     }
 
-    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) throws IOException {
+    private GeoRelation relateTile(ShapeValues.ShapeValue<GeoPoint> geoValue, int xTile, int yTile, int precision) throws IOException {
         if (validTile(xTile, yTile, precision)) {
             final double tiles = 1 << precision;
             final int minX = GeoEncodingUtils.encodeLongitude(GeoTileUtils.tileToLon(xTile, tiles));
@@ -112,7 +114,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
      */
     protected int setValuesByBruteForceScan(
         GeoShapeCellValues values,
-        GeoShapeValues.GeoShapeValue geoValue,
+        ShapeValues.ShapeValue<GeoPoint> geoValue,
         int minXTile,
         int minYTile,
         int maxXTile,
@@ -137,7 +139,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         int zTile,
         GeoShapeCellValues values,
         int valuesIndex,
-        GeoShapeValues.GeoShapeValue geoValue
+        ShapeValues.ShapeValue<GeoPoint> geoValue
     ) throws IOException {
         zTile++;
         for (int i = 0; i < 2; i++) {

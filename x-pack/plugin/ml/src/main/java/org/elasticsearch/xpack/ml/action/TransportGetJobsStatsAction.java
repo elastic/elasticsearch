@@ -129,7 +129,12 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected void taskOperation(GetJobsStatsAction.Request request, JobTask task, ActionListener<QueryPage<JobStats>> listener) {
+    protected void taskOperation(
+        Task actionTask,
+        GetJobsStatsAction.Request request,
+        JobTask task,
+        ActionListener<QueryPage<JobStats>> listener
+    ) {
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);

@@ -82,6 +82,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         IsolateDatafeedAction.Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<IsolateDatafeedAction.Response> listener

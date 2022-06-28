@@ -299,16 +299,6 @@
           "has_native_controller" : false
         },
         {
-          "name" : "ingest-attachment",
-          "version" : "7.10.0",
-          "elasticsearch_version" : "7.10.0",
-          "java_version" : "1.8",
-          "description" : "Ingest processor that uses Apache Tika to extract contents",
-          "classname" : "org.elasticsearch.ingest.attachment.IngestAttachmentPlugin",
-          "extended_plugins" : [ ],
-          "has_native_controller" : false
-        },
-        {
           "name" : "mapper-murmur3",
           "version" : "7.10.0",
           "elasticsearch_version" : "7.10.0",

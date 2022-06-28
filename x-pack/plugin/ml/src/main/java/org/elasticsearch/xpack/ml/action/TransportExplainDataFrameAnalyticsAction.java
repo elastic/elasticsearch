@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -125,9 +126,9 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
         PutDataFrameAnalyticsAction.Request request,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
     ) {
-
+        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
-            new ParentTaskAssigningClient(client, task.getParentTaskId())
+            new ParentTaskAssigningClient(client, parentTaskId)
         );
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
@@ -139,7 +140,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
                 extractedFieldsDetectorFactory.createFromSource(
                     config,
                     ActionListener.wrap(
-                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, listener),
+                        extractedFieldsDetector -> explain(parentTaskId, config, extractedFieldsDetector, listener),
                         listener::onFailure
                     )
                 );
@@ -148,7 +149,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
             extractedFieldsDetectorFactory.createFromSource(
                 request.getConfig(),
                 ActionListener.wrap(
-                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, listener),
+                    extractedFieldsDetector -> explain(parentTaskId, request.getConfig(), extractedFieldsDetector, listener),
                     listener::onFailure
                 )
             );
@@ -156,7 +157,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
     }
 
     private void explain(
-        Task task,
+        TaskId parentTaskId,
         DataFrameAnalyticsConfig config,
         ExtractedFieldsDetector extractedFieldsDetector,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
@@ -177,7 +178,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
             listener::onFailure
         );
 
-        estimateMemoryUsage(task, config, fieldExtraction.v1(), memoryEstimationListener);
+        estimateMemoryUsage(parentTaskId, config, fieldExtraction.v1(), memoryEstimationListener);
     }
 
     /**
@@ -186,14 +187,14 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
      * only available on nodes where the ML plugin is enabled.
      */
     private void estimateMemoryUsage(
-        Task task,
+        TaskId parentTaskId,
         DataFrameAnalyticsConfig config,
         ExtractedFields extractedFields,
         ActionListener<MemoryEstimation> listener
     ) {
-        final String estimateMemoryTaskId = "memory_usage_estimation_" + task.getId();
+        final String estimateMemoryTaskId = "memory_usage_estimation_" + parentTaskId.getId();
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(
-            new ParentTaskAssigningClient(client, task.getParentTaskId()),
+            new ParentTaskAssigningClient(client, parentTaskId),
             estimateMemoryTaskId,
             config,
             extractedFields

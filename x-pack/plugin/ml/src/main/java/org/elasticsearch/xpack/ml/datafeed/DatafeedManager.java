@@ -17,10 +17,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -154,27 +156,34 @@ public final class DatafeedManager {
         }
     }
 
-    public void getDatafeeds(GetDatafeedsAction.Request request, ActionListener<QueryPage<DatafeedConfig>> listener) {
-
+    public void getDatafeeds(
+        GetDatafeedsAction.Request request,
+        @Nullable TaskId parentTaskId,
+        ActionListener<QueryPage<DatafeedConfig>> listener
+    ) {
         datafeedConfigProvider.expandDatafeedConfigs(
             request.getDatafeedId(),
             request.allowNoMatch(),
-            null,
-            ActionListener.wrap(datafeedBuilders ->
-
-            // Build datafeeds
-            listener.onResponse(
-                new QueryPage<>(
-                    datafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList()),
-                    datafeedBuilders.size(),
-                    DatafeedConfig.RESULTS_FIELD
-                )
-            ), listener::onFailure)
+            parentTaskId,
+            ActionListener.wrap(
+                datafeedBuilders -> listener.onResponse(
+                    new QueryPage<>(
+                        datafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList()),
+                        datafeedBuilders.size(),
+                        DatafeedConfig.RESULTS_FIELD
+                    )
+                ),
+                listener::onFailure
+            )
         );
     }
 
-    public void getDatafeedsByJobIds(Set<String> jobIds, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
-        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, listener);
+    public void getDatafeedsByJobIds(
+        Set<String> jobIds,
+        @Nullable TaskId parentTaskId,
+        ActionListener<Map<String, DatafeedConfig.Builder>> listener
+    ) {
+        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, parentTaskId, listener);
     }
 
     public void updateDatafeed(
@@ -236,7 +245,7 @@ public final class DatafeedManager {
 
         String datafeedId = request.getDatafeedId();
 
-        datafeedConfigProvider.getDatafeedConfig(datafeedId, ActionListener.wrap(datafeedConfigBuilder -> {
+        datafeedConfigProvider.getDatafeedConfig(datafeedId, null, ActionListener.wrap(datafeedConfigBuilder -> {
             String jobId = datafeedConfigBuilder.build().getJobId();
             JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
             jobDataDeleter.deleteDatafeedTimingStats(

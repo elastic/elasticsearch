@@ -304,13 +304,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         return;
                     }
                 }
-                jobConfigProvider.getJob(datafeedConfig.getJobId(), jobListener);
+                jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }, listener::onFailure);
 
-        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), datafeedListener);
+        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
 
     static void checkRemoteClusterVersions(

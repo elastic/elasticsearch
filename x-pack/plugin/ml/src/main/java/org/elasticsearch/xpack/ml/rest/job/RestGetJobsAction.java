@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction.Request;
@@ -63,7 +64,11 @@ public class RestGetJobsAction extends BaseRestHandler {
             (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
             request::setAllowNoMatch
         );
-        return channel -> client.execute(GetJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetJobsAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     @Override

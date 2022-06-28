@@ -97,7 +97,8 @@ public final class IngestDocument {
             IngestSourceAndMetadata.getTimestamp(ingestMetadata),
             IngestSourceAndMetadata.VALIDATORS
         );
-        this.ingestMetadata = ingestMetadata;
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> this.sourceAndMetadata.getTimestamp());
     }
 
     /**

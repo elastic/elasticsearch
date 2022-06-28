@@ -53,7 +53,7 @@ public class QuestionAnsweringInferenceResultsTests extends InferenceResultsTest
             0.7,
             randomBoolean()
         );
-        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        IngestDocument document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);

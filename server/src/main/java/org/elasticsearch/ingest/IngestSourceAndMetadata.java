@@ -151,8 +151,11 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         if (ingestMetadata == null) {
             return null;
         }
-        if (ingestMetadata.get(IngestDocument.TIMESTAMP)instanceof ZonedDateTime timestamp) {
+        Object ts = ingestMetadata.get(IngestDocument.TIMESTAMP);
+        if (ts instanceof ZonedDateTime timestamp) {
             return timestamp;
+        } else if (ts instanceof String str) {
+            return ZonedDateTime.parse(str);
         }
         return null;
     }

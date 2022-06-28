@@ -72,7 +72,7 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             0.7,
             0.7
         );
-        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        IngestDocument document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.bar", List.class);
@@ -99,7 +99,7 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             1.0,
             1.0
         );
-        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        IngestDocument document = TestIngestDocument.emptyIngestDocumentWithDefaultVersion();
         writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));

@@ -10,7 +10,7 @@ Also see <<breaking-changes-8.3,Breaking changes in 8.3>>.
 
 * 8.3.0 has an issue that could cause creating and accessing snapshots against Azure snapshot repositories 
 to fail authenticating when using SAS tokens. This impacts self-managed customers who have deployed 8.3.0. 
-Elastic Cloud Azure deployments are not currently being upgraded to 8.3.0 and are not impacted as a result (issue: https://github.com/elastic/elasticsearch/issues/88140)
+Elastic Cloud Azure deployments are not currently being upgraded to 8.3.0 and are not impacted as a result (issue: {es-issue}88140[#88140])
 
 [[bug-8.3.0]]
 [float]

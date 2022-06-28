@@ -419,9 +419,7 @@ public abstract class EngineTestCase extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         BytesRef ref = source.toBytesRef();
         if (recoverySource) {
             document.add(new StoredField(SourceFieldMapper.RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));

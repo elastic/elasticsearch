@@ -187,7 +187,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
-            checkPropertyRequiresNodeScope(propertiesAsSet, Property.Consistent);
+            checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
     }
@@ -198,9 +198,9 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    private void checkPropertyRequiresNodeScope(final EnumSet<Property> properties, final Property property) {
-        if (properties.contains(property) && properties.contains(Property.NodeScope) == false) {
-            throw new IllegalArgumentException("non-node-scoped setting [" + key + "] can not have property [" + property + "]");
+    private void checkPropertyRequiresNodeScope(final EnumSet<Property> properties) {
+        if (properties.contains(Property.Consistent) && properties.contains(Property.NodeScope) == false) {
+            throw new IllegalArgumentException("non-node-scoped setting [" + key + "] can not have property [" + Property.Consistent + "]");
         }
     }
 
@@ -703,7 +703,7 @@ public class Setting<T> implements ToXContentObject {
     ) {
         final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
         final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
-        return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
+        return new AbstractScopedSettings.SettingUpdater<>() {
             @Override
             public boolean hasChanged(Settings current, Settings previous) {
                 return aSettingUpdater.hasChanged(current, previous) || bSettingUpdater.hasChanged(current, previous);
@@ -747,7 +747,7 @@ public class Setting<T> implements ToXContentObject {
         final List<? extends Setting<?>> configuredSettings,
         Consumer<Settings> validator
     ) {
-        return new AbstractScopedSettings.SettingUpdater<Settings>() {
+        return new AbstractScopedSettings.SettingUpdater<>() {
 
             private Settings get(Settings settings) {
                 return settings.filter(s -> {
@@ -844,7 +844,7 @@ public class Setting<T> implements ToXContentObject {
                     @Override
                     public void validate(final String key, final Object value, final Object dependency) {
                         s.validate(key, value, dependency);
-                    };
+                    }
                 }).collect(Collectors.toSet());
             }
         }
@@ -854,7 +854,7 @@ public class Setting<T> implements ToXContentObject {
             Logger logger,
             BiConsumer<String, T> validator
         ) {
-            return new AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>>() {
+            return new AbstractScopedSettings.SettingUpdater<>() {
 
                 @Override
                 public boolean hasChanged(Settings current, Settings previous) {
@@ -897,7 +897,7 @@ public class Setting<T> implements ToXContentObject {
             Logger logger,
             BiConsumer<String, T> validator
         ) {
-            return new AbstractScopedSettings.SettingUpdater<Map<String, T>>() {
+            return new AbstractScopedSettings.SettingUpdater<>() {
 
                 @Override
                 public boolean hasChanged(Settings current, Settings previous) {
@@ -1133,7 +1133,7 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
             }
             final Setting<?> setting = this;
-            return new AbstractScopedSettings.SettingUpdater<Settings>() {
+            return new AbstractScopedSettings.SettingUpdater<>() {
 
                 @Override
                 public boolean hasChanged(Settings current, Settings previous) {
@@ -1226,7 +1226,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
-        return new Setting<>(key, s -> Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
+        return new Setting<>(key, Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
     }
 
     public static Setting<Version> versionSetting(
@@ -1239,11 +1239,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);
+        return new Setting<>(key, Float.toString(defaultValue), Float::parseFloat, properties);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, float minValue, Property... properties) {
-        return new Setting<>(key, (s) -> Float.toString(defaultValue), (s) -> {
+        return new Setting<>(key, Float.toString(defaultValue), (s) -> {
             float value = Float.parseFloat(s);
             if (value < minValue) {
                 String err = "Failed to parse value"
@@ -1265,19 +1265,14 @@ public class Setting<T> implements ToXContentObject {
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, int maxValue, Property... properties) {
         return new Setting<>(
             key,
-            (s) -> Integer.toString(defaultValue),
+            Integer.toString(defaultValue),
             (s) -> parseInt(s, minValue, maxValue, key, isFiltered(properties)),
             properties
         );
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Property... properties) {
-        return new Setting<>(
-            key,
-            (s) -> Integer.toString(defaultValue),
-            (s) -> parseInt(s, minValue, key, isFiltered(properties)),
-            properties
-        );
+        return new Setting<>(key, Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key, isFiltered(properties)), properties);
     }
 
     public static Setting<Integer> intSetting(
@@ -1328,35 +1323,31 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Property... properties) {
-        return new Setting<>(
-            key,
-            (s) -> Long.toString(defaultValue),
-            (s) -> parseLong(s, minValue, key, isFiltered(properties)),
-            properties
-        );
+        return new Setting<>(key, Long.toString(defaultValue), (s) -> parseLong(s, minValue, key, isFiltered(properties)), properties);
     }
 
     public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
+        final String defaultString = defaultValue.toString();
         return new Setting<>(
             key,
-            defaultValue.toString(),
-            (s) -> Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)),
+            defaultString,
+            s -> defaultString.equals(s) ? defaultValue : Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)),
             validator,
             properties
         );
     }
 
     public static Setting<String> simpleString(String key, Property... properties) {
-        return new Setting<>(key, s -> "", Function.identity(), properties);
+        return new Setting<>(key, "", Function.identity(), properties);
     }
 
     public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
+        return new Setting<>(key, "", Function.identity(), validator, properties);
     }
 
     public static Setting<String> simpleString(String key, String defaultValue, Validator<String> validator, Property... properties) {
         validator.validate(defaultValue);
-        return new Setting<>(new SimpleKey(key), null, s -> defaultValue, Function.identity(), validator, properties);
+        return new Setting<>(key, defaultValue, Function.identity(), validator, properties);
     }
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
@@ -1381,7 +1372,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the Setting Object
      */
     public static Setting<String> simpleString(String key, String defaultValue, Property... properties) {
-        return new Setting<>(key, s -> defaultValue, Function.identity(), properties);
+        return new Setting<>(key, defaultValue, Function.identity(), properties);
     }
 
     public static int parseInt(String s, int minValue, String key) {
@@ -1423,7 +1414,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
@@ -1451,7 +1442,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
-        return byteSizeSetting(key, (s) -> value.toString(), properties);
+        return new Setting<>(key, value.toString(), (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
@@ -1469,17 +1460,7 @@ public class Setting<T> implements ToXContentObject {
         ByteSizeValue maxValue,
         Property... properties
     ) {
-        return byteSizeSetting(key, (s) -> defaultValue.getStringRep(), minValue, maxValue, properties);
-    }
-
-    public static Setting<ByteSizeValue> byteSizeSetting(
-        String key,
-        Function<Settings, String> defaultValue,
-        ByteSizeValue minValue,
-        ByteSizeValue maxValue,
-        Property... properties
-    ) {
-        return new Setting<>(key, defaultValue, (s) -> parseByteSize(s, minValue, maxValue, key), properties);
+        return new Setting<>(key, defaultValue.getStringRep(), (s) -> parseByteSize(s, minValue, maxValue, key), properties);
     }
 
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
@@ -1581,7 +1562,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
-        return memorySizeSetting(key, (s) -> defaultValue.toString(), properties);
+        return memorySizeSetting(key, defaultValue.toString(), properties);
     }
 
     /**
@@ -1609,7 +1590,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
-        return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+        return new Setting<>(key, defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     public static Setting<List<String>> stringListSetting(String key, Property... properties) {
@@ -1821,10 +1802,9 @@ public class Setting<T> implements ToXContentObject {
         final TimeValue maxValue,
         final Property... properties
     ) {
-        final SimpleKey simpleKey = new SimpleKey(key);
         return new Setting<>(
-            simpleKey,
-            s -> defaultValue.getStringRep(),
+            key,
+            defaultValue.getStringRep(),
             minMaxTimeValueParser(key, minValue, maxValue, isFiltered(properties)),
             properties
         );
@@ -1888,11 +1868,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, Property... properties) {
-        return timeSetting(key, (s) -> defaultValue, minValue, properties);
+        return new Setting<>(key, defaultValue.getStringRep(), minTimeValueParser(key, minValue, isFiltered(properties)), properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), properties);
+        return new Setting<>(key, defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
@@ -1942,12 +1922,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, Property... properties) {
-        return new Setting<>(
-            key,
-            (s) -> Double.toString(defaultValue),
-            (s) -> parseDouble(s, minValue, maxValue, key, properties),
-            properties
-        );
+        return new Setting<>(key, Double.toString(defaultValue), (s) -> parseDouble(s, minValue, maxValue, key, properties), properties);
     }
 
     public static Double parseDouble(String s, double minValue, double maxValue, String key, Property... properties) {

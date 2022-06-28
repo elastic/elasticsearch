@@ -2290,7 +2290,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetadata.Builder.fromXContent(parser, null), false);
+                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
                         }
                     } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
                         builder.hashesOfConsistentSettings(parser.mapStrings());

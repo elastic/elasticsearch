@@ -1097,7 +1097,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser, null);
+        return Builder.fromXContent(parser);
     }
 
     public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
@@ -1923,6 +1923,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.endObject();
         }
 
+        public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(parser, null);
+        }
+
         public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
@@ -2241,7 +2245,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         @Override
         public IndexMetadata fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser, null);
+            return Builder.fromXContent(parser);
         }
     };
 

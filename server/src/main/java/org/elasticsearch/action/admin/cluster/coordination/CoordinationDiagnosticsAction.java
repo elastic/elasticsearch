@@ -16,8 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
-import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -121,32 +119,23 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
      */
     public static class TransportAction extends HandledTransportAction<Request, Response> {
         private final ClusterService clusterService;
-        private final Coordinator coordinator;
-        private final MasterHistoryService masterHistoryService;
+        private final CoordinationDiagnosticsService coordinationDiagnosticsService;
 
         @Inject
         public TransportAction(
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
-            Coordinator coordinator,
-            MasterHistoryService masterHistoryService
+            CoordinationDiagnosticsService coordinationDiagnosticsService
         ) {
             super(CoordinationDiagnosticsAction.NAME, transportService, actionFilters, CoordinationDiagnosticsAction.Request::new);
             this.clusterService = clusterService;
-            this.coordinator = coordinator;
-            this.masterHistoryService = masterHistoryService;
+            this.coordinationDiagnosticsService = coordinationDiagnosticsService;
         }
 
         @Override
         protected void doExecute(Task task, CoordinationDiagnosticsAction.Request request, ActionListener<Response> listener) {
-            listener.onResponse(
-                new Response(
-                    new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService).diagnoseMasterStability(
-                        request.explain
-                    )
-                )
-            );
+            listener.onResponse(new Response(coordinationDiagnosticsService.diagnoseMasterStability(request.explain)));
         }
     }
 

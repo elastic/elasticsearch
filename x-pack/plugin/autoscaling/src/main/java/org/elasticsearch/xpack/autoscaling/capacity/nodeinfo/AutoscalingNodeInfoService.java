@@ -5,15 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.autoscaling.capacity.memory;
+package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,42 +22,46 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
-public class AutoscalingMemoryInfoService {
+public class AutoscalingNodeInfoService {
     public static final Setting<TimeValue> FETCH_TIMEOUT = Setting.timeSetting(
         "xpack.autoscaling.memory.monitor.timeout",
         TimeValue.timeValueSeconds(15),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    private static final Long FETCHING_SENTINEL = Long.MIN_VALUE;
+    private static final AutoscalingNodeInfo FETCHING_SENTINEL = new AutoscalingNodeInfo(Long.MIN_VALUE, Integer.MIN_VALUE);
 
-    private static final Logger logger = LogManager.getLogger(AutoscalingMemoryInfoService.class);
+    private static final Logger logger = LogManager.getLogger(AutoscalingNodeInfoService.class);
 
-    private volatile Map<String, Long> nodeToMemory = Map.of();
+    private volatile Map<String, AutoscalingNodeInfo> nodeToMemory = Map.of();
     private volatile TimeValue fetchTimeout;
 
     private final Client client;
     private final Object mutex = new Object();
 
     @Inject
-    public AutoscalingMemoryInfoService(ClusterService clusterService, Client client) {
+    public AutoscalingNodeInfoService(ClusterService clusterService, Client client) {
         this.client = client;
         this.fetchTimeout = FETCH_TIMEOUT.get(clusterService.getSettings());
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
@@ -109,40 +113,79 @@ public class AutoscalingMemoryInfoService {
     }
 
     private void sendToMissingNodes(Function<String, DiscoveryNode> nodeLookup, Set<DiscoveryNode> missingNodes) {
+        final Runnable onError = () -> {
+            synchronized (mutex) {
+                var builder = new HashMap<>(nodeToMemory);
+                missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(builder::remove);
+                nodeToMemory = Collections.unmodifiableMap(builder);
+            }
+        };
         client.admin()
             .cluster()
             .nodesStats(
                 new NodesStatsRequest(missingNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new)).clear()
                     .addMetric(NodesStatsRequest.Metric.OS.metricName())
                     .timeout(fetchTimeout),
-                new ActionListener<NodesStatsResponse>() {
-                    @Override
-                    public void onResponse(NodesStatsResponse nodesStatsResponse) {
-                        synchronized (mutex) {
-                            Map<String, Long> builder = new HashMap<>(nodeToMemory);
-                            nodesStatsResponse.failures()
-                                .stream()
-                                .map(FailedNodeException::nodeId)
-                                .map(nodeLookup)
-                                .map(DiscoveryNode::getEphemeralId)
-                                .forEach(builder::remove);
+                ActionListener.wrap(
+                    nodesStatsResponse -> client.admin()
+                        .cluster()
+                        .nodesInfo(
+                            // Only gather info for nodes that provided their stats
+                            new NodesInfoRequest(
+                                nodesStatsResponse.getNodes()
+                                    .stream()
+                                    .map(BaseNodeResponse::getNode)
+                                    .map(DiscoveryNode::getId)
+                                    .toArray(String[]::new)
+                            ).clear().addMetric(NodesInfoRequest.Metric.OS.metricName()).timeout(fetchTimeout),
+                            ActionListener.wrap(nodesInfoResponse -> {
+                                final Map<String, AutoscalingNodeInfo.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
+                                    nodesStatsResponse.getNodes().size()
+                                );
+                                nodesStatsResponse.getNodes()
+                                    .forEach(
+                                        nodeStats -> builderBuilder.put(
+                                            nodeStats.getNode().getEphemeralId(),
+                                            AutoscalingNodeInfo.builder()
+                                                .setMemory(nodeStats.getOs().getMem().getAdjustedTotal().getBytes())
+                                        )
+                                    );
+                                nodesInfoResponse.getNodes().forEach(nodeInfo -> {
+                                    assert builderBuilder.containsKey(nodeInfo.getNode().getEphemeralId())
+                                        : "unexpected missing node when setting processors [" + nodeInfo.getNode().getEphemeralId() + "]";
+                                    builderBuilder.computeIfPresent(
+                                        nodeInfo.getNode().getEphemeralId(),
+                                        (n, b) -> b.setProcessors(nodeInfo.getInfo(OsInfo.class).getAllocatedProcessors())
+                                    );
+                                });
+                                synchronized (mutex) {
+                                    Map<String, AutoscalingNodeInfo> builder = new HashMap<>(nodeToMemory);
+                                    // Remove all from the builder that failed getting info and stats
+                                    Stream.concat(nodesStatsResponse.failures().stream(), nodesInfoResponse.failures().stream())
+                                        .map(FailedNodeException::nodeId)
+                                        .map(nodeLookup)
+                                        .map(DiscoveryNode::getEphemeralId)
+                                        .forEach(builder::remove);
 
-                            nodesStatsResponse.getNodes().forEach(nodeStats -> addNodeStats(builder, nodeStats));
-                            nodeToMemory = Collections.unmodifiableMap(builder);
-                        }
+                                    // we might add nodes that already died here,
+                                    // but those will be removed on next cluster state update anyway and is only a small waste.
+                                    builderBuilder.forEach((nodeEphemeralId, memoryProcessorBuilder) -> {
+                                        if (memoryProcessorBuilder.canBuild()) {
+                                            builder.put(nodeEphemeralId, memoryProcessorBuilder.build());
+                                        }
+                                    });
+                                    nodeToMemory = Collections.unmodifiableMap(builder);
+                                }
+                            }, e -> {
+                                onError.run();
+                                logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain processor info from [%s]", missingNodes), e);
+                            })
+                        ),
+                    e -> {
+                        onError.run();
+                        logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain memory info from [%s]", missingNodes), e);
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        synchronized (mutex) {
-                            var builder = new HashMap<>(nodeToMemory);
-                            missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(builder::remove);
-                            nodeToMemory = Collections.unmodifiableMap(builder);
-                        }
-
-                        logger.warn("Unable to obtain memory info from [{}]", missingNodes);
-                    }
-                }
+                )
             );
     }
 
@@ -167,9 +210,7 @@ public class AutoscalingMemoryInfoService {
     private void retainAliveNodes(Set<DiscoveryNode> currentNodes) {
         assert Thread.holdsLock(mutex);
         Set<String> ephemeralIds = currentNodes.stream().map(DiscoveryNode::getEphemeralId).collect(Collectors.toSet());
-        Set<String> toRemove = StreamSupport.stream(nodeToMemory.keySet().spliterator(), false)
-            .filter(Predicate.not(ephemeralIds::contains))
-            .collect(Collectors.toSet());
+        Set<String> toRemove = nodeToMemory.keySet().stream().filter(Predicate.not(ephemeralIds::contains)).collect(Collectors.toSet());
         if (toRemove.isEmpty() == false) {
             nodeToMemory = nodeToMemory.entrySet()
                 .stream()
@@ -178,21 +219,14 @@ public class AutoscalingMemoryInfoService {
         }
     }
 
-    private void addNodeStats(Map<String, Long> builder, NodeStats nodeStats) {
-        // we might add nodes that already died here, but those will be removed on next cluster state update anyway and is only a small
-        // waste.
-        builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getAdjustedTotal().getBytes());
-    }
-
-    public AutoscalingMemoryInfo snapshot() {
-        final Map<String, Long> nodeToMemoryRef = this.nodeToMemory;
+    public AutoscalingNodesInfo snapshot() {
+        final Map<String, AutoscalingNodeInfo> nodeToMemoryRef = this.nodeToMemory;
         return node -> {
-            Long result = nodeToMemoryRef.get(node.getEphemeralId());
-            // noinspection NumberEquality
+            AutoscalingNodeInfo result = nodeToMemoryRef.get(node.getEphemeralId());
             if (result == FETCHING_SENTINEL) {
-                return null;
+                return Optional.empty();
             } else {
-                return result;
+                return Optional.ofNullable(result);
             }
         };
     }

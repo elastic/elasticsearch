@@ -415,7 +415,12 @@ public class TransportCloseJobAction extends TransportTasksAction<
     }
 
     @Override
-    protected void taskOperation(CloseJobAction.Request request, JobTask jobTask, ActionListener<CloseJobAction.Response> listener) {
+    protected void taskOperation(
+        Task actionTask,
+        CloseJobAction.Request request,
+        JobTask jobTask,
+        ActionListener<CloseJobAction.Response> listener
+    ) {
         JobTaskState taskState = new JobTaskState(JobState.CLOSING, jobTask.getAllocationId(), "close job (api)");
         jobTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
             // we need to fork because we are now on a network threadpool and closeJob method may take a while to complete:

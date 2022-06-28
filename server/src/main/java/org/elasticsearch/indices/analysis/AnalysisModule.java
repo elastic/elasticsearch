@@ -39,11 +39,15 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.sp.api.analysis.TokenFilterFactoryProvider;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceLoader;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
@@ -156,8 +160,62 @@ public final class AnalysisModule {
             )
         );
 
+        ServiceLoader<TokenFilterFactoryProvider> load = ServiceLoader.load(TokenFilterFactoryProvider.class
+        /*need to provide plugin's class loader otherwise no results??*/);
+        // Optional<ServiceLoader.Provider<TokenFilterFactoryProvider>> first = load.stream().findFirst();
+        List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect = load.stream()
+            .map(AnalysisModule::mapToOldApi)
+            .collect(Collectors.toList());
+        tokenFilters.register(collect);
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, AnalysisProvider<TokenFilterFactory>> mapToOldApi(ServiceLoader.Provider<TokenFilterFactoryProvider> provider) {
+        // Map<String,Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> newApiMap) {
+
+        TokenFilterFactoryProvider tokenFilterFactoryProvider1 = provider.get();
+        Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
+            tokenFilterFactoryProvider1.getTokenFilterFactories();
+
+        Map<String, AnalysisProvider<TokenFilterFactory>> res = new HashMap<>();
+        for (Map.Entry<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> entry : tokenFilterFactories
+            .entrySet()) {
+            res.put(entry.getKey(), new AnalysisProvider<TokenFilterFactory>() {
+                @Override
+                public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
+                    throws IOException {
+                    Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> value = entry.getValue();
+                    org.elasticsearch.sp.api.analysis.TokenFilterFactory tokenFilterFactory;
+                    tokenFilterFactory = createInstance(value);
+
+                    return new TokenFilterFactory() {
+                        @Override
+                        public String name() {
+                            return tokenFilterFactory.name();
+                        }
+
+                        @Override
+                        public TokenStream create(TokenStream tokenStream) {
+                            return null;
+                        }
+                    };
+                }
+            });
+        }
+
+        return res;
+    }
+
+    private static org.elasticsearch.sp.api.analysis.TokenFilterFactory createInstance(
+        Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> value
+    ) {
+        try {
+            return value.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     static Map<String, PreBuiltAnalyzerProviderFactory> setupPreBuiltAnalyzerProviderFactories(List<AnalysisPlugin> plugins) {

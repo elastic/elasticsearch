@@ -22,6 +22,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.sp.api;
 
     requires com.sun.jna;
     requires hppc;
@@ -359,4 +360,6 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
     provides org.apache.logging.log4j.util.PropertySource with org.elasticsearch.common.logging.ESSystemPropertiesPropertySource;
+
+    uses org.elasticsearch.sp.api.analysis.TokenFilterFactoryProvider;
 }

@@ -45,4 +45,12 @@ public class NamedRegistry<T> {
             }
         }
     }
+
+    public void register(List<Map<String, T>> collect) {
+        for (Map<String, T> map : collect) {
+            for (Map.Entry<String, T> entry : map.entrySet()) {
+                register(entry.getKey(), entry.getValue());
+            }
+        }
+    }
 }

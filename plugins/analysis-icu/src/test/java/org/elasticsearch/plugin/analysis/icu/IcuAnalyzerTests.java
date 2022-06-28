@@ -22,12 +22,10 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
 
     public void testMixedAlphabetTokenization() throws IOException {
 
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-
         String input = "안녕은하철도999극장판2.1981년8월8일.일본개봉작1999년재더빙video판";
 
         AnalysisICUPlugin plugin = new AnalysisICUPlugin();
-        Analyzer analyzer = plugin.getAnalyzers().get("icu_analyzer").get(null, null, "icu", settings).get();
+        Analyzer analyzer = plugin.getAnalyzers().get("icu_analyzer").get(null, null, "icu", Settings.EMPTY).get();
         assertAnalyzesTo(
             analyzer,
             input,
@@ -37,21 +35,16 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
     }
 
     public void testMiddleDots() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-
         String input = "경승지·산악·협곡·해협·곶·심연·폭포·호수·급류";
 
-        Analyzer analyzer = new IcuAnalyzerProvider(null, null, "icu", settings).get();
+        Analyzer analyzer = new IcuAnalyzerProvider(null, null, "icu", Settings.EMPTY).get();
         assertAnalyzesTo(analyzer, input, new String[] { "경승지", "산악", "협곡", "해협", "곶", "심연", "폭포", "호수", "급류" });
     }
 
     public void testUnicodeNumericCharacters() throws IOException {
-
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-
         String input = "① ② ③ ⑴ ⑵ ⑶ ¼ ⅓ ⅜ ¹ ² ³ ₁ ₂ ₃";
 
-        Analyzer analyzer = new IcuAnalyzerProvider(null, null, "icu", settings).get();
+        Analyzer analyzer = new IcuAnalyzerProvider(null, null, "icu", Settings.EMPTY).get();
         assertAnalyzesTo(analyzer, input, new String[] { "1", "2", "3", "1", "2", "3", "1/4", "1/3", "3/8", "1", "2", "3", "1", "2", "3" });
     }
 

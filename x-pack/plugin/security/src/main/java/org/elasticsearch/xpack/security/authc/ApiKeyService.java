@@ -395,9 +395,7 @@ public class ApiKeyService {
             throw new IllegalArgumentException("cannot update invalidated API key [" + apiKeyId + "]");
         }
 
-        final var now = clock.instant();
-        boolean expired = apiKeyDoc.expirationTime != -1
-            && (Instant.ofEpochMilli(apiKeyDoc.expirationTime).equals(now) || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isBefore(now));
+        boolean expired = apiKeyDoc.expirationTime != -1 && clock.instant().isAfter(Instant.ofEpochMilli(apiKeyDoc.expirationTime));
         if (expired) {
             throw new IllegalArgumentException("cannot update expired API key [" + apiKeyId + "]");
         }
@@ -456,7 +454,7 @@ public class ApiKeyService {
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
         if (keyRoles != null) {
-            logger.trace("Building API key doc with updated role descriptors [{}]", keyRoles);
+            logger.trace(() -> format("Building API key doc with updated role descriptors [{}]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
         } else {
             assert currentApiKeyDoc.roleDescriptorsBytes != null;
@@ -472,7 +470,7 @@ public class ApiKeyService {
                 XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
             ) == false : "API key doc to be updated contains reserved metadata";
         if (metadata != null) {
-            logger.trace("Building API key doc with updated metadata [{}]", metadata);
+            logger.trace(() -> format("Building API key doc with updated metadata [{}]", metadata));
             builder.field("metadata_flattened", metadata);
         } else {
             builder.rawField(

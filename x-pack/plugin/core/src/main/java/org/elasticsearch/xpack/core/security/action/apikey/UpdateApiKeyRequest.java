@@ -32,7 +32,7 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     private final List<RoleDescriptor> roleDescriptors;
 
     public UpdateApiKeyRequest(String id, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable Map<String, Object> metadata) {
-        this.id = Objects.requireNonNull(id, "api key id must not be null");
+        this.id = Objects.requireNonNull(id, "API key ID must not be null");
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;
     }

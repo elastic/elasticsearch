@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/87959")
 public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     // See PyTorchModelIT for how this model was created

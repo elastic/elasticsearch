@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
@@ -963,7 +964,7 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads an array from the stream using the specified {@link org.elasticsearch.common.io.stream.Writeable.Reader} to read array elements
-     * from the stream. This method can be seen as the reader version of {@link StreamOutput#writeArray(Writeable.Writer, Object[])}. It is
+     * from the stream. This method can be seen as the reader version of {@link StreamOutput#writeArray(Writer, Object[])}. It is
      * assumed that the stream first contains a variable-length integer representing the size of the array, and then contains that many
      * elements that can be read from the stream.
      *
@@ -1186,6 +1187,20 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional list. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     */
+    public <T> List<T> readOptionalList(final Writeable.Reader<T> reader) throws IOException {
+        final boolean isPresent = readBoolean();
+        if (isPresent) {
+            return readList(reader);
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Reads an optional list of strings. The list is expected to have been written using
      * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
      * If it is empty it might be immutable.
@@ -1194,12 +1209,7 @@ public abstract class StreamInput extends InputStream {
      * @throws IOException if an I/O exception occurs reading the list
      */
     public List<String> readOptionalStringList() throws IOException {
-        final boolean isPresent = readBoolean();
-        if (isPresent) {
-            return readList(StreamInput::readString);
-        } else {
-            return null;
-        }
+        return readOptionalList(StreamInput::readString);
     }
 
     /**

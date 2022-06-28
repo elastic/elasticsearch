@@ -256,10 +256,24 @@ public abstract class AbstractStreamTests extends ESTestCase {
             StreamOutput::writeCollection,
             in -> in.readList(FooBar::new)
         );
+
+        runWriteReadOptionalCollectionTest(
+            () -> new FooBar(randomInt(), randomInt()),
+            StreamOutput::writeOptionalCollection,
+            in -> in.readOptionalList(FooBar::new)
+        );
     }
 
     public void testStringCollection() throws IOException {
         runWriteReadCollectionTest(() -> randomUnicodeOfLength(16), StreamOutput::writeStringCollection, StreamInput::readStringList);
+    }
+
+    public void testOptionalStringCollection() throws IOException {
+        runWriteReadCollectionTest(
+            () -> randomUnicodeOfLength(16),
+            StreamOutput::writeOptionalStringCollection,
+            StreamInput::readOptionalStringList
+        );
     }
 
     private <T> void runWriteReadCollectionTest(
@@ -271,6 +285,30 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final Collection<T> collection = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
             collection.add(supplier.get());
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            writer.accept(out, collection);
+            try (StreamInput in = getStreamInput(out.bytes())) {
+                assertThat(collection, equalTo(reader.apply(in)));
+            }
+        }
+    }
+
+    private <T> void runWriteReadOptionalCollectionTest(
+        final Supplier<T> supplier,
+        final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
+        final CheckedFunction<StreamInput, Collection<T>, IOException> reader
+    ) throws IOException {
+        final boolean present = randomBoolean();
+        final Collection<T> collection;
+        if (present) {
+            final int length = randomIntBetween(0, 10);
+            collection = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                collection.add(supplier.get());
+            }
+        } else {
+            collection = null;
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             writer.accept(out, collection);

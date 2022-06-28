@@ -75,8 +75,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private final int unacceptableIdentityChanges;
     // This field is only updated on the cluster change even thread, so no need to protect it:
     private List<Scheduler.Cancellable> clusterFormationInfoTasks = List.of();
-    private volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap =
-        new ConcurrentHashMap<>();
+    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateOrExceptionMap =
+        new ConcurrentHashMap<>(); // Non-private for testing
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -306,82 +306,127 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 CoordinationDiagnosticsDetails.EMPTY
             );
         } else { // none is elected master and we are master eligible
-            // We want to make sure that the same elements are in this set every time we loop through it:
-            Set<Map.Entry<DiscoveryNode, ClusterFormationStateOrException>> nodeToClusterFormationEntries = Set.copyOf(
-                nodeToClusterFormationStateMap.entrySet()
+            result = diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(localMasterHistory, masterEligibleNodes, explain);
+        }
+        return result;
+    }
+
+    private CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
+        MasterHistory localMasterHistory,
+        Collection<DiscoveryNode> masterEligibleNodes,
+        boolean explain
+    ) {
+        final CoordinationDiagnosticsResult result;
+        // We want to make sure that the same elements are in this set every time we loop through it:
+        Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateOrExceptionMapCopy = Map.copyOf(
+            nodeToClusterFormationStateOrExceptionMap
+        );
+        for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateOrExceptionMapCopy.entrySet()) {
+            Exception remoteException = entry.getValue().exception();
+            if (remoteException != null) {
+                return new CoordinationDiagnosticsResult(
+                    CoordinationDiagnosticsStatus.RED,
+                    String.format(
+                        Locale.ROOT,
+                        "No master node observed in the last %s, and an exception occurred while reaching out " + "to %s for diagnosis",
+                        nodeHasMasterLookupTimeframe,
+                        entry.getKey().getName()
+                    ),
+                    getDetails(explain, localMasterHistory, remoteException, coordinator.getClusterFormationState().getDescription())
+                );
+            }
+        }
+        Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeClusterFormationStateMap =
+            nodeToClusterFormationStateOrExceptionMapCopy.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
+        Map<DiscoveryNode, Collection<DiscoveryNode>> discoveryProblems = getDiscoveryProblems(
+            masterEligibleNodes,
+            nodeClusterFormationStateMap
+        );
+        if (discoveryProblems.isEmpty() == false) {
+            result = new CoordinationDiagnosticsResult(
+                CoordinationDiagnosticsStatus.RED,
+                String.format(
+                    Locale.ROOT,
+                    "No master node observed in the last %s, and some master eligible nodes are unable to discover other master "
+                        + "eligible nodes",
+                    nodeHasMasterLookupTimeframe
+                ),
+                getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
             );
-            for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationEntries) {
-                Exception remoteException = entry.getValue().exception();
-                if (remoteException != null) {
-                    return new CoordinationDiagnosticsResult(
-                        CoordinationDiagnosticsStatus.RED,
-                        String.format(
-                            Locale.ROOT,
-                            "No master node observed in the last %s, and an exception occurred while reaching out " + "to %s for diagnosis",
-                            nodeHasMasterLookupTimeframe,
-                            entry.getKey().getName()
-                        ),
-                        getDetails(explain, localMasterHistory, remoteException, coordinator.getClusterFormationState().getDescription())
-                    );
-                }
-            }
-            Map<DiscoveryNode, List<DiscoveryNode>> nodesNotDiscoveredMap = new HashMap<>();
-            for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationEntries) {
-                ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = entry.getValue().clusterFormationState();
-                Set<DiscoveryNode> foundPeersOnNode = new HashSet<>(clusterFormationState.foundPeers());
-                if (foundPeersOnNode.containsAll(masterEligibleNodes) == false) {
-                    List<DiscoveryNode> nodesNotDiscovered = masterEligibleNodes.stream()
-                        .filter(node -> foundPeersOnNode.contains(node) == false)
-                        .toList();
-                    nodesNotDiscoveredMap.put(entry.getKey(), nodesNotDiscovered);
-                }
-            }
-            if (nodesNotDiscoveredMap.isEmpty() == false) {
+        } else {
+            Map<DiscoveryNode, String> quorumProblems = getQuorumProblems(nodeClusterFormationStateMap);
+            if (quorumProblems.isEmpty() == false) {
                 result = new CoordinationDiagnosticsResult(
                     CoordinationDiagnosticsStatus.RED,
                     String.format(
                         Locale.ROOT,
-                        "No master node observed in the last %s, and some master eligible nodes are unable to discover other master "
-                            + "eligible nodes",
+                        "No master node observed in the last %s, and the master eligible nodes are unable to form a quorum",
                         nodeHasMasterLookupTimeframe
                     ),
                     getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
                 );
             } else {
-                Map<DiscoveryNode, String> quorumProblems = new HashMap<>();
-                for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationEntries) {
-                    ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = entry.getValue().clusterFormationState();
-                    if (clusterFormationState.hasDiscoveredQuorum() == false) {
-                        quorumProblems.put(entry.getKey(), clusterFormationState.getDescription());
-                    }
-                }
-                if (coordinator.getClusterFormationState().hasDiscoveredQuorum() == false) {
-                    quorumProblems.put(clusterService.localNode(), coordinator.getClusterFormationState().getDescription());
-                }
-                if (quorumProblems.isEmpty() == false) {
-                    result = new CoordinationDiagnosticsResult(
-                        CoordinationDiagnosticsStatus.RED,
-                        String.format(
-                            Locale.ROOT,
-                            "No master node observed in the last %s, and the master eligible nodes are unable to form a quorum",
-                            nodeHasMasterLookupTimeframe
-                        ),
-                        getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
-                    );
-                } else {
-                    result = new CoordinationDiagnosticsResult(
-                        CoordinationDiagnosticsStatus.RED,
-                        String.format(
-                            Locale.ROOT,
-                            "No master node observed in the last %s, and the cause has not been determined.",
-                            nodeHasMasterLookupTimeframe
-                        ),
-                        getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
-                    );
-                }
+                result = new CoordinationDiagnosticsResult(
+                    CoordinationDiagnosticsStatus.RED,
+                    String.format(
+                        Locale.ROOT,
+                        "No master node observed in the last %s, and the cause has not been determined.",
+                        nodeHasMasterLookupTimeframe
+                    ),
+                    getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
+                );
             }
         }
         return result;
+    }
+
+    /**
+     * This method checks whether each master eligible node has discovered each of the other master eligible nodes. The map returned
+     * contains a key for each node that has not discovered all of the other master nodes. The values of the map are the nodes that the
+     * key node has not discovered. If no discovery problems are detected, the map will be empty.
+     * @param masterEligibleNodes The collection of all master eligible nodes
+     * @param nodeToClusterFormationStateMap A map of each master node to its ClusterFormationState
+     * @return A map where the keys are nodes that have a discovery problem, and the values are the nodes that the key node cannot discover
+     */
+    private Map<DiscoveryNode, Collection<DiscoveryNode>> getDiscoveryProblems(
+        Collection<DiscoveryNode> masterEligibleNodes,
+        Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeToClusterFormationStateMap
+    ) {
+        Map<DiscoveryNode, Collection<DiscoveryNode>> nodesNotDiscoveredMap = new HashMap<>();
+        for (Map.Entry<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> entry : nodeToClusterFormationStateMap
+            .entrySet()) {
+            Set<DiscoveryNode> foundPeersOnNode = new HashSet<>(entry.getValue().foundPeers());
+            if (foundPeersOnNode.containsAll(masterEligibleNodes) == false) {
+                Collection<DiscoveryNode> nodesNotDiscovered = masterEligibleNodes.stream()
+                    .filter(node -> foundPeersOnNode.contains(node) == false)
+                    .toList();
+                nodesNotDiscoveredMap.put(entry.getKey(), nodesNotDiscovered);
+            }
+        }
+        return nodesNotDiscoveredMap;
+    }
+
+    /**
+     * This method checks that each master eligible node in the quorum thinks that it can form a quorum. If there are nodes that report a
+     * problem forming a quorum, they are returned in the output map. If no nodes report a problem forming a quorum the map will be empty.
+     * @param nodeToClusterFormationStateMap A map of each master node to its ClusterFormationState
+     * @return A map where the keys are nodes that report not being able to form a quorum, and the values are the descriptions from the
+     * ClusterFormationState on the key nodes.
+     */
+    private Map<DiscoveryNode, String> getQuorumProblems(
+        Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeToClusterFormationStateMap
+    ) {
+        Map<DiscoveryNode, String> quorumProblems = new HashMap<>();
+        for (Map.Entry<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> entry : nodeToClusterFormationStateMap
+            .entrySet()) {
+            ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = entry.getValue();
+            if (clusterFormationState.hasDiscoveredQuorum() == false) {
+                quorumProblems.put(entry.getKey(), clusterFormationState.getDescription());
+            }
+        }
+        return quorumProblems;
     }
 
     /**
@@ -497,7 +542,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private void beginPollingClusterFormationInfo() {
         cancelPollingClusterFormationInfo();
         clusterFormationInfoTasks = getMasterEligibleNodes().stream()
-            .map(masterNode -> beginPollingClusterFormationInfo(masterNode, nodeToClusterFormationStateMap))
+            .map(masterNode -> beginPollingClusterFormationInfo(masterNode, nodeToClusterFormationStateOrExceptionMap))
             .collect(Collectors.toList());
     }
 
@@ -507,7 +552,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * Recreates the map so that we don't read old information, or worse get stuck with information about a node that has been
          * removed from the cluster.
          */
-        nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
+        nodeToClusterFormationStateOrExceptionMap = new ConcurrentHashMap<>();
     }
 
     private Scheduler.Cancellable beginPollingClusterFormationInfo(

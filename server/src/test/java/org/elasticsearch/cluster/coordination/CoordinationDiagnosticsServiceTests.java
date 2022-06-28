@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.hamcrest.Matchers.containsString;
@@ -381,6 +382,17 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             int greenMasterCount = 0;
             cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                /*
+                 * The following line puts the local node's cluster formation state into its map of cluster formation states. This would
+                 * ordinarily happen 10s after the master went null (and long before diagnoseMasterStability was called), but this
+                 * avoids having to wait 10 seconds.
+                 */
+                if (node.getLocalNode().isMasterNode()) {
+                    node.coordinationDiagnosticsService.nodeToClusterFormationStateOrExceptionMap.put(
+                        node.getLocalNode(),
+                        new CoordinationDiagnosticsService.ClusterFormationStateOrException(node.coordinator.getClusterFormationState())
+                    );
+                }
                 CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
                     .diagnoseMasterStability(true);
                 if (node.getLocalNode().isMasterNode() == false) {
@@ -389,6 +401,62 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     redNonMasterCount++;
                 } else if (healthIndicatorResult.status().equals(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED)) {
                     assertThat(healthIndicatorResult.summary(), containsString("unable to form a quorum"));
+                    redMasterCount++;
+                } else {
+                    assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
+                    greenMasterCount++;
+                }
+            }
+            // Non-master nodes see only themselves and think that there are no master nodes:
+            assertThat(redNonMasterCount, equalTo(5 - masterNodeCount));
+            // The original master node sees only itself, but might think it is still master:
+            assertThat(greenMasterCount, lessThanOrEqualTo(1));
+            // The other master nodes only see themselves and cannot form a quorum (and sometimes the original master already sees this):
+            assertThat(redMasterCount, greaterThanOrEqualTo(masterNodeCount - 1));
+
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            }
+        }
+    }
+
+    public void testRedForDiscoveryProblems() {
+        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+            // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            int masterNodeCount = 0;
+            ConcurrentHashMap<DiscoveryNode, CoordinationDiagnosticsService.ClusterFormationStateOrException> clusterFormationStates =
+                new ConcurrentHashMap<>();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    clusterFormationStates.put(
+                        node.getLocalNode(),
+                        new CoordinationDiagnosticsService.ClusterFormationStateOrException(node.coordinator.getClusterFormationState())
+                    );
+                    node.disconnect();
+                    masterNodeCount++;
+                }
+            }
+            int redNonMasterCount = 0;
+            int redMasterCount = 0;
+            int greenMasterCount = 0;
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    // This is artificially forcing a discovery problem:
+                    node.coordinationDiagnosticsService.nodeToClusterFormationStateOrExceptionMap = clusterFormationStates;
+                }
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
+                    .diagnoseMasterStability(true);
+                if (node.getLocalNode().isMasterNode() == false) {
+                    assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+                    assertThat(healthIndicatorResult.summary(), containsString("No master eligible nodes found in the cluster"));
+                    redNonMasterCount++;
+                } else if (healthIndicatorResult.status().equals(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED)) {
+                    assertThat(healthIndicatorResult.summary(), containsString("unable to discover other master eligible nodes"));
                     redMasterCount++;
                 } else {
                     assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));

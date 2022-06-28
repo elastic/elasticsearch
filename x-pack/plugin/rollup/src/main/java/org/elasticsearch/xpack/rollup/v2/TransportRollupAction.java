@@ -66,10 +66,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -188,20 +186,21 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         // 1. Extract source index mappings
         client.admin().indices().getMappings(new GetMappingsRequest().indices(sourceIndexName), ActionListener.wrap(getMappingsResponse -> {
-            Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
+            final Map<String, ?> sourceIndexMappings = getMappingsResponse.mappings()
                 .entrySet()
                 .stream()
                 .filter(entry -> sourceIndexName.equals(entry.getKey()))
                 .findFirst()
                 .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
                 .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
+
             // 2. Extract rollup config from source index field caps
             FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
             final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
             fieldCapsRequest.setParentTask(parentTask);
             client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
                 final List<String> dimensionFields = new ArrayList<>();
-                final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
+                final List<String> metricFields = new ArrayList<>();
                 final List<String> labelFields = new ArrayList<>();
                 for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
                     String field = e.getKey();
@@ -221,7 +220,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     } else {
                         TimeSeriesParams.MetricType metricType = e.getValue().values().iterator().next().getMetricType();
                         if (metricType != null) {
-                            metricFieldCaps.put(field, fieldCaps);
+                            metricFields.add(field);
                         } else {
                             final String timestampField = request.getRollupConfig().getTimestampField();
                             if (fieldCaps.isLabel() && timestampField.equals(field) == false) {
@@ -235,7 +234,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 if (dimensionFields.isEmpty()) {
                     validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
                 }
-                if (metricFieldCaps.isEmpty()) {
+                if (metricFields.isEmpty()) {
                     validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
                 }
 
@@ -249,7 +248,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     mapping = createRollupIndexMapping(
                         request.getRollupConfig(),
                         dimensionFields,
-                        metricFieldCaps,
+                        metricFields,
                         labelFields,
                         sourceIndexMappings
                     );
@@ -264,7 +263,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
                             request,
                             dimensionFields.toArray(new String[0]),
-                            metricFieldCaps.keySet().toArray(new String[0]),
+                            metricFields.toArray(new String[0]),
                             labelFields.toArray(new String[0])
                         );
                         rollupIndexerRequest.setParentTask(parentTask);
@@ -400,8 +399,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      *
      * @param config the rollup configuration
      * @param dimensionFields a list of fields whose 'time_series_dimension' property is set to true
-     * @param metricFieldCaps a map with the field name as key and the fields caps response as value
-     *                for the metric fields of the source index
+     * @param metricFields a list of fields whose 'time_series_metric' property is set to one of the supported types (counter, gauge, ...)
      * @param labelFields a list of fields which are not dimensions or metrics
      * @param sourceIndexMappingProperties a map with the source index mapping
      * @return the mapping of the rollup index
@@ -409,9 +407,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     public static String createRollupIndexMapping(
         final RollupActionConfig config,
         final List<String> dimensionFields,
-        final Map<String, FieldCapabilities> metricFieldCaps,
+        final List<String> metricFields,
         final List<String> labelFields,
-        Map<String, Object> sourceIndexMappingProperties
+        Map<String, ?> sourceIndexMappingProperties
     ) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder = getDynamicTemplates(builder);
@@ -431,33 +429,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endObject()
             .endObject();
 
-        copyFieldMappings(
-            Stream.concat(dimensionFields.stream(), labelFields.stream()).collect(Collectors.toList()),
-            sourceIndexMappingProperties,
-            builder
-        );
-
-        for (Map.Entry<String, FieldCapabilities> e : metricFieldCaps.entrySet()) {
-            TimeSeriesParams.MetricType metricType = e.getValue().getMetricType();
-            if (metricType == TimeSeriesParams.MetricType.counter) {
-                // For counters we keep the same field type, because they store
-                // only one value (the last value of the counter)
-                builder.startObject(e.getKey())
-                    .field("type", e.getValue().getType())
-                    .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
-                    .endObject();
-            } else {
-                List<String> aggs = List.of(metricType.supportedAggs());
-                // We choose max as the default metric
-                String defaultMetric = aggs.contains("max") ? "max" : aggs.get(0);
-                builder.startObject(e.getKey())
-                    .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                    .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, aggs)
-                    .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
-                    .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
-                    .endObject();
-            }
-        }
+        copyFieldMappings(dimensionFields, metricFields, labelFields, sourceIndexMappingProperties, builder);
 
         builder.endObject();
         builder.endObject();
@@ -465,21 +437,63 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     private static void copyFieldMappings(
-        final List<String> fields,
-        final Map<String, Object> sourceIndexMappingProperties,
+        final List<String> dimensionFields,
+        final List<String> metricFields,
+        final List<String> labelFields,
+        final Map<String, ?> sourceIndexMappingProperties,
         final XContentBuilder builder
     ) throws IOException {
         @SuppressWarnings("unchecked")
         final Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
-        for (final String field : fields) {
+        for (final String field : Stream.concat(dimensionFields.stream(), Stream.concat(metricFields.stream(), labelFields.stream()))
+            .toList()) {
             final Map<String, ?> fieldProperties = resolveFieldProperties(properties, Arrays.asList(field.split("\\.")));
             if (fieldProperties.isEmpty() == false) {
-                builder.startObject(field);
-                for (final Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
-                    builder.field(fieldProperty.getKey(), fieldProperty.getValue());
-                }
-                builder.endObject();
+                if (dimensionFields.contains(field) || labelFields.contains(field)) {
+                    copyDimensionOrLabelFieldMapping(builder, field, fieldProperties);
+                } else if (metricFields.contains(field)) {
+                    copyMetricFieldMappings(builder, field, fieldProperties);
+                } else throw new IllegalArgumentException("Field [" + field + "] is not a metric, a dimension or a label");
             }
+        }
+    }
+
+    private static void copyMetricFieldMappings(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
+        throws IOException {
+        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.valueOf(
+            fieldProperties.get(TimeSeriesParams.TIME_SERIES_METRIC_PARAM).toString()
+        );
+        if (TimeSeriesParams.MetricType.counter.equals(metricType)) {
+            // For counters, we keep the same field type, because they store
+            // only one value (the last value of the counter)
+            builder.startObject(field)
+                .field("type", fieldProperties.get("type"))
+                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
+                .endObject();
+        } else {
+            final List<String> supportedAggs = List.of(metricType.supportedAggs());
+            // We choose max as the default metric
+            final String defaultMetric = supportedAggs.contains("max") ? "max" : supportedAggs.get(0);
+            builder.startObject(field)
+                .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
+                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggs)
+                .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
+                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
+                .endObject();
+        }
+    }
+
+    private static void copyDimensionOrLabelFieldMapping(
+        final XContentBuilder builder,
+        final String field,
+        final Map<String, ?> fieldProperties
+    ) throws IOException {
+        if (fieldProperties.isEmpty() == false) {
+            builder.startObject(field);
+            for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
+                builder.field(fieldProperty.getKey(), fieldProperty.getValue());
+            }
+            builder.endObject();
         }
     }
 

@@ -31,7 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.CoordinationDiagnosticsResult;
 
 /**
- * This action exposes CoordinationDiagnosticsService.diagnoseMasterStability() so that a node can get a remote node's view of
+ * This action exposes CoordinationDiagnosticsService#diagnoseMasterStability so that a node can get a remote node's view of
  * coordination diagnostics (including master stability).
  */
 public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagnosticsAction.Response> {
@@ -117,7 +117,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
     }
 
     /**
-     * This transport action calls the CoordinationDiagnosticsService on a remote node.
+     * This transport action calls CoordinationDiagnosticsService#diagnoseMasterStability
      */
     public static class TransportAction extends HandledTransportAction<Request, Response> {
         private final ClusterService clusterService;

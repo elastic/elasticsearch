@@ -615,10 +615,6 @@ See <<getting-started-search>>.
 === Search API
 See <<getting-started-search>>.
 
-[role="exclude", id="getting-started-conclusion"]
-=== Conclusion
-See <<getting-started-next-steps>>.
-
 [role="exclude",id="ccs-reduction"]
 === {ccs-cap} reduction
 See <<ccs-works>>.

@@ -15,7 +15,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.Transport;
 
@@ -43,7 +42,7 @@ public class ActionTestUtils {
         Request request
     ) {
         PlainActionFuture<Response> future = newFuture();
-        taskManager.registerAndExecute("transport", action, request, localConnection, wrapAsTaskListener(future));
+        taskManager.registerAndExecute("transport", action, request, localConnection, future);
         return future.actionGet();
     }
 
@@ -75,20 +74,6 @@ public class ActionTestUtils {
             @Override
             public void onFailure(Exception exception) {
                 listener.onFailure(exception);
-            }
-        };
-    }
-
-    public static <T> TaskListener<T> wrapAsTaskListener(ActionListener<T> listener) {
-        return new TaskListener<>() {
-            @Override
-            public void onResponse(Task task, T t) {
-                listener.onResponse(t);
-            }
-
-            @Override
-            public void onFailure(Task task, Exception e) {
-                listener.onFailure(e);
             }
         };
     }

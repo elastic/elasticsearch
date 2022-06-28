@@ -122,6 +122,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "restResources copies Tests and API by configuration"() {
         given:
+        // CopyRestTestsTask has troubles loading correctly in cc mode
+        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.java'
@@ -170,7 +172,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/restResources/yamlTests/rest-api-spec/test/" + coreTest).getText("UTF-8") == "replacedWithValue"
 
         when:
-        result = gradleRunner("copyRestApiSpecsTask").build()
+        result = gradleRunner("copyRestApiSpecsTask", '--stacktrace').build()
 
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.UP_TO_DATE

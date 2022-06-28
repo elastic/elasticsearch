@@ -47,9 +47,9 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     def cleanup() {
-        if (Boolean.getBoolean('test.keep.samplebuild')) {
+//        if (Boolean.getBoolean('test.keep.samplebuild')) {
             FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
-        }
+//        }
     }
 
     File subProject(String subProjectPath) {

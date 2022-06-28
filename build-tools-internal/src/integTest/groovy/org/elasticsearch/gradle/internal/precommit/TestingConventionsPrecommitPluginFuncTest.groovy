@@ -45,7 +45,6 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
     }
 
     def setup() {
-        configurationCacheCompatible = true
         repository.configureBuild(buildFile)
     }
 

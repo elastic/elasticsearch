@@ -22,7 +22,7 @@ public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggrega
         if (randomBoolean()) {
             factory.missing("MISSING");
         }
-        if (true) {
+        if (randomBoolean()) {
             factory.executionHint(randomFrom(List.of("segment_ordinals", "global_ordinals", "direct")));
         }
         return factory;

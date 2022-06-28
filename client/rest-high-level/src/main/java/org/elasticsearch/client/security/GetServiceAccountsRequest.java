@@ -59,10 +59,8 @@ public final class GetServiceAccountsRequest implements Validatable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         GetServiceAccountsRequest that = (GetServiceAccountsRequest) o;
         return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName);
     }

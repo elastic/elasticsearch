@@ -1,8 +1,0 @@
-pr: 39459
-issues:
-  - 39350
-area: Engine
-type: upgrade
-summary: Re-enable backwards compatibility
-versions:
-  - v8.0.0

@@ -53,14 +53,14 @@ import static org.elasticsearch.common.inject.internal.MoreTypes.getRawType;
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
  */
+@SuppressWarnings("rawtypes")
 public final class InjectionPoint {
 
     private final boolean optional;
     private final Member member;
     private final List<Dependency<?>> dependencies;
 
-    private InjectionPoint(Member member,
-                           List<Dependency<?>> dependencies, boolean optional) {
+    private InjectionPoint(Member member, List<Dependency<?>> dependencies, boolean optional) {
         this.member = member;
         this.dependencies = dependencies;
         this.optional = optional;
@@ -98,12 +98,10 @@ public final class InjectionPoint {
         }
         errors.throwConfigurationExceptionIfErrorsExist();
 
-        this.dependencies = Collections.<Dependency<?>>singletonList(
-            newDependency(key, Nullability.allowsNull(annotations), -1));
+        this.dependencies = Collections.<Dependency<?>>singletonList(newDependency(key, Nullability.allowsNull(annotations), -1));
     }
 
-    private List<Dependency<?>> forMember(Member member, TypeLiteral<?> type,
-                                                   Annotation[][] parameterAnnotations) {
+    private List<Dependency<?>> forMember(Member member, TypeLiteral<?> type, Annotation[][] parameterAnnotations) {
         Errors errors = new Errors(member);
         Iterator<Annotation[]> annotationsIterator = Arrays.asList(parameterAnnotations).iterator();
 
@@ -160,8 +158,7 @@ public final class InjectionPoint {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof InjectionPoint
-                && member.equals(((InjectionPoint) o).member);
+        return o instanceof InjectionPoint && member.equals(((InjectionPoint) o).member);
     }
 
     @Override
@@ -215,8 +212,7 @@ public final class InjectionPoint {
             Constructor<?> noArgConstructor = rawType.getConstructor();
 
             // Disallow private constructors on non-private classes (unless they have @Inject)
-            if (Modifier.isPrivate(noArgConstructor.getModifiers())
-                    && Modifier.isPrivate(rawType.getModifiers()) == false) {
+            if (Modifier.isPrivate(noArgConstructor.getModifiers()) && Modifier.isPrivate(rawType.getModifiers()) == false) {
                 errors.missingConstructor(rawType);
                 throw new ConfigurationException(errors.getMessages());
             }
@@ -325,7 +321,10 @@ public final class InjectionPoint {
 
     private static void checkForMisplacedBindingAnnotations(Member member, Errors errors) {
         Annotation misplacedBindingAnnotation = Annotations.findBindingAnnotation(
-                errors, member, ((AnnotatedElement) member).getAnnotations());
+            errors,
+            member,
+            ((AnnotatedElement) member).getAnnotations()
+        );
         if (misplacedBindingAnnotation == null) {
             return;
         }
@@ -337,17 +336,19 @@ public final class InjectionPoint {
                 if (member.getDeclaringClass().getField(member.getName()) != null) {
                     return;
                 }
-            } catch (NoSuchFieldException ignore) {
-            }
+            } catch (NoSuchFieldException ignore) {}
         }
 
         errors.misplacedBindingAnnotation(member, misplacedBindingAnnotation);
     }
 
-    private static <M extends Member & AnnotatedElement> void addInjectionPoints(TypeLiteral<?> type,
-                                                                                 Factory<M> factory, boolean statics,
-                                                                                 Collection<InjectionPoint> injectionPoints,
-                                                                                 Errors errors) {
+    private static <M extends Member & AnnotatedElement> void addInjectionPoints(
+        TypeLiteral<?> type,
+        Factory<M> factory,
+        boolean statics,
+        Collection<InjectionPoint> injectionPoints,
+        Errors errors
+    ) {
         if (type.getType() == Object.class) {
             return;
         }
@@ -361,8 +362,12 @@ public final class InjectionPoint {
     }
 
     private static <M extends Member & AnnotatedElement> void addInjectorsForMembers(
-            TypeLiteral<?> typeLiteral, Factory<M> factory, boolean statics,
-            Collection<InjectionPoint> injectionPoints, Errors errors) {
+        TypeLiteral<?> typeLiteral,
+        Factory<M> factory,
+        boolean statics,
+        Collection<InjectionPoint> injectionPoints,
+        Errors errors
+    ) {
         for (M member : factory.getMembers(getRawType(typeLiteral.getType()))) {
             if (isStatic(member) != statics) {
                 continue;

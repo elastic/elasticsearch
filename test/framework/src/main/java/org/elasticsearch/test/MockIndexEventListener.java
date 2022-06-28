@@ -8,11 +8,11 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -50,6 +50,7 @@ public final class MockIndexEventListener {
          * For tests to pass in to fail on listener invocation
          */
         public static final Setting<Boolean> INDEX_FAIL = Setting.boolSetting("index.fail", false, Property.IndexScope);
+
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(INDEX_FAIL);
@@ -67,10 +68,12 @@ public final class MockIndexEventListener {
     }
 
     public static class TestEventListener implements IndexEventListener {
-        private volatile IndexEventListener delegate = new IndexEventListener() {};
+        private volatile IndexEventListener delegate = new IndexEventListener() {
+        };
 
         public void setNewDelegate(IndexEventListener listener) {
-            delegate = listener == null ? new IndexEventListener() {} : listener;
+            delegate = listener == null ? new IndexEventListener() {
+            } : listener;
         }
 
         @Override
@@ -99,8 +102,12 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
-                IndexShardState currentState, @Nullable String reason) {
+        public void indexShardStateChanged(
+            IndexShard indexShard,
+            @Nullable IndexShardState previousState,
+            IndexShardState currentState,
+            @Nullable String reason
+        ) {
             delegate.indexShardStateChanged(indexShard, previousState, currentState, reason);
         }
 

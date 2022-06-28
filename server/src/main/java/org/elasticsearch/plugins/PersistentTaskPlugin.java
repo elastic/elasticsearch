@@ -25,11 +25,13 @@ public interface PersistentTaskPlugin {
     /**
      * Returns additional persistent tasks executors added by this plugin.
      */
-    default List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                        ThreadPool threadPool,
-                                                                        Client client,
-                                                                        SettingsModule settingsModule,
-                                                                        IndexNameExpressionResolver expressionResolver) {
+    default List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
         return Collections.emptyList();
     }
 

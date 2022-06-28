@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -24,8 +24,8 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Request builder for populating a {@link CreateApiKeyRequest}
@@ -34,11 +34,17 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
-            "api_key_request", false, (args, v) -> {
-                return new CreateApiKeyRequest((String) args[0], (List<RoleDescriptor>) args[1],
-                        TimeValue.parseTimeValue((String) args[2], null, "expiration"),
-                    (Map<String, Object>) args[3]);
-            });
+        "api_key_request",
+        false,
+        (args, v) -> {
+            return new CreateApiKeyRequest(
+                (String) args[0],
+                (List<RoleDescriptor>) args[1],
+                TimeValue.parseTimeValue((String) args[2], null, "expiration"),
+                (Map<String, Object>) args[3]
+            );
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
@@ -81,8 +87,10 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
 
     public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
-        try (InputStream stream = source.streamInput();
-                XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             CreateApiKeyRequest createApiKeyRequest = parse(parser);
             setName(createApiKeyRequest.getName());
             setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());

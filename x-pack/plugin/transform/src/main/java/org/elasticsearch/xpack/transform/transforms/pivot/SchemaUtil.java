@@ -108,23 +108,19 @@ public final class SchemaUtil {
         // collects the target mapping types used for grouping
         Map<String, String> fieldTypesForGrouping = new HashMap<>();
 
-        config.getGroupConfig()
-            .getGroups()
-            .forEach(
-                (destinationFieldName, group) -> {
-                    // skip any fields that use scripts as there will be no source mapping
-                    if (group.getScriptConfig() != null) {
-                        return;
-                    }
+        config.getGroupConfig().getGroups().forEach((destinationFieldName, group) -> {
+            // skip any fields that use scripts as there will be no source mapping
+            if (group.getScriptConfig() != null) {
+                return;
+            }
 
-                    // We will always need the field name for the grouping to create the mapping
-                    fieldNamesForGrouping.put(destinationFieldName, group.getField());
-                    // Sometimes the group config will supply a desired mapping as well
-                    if (group.getMappingType() != null) {
-                        fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
-                    }
-                }
-            );
+            // We will always need the field name for the grouping to create the mapping
+            fieldNamesForGrouping.put(destinationFieldName, group.getField());
+            // Sometimes the group config will supply a desired mapping as well
+            if (group.getMappingType() != null) {
+                fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
+            }
+        });
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
@@ -156,7 +152,8 @@ public final class SchemaUtil {
                         aggregationTypes,
                         fieldNamesForGrouping,
                         fieldTypesForGrouping,
-                        sourceMappings)
+                        sourceMappings
+                    )
                 ),
                 listener::onFailure
             )
@@ -254,27 +251,25 @@ public final class SchemaUtil {
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    static void getSourceFieldMappings(Client client,
-                                       String[] index,
-                                       String[] fields,
-                                       Map<String, Object> runtimeMappings,
-                                       ActionListener<Map<String, String>> listener) {
+    static void getSourceFieldMappings(
+        Client client,
+        String[] index,
+        String[] fields,
+        Map<String, Object> runtimeMappings,
+        ActionListener<Map<String, String>> listener
+    ) {
         if (index == null || index.length == 0 || fields == null || fields.length == 0) {
             listener.onResponse(Collections.emptyMap());
             return;
         }
-        FieldCapabilitiesRequest fieldCapabilitiesRequest =
-            new FieldCapabilitiesRequest()
-                .indices(index)
-                .fields(fields)
-                .runtimeFields(runtimeMappings)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
+            .fields(fields)
+            .runtimeFields(runtimeMappings)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         client.execute(
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
-            ActionListener.wrap(
-                response -> listener.onResponse(extractFieldMappings(response)),
-                listener::onFailure)
+            ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
         );
     }
 

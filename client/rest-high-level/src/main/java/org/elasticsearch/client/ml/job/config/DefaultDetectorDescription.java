@@ -17,8 +17,7 @@ public final class DefaultDetectorDescription {
     private static final String PARTITION_FIELD_OPTION = " partitionfield=";
     private static final String EXCLUDE_FREQUENT_OPTION = " excludefrequent=";
 
-    private DefaultDetectorDescription() {
-    }
+    private DefaultDetectorDescription() {}
 
     /**
      * Returns the default description for the given {@code detector}
@@ -43,8 +42,7 @@ public final class DefaultDetectorDescription {
         if (isNotNullOrEmpty(detector.getFunction().getFullName())) {
             sb.append(detector.getFunction());
             if (isNotNullOrEmpty(detector.getFieldName())) {
-                sb.append('(').append(quoteField(detector.getFieldName()))
-                .append(')');
+                sb.append('(').append(quoteField(detector.getFieldName())).append(')');
             }
         } else if (isNotNullOrEmpty(detector.getFieldName())) {
             sb.append(quoteField(detector.getFieldName()));

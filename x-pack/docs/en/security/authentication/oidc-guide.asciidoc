@@ -108,7 +108,7 @@ xpack.security.authc.realms.oidc.oidc1:
   op.jwkset_path: oidc/jwkset.json
   op.userinfo_endpoint: "https://op.example.org/oauth2/v1/userinfo"
   op.endsession_endpoint: "https://op.example.org/oauth2/v1/logout"
-  rp.post_logout_redirect_uri: "https://kibana.example.org:5601/logged_out"
+  rp.post_logout_redirect_uri: "https://kibana.example.org:5601/security/logged_out"
   claims.principal: sub
   claims.groups: "http://example.info/claims/groups"
 -------------------------------------------------------------------------------------
@@ -180,8 +180,8 @@ op.endsession_endpoint::
 rp.post_logout_redirect_uri::
     (Optional) The Redirect URL where the OpenID Connect Provider should redirect the user after a
     successful Single Logout (assuming `op.endsession_endpoint` above is also set). This should be set to a value that
-    will not trigger a new OpenID Connect Authentication, such as +$\{kibana-url}/logged_out+ where _$\{kibana-url}_ is
-    the base URL for your {kib} instance.
+    will not trigger a new OpenID Connect Authentication, such as +$\{kibana-url}/security/logged_out+  or
+    +$\{kibana-url}/login?msg=LOGGED_OUT+ where _$\{kibana-url}_ is the base URL for your {kib} instance.
 
 claims.principal:: See <<oidc-claims-mappings>>.
 claims.groups:: See <<oidc-claims-mappings>>.
@@ -380,8 +380,8 @@ the user back to after the OP logs them out.
 
 When configuring `rp.post_logout_redirect_uri`, care should be taken to not point this to a URL that
 will trigger re-authentication of the user. For instance, when using OpenID Connect to support
-single sign-on to {kib}, this could be set to +$\{kibana-url}/logged_out+,  which will show a user-
-friendly message to the user.
+single sign-on to {kib}, this could be set to either +$\{kibana-url}/security/logged_out+, which will show a
+user-friendly message to the user or +$\{kibana-url}/login?msg=LOGGED_OUT+ which will take the user to the login selector in {kib}.
 
 [[oidc-ssl-config]]
 ==== OpenID Connect Realm SSL Configuration

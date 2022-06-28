@@ -33,7 +33,8 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            new Route(POST, "/_security/service/{namespace}/{service}/credential/token/{name}/_clear_cache"));
+            new Route(POST, "/_security/service/{namespace}/{service}/credential/token/{name}/_clear_cache")
+        );
     }
 
     @Override
@@ -53,7 +54,7 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
             req.keys(namespace + "/" + service + "/");
         } else {
             final Set<String> qualifiedTokenNames = new HashSet<>(tokenNames.length);
-            for (String name: tokenNames) {
+            for (String name : tokenNames) {
                 if (false == Validation.isValidServiceAccountTokenName(name)) {
                     throw new IllegalArgumentException(Validation.formatInvalidServiceTokenNameErrorMessage(name));
                 }

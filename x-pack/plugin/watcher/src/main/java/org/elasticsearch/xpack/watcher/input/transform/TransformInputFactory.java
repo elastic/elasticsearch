@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.input.transform;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
@@ -49,8 +49,9 @@ public final class TransformInputFactory extends InputFactory<TransformInput, Tr
     @Override
     public ExecutableTransformInput createExecutable(TransformInput input) {
         Transform transform = input.getTransform();
-        TransformFactory factory = transformRegistry.factory(transform.type());
-        ExecutableTransform executableTransform = factory.createExecutable(transform);
+        @SuppressWarnings("unchecked")
+        TransformFactory<Transform, ?, ?> factory = (TransformFactory<Transform, ?, ?>) transformRegistry.factory(transform.type());
+        ExecutableTransform<?, ?> executableTransform = factory.createExecutable(transform);
         return new ExecutableTransformInput(input, executableTransform);
     }
 }

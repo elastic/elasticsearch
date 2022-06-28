@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,16 +62,16 @@ public class AnomalyRecordTests extends AbstractXContentTestCase<AnomalyRecord> 
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 9);
-            List<Influence>  influences = new ArrayList<>();
-            for (int i=0; i<count; i++) {
+            List<Influence> influences = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
                 influences.add(new Influence(randomAlphaOfLength(8), Collections.singletonList(randomAlphaOfLengthBetween(1, 28))));
             }
             anomalyRecord.setInfluencers(influences);
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 9);
-            List<AnomalyCause>  causes = new ArrayList<>();
-            for (int i=0; i<count; i++) {
+            List<AnomalyCause> causes = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
                 causes.add(new AnomalyCauseTests().createTestInstance());
             }
             anomalyRecord.setCauses(causes);

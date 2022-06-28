@@ -27,6 +27,7 @@ public class AckWatchRequest implements Validatable {
         this.actionIds = actionIds;
     }
 
+    @SuppressWarnings("HiddenField")
     private void validateIds(String watchId, String... actionIds) {
         ValidationException exception = new ValidationException();
         if (watchId == null) {
@@ -40,8 +41,7 @@ public class AckWatchRequest implements Validatable {
                 if (actionId == null) {
                     exception.addValidationError(String.format(Locale.ROOT, "action id may not be null"));
                 } else if (PutWatchRequest.isValidId(actionId) == false) {
-                    exception.addValidationError(
-                        String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId));
+                    exception.addValidationError(String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId));
                 }
             }
         }

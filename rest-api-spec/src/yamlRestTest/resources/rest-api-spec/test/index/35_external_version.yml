@@ -8,7 +8,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        0
@@ -18,7 +18,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        5
@@ -29,7 +29,7 @@
       catch:             conflict
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        5
@@ -38,7 +38,7 @@
       catch:             conflict
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        0
@@ -46,7 +46,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        6

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.security.action.token;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,7 +61,8 @@ public final class CreateTokenRequest extends ActionRequest {
     }
 
     private static final Set<GrantType> SUPPORTED_GRANT_TYPES = Collections.unmodifiableSet(
-        EnumSet.of(GrantType.PASSWORD, GrantType.KERBEROS, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS));
+        EnumSet.of(GrantType.PASSWORD, GrantType.KERBEROS, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS)
+    );
 
     private String grantType;
     private String username;
@@ -87,8 +88,14 @@ public final class CreateTokenRequest extends ActionRequest {
 
     public CreateTokenRequest() {}
 
-    public CreateTokenRequest(String grantType, @Nullable String username, @Nullable SecureString password,
-                              @Nullable SecureString kerberosTicket, @Nullable String scope, @Nullable String refreshToken) {
+    public CreateTokenRequest(
+        String grantType,
+        @Nullable String username,
+        @Nullable SecureString password,
+        @Nullable SecureString kerberosTicket,
+        @Nullable String scope,
+        @Nullable String refreshToken
+    ) {
         this.grantType = grantType;
         this.username = username;
         this.password = password;
@@ -128,40 +135,57 @@ public final class CreateTokenRequest extends ActionRequest {
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     break;
                 default:
-                    validationException = addValidationError("grant_type only supports the values: [" +
-                            SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", ")) + "]",
-                        validationException);
+                    validationException = addValidationError(
+                        "grant_type only supports the values: ["
+                            + SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", "))
+                            + "]",
+                        validationException
+                    );
             }
         } else {
-            validationException = addValidationError("grant_type only supports the values: [" +
-                    SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", ")) + "]",
-                validationException);
+            validationException = addValidationError(
+                "grant_type only supports the values: ["
+                    + SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", "))
+                    + "]",
+                validationException
+            );
         }
         return validationException;
     }
 
-    private static ActionRequestValidationException validateRequiredField(String field, String fieldValue,
-                                                                          ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateRequiredField(
+        String field,
+        String fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (Strings.isNullOrEmpty(fieldValue)) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
         }
         return validationException;
     }
 
-    private static ActionRequestValidationException validateRequiredField(String field, SecureString fieldValue,
-                                                                          ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateRequiredField(
+        String field,
+        SecureString fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue == null || fieldValue.getChars() == null || fieldValue.length() == 0) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
         }
         return validationException;
     }
 
-    private static ActionRequestValidationException validateUnsupportedField(GrantType grantType, String field, Object fieldValue,
-                                                                               ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateUnsupportedField(
+        GrantType grantType,
+        String field,
+        Object fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue != null) {
             validationException = addValidationError(
-                    String.format(Locale.ROOT, "%s is not supported with the %s grant_type", field, grantType.getValue()),
-                    validationException);
+                String.format(Locale.ROOT, "%s is not supported with the %s grant_type", field, grantType.getValue()),
+                validationException
+            );
         }
         return validationException;
     }
@@ -223,12 +247,14 @@ public final class CreateTokenRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().before(Version.V_6_5_0) && GrantType.CLIENT_CREDENTIALS.getValue().equals(grantType)) {
-            throw new IllegalArgumentException("a request with the client_credentials grant_type cannot be sent to version [" +
-                out.getVersion() + "]");
+            throw new IllegalArgumentException(
+                "a request with the client_credentials grant_type cannot be sent to version [" + out.getVersion() + "]"
+            );
         }
         if (out.getVersion().before(Version.V_7_3_0) && GrantType.KERBEROS.getValue().equals(grantType)) {
-            throw new IllegalArgumentException("a request with the _kerberos grant_type cannot be sent to version [" +
-                out.getVersion() + "]");
+            throw new IllegalArgumentException(
+                "a request with the _kerberos grant_type cannot be sent to version [" + out.getVersion() + "]"
+            );
         }
 
         out.writeString(grantType);

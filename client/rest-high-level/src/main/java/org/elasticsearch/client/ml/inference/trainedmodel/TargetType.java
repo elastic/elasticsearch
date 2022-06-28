@@ -11,7 +11,8 @@ import java.util.Locale;
 
 public enum TargetType {
 
-    REGRESSION, CLASSIFICATION;
+    REGRESSION,
+    CLASSIFICATION;
 
     public static TargetType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

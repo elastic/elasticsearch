@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
@@ -30,9 +31,11 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -40,6 +43,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
@@ -85,9 +89,16 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     }
 
     private static RestClient buildRestClient(NodeSelector nodeSelector) {
+        return buildRestClient(nodeSelector, null);
+    }
+
+    private static RestClient buildRestClient(NodeSelector nodeSelector, RestClient.FailureListener failureListener) {
         RestClientBuilder restClientBuilder = RestClient.builder(httpHosts);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
+        }
+        if (failureListener != null) {
+            restClientBuilder.setFailureListener(failureListener);
         }
         restClientBuilder.setNodeSelector(nodeSelector);
         return restClientBuilder.build();
@@ -96,10 +107,11 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     private static HttpServer createHttpServer() throws Exception {
         HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        //returns a different status code depending on the path
+        // returns a different status code depending on the path
         for (int statusCode : getAllStatusCodes()) {
             httpServer.createContext(pathPrefix + "/" + statusCode, new ResponseHandler(statusCode));
         }
+        httpServer.createContext(pathPrefix + "/20bytes", new ResponseHandlerWithContent());
         httpServer.createContext(pathPrefix + "/wait", waitForCancelHandler);
         return httpServer;
     }
@@ -130,8 +142,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             requestCameInLatch.countDown();
             try {
                 cancelHandlerLatch.await();
-            } catch (InterruptedException ignore) {
-            } finally {
+            } catch (InterruptedException ignore) {} finally {
                 exchange.sendResponseHeaders(200, 0);
                 exchange.close();
             }
@@ -153,6 +164,18 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
+    private static class ResponseHandlerWithContent implements HttpHandler {
+        @Override
+        public void handle(HttpExchange httpExchange) throws IOException {
+            byte[] body = "01234567890123456789".getBytes(StandardCharsets.UTF_8);
+            httpExchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = httpExchange.getResponseBody()) {
+                out.write(body);
+            }
+            httpExchange.close();
+        }
+    }
+
     @AfterClass
     public static void stopHttpServers() throws IOException {
         restClient.close();
@@ -165,7 +188,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
 
     @Before
     public void stopRandomHost() {
-        //verify that shutting down some hosts doesn't matter as long as one working host is left behind
+        // verify that shutting down some hosts doesn't matter as long as one working host is left behind
         if (httpServers.length > 1 && randomBoolean()) {
             List<HttpServer> updatedHttpServers = new ArrayList<>(httpServers.length - 1);
             int nodeIndex = randomIntBetween(0, httpServers.length - 1);
@@ -188,12 +211,12 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         int numRequests = randomIntBetween(5, 20);
         for (int i = 0; i < numRequests; i++) {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
-            //we don't test status codes that are subject to retries as they interfere with hosts being stopped
+            // we don't test status codes that are subject to retries as they interfere with hosts being stopped
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
             Response response;
             try {
                 response = restClient.performRequest(new Request(method, "/" + statusCode));
-            } catch(ResponseException responseException) {
+            } catch (ResponseException responseException) {
                 response = responseException.getResponse();
             }
             assertEquals(method, response.getRequestLine().getMethod());
@@ -208,7 +231,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         final List<TestResponse> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numRequests; i++) {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
-            //we don't test status codes that are subject to retries as they interfere with hosts being stopped
+            // we don't test status codes that are subject to retries as they interfere with hosts being stopped
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
             restClient.performRequestAsync(new Request(method, "/" + statusCode), new ResponseListener() {
                 @Override
@@ -231,8 +254,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             Response response = testResponse.getResponse();
             assertEquals(testResponse.method, response.getRequestLine().getMethod());
             assertEquals(testResponse.statusCode, response.getStatusLine().getStatusCode());
-            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode,
-                    response.getRequestLine().getUri());
+            assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + testResponse.statusCode, response.getRequestLine().getUri());
         }
     }
 
@@ -258,7 +280,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                 }
             });
             if (randomBoolean()) {
-                //we wait for the request to get to the server-side otherwise we almost always cancel
+                // we wait for the request to get to the server-side otherwise we almost always cancel
                 // the request artificially on the client-side before even sending it
                 waitForCancelHandler.awaitRequest();
             }
@@ -302,6 +324,35 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                 }
             }
         }
+    }
+
+    @Ignore("https://github.com/elastic/elasticsearch/issues/87314")
+    public void testNonRetryableException() throws Exception {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.setHttpAsyncResponseConsumerFactory(
+            // Limit to very short responses to trigger a ContentTooLongException
+            () -> new HeapBufferedAsyncResponseConsumer(10)
+        );
+
+        AtomicInteger failureCount = new AtomicInteger();
+        RestClient client = buildRestClient(NodeSelector.ANY, new RestClient.FailureListener() {
+            @Override
+            public void onFailure(Node node) {
+                failureCount.incrementAndGet();
+            }
+        });
+
+        failureCount.set(0);
+        Request request = new Request("POST", "/20bytes");
+        request.setOptions(options);
+        try {
+            RestClientSingleHostTests.performRequestSyncOrAsync(client, request);
+            fail("Request should not succeed");
+        } catch (IOException e) {
+            assertEquals(stoppedFirstHost ? 2 : 1, failureCount.intValue());
+        }
+
+        client.close();
     }
 
     private static class TestResponse {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
-
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

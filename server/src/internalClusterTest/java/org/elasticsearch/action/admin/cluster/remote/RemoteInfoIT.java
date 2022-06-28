@@ -34,12 +34,17 @@ public class RemoteInfoIT extends AbstractMultiClustersTestCase {
         final InternalTestCluster localCluster = cluster(LOCAL_CLUSTER);
         localCluster.client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet();
 
-        final String nodeWithoutRemoteClientRole = localCluster.startNode(NodeRoles.onlyRoles(
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE)));
-        final IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () ->
-            localCluster.client(nodeWithoutRemoteClientRole).execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet());
-        assertThat(error.getMessage(),
-            equalTo("node [" + nodeWithoutRemoteClientRole + "] does not have the [remote_cluster_client] role"));
+        final String nodeWithoutRemoteClientRole = localCluster.startNode(
+            NodeRoles.onlyRoles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE))
+        );
+        final IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> localCluster.client(nodeWithoutRemoteClientRole).execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet()
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo("node [" + nodeWithoutRemoteClientRole + "] does not have the [remote_cluster_client] role")
+        );
 
         final Set<DiscoveryNodeRole> roles = new HashSet<>();
         roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);

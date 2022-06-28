@@ -18,10 +18,10 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -65,12 +65,13 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public Murmur3FieldMapper build(ContentPath contentPath) {
+        public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
                 name,
-                new Murmur3FieldType(buildFullName(contentPath), stored.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, contentPath),
-                copyTo.build());
+                new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build()
+            );
         }
     }
 
@@ -104,10 +105,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName,
-                                 MappedFieldType mappedFieldType,
-                                 MultiFields multiFields,
-                                 CopyTo copyTo) {
+    protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
     }
 
@@ -122,8 +120,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(DocumentParserContext context)
-            throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
         if (value != null) {
             final BytesRef bytes = new BytesRef(value.toString());

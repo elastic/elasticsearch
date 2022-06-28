@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml.inference.preprocessing;
 
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class MultiTests extends AbstractXContentTestCase<Multi> {
 
@@ -55,11 +54,13 @@ public class MultiTests extends AbstractXContentTestCase<Multi> {
             NGram nGram = new NGram(randomAlphaOfLength(10), Arrays.asList(1, 2), 0, 10, isCustom, "f");
             List<PreProcessor> preProcessorList = new ArrayList<>();
             preProcessorList.add(nGram);
-            Stream.generate(() -> randomFrom(
-                FrequencyEncodingTests.createRandom(randomFrom(nGram.outputFields())),
-                TargetMeanEncodingTests.createRandom(randomFrom(nGram.outputFields())),
-                OneHotEncodingTests.createRandom(randomFrom(nGram.outputFields()))
-            )).limit(randomIntBetween(1, 10)).forEach(preProcessorList::add);
+            Stream.generate(
+                () -> randomFrom(
+                    FrequencyEncodingTests.createRandom(randomFrom(nGram.outputFields())),
+                    TargetMeanEncodingTests.createRandom(randomFrom(nGram.outputFields())),
+                    OneHotEncodingTests.createRandom(randomFrom(nGram.outputFields()))
+                )
+            ).limit(randomIntBetween(1, 10)).forEach(preProcessorList::add);
             processors = preProcessorList;
         } else {
             processors = Stream.generate(

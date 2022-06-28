@@ -11,9 +11,9 @@ package org.elasticsearch.action.admin.indices.upgrade.post;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,8 +32,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
         versions = in.readMap(StreamInput::readString, i -> new Tuple<>(Version.readVersion(i), i.readString()));
     }
 
-    public UpgradeSettingsRequest() {
-    }
+    public UpgradeSettingsRequest() {}
 
     /**
      * Constructs a new request to update minimum compatible version settings for one or more indices
@@ -44,7 +43,6 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
         this.versions = versions;
     }
 
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -53,7 +51,6 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
         }
         return validationException;
     }
-
 
     Map<String, Tuple<Version, String>> versions() {
         return versions;

@@ -16,18 +16,16 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.node.Node;
@@ -60,13 +58,16 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                return new MockSinglePrioritizingExecutor("mock-executor", deterministicTaskQueue, threadPool);
+                return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
             }
         };
 
-        final MasterService masterService = new FakeThreadPoolMasterService("test", "masterService", threadPool, r -> {
-            fail("master service should not run any tasks");
-        });
+        final MasterService masterService = new FakeThreadPoolMasterService(
+            "test",
+            "masterService",
+            threadPool,
+            r -> { fail("master service should not run any tasks"); }
+        );
 
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
@@ -82,18 +83,27 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         clusterService.start();
 
         final AtomicBoolean becameMaster1 = new AtomicBoolean();
-        clusterApplierService.onNewClusterState("become master 1",
-                () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(), setFlagOnSuccess(becameMaster1));
+        clusterApplierService.onNewClusterState(
+            "become master 1",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
+            setFlagOnSuccess(becameMaster1)
+        );
         runUntilFlag(deterministicTaskQueue, becameMaster1);
 
         final AtomicBoolean failMaster1 = new AtomicBoolean();
-        clusterApplierService.onNewClusterState("fail master 1",
-                () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(), setFlagOnSuccess(failMaster1));
+        clusterApplierService.onNewClusterState(
+            "fail master 1",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(),
+            setFlagOnSuccess(failMaster1)
+        );
         runUntilFlag(deterministicTaskQueue, failMaster1);
 
         final AtomicBoolean becameMaster2 = new AtomicBoolean();
-        clusterApplierService.onNewClusterState("become master 2",
-                () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(), setFlagOnSuccess(becameMaster2));
+        clusterApplierService.onNewClusterState(
+            "become master 2",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(localMaster).build(),
+            setFlagOnSuccess(becameMaster2)
+        );
         runUntilFlag(deterministicTaskQueue, becameMaster2);
 
         for (int i = 0; i < 3; i++) {
@@ -105,8 +115,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
-        clusterApplierService.onNewClusterState("fail master 2",
-                () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(), setFlagOnSuccess(failMaster2));
+        clusterApplierService.onNewClusterState(
+            "fail master 2",
+            () -> ClusterState.builder(new ClusterName("cluster")).nodes(noMaster).build(),
+            setFlagOnSuccess(failMaster2)
+        );
         runUntilFlag(deterministicTaskQueue, failMaster2);
 
         runFor(deterministicTaskQueue, INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis());
@@ -118,7 +131,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     private static void runFor(DeterministicTaskQueue deterministicTaskQueue, long duration) {
         final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + duration;
         while (deterministicTaskQueue.getCurrentTimeMillis() < endTime
-                && (deterministicTaskQueue.hasRunnableTasks() || deterministicTaskQueue.hasDeferredTasks())) {
+            && (deterministicTaskQueue.hasRunnableTasks() || deterministicTaskQueue.hasDeferredTasks())) {
             if (deterministicTaskQueue.hasDeferredTasks() && randomBoolean()) {
                 deterministicTaskQueue.advanceTime();
             } else if (deterministicTaskQueue.hasRunnableTasks()) {
@@ -137,16 +150,16 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         }
     }
 
-    private static ClusterApplier.ClusterApplyListener setFlagOnSuccess(AtomicBoolean flag) {
-        return new ClusterApplier.ClusterApplyListener() {
+    private static ActionListener<Void> setFlagOnSuccess(AtomicBoolean flag) {
+        return new ActionListener<Void>() {
 
             @Override
-            public void onSuccess(String source) {
+            public void onResponse(Void ignored) {
                 assertTrue(flag.compareAndSet(false, true));
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError("unexpected", e);
             }
         };
@@ -161,14 +174,15 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         }
 
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                  Request request,
-                                                                                                  ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
             if (request instanceof NodesStatsRequest || request instanceof IndicesStatsRequest) {
                 requestCount++;
                 // ClusterInfoService handles ClusterBlockExceptions quietly, so we invent such an exception to avoid excess logging
-                listener.onFailure(new ClusterBlockException(
-                        Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL)));
+                listener.onFailure(new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL)));
             } else {
                 fail("unexpected action: " + action.name());
             }

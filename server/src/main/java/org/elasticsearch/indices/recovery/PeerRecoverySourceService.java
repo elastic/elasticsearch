@@ -20,17 +20,18 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -61,24 +62,39 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
+    private final RecoveryPlannerService recoveryPlannerService;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
-    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
+    public PeerRecoverySourceService(
+        TransportService transportService,
+        IndicesService indicesService,
+        RecoverySettings recoverySettings,
+        RecoveryPlannerService recoveryPlannerService
+    ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        this.recoveryPlannerService = recoveryPlannerService;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
-        transportService.registerRequestHandler(Actions.START_RECOVERY, ThreadPool.Names.GENERIC, StartRecoveryRequest::new,
-            new StartRecoveryTransportRequestHandler());
+        transportService.registerRequestHandler(
+            Actions.START_RECOVERY,
+            ThreadPool.Names.GENERIC,
+            StartRecoveryRequest::new,
+            new StartRecoveryTransportRequestHandler()
+        );
         // When the target node's START_RECOVERY request has failed due to a network disconnection, it will
         // send a REESTABLISH_RECOVERY. This attempts to reconnect to an existing recovery process taking
         // place on the source node. If the recovery process no longer exists, then the REESTABLISH_RECOVERY
         // action will fail and the target node will send a new START_RECOVERY request.
-        transportService.registerRequestHandler(Actions.REESTABLISH_RECOVERY, ThreadPool.Names.GENERIC, ReestablishRecoveryRequest::new,
-            new ReestablishRecoveryTransportRequestHandler());
+        transportService.registerRequestHandler(
+            Actions.REESTABLISH_RECOVERY,
+            ThreadPool.Names.GENERIC,
+            ReestablishRecoveryRequest::new,
+            new ReestablishRecoveryTransportRequestHandler()
+        );
     }
 
     @Override
@@ -99,12 +115,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                       Settings indexSettings) {
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             ongoingRecoveries.cancel(indexShard, "shard is closed");
         }
@@ -129,16 +143,23 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             throw new DelayRecoveryException("source shard [" + routingEntry + "] is not an active primary");
         }
 
-        if (request.isPrimaryRelocation() && (routingEntry.relocating() == false ||
-            routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
-            logger.debug("delaying recovery of {} as source shard is not marked yet as relocating to {}",
-                request.shardId(), request.targetNode());
+        if (request.isPrimaryRelocation()
+            && (routingEntry.relocating() == false || routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
+            logger.debug(
+                "delaying recovery of {} as source shard is not marked yet as relocating to {}",
+                request.shardId(),
+                request.targetNode()
+            );
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }
 
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
-        logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(),
-            request.targetNode());
+        logger.trace(
+            "[{}][{}] starting recovery to {}",
+            request.shardId().getIndex().getName(),
+            request.shardId().id(),
+            request.targetNode()
+        );
         handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
     }
 
@@ -146,8 +167,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
-        logger.trace("[{}][{}] reestablishing recovery {}", request.shardId().getIndex().getName(), request.shardId().id(),
-            request.recoveryId());
+        logger.trace(
+            "[{}][{}] reestablishing recovery {}",
+            request.shardId().getIndex().getName(),
+            request.shardId().id(),
+            request.recoveryId()
+        );
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
     }
 
@@ -198,8 +223,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        synchronized void reestablishRecovery(ReestablishRecoveryRequest request, IndexShard shard,
-                                              ActionListener<RecoveryResponse> listener) {
+        synchronized void reestablishRecovery(
+            ReestablishRecoveryRequest request,
+            IndexShard shard,
+            ActionListener<RecoveryResponse> listener
+        ) {
             assert lifecycle.started();
             final ShardRecoveryContext shardContext = ongoingRecoveries.get(shard);
             if (shardContext == null) {
@@ -217,7 +245,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 shard.recoveryStats().decCurrentAsSource();
                 removed.cancel();
                 assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
-                        : "Remote recovery was not properly tracked [" + removed + "]";
+                    : "Remote recovery was not properly tracked [" + removed + "]";
                 nodeToHandlers.computeIfPresent(removed.targetNode(), (k, handlersForNode) -> {
                     handlersForNode.remove(removed);
                     if (handlersForNode.isEmpty()) {
@@ -277,12 +305,16 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             /**
              * Adds recovery source handler.
              */
-            synchronized Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> addNewRecovery(StartRecoveryRequest request,
-                                                                                                  IndexShard shard) {
+            synchronized Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> addNewRecovery(
+                StartRecoveryRequest request,
+                IndexShard shard
+            ) {
                 for (RecoverySourceHandler existingHandler : recoveryHandlers.keySet()) {
                     if (existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
-                        throw new DelayRecoveryException("recovery with same target already registered, waiting for " +
-                            "previous recovery attempt to be cancelled or completed");
+                        throw new DelayRecoveryException(
+                            "recovery with same target already registered, waiting for "
+                                + "previous recovery attempt to be cancelled or completed"
+                        );
                     }
                 }
                 final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = createRecoverySourceHandler(request, shard);
@@ -296,29 +328,45 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             synchronized void reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
                 RecoverySourceHandler handler = null;
                 for (RecoverySourceHandler existingHandler : recoveryHandlers.keySet()) {
-                    if (existingHandler.getRequest().recoveryId() == request.recoveryId() &&
-                        existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
+                    if (existingHandler.getRequest().recoveryId() == request.recoveryId()
+                        && existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
                         handler = existingHandler;
                         break;
                     }
                 }
                 if (handler == null) {
-                    throw new ResourceNotFoundException("Cannot reestablish recovery, recovery id [" + request.recoveryId()
-                        + "] not found.");
+                    throw new ResourceNotFoundException(
+                        "Cannot reestablish recovery, recovery id [" + request.recoveryId() + "] not found."
+                    );
                 }
                 handler.addListener(listener);
             }
 
-            private Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> createRecoverySourceHandler(StartRecoveryRequest request,
-                                                                                                          IndexShard shard) {
+            private Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> createRecoverySourceHandler(
+                StartRecoveryRequest request,
+                IndexShard shard
+            ) {
                 RecoverySourceHandler handler;
-                final RemoteRecoveryTargetHandler recoveryTarget =
-                    new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
-                        request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
-                handler = new RecoverySourceHandler(shard, recoveryTarget, shard.getThreadPool(), request,
+                final RemoteRecoveryTargetHandler recoveryTarget = new RemoteRecoveryTargetHandler(
+                    request.recoveryId(),
+                    request.shardId(),
+                    transportService,
+                    request.targetNode(),
+                    recoverySettings,
+                    throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
+                );
+                handler = new RecoverySourceHandler(
+                    shard,
+                    recoveryTarget,
+                    shard.getThreadPool(),
+                    request,
                     Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
                     recoverySettings.getMaxConcurrentFileChunks(),
-                    recoverySettings.getMaxConcurrentOperations());
+                    recoverySettings.getMaxConcurrentOperations(),
+                    recoverySettings.getMaxConcurrentSnapshotFileDownloads(),
+                    recoverySettings.getUseSnapshotsDuringRecovery(),
+                    recoveryPlannerService
+                );
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

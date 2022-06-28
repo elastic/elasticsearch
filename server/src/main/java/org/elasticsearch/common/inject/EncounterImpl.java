@@ -47,14 +47,14 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
 
     public List<MembersInjector<? super T>> getMembersInjectors() {
         return membersInjectors == null
-                ? Collections.<MembersInjector<? super T>>emptyList()
-                : Collections.unmodifiableList(membersInjectors);
+            ? Collections.<MembersInjector<? super T>>emptyList()
+            : Collections.unmodifiableList(membersInjectors);
     }
 
     public List<InjectionListener<? super T>> getInjectionListeners() {
         return injectionListeners == null
-                ? Collections.<InjectionListener<? super T>>emptyList()
-                : Collections.unmodifiableList(injectionListeners);
+            ? Collections.<InjectionListener<? super T>>emptyList()
+            : Collections.unmodifiableList(injectionListeners);
     }
 
     @Override

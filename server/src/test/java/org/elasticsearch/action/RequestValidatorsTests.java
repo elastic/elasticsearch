@@ -23,8 +23,9 @@ import java.util.Optional;
 public class RequestValidatorsTests extends ESTestCase {
 
     private final RequestValidators.RequestValidator<PutMappingRequest> EMPTY = (request, state, indices) -> Optional.empty();
-    private final RequestValidators.RequestValidator<PutMappingRequest> FAIL =
-            (request, state, indices) -> Optional.of(new Exception("failure"));
+    private final RequestValidators.RequestValidator<PutMappingRequest> FAIL = (request, state, indices) -> Optional.of(
+        new Exception("failure")
+    );
 
     public void testValidates() {
         final int numberOfValidations = randomIntBetween(0, 8);
@@ -42,8 +43,9 @@ public class RequestValidatorsTests extends ESTestCase {
     }
 
     public void testValidatesAfterFailure() {
-        final RequestValidators<PutMappingRequest> validators =
-                new RequestValidators<>(Collections.unmodifiableList(Arrays.asList(FAIL, EMPTY)));
+        final RequestValidators<PutMappingRequest> validators = new RequestValidators<>(
+            Collections.unmodifiableList(Arrays.asList(FAIL, EMPTY))
+        );
         assertThat(validators.validateRequest(null, null, null), OptionalMatchers.isPresent());
     }
 
@@ -63,8 +65,9 @@ public class RequestValidatorsTests extends ESTestCase {
     public void testRandom() {
         final int numberOfValidations = randomIntBetween(0, 8);
         final int numberOfFailures = randomIntBetween(0, 8);
-        final List<RequestValidators.RequestValidator<PutMappingRequest>> validators =
-                new ArrayList<>(numberOfValidations + numberOfFailures);
+        final List<RequestValidators.RequestValidator<PutMappingRequest>> validators = new ArrayList<>(
+            numberOfValidations + numberOfFailures
+        );
         for (int i = 0; i < numberOfValidations; i++) {
             validators.add(EMPTY);
         }

@@ -7,17 +7,15 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
-
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
 
 public class WeightedMode implements OutputAggregator {
 
@@ -29,7 +27,8 @@ public class WeightedMode implements OutputAggregator {
     private static final ConstructingObjectParser<WeightedMode, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new WeightedMode((Integer)a[0], (List<Double>)a[1]));
+        a -> new WeightedMode((Integer) a[0], (List<Double>) a[1])
+    );
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_CLASSES);
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);

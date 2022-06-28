@@ -13,5 +13,4 @@ import org.elasticsearch.client.TimedRequest;
 /**
  * A {@link TimedRequest} to get the current status of index lifecycle management.
  */
-public class LifecycleManagementStatusRequest extends TimedRequest {
-}
+public class LifecycleManagementStatusRequest extends TimedRequest {}

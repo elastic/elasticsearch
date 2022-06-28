@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -68,7 +68,6 @@ public class DataAttachment implements EmailAttachmentParser.EmailAttachment {
     public static Builder builder(String id) {
         return new Builder(id);
     }
-
 
     public static class Builder {
 

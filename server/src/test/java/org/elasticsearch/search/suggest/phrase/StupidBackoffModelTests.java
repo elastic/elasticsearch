@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

@@ -1,7 +1,0 @@
-pr: 65255
-issues: []
-area: Infra/REST API, SQL
-type: UNKNOWN
-summary: Adding back a validation of incorrect response header
-versions:
-  - v8.0.0

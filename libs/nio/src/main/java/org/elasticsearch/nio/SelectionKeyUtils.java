@@ -76,7 +76,6 @@ public final class SelectionKeyUtils {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_ACCEPT);
     }
 
-
     /**
      * Checks for an interest in writes for this selection key.
      *

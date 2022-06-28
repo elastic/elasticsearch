@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-machine-learning-decider]]
 === Machine learning decider
 

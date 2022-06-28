@@ -10,8 +10,8 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -35,15 +35,18 @@ public class WatchStatus {
     private final ZonedDateTime lastMetCondition;
     private final long version;
     private final Map<String, ActionStatus> actions;
-    @Nullable private Map<String, String> headers;
+    @Nullable
+    private Map<String, String> headers;
 
-    public WatchStatus(long version,
-                       State state,
-                       ExecutionState executionState,
-                       ZonedDateTime lastChecked,
-                       ZonedDateTime lastMetCondition,
-                       Map<String, ActionStatus> actions,
-                       Map<String, String> headers) {
+    public WatchStatus(
+        long version,
+        State state,
+        ExecutionState executionState,
+        ZonedDateTime lastChecked,
+        ZonedDateTime lastMetCondition,
+        Map<String, ActionStatus> actions,
+        Map<String, String> headers
+    ) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
@@ -96,12 +99,12 @@ public class WatchStatus {
 
         WatchStatus that = (WatchStatus) o;
 
-        return Objects.equals(lastChecked, that.lastChecked) &&
-                Objects.equals(lastMetCondition, that.lastMetCondition) &&
-                Objects.equals(version, that.version) &&
-                Objects.equals(executionState, that.executionState) &&
-                Objects.equals(actions, that.actions) &&
-                Objects.equals(headers, that.headers);
+        return Objects.equals(lastChecked, that.lastChecked)
+            && Objects.equals(lastMetCondition, that.lastMetCondition)
+            && Objects.equals(version, that.version)
+            && Objects.equals(executionState, that.executionState)
+            && Objects.equals(actions, that.actions)
+            && Objects.equals(headers, that.headers);
     }
 
     @Override
@@ -130,36 +133,47 @@ public class WatchStatus {
                 try {
                     state = State.parse(parser);
                 } catch (ElasticsearchParseException e) {
-                    throw new ElasticsearchParseException("could not parse watch status. failed to parse field [{}]",
-                            e, currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch status. failed to parse field [{}]", e, currentFieldName);
                 }
             } else if (Field.VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
                     version = parser.longValue();
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status. expecting field [{}] to hold a long " +
-                            "value, found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse watch status. expecting field [{}] to hold a long " + "value, found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (Field.LAST_CHECKED.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
                     lastChecked = parseDate(currentFieldName, parser);
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status. expecting field [{}] to hold a date " +
-                           "value, found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse watch status. expecting field [{}] to hold a date " + "value, found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (Field.LAST_MET_CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
                     lastMetCondition = parseDate(currentFieldName, parser);
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status. expecting field [{}] to hold a date " +
-                           "value, found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse watch status. expecting field [{}] to hold a date " + "value, found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (Field.EXECUTION_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
                     executionState = ExecutionState.resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status. expecting field [{}] to hold a string " +
-                           "value, found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse watch status. expecting field [{}] to hold a string " + "value, found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (Field.ACTIONS.match(currentFieldName, parser.getDeprecationHandler())) {
                 actions = new HashMap<>();
@@ -173,8 +187,11 @@ public class WatchStatus {
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch status. expecting field [{}] to be an object, " +
-                            "found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse watch status. expecting field [{}] to be an object, " + "found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (Field.HEADERS.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {

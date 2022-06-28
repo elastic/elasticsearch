@@ -1,0 +1,5 @@
+pr: 83715
+summary: "Fix: backward compatibility with version 7.17.0"
+area: Aggregations
+type: bug
+issues: []

@@ -8,7 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -25,7 +25,7 @@ public interface ClusterStatePublisher {
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
      */
-    void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener);
+    void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, ActionListener<Void> publishListener, AckListener ackListener);
 
     interface AckListener {
         /**

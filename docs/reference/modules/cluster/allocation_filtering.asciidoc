@@ -22,7 +22,7 @@ it down, you could create a filter that excludes the node by its IP address:
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient" : {
+  "persistent" : {
     "cluster.routing.allocation.exclude._ip" : "10.0.0.1"
   }
 }
@@ -70,7 +70,7 @@ You can use wildcards when specifying attribute values, for example:
 ------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "cluster.routing.allocation.exclude._ip": "192.168.2.*"
   }
 }

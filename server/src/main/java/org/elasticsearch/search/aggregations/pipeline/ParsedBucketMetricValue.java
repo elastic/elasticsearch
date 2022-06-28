@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.ParsedSingleValueNumericMetricsAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,7 +47,10 @@ public class ParsedBucketMetricValue extends ParsedSingleValueNumericMetricsAggr
     }
 
     private static final ObjectParser<ParsedBucketMetricValue, Void> PARSER = new ObjectParser<>(
-            ParsedBucketMetricValue.class.getSimpleName(), true, ParsedBucketMetricValue::new);
+        ParsedBucketMetricValue.class.getSimpleName(),
+        true,
+        ParsedBucketMetricValue::new
+    );
 
     static {
         declareSingleValueFields(PARSER, Double.NEGATIVE_INFINITY);

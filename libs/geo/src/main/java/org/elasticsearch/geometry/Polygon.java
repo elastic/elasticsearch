@@ -36,15 +36,14 @@ public final class Polygon implements Geometry {
         if (holes == null) {
             throw new IllegalArgumentException("holes must not be null");
         }
-        boolean hasAlt = polygon.hasZ();
+        this.hasAlt = polygon.hasZ();
         checkRing(polygon);
         for (LinearRing hole : holes) {
-            if (hole.hasZ() != hasAlt) {
+            if (hole.hasZ() != this.hasAlt) {
                 throw new IllegalArgumentException("holes must have the same number of dimensions as the polygon");
             }
             checkRing(hole);
         }
-        this.hasAlt = hasAlt;
     }
 
     /**
@@ -111,8 +110,7 @@ public final class Polygon implements Geometry {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Polygon polygon1 = (Polygon) o;
-        return Objects.equals(polygon, polygon1.polygon) &&
-            Objects.equals(holes, polygon1.holes);
+        return Objects.equals(polygon, polygon1.polygon) && Objects.equals(holes, polygon1.holes);
     }
 
     @Override

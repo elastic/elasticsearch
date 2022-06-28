@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-explain-lifecycle]]
 === Explain lifecycle API
 ++++

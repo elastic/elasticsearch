@@ -10,18 +10,15 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class TimeRetentionPolicyConfigTests extends AbstractSerializingTestCase<TimeRetentionPolicyConfig> {
 
     public static TimeRetentionPolicyConfig randomTimeRetentionPolicyConfig() {
-        return new TimeRetentionPolicyConfig(
-            randomAlphaOfLengthBetween(1, 10),
-            new TimeValue(randomLongBetween(60000, 1_000_000_000L))
-        );
+        return new TimeRetentionPolicyConfig(randomAlphaOfLengthBetween(1, 10), new TimeValue(randomLongBetween(60000, 1_000_000_000L)));
     }
 
     @Override

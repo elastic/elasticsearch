@@ -5,19 +5,19 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import org.elasticsearch.gradle.internal.MavenFilteringHack
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.apache.tools.ant.filters.ReplaceTokens
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 // The integ-test-distribution is published to maven
 apply plugin: 'elasticsearch.publish'
 
 group = "org.elasticsearch.distribution.integ-test-zip"
 
-tasks.named("processTestResources").configure {
+tasks.named("processJavaRestTestResources").configure {
   inputs.properties(project(':distribution').restTestExpansions)
-  MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
+  filter("tokens" : project(':distribution').restTestExpansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 // make the pom file name use elasticsearch instead of the project name
@@ -33,7 +33,7 @@ publishing {
   }
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   dependsOn "assemble"
   /*
    * There are two unique things going on here:
@@ -42,9 +42,8 @@ tasks.named("integTest").configure {
    * 2. *One* of these tests is incompatible with that and should be skipped
    *    when running against an external cluster.
    */
-  if (project.providers.systemProperty("tests.rest.cluster").forUseAtConfigurationTime().isPresent()) {
-    nonInputProperties.systemProperty 'tests.logfile',
-      "${-> testClusters.integTest.singleNode().getServerLog()}"
+  if (project.providers.systemProperty("tests.rest.cluster").isPresent()) {
+    nonInputProperties.systemProperty 'tests.logfile', testClusters.named('javaRestTest').map(c -> c.singleNode().serverLog)
   } else {
     systemProperty 'tests.logfile', '--external--'
   }

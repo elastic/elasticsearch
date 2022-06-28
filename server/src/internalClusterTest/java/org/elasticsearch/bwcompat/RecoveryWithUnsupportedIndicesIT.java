@@ -7,14 +7,6 @@
  */
 package org.elasticsearch.bwcompat;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -23,6 +15,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -66,8 +66,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         Files.move(src, dest);
         assertFalse(Files.exists(src));
         assertTrue(Files.exists(dest));
-        Settings.Builder builder = Settings.builder()
-            .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
+        Settings.Builder builder = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         return builder.build();
     }
@@ -77,8 +76,12 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
 
         logger.info("Checking static index {}", indexName);
         Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
-        assertThat(ExceptionsHelper.unwrap(
-            expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)), CorruptStateException.class).getMessage(),
-            containsString("Format version is not supported"));
+        assertThat(
+            ExceptionsHelper.unwrap(
+                expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)),
+                CorruptStateException.class
+            ).getMessage(),
+            containsString("Format version is not supported")
+        );
     }
 }

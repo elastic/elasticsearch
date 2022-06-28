@@ -1,8 +1,0 @@
-pr: 41620
-issues:
-  - 41478
-area: Packaging
-type: bug
-summary: Suppress illegal access in plugin install
-versions:
-  - v8.0.0

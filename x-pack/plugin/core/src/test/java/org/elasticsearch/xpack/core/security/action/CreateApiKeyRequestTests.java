@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Map;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
@@ -87,8 +87,9 @@ public class CreateApiKeyRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final String name = randomAlphaOfLengthBetween(1, 256);
-        final TimeValue expiration = randomBoolean() ? null :
-            TimeValue.parseTimeValue(randomTimeValue(), "test serialization of create api key");
+        final TimeValue expiration = randomBoolean()
+            ? null
+            : TimeValue.parseTimeValue(randomTimeValue(), "test serialization of create api key");
         final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
         boolean nullOrEmptyRoleDescriptors = randomBoolean();
         final List<RoleDescriptor> descriptorList;

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
@@ -197,8 +198,12 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, true);
-        assertEquals(new GeoShape(3, 4), lenientFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
-            new DocumentField(fieldName, singletonList(map2))), null)));
+        assertEquals(
+            new GeoShape(3, 4),
+            lenientFe.extract(
+                new SearchHit(1, null, null, singletonMap(fieldName, new DocumentField(fieldName, singletonList(map2))), null)
+            )
+        );
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName) {

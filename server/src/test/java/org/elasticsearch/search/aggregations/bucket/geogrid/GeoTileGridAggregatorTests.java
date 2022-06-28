@@ -30,8 +30,10 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
 
     @Override
     protected Point randomPoint() {
-        return new Point(randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
-            randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false));
+        return new Point(
+            randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
+            randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false)
+        );
     }
 
     @Override
@@ -40,9 +42,12 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
             (b) -> b.top() > GeoTileUtils.LATITUDE_MASK || b.bottom() < -GeoTileUtils.LATITUDE_MASK,
             () -> {
                 Rectangle rectangle = GeometryTestUtils.randomRectangle();
-                return new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
-            });
+                return new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                );
+            }
+        );
         // Avoid numerical errors for sub-atomic values
         double left = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(bbox.left()));
         double right = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(bbox.right()));
@@ -55,13 +60,13 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
 
     @Override
     protected Rectangle getTile(double lng, double lat, int precision) {
-        long tiles =  1 << precision;
+        long tiles = 1 << precision;
         int x = GeoTileUtils.getXTile(lng, tiles);
         int y = GeoTileUtils.getYTile(lat, tiles);
         Rectangle r1 = GeoTileUtils.toBoundingBox(x, y, precision);
         Rectangle r2 = GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
         if (r1.equals(r2) == false) {
-            int a =0;
+            int a = 0;
         }
         return GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
     }

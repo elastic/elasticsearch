@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.MachineLearningClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -39,9 +41,10 @@ import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,6 +63,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
@@ -74,13 +78,21 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private MachineLearningClient hlrc;
 
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
+
     @Override
     protected Collection<String> templatesToWaitFor() {
+        // We shouldn't wait for ML templates during the upgrade - production won't
+        if (CLUSTER_TYPE != ClusterType.OLD) {
+            return super.templatesToWaitFor();
+        }
         List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
             ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
             : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
-        return Stream.concat(templatesToWaitFor.stream(),
-            super.templatesToWaitFor().stream()).collect(Collectors.toSet());
+        return Stream.concat(templatesToWaitFor.stream(), super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 
     protected static void waitForPendingUpgraderTasks() throws Exception {
@@ -94,10 +106,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
-        adjustLoggingLevels.setJsonEntity(
-            "{\"transient\": {" +
-                "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" +
-                "}}");
+        adjustLoggingLevels.setJsonEntity("{\"persistent\": {" + "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" + "}}");
         client().performRequest(adjustLoggingLevels);
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -134,32 +143,58 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             .findFirst()
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
-        assertThat(hlrc.upgradeJobSnapshot(
-            new UpgradeJobModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId(), null, true),
-            RequestOptions.DEFAULT).isCompleted(), is(true));
+        // Don't wait for completion in the initial upgrade call, but instead poll for status
+        // using the stats endpoint - this mimics what the Kibana upgrade assistant does
+        String snapshotToUpgrade = snapshot.getSnapshotId();
+        assertThat(
+            hlrc.upgradeJobSnapshot(new UpgradeJobModelSnapshotRequest(JOB_ID, snapshotToUpgrade, null, false), RequestOptions.DEFAULT)
+                .isCompleted(),
+            is(false)
+        );
 
-        List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshot.getSnapshotId()).snapshots();
+        // Wait for completion by waiting for the persistent task to disappear
+        assertBusy(() -> {
+            try {
+                Response response = client().performRequest(
+                    new Request("GET", "_ml/anomaly_detectors/" + JOB_ID + "/model_snapshots/" + snapshotToUpgrade + "/_upgrade/_stats")
+                );
+                // Doing this instead of using expectThrows() on the line above means we get better diagnostics if the test fails
+                fail("Upgrade still in progress: " + entityAsMap(response));
+            } catch (ResponseException e) {
+                assertThat(e.getResponse().toString(), e.getResponse().getStatusLine().getStatusCode(), is(404));
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshotToUpgrade).snapshots();
         assertThat(snapshots, hasSize(1));
         snapshot = snapshots.get(0);
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
         assertThat(snapshot.getMinVersion(), equalTo(CPP_COMPATIBILTIY_VERSION));
 
         // Does the snapshot still work?
-        assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
+        assertThat(
+            hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
                 .jobStats()
                 .get(0)
-                .getDataCounts().getLatestRecordTimeStamp(),
-            greaterThan(snapshot.getLatestRecordTimeStamp()));
-        RevertModelSnapshotRequest revertModelSnapshotRequest = new RevertModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId());
+                .getDataCounts()
+                .getLatestRecordTimeStamp(),
+            greaterThan(snapshot.getLatestRecordTimeStamp())
+        );
+        RevertModelSnapshotRequest revertModelSnapshotRequest = new RevertModelSnapshotRequest(JOB_ID, snapshotToUpgrade);
         revertModelSnapshotRequest.setDeleteInterveningResults(true);
-        assertThat(hlrc.revertModelSnapshot(revertModelSnapshotRequest, RequestOptions.DEFAULT).getModel().getSnapshotId(),
-            equalTo(snapshot.getSnapshotId()));
+        assertThat(
+            hlrc.revertModelSnapshot(revertModelSnapshotRequest, RequestOptions.DEFAULT).getModel().getSnapshotId(),
+            equalTo(snapshotToUpgrade)
+        );
         assertThat(openJob(JOB_ID).isOpened(), is(true));
-        assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
+        assertThat(
+            hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
                 .jobStats()
                 .get(0)
-                .getDataCounts().getLatestRecordTimeStamp(),
-            equalTo(snapshot.getLatestRecordTimeStamp()));
+                .getDataCounts()
+                .getLatestRecordTimeStamp(),
+            equalTo(snapshot.getLatestRecordTimeStamp())
+        );
         closeJob(JOB_ID);
     }
 
@@ -170,13 +205,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         PutJobResponse jobResponse = buildAndPutJob(JOB_ID, bucketSpan);
         Job job = jobResponse.getResponse();
         openJob(job.getId());
-        DataCounts dataCounts = postData(job.getId(),
-            generateData(startTime,
-                bucketSpan,
-                10,
-                Arrays.asList("foo"),
-                (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream().collect(Collectors.joining()))
-            .getDataCounts();
+        DataCounts dataCounts = postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream()
+                .collect(Collectors.joining())
+        ).getDataCounts();
         assertThat(dataCounts.getInvalidDateCount(), equalTo(0L));
         assertThat(dataCounts.getBucketCount(), greaterThan(0L));
         final long lastCount = dataCounts.getBucketCount();
@@ -187,14 +220,12 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         waitUntil(() -> false, 2, TimeUnit.SECONDS);
 
         openJob(job.getId());
-        dataCounts = postData(job.getId(),
-            generateData(
-                startTime + 10 * bucketSpan.getMillis(),
-                bucketSpan,
-                10,
-                Arrays.asList("foo"),
-                (bucketIndex, series) -> 10.0).stream().collect(Collectors.joining()))
-            .getDataCounts();
+        dataCounts = postData(
+            job.getId(),
+            generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> 10.0)
+                .stream()
+                .collect(Collectors.joining())
+        ).getDataCounts();
         assertThat(dataCounts.getInvalidDateCount(), equalTo(0L));
         assertThat(dataCounts.getBucketCount(), greaterThan(lastCount));
         flushJob(job.getId());
@@ -225,8 +256,13 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         return putJob(job.build());
     }
 
-    private static List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount, List<String> series,
-                                             BiFunction<Integer, String, Double> timeAndSeriesToValueFunction) throws IOException {
+    private static List<String> generateData(
+        long timestamp,
+        TimeValue bucketSpan,
+        int bucketCount,
+        List<String> series,
+        BiFunction<Integer, String, Double> timeAndSeriesToValueFunction
+    ) throws IOException {
         List<String> data = new ArrayList<>();
         long now = timestamp;
         for (int i = 0; i < bucketCount; i++) {
@@ -263,17 +299,19 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     protected PostDataResponse postData(String jobId, String data) throws IOException {
         // Post data is deprecated, so a deprecation warning is possible (depending on the old version)
-        RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> {
-                if (warnings.isEmpty()) {
-                    // No warning is OK - it means we hit an old node where post data is not deprecated
-                    return false;
-                } else if (warnings.size() > 1) {
-                    return true;
-                }
-                return warnings.get(0).equals("Posting data directly to anomaly detection jobs is deprecated, " +
-                    "in a future major version it will be compulsory to use a datafeed") == false;
-            }).build();
+        RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                // No warning is OK - it means we hit an old node where post data is not deprecated
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            }
+            return warnings.get(0)
+                .equals(
+                    "Posting data directly to anomaly detection jobs is deprecated, "
+                        + "in a future major version it will be compulsory to use a datafeed"
+                ) == false;
+        }).build();
         return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), postDataOptions);
     }
 

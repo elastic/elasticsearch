@@ -42,11 +42,18 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
 
         logger.info("-->  creating repository");
         Path repositoryLocation = randomRepoPath();
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-            .setType(FsRepository.TYPE).setSettings(Settings.builder()
-                .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
-                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType(FsRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
+                        .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                        .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                )
+        );
 
         createIndex("test-idx");
         ensureGreen();
@@ -59,8 +66,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client
-            .admin()
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
@@ -70,8 +76,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         int actualTotalShards = createSnapshotResponse.getSnapshotInfo().totalShards();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(actualTotalShards));
 
-        SnapshotState state = client
-            .admin()
+        SnapshotState state = client.admin()
             .cluster()
             .prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap")
@@ -85,13 +90,19 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         cluster().wipeIndices("test-idx");
 
         logger.info("--> create read-only URL repository");
-        assertAcked(client.admin().cluster().preparePutRepository("url-repo")
-            .setType(URLRepository.TYPE).setSettings(Settings.builder()
-                .put(URLRepository.URL_SETTING.getKey(), repositoryLocation.toUri().toURL().toString())
-                .put("list_directories", randomBoolean())));
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository("url-repo")
+                .setType(URLRepository.TYPE)
+                .setSettings(
+                    Settings.builder()
+                        .put(URLRepository.URL_SETTING.getKey(), repositoryLocation.toUri().toURL().toString())
+                        .put("list_directories", randomBoolean())
+                )
+        );
         logger.info("--> restore index after deletion");
-        RestoreSnapshotResponse restoreSnapshotResponse = client
-            .admin()
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
             .prepareRestoreSnapshot("url-repo", "test-snap")
             .setWaitForCompletion(true)

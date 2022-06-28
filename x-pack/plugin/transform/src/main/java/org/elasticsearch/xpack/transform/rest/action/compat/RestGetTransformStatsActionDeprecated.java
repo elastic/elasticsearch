@@ -28,9 +28,11 @@ public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_stats")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build(),
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7)
+                .build(),
             Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stats")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build()
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -41,11 +43,13 @@ public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
         request.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
-                new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
-        return channel -> client.execute(GetTransformStatsActionDeprecated.INSTANCE, request,
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetTransformStatsActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

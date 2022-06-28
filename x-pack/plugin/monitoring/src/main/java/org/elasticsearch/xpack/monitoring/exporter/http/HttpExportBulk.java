@@ -21,10 +21,10 @@ import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -69,8 +69,13 @@ class HttpExportBulk extends ExportBulk {
      */
     private long payloadLength = -1L;
 
-    HttpExportBulk(final String name, final RestClient client, final Map<String, String> parameters,
-                   final DateFormatter dateTimeFormatter, final ThreadContext threadContext) {
+    HttpExportBulk(
+        final String name,
+        final RestClient client,
+        final Map<String, String> parameters,
+        final DateFormatter dateTimeFormatter,
+        final ThreadContext threadContext
+    ) {
         super(name, threadContext);
 
         this.client = client;
@@ -111,8 +116,13 @@ class HttpExportBulk extends ExportBulk {
             try {
                 // Don't use a thread-local decompressing stream since the HTTP client does not give strong guarantees about
                 // thread-affinity when reading and closing the request entity
-                request.setEntity(new InputStreamEntity(
-                        DeflateCompressor.inputStream(payload.streamInput(), false), payloadLength, ContentType.APPLICATION_JSON));
+                request.setEntity(
+                    new InputStreamEntity(
+                        DeflateCompressor.inputStream(payload.streamInput(), false),
+                        payloadLength,
+                        ContentType.APPLICATION_JSON
+                    )
+                );
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
@@ -176,10 +186,7 @@ class HttpExportBulk extends ExportBulk {
         // Adds final bulk separator
         out.write(xContent.streamSeparator());
 
-        logger.trace(
-            "http exporter [{}] - added index request [index={}, id={}, monitoring data type={}]",
-            name, index, id, doc.getType()
-        );
+        logger.trace("http exporter [{}] - added index request [index={}, id={}, monitoring data type={}]", name, index, id, doc.getType());
     }
 
     // Counting input stream used to record the uncompressed size of the bulk payload when writing it to a compressed stream
@@ -195,10 +202,12 @@ class HttpExportBulk extends ExportBulk {
             out.write(b);
             count(1);
         }
+
         @Override
         public void write(final byte[] b) throws IOException {
             write(b, 0, b.length);
         }
+
         @Override
         public void write(final byte[] b, final int off, final int len) throws IOException {
             out.write(b, off, len);

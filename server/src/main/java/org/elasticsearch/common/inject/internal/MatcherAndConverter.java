@@ -31,8 +31,7 @@ public final class MatcherAndConverter {
     private final TypeConverter typeConverter;
     private final Object source;
 
-    public MatcherAndConverter(Matcher<? super TypeLiteral<?>> typeMatcher,
-                               TypeConverter typeConverter, Object source) {
+    public MatcherAndConverter(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter typeConverter, Object source) {
         this.typeMatcher = Objects.requireNonNull(typeMatcher, "type matcher");
         this.typeConverter = Objects.requireNonNull(typeConverter, "converter");
         this.source = source;
@@ -52,7 +51,6 @@ public final class MatcherAndConverter {
 
     @Override
     public String toString() {
-        return typeConverter + " which matches " + typeMatcher
-                + " (bound at " + source + ")";
+        return typeConverter + " which matches " + typeMatcher + " (bound at " + source + ")";
     }
 }

@@ -32,14 +32,12 @@ public class ExposedBindingImpl<T> extends BindingImpl<T> implements ExposedBind
 
     private final PrivateElements privateElements;
 
-    public ExposedBindingImpl(Injector injector, Object source, Key<T> key,
-                              InternalFactory<T> factory, PrivateElements privateElements) {
+    public ExposedBindingImpl(Injector injector, Object source, Key<T> key, InternalFactory<T> factory, PrivateElements privateElements) {
         super(injector, key, source, factory, Scoping.UNSCOPED);
         this.privateElements = privateElements;
     }
 
-    public ExposedBindingImpl(Object source, Key<T> key, Scoping scoping,
-                              PrivateElements privateElements) {
+    public ExposedBindingImpl(Object source, Key<T> key, Scoping scoping, PrivateElements privateElements) {
         super(source, key, scoping);
         this.privateElements = privateElements;
     }
@@ -71,11 +69,10 @@ public class ExposedBindingImpl<T> extends BindingImpl<T> implements ExposedBind
 
     @Override
     public String toString() {
-        return new ToStringBuilder(ExposedBinding.class)
-                .add("key", getKey())
-                .add("source", getSource())
-                .add("privateElements", privateElements)
-                .toString();
+        return new ToStringBuilder(ExposedBinding.class).add("key", getKey())
+            .add("source", getSource())
+            .add("privateElements", privateElements)
+            .toString();
     }
 
     @Override

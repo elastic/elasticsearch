@@ -10,17 +10,15 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-
-import java.io.IOException;
-
-import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**

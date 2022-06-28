@@ -12,9 +12,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.NodeConnectionsService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -45,8 +45,8 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
     }
 
     private static final Settings DISRUPTION_TUNED_SETTINGS = Settings.builder()
-            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "2s")
-            .build();
+        .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "2s")
+        .build();
 
     /**
      * Creates 3 to 5 mixed-node cluster and splits it into 2 parts.
@@ -94,8 +94,8 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
                 TransportService serviceB = internalCluster().getInstance(TransportService.class, nodeB);
                 // TODO assertBusy should not be here, see https://github.com/elastic/elasticsearch/issues/38348
                 assertBusy(() -> {
-                        assertTrue(nodeA + " is not connected to " + nodeB, serviceA.nodeConnected(serviceB.getLocalNode()));
-                        assertTrue(nodeB + " is not connected to " + nodeA, serviceB.nodeConnected(serviceA.getLocalNode()));
+                    assertTrue(nodeA + " is not connected to " + nodeB, serviceA.nodeConnected(serviceB.getLocalNode()));
+                    assertTrue(nodeB + " is not connected to " + nodeA, serviceB.nodeConnected(serviceA.getLocalNode()));
                 });
             }
         }
@@ -111,8 +111,10 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
             disruptedLinks = NetworkDisruption.Bridge.random(random(), internalCluster().getNodeNames());
         }
 
-        NetworkDisruption networkDisruption = new NetworkDisruption(disruptedLinks, randomFrom(NetworkDisruption.UNRESPONSIVE,
-            NetworkDisruption.DISCONNECT, NetworkDisruption.NetworkDelay.random(random())));
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            disruptedLinks,
+            randomFrom(NetworkDisruption.UNRESPONSIVE, NetworkDisruption.DISCONNECT, NetworkDisruption.NetworkDelay.random(random()))
+        );
         internalCluster().setDisruptionScheme(networkDisruption);
 
         networkDisruption.startDisrupting();
@@ -121,8 +123,10 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         CountDownLatch latch = new CountDownLatch(requests);
         for (int i = 0; i < requests - 1; ++i) {
             sendRequest(
-                internalCluster().getInstance(TransportService.class), internalCluster().getInstance(TransportService.class),
-                latch);
+                internalCluster().getInstance(TransportService.class),
+                internalCluster().getInstance(TransportService.class),
+                latch
+            );
         }
 
         // send a request that is guaranteed disrupted.
@@ -130,8 +134,9 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         sendRequest(disruptedPair.v1(), disruptedPair.v2(), latch);
 
         // give a bit of time to send something under disruption.
-        assertFalse(latch.await(500, TimeUnit.MILLISECONDS)
-            && networkDisruption.getNetworkLinkDisruptionType() != NetworkDisruption.DISCONNECT);
+        assertFalse(
+            latch.await(500, TimeUnit.MILLISECONDS) && networkDisruption.getNetworkLinkDisruptionType() != NetworkDisruption.DISCONNECT
+        );
         networkDisruption.stopDisrupting();
 
         latch.await(30, TimeUnit.SECONDS);
@@ -139,11 +144,16 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
     }
 
     private Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
-        Optional<Tuple<TransportService, TransportService>> disruptedPair = disruptedLinks.nodes().stream()
+        Optional<Tuple<TransportService, TransportService>> disruptedPair = disruptedLinks.nodes()
+            .stream()
             .flatMap(n1 -> disruptedLinks.nodes().stream().map(n2 -> Tuple.tuple(n1, n2)))
             .filter(pair -> disruptedLinks.disrupt(pair.v1(), pair.v2()))
-            .map(pair -> Tuple.tuple(internalCluster().getInstance(TransportService.class, pair.v1()),
-                internalCluster().getInstance(TransportService.class, pair.v2())))
+            .map(
+                pair -> Tuple.tuple(
+                    internalCluster().getInstance(TransportService.class, pair.v1()),
+                    internalCluster().getInstance(TransportService.class, pair.v2())
+                )
+            )
             .findFirst();
         // since we have 3+ nodes, we are sure to find a disrupted pair, also for bridge disruptions.
         assertTrue(disruptedPair.isPresent());
@@ -151,9 +161,13 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
     }
 
     private void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
-        source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
+        source.sendRequest(
+            target.getLocalNode(),
+            ClusterHealthAction.NAME,
+            new ClusterHealthRequest(),
             new TransportResponseHandler<TransportResponse>() {
                 private AtomicBoolean responded = new AtomicBoolean();
+
                 @Override
                 public void handleResponse(TransportResponse response) {
                     assertTrue(responded.compareAndSet(false, true));
@@ -170,6 +184,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
                 public TransportResponse read(StreamInput in) throws IOException {
                     return ClusterHealthResponse.readResponseFrom(in);
                 }
-            });
+            }
+        );
     }
 }

@@ -19,6 +19,7 @@ public class EqlSpec {
     private String[] tags;
     private String query;
     private long[] expectedEventIds;
+    private String[] joinKeys;
 
     public String name() {
         return name;
@@ -68,6 +69,14 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
+    public String[] joinKeys() {
+        return joinKeys;
+    }
+
+    public void joinKeys(String[] joinKeys) {
+        this.joinKeys = joinKeys;
+    }
+
     @Override
     public String toString() {
         String str = "";
@@ -82,6 +91,10 @@ public class EqlSpec {
 
         if (expectedEventIds != null) {
             str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
+        }
+
+        if (joinKeys != null) {
+            str = appendWithComma(str, "join_keys", Arrays.toString(joinKeys));
         }
         return str;
     }

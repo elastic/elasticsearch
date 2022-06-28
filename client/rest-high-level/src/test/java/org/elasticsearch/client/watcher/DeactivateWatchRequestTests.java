@@ -21,8 +21,10 @@ public class DeactivateWatchRequestTests extends ESTestCase {
     }
 
     public void testInvalidId() {
-        IllegalArgumentException actual = expectThrows(IllegalArgumentException.class,
-            () -> new DeactivateWatchRequest("Watch id has spaces"));
+        IllegalArgumentException actual = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeactivateWatchRequest("Watch id has spaces")
+        );
         assertNotNull(actual);
         assertThat(actual.getMessage(), is("watch id contains whitespace"));
     }

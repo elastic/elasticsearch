@@ -1,8 +1,0 @@
-pr: 67923
-issues:
-  - 51816
-area: Infra/Core
-type: UNKNOWN
-summary: "`SecurityRestFilter` to delegate `compatibleWith` method"
-versions:
-  - v8.0.0

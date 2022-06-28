@@ -155,8 +155,12 @@ public class HttpHostBuilder {
             // fail for proxies
             if (parsedUri.getRawPath() != null && parsedUri.getRawPath().isEmpty() == false) {
                 throw new IllegalArgumentException(
-                    "HttpHosts do not use paths [" + parsedUri.getRawPath() +
-                        "]. see setRequestConfigCallback for proxies. value: [" + uri + "]");
+                    "HttpHosts do not use paths ["
+                        + parsedUri.getRawPath()
+                        + "]. see setRequestConfigCallback for proxies. value: ["
+                        + uri
+                        + "]"
+                );
             }
         } catch (URISyntaxException | IndexOutOfBoundsException | NullPointerException e) {
             throw new IllegalArgumentException("error parsing host: [" + uri + "]", e);

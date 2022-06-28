@@ -6,18 +6,9 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -25,8 +16,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -40,10 +29,22 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RestTermsEnumActionTests extends ESTestCase {
 
@@ -51,8 +52,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService);
+    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**
@@ -61,34 +61,39 @@ public class RestTermsEnumActionTests extends ESTestCase {
      * This lower level of execution is out of the scope of this test.
      */
     @BeforeClass
-    @SuppressWarnings("rawtypes")
     public static void stubTermEnumAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(TermsEnumAction.NAME,
-                new ActionFilters(Collections.emptySet()), mock(Transport.Connection.class), taskManager) {
-                @Override
-                protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
-                }
-            };
-        final Map<ActionType, TransportAction> actions = new HashMap<>();
+        final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<
+            ActionRequest,
+            ActionResponse>(
+                TermsEnumAction.NAME,
+                new ActionFilters(Collections.emptySet()),
+                mock(Transport.Connection.class),
+                taskManager
+            ) {
+            @Override
+            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
+        };
+        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+            new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
         client.initialize(actions, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller.registerHandler(action);
     }
-    
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
-    }       
-    
+    }
+
     @Before
     public void ensureCleanContext() {
         // Make sure we have a clean context for each test
         threadPool.getThreadContext().stashContext();
-    }    
+    }
 
     @AfterClass
     public static void terminateThreadPool() {
@@ -121,11 +126,11 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.errors().get(), equalTo(0));
         assertNull(channel.capturedResponse());
     }
-    
+
     public void testRestTermEnumActionMissingField() throws Exception {
         // GIVEN an invalid query
         final String content = "{"
-//            + "\"field\":\"a\", "
+            // + "\"field\":\"a\", "
             + "\"string\":\"foo\", "
             + "\"index_filter\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
 
@@ -139,12 +144,10 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.responses().get(), equalTo(0));
         assertThat(channel.errors().get(), equalTo(1));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("field cannot be null"));
-    }    
-    
-    
+    }
+
     private RestRequest createRestRequest(String content) {
-        return new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("index1/_terms_enum")
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/_terms_enum")
             .withParams(emptyMap())
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();

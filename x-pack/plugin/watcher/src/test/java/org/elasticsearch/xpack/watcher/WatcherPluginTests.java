@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -21,10 +22,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -35,10 +38,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class WatcherPluginTests extends ESTestCase {
 
     public void testWatcherDisabledTests() throws Exception {
-        Settings settings = Settings.builder()
-                .put("xpack.watcher.enabled", false)
-                .put("path.home", createTempDir())
-                .build();
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", false).put("path.home", createTempDir()).build();
         Watcher watcher = new Watcher(settings);
 
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
@@ -49,10 +49,27 @@ public class WatcherPluginTests extends ESTestCase {
 
         // ensure index module is not called, even if watches index is tried
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);
-        AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
-        IndexModule indexModule = new IndexModule(indexSettings, registry, new InternalEngineFactory(), Collections.emptyMap(),
-            () -> true, TestIndexNameExpressionResolver.newInstance(), Collections.emptyMap());
+        AnalysisRegistry registry = new AnalysisRegistry(
+            TestEnvironment.newEnvironment(settings),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap()
+        );
+        IndexModule indexModule = new IndexModule(
+            indexSettings,
+            registry,
+            new InternalEngineFactory(),
+            Collections.emptyMap(),
+            () -> true,
+            TestIndexNameExpressionResolver.newInstance(),
+            Collections.emptyMap()
+        );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);
 
@@ -64,9 +81,7 @@ public class WatcherPluginTests extends ESTestCase {
 
     public void testWatcherUseIlmFallsBackToIlmEnabled() throws Exception {
         boolean ilmEnabled = randomBoolean();
-        Settings settingsWithoutWatcherUseIlm = Settings.builder()
-            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), ilmEnabled)
-            .build();
+        Settings settingsWithoutWatcherUseIlm = Settings.builder().put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), ilmEnabled).build();
         assertThat(Watcher.USE_ILM_INDEX_MANAGEMENT.get(settingsWithoutWatcherUseIlm), is(ilmEnabled));
 
         boolean watcherUseIlmEnabled = randomBoolean();
@@ -76,7 +91,7 @@ public class WatcherPluginTests extends ESTestCase {
             .build();
         assertThat(Watcher.USE_ILM_INDEX_MANAGEMENT.get(settingsWithWatcherUseIlm), is(watcherUseIlmEnabled));
 
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED } );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED });
     }
 
     public void testThreadPoolSize() {
@@ -97,11 +112,8 @@ public class WatcherPluginTests extends ESTestCase {
     }
 
     public void testReload() {
-        Settings settings = Settings.builder()
-            .put("xpack.watcher.enabled", true)
-            .put("path.home", createTempDir())
-            .build();
-        NotificationService mockService = mock(NotificationService.class);
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", true).put("path.home", createTempDir()).build();
+        NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
@@ -109,20 +121,27 @@ public class WatcherPluginTests extends ESTestCase {
     }
 
     public void testReloadDisabled() {
-        Settings settings = Settings.builder()
-            .put("xpack.watcher.enabled", false)
-            .put("path.home", createTempDir())
-            .build();
-        NotificationService mockService = mock(NotificationService.class);
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", false).put("path.home", createTempDir()).build();
+        NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
         verifyNoMoreInteractions(mockService);
     }
 
+    public void testWatcherSystemIndicesFormat() {
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", false).put("path.home", createTempDir()).build();
+        Watcher watcher = new Watcher(settings);
+
+        Collection<SystemIndexDescriptor> descriptors = watcher.getSystemIndexDescriptors(settings);
+        for (SystemIndexDescriptor descriptor : descriptors) {
+            assertThat(descriptor.getIndexFormat(), equalTo(6));
+        }
+    }
+
     private class TestWatcher extends Watcher {
 
-        TestWatcher(Settings settings, NotificationService service) {
+        TestWatcher(Settings settings, NotificationService<?> service) {
             super(settings);
             reloadableServices.add(service);
         }

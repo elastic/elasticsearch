@@ -7,22 +7,24 @@
 
 package org.elasticsearch.xpack;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -38,8 +40,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -51,6 +53,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,8 +63,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MigrateToDataTiersIT extends ESRestTestCase {
-    private static final Logger logger = LogManager.getLogger(MigrateToDataTiersIT.class);
-
     private String index;
     private String policy;
     private String alias;
@@ -72,6 +73,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
         assertOK(client().performRequest(new Request("POST", "_ilm/start")));
+
+        // we can't have the pre-migration indices getting tier preferences auto-assigned,
+        // if we did, then we wouldn't really be testing the migration *to* data tiers anymore :D
+        enforceDefaultTierPreference(false);
     }
 
     @AfterClass
@@ -100,13 +105,15 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, singletonMap("data", "warm"), null, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
 
-        createPolicy(client(), policy,
+        createPolicy(
+            client(),
+            policy,
             new Phase("hot", TimeValue.ZERO, hotActions),
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
@@ -114,34 +121,44 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction()))
         );
 
-        createIndexWithSettings(client(), index, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .putNull(DataTier.TIER_PREFERENCE)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() ->
-            assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(() ->
-            assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
+            30,
+            TimeUnit.SECONDS
+        );
 
         // let's also have a policy that doesn't need migrating
         String rolloverOnlyPolicyName = "rollover-policy";
         createNewSingletonPolicy(client(), rolloverOnlyPolicyName, "hot", new RolloverAction(null, null, null, 1L));
 
         String rolloverIndexPrefix = "rolloverpolicytest_index";
-        for (int i = 1; i < randomIntBetween(2, 5); i++) {
-            // assign the rollover-only policy to a few other indices - these indices and the rollover-only policy should not be migrated
-            // in any way
-            createIndexWithSettings(client(), rolloverIndexPrefix + "-00000" + i, alias + i, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i)
+        for (int i = 1; i <= 2; i++) {
+            // assign the rollover-only policy to a few other indices - these indices will end up getting caught by the catch-all
+            // tier preference migration
+            createIndexWithSettings(
+                client(),
+                rolloverIndexPrefix + "-00000" + i,
+                alias + i,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .putNull(DataTier.TIER_PREFERENCE)
+                    .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i)
             );
         }
 
@@ -160,19 +177,31 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         createIndex(indexWithDataWarmRouting, settings.build());
 
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
-        migrateRequest.setJsonEntity(
-            "{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}"
-        );
+        migrateRequest.setJsonEntity("{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}");
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
 
+        // the index was assigned after the migration
+        ensureGreen("indexwithdatawarmrouting");
+
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
-            containsInAnyOrder(policy));
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
-            containsInAnyOrder(index, indexWithDataWarmRouting));
-        assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
-            is(templateName));
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+            contains(policy)
+        );
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+            containsInAnyOrder(index, indexWithDataWarmRouting, rolloverIndexPrefix + "-000001", rolloverIndexPrefix + "-000002")
+        );
+        assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()), is(templateName));
+
+        // let's verify no index template was migrated
+        assertThat(migrateResponseAsMap.containsKey(MigrateToDataTiersResponse.MIGRATED_LEGACY_TEMPLATES.getPreferredName()), is(false));
+        assertThat(
+            migrateResponseAsMap.containsKey(MigrateToDataTiersResponse.MIGRATED_COMPOSABLE_TEMPLATES.getPreferredName()),
+            is(false)
+        );
+        assertThat(migrateResponseAsMap.containsKey(MigrateToDataTiersResponse.MIGRATED_COMPONENT_TEMPLATES.getPreferredName()), is(false));
 
         // let's verify the legacy template doesn't exist anymore
         Request getTemplateRequest = new Request("HEAD", "_template/" + templateName);
@@ -181,7 +210,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // let's assert the require.data:warm configuration the "indexWithDataWarmRouting" had was migrated to
         // _tier_preference:data_warm,data_hot
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_warm,data_hot"));
 
         // let's retrieve the migrated policy and check it was migrated correctly - namely the warm phase should not contain any allocate
         // action anymore and the cold phase should contain an allocate action that only configures the number of replicas
@@ -204,11 +233,129 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         String cachedPhaseDefinition = getCachedPhaseDefAsMap(clusterMetadataResponse, index);
         // let's also verify the cached phase definition was updated - as the managed index was in the warm phase, which after migration
         // does not contain the allocate action anymore, the cached warm phase should not contain the allocate action either
-        assertThat("the cached phase definition should reflect the migrated warm phase which must NOT contain an allocate action anymore",
-            cachedPhaseDefinition, not(containsString(AllocateAction.NAME)));
+        assertThat(
+            "the cached phase definition should reflect the migrated warm phase which must NOT contain an allocate action anymore",
+            cachedPhaseDefinition,
+            not(containsString(AllocateAction.NAME))
+        );
         assertThat(cachedPhaseDefinition, containsString(ShrinkAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(SetPriorityAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(ForceMergeAction.NAME));
+
+        // ENFORCE_DEFAULT_TIER_PREFERENCE has been set to true
+        Request getSettingsRequest = new Request("GET", "_cluster/settings");
+        Response getSettingsResponse = client().performRequest(getSettingsRequest);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
+        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexTemplatesMigration() throws Exception {
+        // legacy template to migrate
+        String legacyTemplateToMigrate = "legacy_to_migrate";
+        {
+            Request legacyTemplateToMigrateReq = new Request("PUT", "/_template/" + legacyTemplateToMigrate);
+            Settings indexSettings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.routing.allocation.require.data", "hot")
+                .build();
+            legacyTemplateToMigrateReq.setJsonEntity(
+                "{\"index_patterns\":  [\"legacynotreallyimportant-*\"], \"settings\":  " + Strings.toString(indexSettings) + "}"
+            );
+            legacyTemplateToMigrateReq.setOptions(
+                expectWarnings("Legacy index templates are deprecated in favor of composable templates" + ".")
+            );
+            assertOK(client().performRequest(legacyTemplateToMigrateReq));
+        }
+
+        // legacy template that doesn't need migrating
+        String legacyTemplate = "legacy_template";
+        {
+            Request legacyTemplateRequest = new Request("PUT", "/_template/" + legacyTemplate);
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).build();
+            legacyTemplateRequest.setJsonEntity(
+                "{\"index_patterns\":  [\"legacynotreallyimportant-*\"], \"settings\":  " + Strings.toString(indexSettings) + "}"
+            );
+            legacyTemplateRequest.setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
+            assertOK(client().performRequest(legacyTemplateRequest));
+        }
+
+        // put a composable template that needs migrating
+        String composableTemplateToMigrate = "to_migrate_composable_template";
+        {
+            Request toMigrateComposableTemplateReq = new Request("PUT", "/_index_template/" + composableTemplateToMigrate);
+            Settings indexSettings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.routing.allocation.require.data", "hot")
+                .build();
+            toMigrateComposableTemplateReq.setJsonEntity(
+                "{\"index_patterns\":  [\"0notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
+            );
+            assertOK(client().performRequest(toMigrateComposableTemplateReq));
+        }
+
+        // put a composable template that doesn't need migrating
+        String composableTemplate = "no_need_to_migrate_composable_template";
+        {
+            Request composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate);
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
+            composableTemplateRequest.setJsonEntity(
+                "{\"index_patterns\":  [\"1notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
+            );
+            assertOK(client().performRequest(composableTemplateRequest));
+        }
+
+        // put a component template that needs migrating
+        String componentTemplateToMigrate = "to_migrate_component_template";
+        {
+            Request componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplateToMigrate);
+            Settings indexSettings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.routing.allocation.require.data", "hot")
+                .build();
+            componentTemplateRequest.setJsonEntity("{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}");
+            assertOK(client().performRequest(componentTemplateRequest));
+        }
+
+        // put a component template that doesn't need migrating
+        String componentTemplate = "no_need_to_migrate_component_template";
+        {
+            Request componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplate);
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).build();
+            componentTemplateRequest.setJsonEntity("{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}");
+            assertOK(client().performRequest(componentTemplateRequest));
+        }
+
+        boolean dryRun = randomBoolean();
+        if (dryRun == false) {
+            client().performRequest(new Request("POST", "_ilm/stop"));
+            assertBusy(() -> {
+                Response response = client().performRequest(new Request("GET", "_ilm/status"));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
+            });
+        }
+
+        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
+        migrateRequest.addParameter("dry_run", String.valueOf(dryRun));
+        migrateRequest.setJsonEntity("{ \"node_attribute\": \"data\"} ");
+        Response migrateDeploymentResponse = client().performRequest(migrateRequest);
+        assertOK(migrateDeploymentResponse);
+
+        Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_LEGACY_TEMPLATES.getPreferredName()),
+            is(org.elasticsearch.core.List.of(legacyTemplateToMigrate))
+        );
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_COMPOSABLE_TEMPLATES.getPreferredName()),
+            is(org.elasticsearch.core.List.of(composableTemplateToMigrate))
+        );
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_COMPONENT_TEMPLATES.getPreferredName()),
+            is(org.elasticsearch.core.List.of(componentTemplateToMigrate))
+        );
+        assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.DRY_RUN.getPreferredName()), is(dryRun));
     }
 
     @SuppressWarnings("unchecked")
@@ -221,13 +368,15 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, singletonMap("data", "warm"), null, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
 
-        createPolicy(client(), policy,
+        createPolicy(
+            client(),
+            policy,
             new Phase("hot", TimeValue.ZERO, hotActions),
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
@@ -235,27 +384,26 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction()))
         );
 
-        createIndexWithSettings(client(), index, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .putNull(DataTier.TIER_PREFERENCE)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() ->
-            assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(() ->
-            assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
-
-        // let's stop ILM so we can simulate the migration
-        client().performRequest(new Request("POST", "_ilm/stop"));
-        assertBusy(() -> {
-            Response response = client().performRequest(new Request("GET", "_ilm/status"));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString(OperationMode.STOPPED.toString()));
-        });
+        assertBusy(
+            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
+            30,
+            TimeUnit.SECONDS
+        );
 
         String indexWithDataWarmRouting = "indexwithdatawarmrouting";
         Settings.Builder settings = Settings.builder()
@@ -266,20 +414,21 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
         migrateRequest.addParameter("dry_run", "true");
-        migrateRequest.setJsonEntity(
-            "{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}"
-        );
+        migrateRequest.setJsonEntity("{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}");
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
 
         // response should contain the correct "to migrate" entities
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
-            containsInAnyOrder(policy));
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
-            containsInAnyOrder(index, indexWithDataWarmRouting));
-        assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
-            is(templateName));
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+            containsInAnyOrder(policy)
+        );
+        assertThat(
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+            containsInAnyOrder(index, indexWithDataWarmRouting)
+        );
+        assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()), is(templateName));
 
         // however the entities should NOT have been changed
         // the index template should still exist
@@ -288,7 +437,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         // the index settings should not contain the _tier_preference
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), nullValue());
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), nullValue());
 
         // let's check the ILM policy was not migrated - ie. the warm phase still contains the allocate action
         Request getPolicy = new Request("GET", "/_ilm/policy/" + policy);
@@ -316,20 +465,41 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
     private void createLegacyTemplate(String templateName) throws IOException {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity("{\n" +
-            "  \"index_patterns\": \"" + indexPrefix + "*\",\n" +
-            "  \"settings\": {\n" +
-            "    \"index\": {\n" +
-            "      \"lifecycle\": {\n" +
-            "        \"name\": \"does_not_exist\",\n" +
-            "        \"rollover_alias\": \"test_alias\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}", ContentType.APPLICATION_JSON);
+        final StringEntity template = new StringEntity(
+            "{\n"
+                + "  \"index_patterns\": \""
+                + indexPrefix
+                + "*\",\n"
+                + "  \"settings\": {\n"
+                + "    \"index\": {\n"
+                + "      \"lifecycle\": {\n"
+                + "        \"name\": \"does_not_exist\",\n"
+                + "        \"rollover_alias\": \"test_alias\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}",
+            ContentType.APPLICATION_JSON
+        );
         Request templateRequest = new Request("PUT", "_template/" + templateName);
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
+    }
+
+    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) throws IOException {
+        Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity(
+            "{\n"
+                + "  \"persistent\": {\n"
+                + "    \""
+                + DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE
+                + "\" : "
+                + enforceDefaultTierPreference
+                + "\n"
+                + "  }\n"
+                + "}"
+        );
+        assertOK(client().performRequest(request));
     }
 }

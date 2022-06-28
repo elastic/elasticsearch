@@ -63,7 +63,7 @@ public final class AnalyzerCaster {
                 return PainlessCast.originalTypetoTargetType(def.class, Float.class, explicit);
             } else if (expected == Double.class) {
                 return PainlessCast.originalTypetoTargetType(def.class, Double.class, explicit);
-            // TODO: remove this when the transition from Joda to Java datetimes is completed
+                // TODO: remove this when the transition from Joda to Java datetimes is completed
             } else if (expected == ZonedDateTime.class) {
                 return PainlessCast.originalTypetoTargetType(def.class, ZonedDateTime.class, explicit);
             }
@@ -71,7 +71,7 @@ public final class AnalyzerCaster {
             if (expected == char.class && explicit) {
                 return PainlessCast.originalTypetoTargetType(String.class, char.class, true);
             }
-        // TODO: remove this when the transition from Joda to Java datetimes is completed
+            // TODO: remove this when the transition from Joda to Java datetimes is completed
         } else if (actual == JodaCompatibleZonedDateTime.class) {
             if (expected == ZonedDateTime.class) {
                 return PainlessCast.originalTypetoTargetType(JodaCompatibleZonedDateTime.class, ZonedDateTime.class, explicit);
@@ -388,17 +388,23 @@ public final class AnalyzerCaster {
             }
         }
 
-        if (
-                (actual == def.class && expected != void.class) ||
-                (actual != void.class && expected == def.class) ||
-                expected.isAssignableFrom(actual)               ||
-                (actual.isAssignableFrom(expected) && explicit)
-        ) {
+        if ((actual == def.class && expected != void.class)
+            || (actual != void.class && expected == def.class)
+            || expected.isAssignableFrom(actual)
+            || (actual.isAssignableFrom(expected) && explicit)) {
             return PainlessCast.originalTypetoTargetType(actual, expected, explicit);
         } else {
-            throw location.createError(new ClassCastException("Cannot cast from " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] to " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
+            throw location.createError(
+                new ClassCastException(
+                    "Cannot cast from "
+                        + "["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(actual)
+                        + "] to "
+                        + "["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(expected)
+                        + "]."
+                )
+            );
         }
     }
 
@@ -409,32 +415,43 @@ public final class AnalyzerCaster {
         if (fsort == tsort) {
             return constant;
         } else if (fsort == String.class && tsort == char.class) {
-            return Utility.StringTochar((String)constant);
+            return Utility.StringTochar((String) constant);
         } else if (fsort == char.class && tsort == String.class) {
-            return Utility.charToString((char)constant);
+            return Utility.charToString((char) constant);
         } else if (fsort.isPrimitive() && fsort != boolean.class && tsort.isPrimitive() && tsort != boolean.class) {
             Number number;
 
             if (fsort == char.class) {
-                number = (int)(char)constant;
+                number = (int) (char) constant;
             } else {
-                number = (Number)constant;
+                number = (Number) constant;
             }
 
-            if      (tsort == byte.class) return number.byteValue();
+            if (tsort == byte.class) return number.byteValue();
             else if (tsort == short.class) return number.shortValue();
-            else if (tsort == char.class) return (char)number.intValue();
+            else if (tsort == char.class) return (char) number.intValue();
             else if (tsort == int.class) return number.intValue();
             else if (tsort == long.class) return number.longValue();
             else if (tsort == float.class) return number.floatValue();
             else if (tsort == double.class) return number.doubleValue();
             else {
-                throw location.createError(new IllegalStateException("Cannot cast from " +
-                    "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."));
+                throw location.createError(
+                    new IllegalStateException(
+                        "Cannot cast from "
+                            + "["
+                            + cast.originalType.getCanonicalName()
+                            + "] to ["
+                            + cast.targetType.getCanonicalName()
+                            + "]."
+                    )
+                );
             }
         } else {
-            throw location.createError(new IllegalStateException("Cannot cast from " +
-                "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."));
+            throw location.createError(
+                new IllegalStateException(
+                    "Cannot cast from " + "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."
+                )
+            );
         }
     }
 
@@ -463,12 +480,16 @@ public final class AnalyzerCaster {
 
         if (from0 == long.class || from1 == long.class) {
             return long.class;
-        } else if (from0 == int.class   || from1 == int.class   ||
-                   from0 == char.class  || from1 == char.class  ||
-                   from0 == short.class || from1 == short.class ||
-                   from0 == byte.class  || from1 == byte.class) {
-            return int.class;
-        }
+        } else if (from0 == int.class
+            || from1 == int.class
+            || from0 == char.class
+            || from1 == char.class
+            || from0 == short.class
+            || from1 == short.class
+            || from0 == byte.class
+            || from1 == byte.class) {
+                return int.class;
+            }
 
         return null;
     }
@@ -539,8 +560,8 @@ public final class AnalyzerCaster {
                 }
             } else if (from1 == char.class) {
                 if (from0 == short.class || from0 == byte.class) {
-                return int.class;
-            } else {
+                    return int.class;
+                } else {
                     return null;
                 }
             } else {

@@ -50,8 +50,8 @@ setup:
 "Field caps with runtime mappings section overwriting existing mapping":
 
   - skip:
-      version: " - 7.99.99"
-      reason: Runtime mappings support was added in 8.0
+      version: " - 7.9.99"
+      reason: Runtime mappings support was added in 7.10
 
   - do:
       index:

@@ -1,0 +1,84 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.publish'
+
+// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
+if (!isEclipse) {
+  sourceSets {
+    java9 {
+      java {
+        srcDirs = ['src/main/java9']
+      }
+    }
+  }
+
+  configurations {
+    java9Compile.extendsFrom(compile)
+  }
+
+  dependencies {
+    java9Implementation sourceSets.main.output
+    java9Implementation 'org.lz4:lz4-java:1.8.0'
+  }
+
+  tasks.named('compileJava9Java').configure {
+    sourceCompatibility = 9
+    targetCompatibility = 9
+  }
+
+  tasks.named('forbiddenApisJava9').configure {
+    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
+    }
+    replaceSignatureFiles 'jdk-signatures'
+  }
+
+  tasks.named('jar').configure {
+    metaInf {
+      into 'versions/9'
+      from sourceSets.java9.output
+    }
+    manifest.attributes('Multi-Release': 'true')
+  }
+}
+
+sourceSets {
+  test {
+    runtimeClasspath = project.objects.fileCollection().from(
+      output,
+      tasks.named('jar'),
+      project.configurations.testRuntimeClasspath)
+  }
+}
+
+dependencies {
+  api 'org.lz4:lz4-java:1.8.0'
+  api project(':libs:elasticsearch-core')
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-lz4'
+  }
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.binary'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // lz4 does not depend on core, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // from java-lz4
+    'net.jpountz.util.UnsafeUtils'
+  )
+}

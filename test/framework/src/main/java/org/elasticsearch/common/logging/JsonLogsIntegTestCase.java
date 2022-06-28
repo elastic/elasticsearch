@@ -60,25 +60,23 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
         assertNotNull(firstLine);
 
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
-            stream.limit(LINES_TO_CHECK)
-                  .forEach(jsonLogLine -> {
-                      assertThat(jsonLogLine.type(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.timestamp(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.level(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.component(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.message(), is(not(emptyOrNullString())));
+            stream.limit(LINES_TO_CHECK).forEach(jsonLogLine -> {
+                assertThat(jsonLogLine.type(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.timestamp(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.level(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.component(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.message(), is(not(emptyOrNullString())));
 
-                      // all lines should have the same nodeName and clusterName
-                      assertThat(jsonLogLine.nodeName(), nodeNameMatcher());
-                      assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
-                  });
+                // all lines should have the same nodeName and clusterName
+                assertThat(jsonLogLine.nodeName(), nodeNameMatcher());
+                assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));
+            });
         }
     }
 
     private JsonLogLine findFirstLine() throws IOException {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
-            return stream.findFirst()
-                         .orElseThrow(() -> new AssertionError("no logs at all?!"));
+            return stream.findFirst().orElseThrow(() -> new AssertionError("no logs at all?!"));
         }
     }
 
@@ -95,7 +93,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
             }
             assertNotNull(firstLine);
 
-            //once the nodeId and clusterId are received, they should be the same on remaining lines
+            // once the nodeId and clusterId are received, they should be the same on remaining lines
 
             int i = 0;
             while (iterator.hasNext() && i++ < LINES_TO_CHECK) {
@@ -110,9 +108,11 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     private Path getLogFile() {
         String logFileString = System.getProperty("tests.logfile");
         if (logFileString == null) {
-            fail("tests.logfile must be set to run this test. It is automatically "
-                + "set by gradle. If you must set it yourself then it should be the absolute path to the "
-                + "log file.");
+            fail(
+                "tests.logfile must be set to run this test. It is automatically "
+                    + "set by gradle. If you must set it yourself then it should be the absolute path to the "
+                    + "log file."
+            );
         }
         return Paths.get(logFileString);
     }

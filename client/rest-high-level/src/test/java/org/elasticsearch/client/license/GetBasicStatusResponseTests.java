@@ -8,13 +8,14 @@
 package org.elasticsearch.client.license;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class GetBasicStatusResponseTests
-    extends AbstractResponseTestCase<org.elasticsearch.license.GetBasicStatusResponse, GetBasicStatusResponse> {
+public class GetBasicStatusResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.license.GetBasicStatusResponse,
+    GetBasicStatusResponse> {
 
     @Override
     protected org.elasticsearch.license.GetBasicStatusResponse createServerTestInstance(XContentType xContentType) {
@@ -27,10 +28,13 @@ public class GetBasicStatusResponseTests
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.license.GetBasicStatusResponse serverTestInstance,
-                                   GetBasicStatusResponse clientInstance) {
-        org.elasticsearch.license.GetBasicStatusResponse serverInstance =
-            new org.elasticsearch.license.GetBasicStatusResponse(clientInstance.isEligibleToStartBasic());
+    protected void assertInstances(
+        org.elasticsearch.license.GetBasicStatusResponse serverTestInstance,
+        GetBasicStatusResponse clientInstance
+    ) {
+        org.elasticsearch.license.GetBasicStatusResponse serverInstance = new org.elasticsearch.license.GetBasicStatusResponse(
+            clientInstance.isEligibleToStartBasic()
+        );
         assertEquals(serverTestInstance, serverInstance);
     }
 }

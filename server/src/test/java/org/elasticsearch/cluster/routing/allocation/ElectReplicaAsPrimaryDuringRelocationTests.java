@@ -29,25 +29,26 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
     private final Logger logger = LogManager.getLogger(ElectReplicaAsPrimaryDuringRelocationTests.class);
 
     public void testElectReplicaAsPrimaryDuringRelocation() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
 
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test"))
-                .build();
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))
-            .add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("Start the primary shards");
@@ -64,8 +65,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(2));
 
         logger.info("Start another node and perform rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-            .add(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("find the replica shard that gets relocated");
@@ -78,10 +78,13 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
 
         // we might have primary relocating, and the test is only for replicas, so only test in the case of replica allocation
         if (indexShardRoutingTable != null) {
-            logger.info("kill the node [{}] of the primary shard for the relocating replica",
-                indexShardRoutingTable.primaryShard().currentNodeId());
-            clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
+            logger.info(
+                "kill the node [{}] of the primary shard for the relocating replica",
+                indexShardRoutingTable.primaryShard().currentNodeId()
+            );
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId()))
+                .build();
             clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
 
             logger.info("make sure all the primary shards are active");

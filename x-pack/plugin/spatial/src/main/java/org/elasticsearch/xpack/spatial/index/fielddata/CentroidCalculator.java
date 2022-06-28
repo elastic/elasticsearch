@@ -111,7 +111,6 @@ public class CentroidCalculator {
             throw new IllegalArgumentException("invalid shape type found [LinearRing] while calculating centroid");
         }
 
-
         @Override
         public Void visit(MultiLine multiLine) {
             if (dimensionalShapeType != DimensionalShapeType.POLYGON) {
@@ -155,11 +154,27 @@ public class CentroidCalculator {
             double[] centroidX = new double[1 + polygon.getNumberOfHoles()];
             double[] centroidY = new double[1 + polygon.getNumberOfHoles()];
             double[] weight = new double[1 + polygon.getNumberOfHoles()];
-            visitLinearRing(polygon.getPolygon().length(), polygon.getPolygon()::getX, polygon.getPolygon()::getY, false,
-                centroidX, centroidY, weight, 0);
+            visitLinearRing(
+                polygon.getPolygon().length(),
+                polygon.getPolygon()::getX,
+                polygon.getPolygon()::getY,
+                false,
+                centroidX,
+                centroidY,
+                weight,
+                0
+            );
             for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                visitLinearRing(polygon.getHole(i).length(), polygon.getHole(i)::getX, polygon.getHole(i)::getY, true,
-                    centroidX, centroidY, weight, i + 1);
+                visitLinearRing(
+                    polygon.getHole(i).length(),
+                    polygon.getHole(i)::getX,
+                    polygon.getHole(i)::getY,
+                    true,
+                    centroidX,
+                    centroidY,
+                    weight,
+                    i + 1
+                );
             }
 
             double sumWeight = 0;
@@ -189,8 +204,10 @@ public class CentroidCalculator {
                 addCoordinate(sumX / 2, sumY / 2, rectWeight, DimensionalShapeType.POLYGON);
             } else {
                 // degenerated rectangle, transform to Line
-                Line line = new Line(new double[]{rectangle.getMinX(), rectangle.getMaxX()},
-                    new double[]{rectangle.getMinY(), rectangle.getMaxY()});
+                Line line = new Line(
+                    new double[] { rectangle.getMinX(), rectangle.getMaxX() },
+                    new double[] { rectangle.getMinY(), rectangle.getMaxY() }
+                );
                 visit(line);
             }
             return null;
@@ -218,8 +235,16 @@ public class CentroidCalculator {
             }
         }
 
-        private void visitLinearRing(int length, CoordinateSupplier x, CoordinateSupplier y, boolean isHole,
-                                       double[] centroidX, double[] centroidY, double[] weight, int idx) {
+        private void visitLinearRing(
+            int length,
+            CoordinateSupplier x,
+            CoordinateSupplier y,
+            boolean isHole,
+            double[] centroidX,
+            double[] centroidY,
+            double[] weight,
+            int idx
+        ) {
             // implementation of calculation defined in
             // https://www.seas.upenn.edu/~sys502/extra_materials/Polygon%20Area%20and%20Centroid.pdf
             //
@@ -251,21 +276,22 @@ public class CentroidCalculator {
          *  @param x the x-coordinate of the point
          * @param y the y-coordinate of the point
          * @param weight the associated weight of the coordinate
+         * @param shapeType the associated shape type of the coordinate
          */
-        private void addCoordinate(double x, double y, double weight, DimensionalShapeType dimensionalShapeType) {
+        private void addCoordinate(double x, double y, double weight, DimensionalShapeType shapeType) {
             // x and y can be infinite due to really small areas and rounding problems
             if (Double.isFinite(x) && Double.isFinite(y)) {
-                if (this.dimensionalShapeType == dimensionalShapeType) {
+                if (this.dimensionalShapeType == shapeType) {
                     compSumX.add(x * weight);
                     compSumY.add(y * weight);
                     compSumWeight.add(weight);
-                    this.dimensionalShapeType = dimensionalShapeType;
-                } else if (dimensionalShapeType.compareTo(this.dimensionalShapeType) > 0) {
+                    this.dimensionalShapeType = shapeType;
+                } else if (shapeType.compareTo(this.dimensionalShapeType) > 0) {
                     // reset counters
                     compSumX.reset(x * weight, 0);
                     compSumY.reset(y * weight, 0);
                     compSumWeight.reset(weight, 0);
-                    this.dimensionalShapeType = dimensionalShapeType;
+                    this.dimensionalShapeType = shapeType;
                 }
             }
         }

@@ -9,24 +9,22 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper.UserData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 
-import javax.security.auth.login.LoginException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
@@ -45,13 +43,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.authc.kerberos.KerberosRealmTestCase.buildKerberosRealmSettings;
+import javax.security.auth.login.LoginException;
+
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -65,8 +65,10 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
 
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(randomByteArrayOfLength(5));
         assertThat(kerberosRealm.supports(kerberosAuthenticationToken), is(true));
-        final UsernamePasswordToken usernamePasswordToken =
-                new UsernamePasswordToken(randomAlphaOfLength(5), new SecureString(new char[] { 'a', 'b', 'c' }));
+        final UsernamePasswordToken usernamePasswordToken = new UsernamePasswordToken(
+            randomAlphaOfLength(5),
+            new SecureString(new char[] { 'a', 'b', 'c' })
+        );
         assertThat(kerberosRealm.supports(usernamePasswordToken), is(false));
     }
 
@@ -88,10 +90,14 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
         assertSuccessAuthenticationResult(expectedUser, "out-token", future.actionGet());
 
-        verify(mockKerberosTicketValidator, times(1)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                any(ActionListener.class));
+        verify(mockKerberosTicketValidator, times(1)).validateTicket(
+            aryEq(decodedTicket),
+            eq(keytabPath),
+            eq(krbDebug),
+            anyActionListener()
+        );
         verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
-        verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), any(ActionListener.class));
+        verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 
@@ -108,8 +114,16 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), equalTo("Expected UPN '" + Arrays.asList(maybeRemoveRealmName(username)) + "' but was '"
-                + maybeRemoveRealmName("does-not-exist@REALM") + "'"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Expected UPN '"
+                    + Arrays.asList(maybeRemoveRealmName(username))
+                    + "' but was '"
+                    + maybeRemoveRealmName("does-not-exist@REALM")
+                    + "'"
+            )
+        );
     }
 
     public void testLookupUser() {
@@ -137,23 +151,35 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     }
 
     public void testKerberosRealmThrowsErrorWhenKeytabFileHasNoReadPermissions() throws IOException {
-        assumeFalse("Not running this test on Windows, as it requires additional access permissions for test framework.",
-                Constants.WINDOWS);
+        assumeFalse(
+            "Not running this test on Windows, as it requires additional access permissions for test framework.",
+            Constants.WINDOWS
+        );
         final Set<String> supportedAttributes = dir.getFileSystem().supportedFileAttributeViews();
         final String keytabFileName = randomAlphaOfLength(5) + ".keytab";
         final Path keytabPath;
         if (supportedAttributes.contains("posix")) {
             final Set<PosixFilePermission> filePerms = PosixFilePermissions.fromString("---------");
             final FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(filePerms);
-            try (SeekableByteChannel byteChannel = Files.newByteChannel(dir.resolve(keytabFileName),
-                    EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), fileAttributes)) {
+            try (
+                SeekableByteChannel byteChannel = Files.newByteChannel(
+                    dir.resolve(keytabFileName),
+                    EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                    fileAttributes
+                )
+            ) {
                 byteChannel.write(ByteBuffer.wrap(randomByteArrayOfLength(10)));
             }
             keytabPath = dir.resolve(keytabFileName);
         } else {
             throw new UnsupportedOperationException(
-                    String.format(Locale.ROOT, "Don't know how to make file [%s] non-readable on a file system with attributes [%s]",
-                            dir.resolve(keytabFileName), supportedAttributes));
+                String.format(
+                    Locale.ROOT,
+                    "Don't know how to make file [%s] non-readable on a file system with attributes [%s]",
+                    dir.resolve(keytabFileName),
+                    supportedAttributes
+                )
+            );
         }
         final String expectedErrorMessage = "configured service key tab file [" + keytabPath + "] must have read permission";
 
@@ -163,22 +189,42 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     private void assertKerberosRealmConstructorFails(final String keytabPath, final String expectedErrorMessage) {
         final String realmName = "test-kerb-realm";
         settings = buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, randomBoolean(), globalSettings);
-        config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, realmName), settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+        config = new RealmConfig(
+            new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, realmName),
+            settings,
+            TestEnvironment.newEnvironment(settings),
+            new ThreadContext(settings)
+        );
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
-        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> new KerberosRealm(config, mockNativeRoleMappingStore, mockKerberosTicketValidator, threadPool, null));
+        final IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KerberosRealm(config, mockNativeRoleMappingStore, mockKerberosTicketValidator, threadPool, null)
+        );
         assertThat(iae.getMessage(), is(equalTo(expectedErrorMessage)));
     }
 
     public void testDelegatedAuthorization() throws Exception {
         final String username = randomPrincipalName();
         final String expectedUsername = maybeRemoveRealmName(username);
-        final MockLookupRealm otherRealm = spy(new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
-            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings))));
-        final User lookupUser = new User(expectedUsername, new String[] { "admin-role" }, expectedUsername,
-                expectedUsername + "@example.com", Collections.singletonMap("k1", "v1"), true);
+        final MockLookupRealm otherRealm = spy(
+            new MockLookupRealm(
+                new RealmConfig(
+                    new RealmConfig.RealmIdentifier("mock", "other_realm"),
+                    globalSettings,
+                    TestEnvironment.newEnvironment(globalSettings),
+                    new ThreadContext(globalSettings)
+                )
+            )
+        );
+        final User lookupUser = new User(
+            expectedUsername,
+            new String[] { "admin-role" },
+            expectedUsername,
+            expectedUsername + "@example.com",
+            Collections.singletonMap("k1", "v1"),
+            true
+        );
         otherRealm.registerUser(lookupUser);
 
         settings = Settings.builder().put(settings).putList("authorization_realms", "other_realm").build();
@@ -198,11 +244,14 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
         assertSuccessAuthenticationResult(expectedUser, "out-token", future.actionGet());
 
-        verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                any(ActionListener.class));
+        verify(mockKerberosTicketValidator, times(2)).validateTicket(
+            aryEq(decodedTicket),
+            eq(keytabPath),
+            eq(krbDebug),
+            anyActionListener()
+        );
         verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
-        verify(otherRealm, times(2)).lookupUser(eq(expectedUsername), any(ActionListener.class));
+        verify(otherRealm, times(2)).lookupUser(eq(expectedUsername), anyActionListener());
     }
 }
-

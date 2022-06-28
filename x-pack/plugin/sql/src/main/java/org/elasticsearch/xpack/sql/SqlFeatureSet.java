@@ -58,10 +58,10 @@ public class SqlFeatureSet implements XPackFeatureSet {
         request.includeStats(true);
         client.execute(SqlStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
             List<Counters> countersPerNode = r.getNodes()
-                    .stream()
-                    .map(SqlStatsResponse.NodeStatsResponse::getStats)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                .stream()
+                .map(SqlStatsResponse.NodeStatsResponse::getStats)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
             listener.onResponse(new SqlFeatureSetUsage(mergedCounters.toNestedMap()));
         }, listener::onFailure));

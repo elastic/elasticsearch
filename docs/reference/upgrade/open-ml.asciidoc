@@ -1,4 +1,3 @@
-[testenv="platinum"]
 If you temporarily halted the tasks associated with your {ml} jobs,
 use the <<ml-set-upgrade-mode,set upgrade mode API>> to return them to active
 states:

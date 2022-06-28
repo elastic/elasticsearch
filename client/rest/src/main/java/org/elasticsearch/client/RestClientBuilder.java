@@ -20,17 +20,14 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpRequest;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.VersionInfo;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.AccessController;
@@ -40,6 +37,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
+
+import javax.net.ssl.SSLContext;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -52,9 +51,9 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
-    static final String VERSION;
+    public static final String VERSION;
     static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
-    private static final String META_HEADER_VALUE;
+    static final String META_HEADER_VALUE;
     private static final String USER_AGENT_HEADER_VALUE;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
@@ -91,24 +90,42 @@ public final class RestClientBuilder {
 
         VERSION = version;
 
-        USER_AGENT_HEADER_VALUE = String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
-            VERSION.isEmpty() ? "Unknown" : VERSION, System.getProperty("java.version"));
+        USER_AGENT_HEADER_VALUE = String.format(
+            Locale.ROOT,
+            "elasticsearch-java/%s (Java/%s)",
+            VERSION.isEmpty() ? "Unknown" : VERSION,
+            System.getProperty("java.version")
+        );
 
         VersionInfo httpClientVersion = null;
         try {
-            httpClientVersion = AccessController.doPrivileged((PrivilegedAction<VersionInfo>)() ->
-                VersionInfo.loadVersionInfo("org.apache.http.nio.client", HttpAsyncClientBuilder.class.getClassLoader())
+            httpClientVersion = AccessController.doPrivileged(
+                (PrivilegedAction<VersionInfo>) () -> VersionInfo.loadVersionInfo(
+                    "org.apache.http.nio.client",
+                    HttpAsyncClientBuilder.class.getClassLoader()
+                )
             );
         } catch (Exception e) {
             // Keep unknown
         }
 
+        // Use a single 'p' suffix for all prerelease versions (snapshot, beta, etc).
+        String metaVersion = version;
+        int dashPos = metaVersion.indexOf('-');
+        if (dashPos > 0) {
+            metaVersion = metaVersion.substring(0, dashPos) + "p";
+        }
+
         // service, language, transport, followed by additional information
-        META_HEADER_VALUE = "es=" + VERSION +
-            ",jv=" + System.getProperty("java.specification.version") +
-            ",t=" + VERSION +
-            ",hc=" + (httpClientVersion == null ? "" : httpClientVersion.getRelease()) +
-            LanguageRuntimeVersions.getRuntimeMetadata();
+        META_HEADER_VALUE = "es="
+            + metaVersion
+            + ",jv="
+            + System.getProperty("java.specification.version")
+            + ",t="
+            + metaVersion
+            + ",hc="
+            + (httpClientVersion == null ? "" : httpClientVersion.getRelease())
+            + LanguageRuntimeVersions.getRuntimeMetadata();
     }
 
     /**
@@ -264,26 +281,38 @@ public final class RestClientBuilder {
             failureListener = new RestClient.FailureListener();
         }
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
-            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
-        RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
-                pathPrefix, failureListener, nodeSelector, strictDeprecationMode, compressionEnabled);
+            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
+        );
+        RestClient restClient = new RestClient(
+            httpClient,
+            defaultHeaders,
+            nodes,
+            pathPrefix,
+            failureListener,
+            nodeSelector,
+            strictDeprecationMode,
+            compressionEnabled,
+            metaHeaderEnabled
+        );
         httpClient.start();
         return restClient;
     }
 
     private CloseableHttpAsyncClient createHttpClient() {
-        //default timeouts are all infinite
+        // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
-                .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
+            .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
+            .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
         try {
-            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
-                //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
+                .setDefaultRequestConfig(requestConfigBuilder.build())
+                // default settings for connection pooling may be too constraining
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE)
+                .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
                 .setUserAgent(USER_AGENT_HEADER_VALUE)
                 .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
@@ -291,14 +320,6 @@ public final class RestClientBuilder {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
-            // Always add metadata header last so that it's not overwritten
-            httpClientBuilder.addInterceptorLast((HttpRequest request, HttpContext context) -> {
-                if (metaHeaderEnabled) {
-                    request.setHeader(META_HEADER_NAME, META_HEADER_VALUE);
-                } else {
-                    request.removeHeaders(META_HEADER_NAME);
-                }
-            });
             final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
             return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
         } catch (NoSuchAlgorithmException e) {

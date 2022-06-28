@@ -13,7 +13,6 @@ import org.elasticsearch.Assertions;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
-
 /**
  * A {@link CounterMetric} is used to track the number of completed and outstanding items, for example, the number of executed refreshes,
  * the currently used memory by indexing, the current pending search requests. In both cases, the current {@link CounterMetric#count} is

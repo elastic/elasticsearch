@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -34,29 +35,39 @@ import java.util.function.Consumer;
 import static java.util.Collections.unmodifiableList;
 
 public final class Grok {
+
+    public static final String[] ECS_COMPATIBILITY_MODES = { "disabled", "v1" };
+
     /**
      * Patterns built in to the grok library.
      */
-    public static final Map<String, String> BUILTIN_PATTERNS = loadBuiltinPatterns();
+    private static Map<String, String> LEGACY_PATTERNS;
+    private static Map<String, String> ECS_V1_PATTERNS;
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
     private static final String PATTERN_GROUP = "pattern";
     private static final String DEFINITION_GROUP = "definition";
-    private static final String GROK_PATTERN =
-            "%\\{" +
-            "(?<name>" +
-            "(?<pattern>[A-z0-9]+)" +
-            "(?::(?<subname>[[:alnum:]@\\[\\]_:.-]+))?" +
-            ")" +
-            "(?:=(?<definition>" +
-            "(?:[^{}]+|\\.+)+" +
-            ")" +
-            ")?" + "\\}";
-    private static final Regex GROK_PATTERN_REGEX = new Regex(GROK_PATTERN.getBytes(StandardCharsets.UTF_8), 0,
-            GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
+    private static final String GROK_PATTERN = "%\\{"
+        + "(?<name>"
+        + "(?<pattern>[A-z0-9]+)"
+        + "(?::(?<subname>[[:alnum:]@\\[\\]_:.-]+))?"
+        + ")"
+        + "(?:=(?<definition>"
+        + "(?:[^{}]+|\\.+)+"
+        + ")"
+        + ")?"
+        + "\\}";
+    private static final Regex GROK_PATTERN_REGEX = new Regex(
+        GROK_PATTERN.getBytes(StandardCharsets.UTF_8),
+        0,
+        GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length,
+        Option.NONE,
+        UTF8Encoding.INSTANCE,
+        Syntax.DEFAULT
+    );
 
-    private static final int MAX_TO_REGEX_ITERATIONS = 100_000; //sanity limit
+    private static final int MAX_TO_REGEX_ITERATIONS = 100_000; // sanity limit
 
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
@@ -76,8 +87,13 @@ public final class Grok {
         this(patternBank, grokPattern, namedCaptures, MatcherWatchdog.noop(), logCallBack);
     }
 
-    private Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures, MatcherWatchdog matcherWatchdog,
-                 Consumer<String> logCallBack) {
+    private Grok(
+        Map<String, String> patternBank,
+        String grokPattern,
+        boolean namedCaptures,
+        MatcherWatchdog matcherWatchdog,
+        Consumer<String> logCallBack
+    ) {
         this.patternBank = patternBank;
         this.namedCaptures = namedCaptures;
         this.matcherWatchdog = matcherWatchdog;
@@ -86,14 +102,20 @@ public final class Grok {
 
         String expression = toRegex(grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
-        this.compiledExpression = new Regex(expressionBytes, 0, expressionBytes.length, Option.DEFAULT, UTF8Encoding.INSTANCE,
-            message -> logCallBack.accept(message));
+        this.compiledExpression = new Regex(
+            expressionBytes,
+            0,
+            expressionBytes.length,
+            Option.DEFAULT,
+            UTF8Encoding.INSTANCE,
+            message -> logCallBack.accept(message)
+        );
 
-        List<GrokCaptureConfig> captureConfig = new ArrayList<>();
+        List<GrokCaptureConfig> grokCaptureConfigs = new ArrayList<>();
         for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
-            captureConfig.add(new GrokCaptureConfig(entry.next()));
+            grokCaptureConfigs.add(new GrokCaptureConfig(entry.next()));
         }
-        this.captureConfig = unmodifiableList(captureConfig);
+        this.captureConfig = unmodifiableList(grokCaptureConfigs);
     }
 
     /**
@@ -128,8 +150,13 @@ public final class Grok {
             if (path.isEmpty()) {
                 message = "circular reference in pattern [" + patternName + "][" + pattern + "]";
             } else {
-                message = "circular reference in pattern [" + path.remove(path.size() - 1) + "][" + pattern +
-                    "] back to pattern [" + patternName + "]";
+                message = "circular reference in pattern ["
+                    + path.remove(path.size() - 1)
+                    + "]["
+                    + pattern
+                    + "] back to pattern ["
+                    + patternName
+                    + "]";
                 // add rest of the path:
                 if (path.isEmpty() == false) {
                     message += " via patterns [" + String.join("=>", path) + "]";
@@ -165,8 +192,12 @@ public final class Grok {
 
     private String groupMatch(String name, Region region, String pattern) {
         try {
-            int number = GROK_PATTERN_REGEX.nameToBackrefNumber(name.getBytes(StandardCharsets.UTF_8), 0,
-                    name.getBytes(StandardCharsets.UTF_8).length, region);
+            int number = GROK_PATTERN_REGEX.nameToBackrefNumber(
+                name.getBytes(StandardCharsets.UTF_8),
+                0,
+                name.getBytes(StandardCharsets.UTF_8).length,
+                region
+            );
             int begin = region.beg[number];
             int end = region.end[number];
             return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
@@ -282,8 +313,9 @@ public final class Grok {
             matcherWatchdog.unregister(matcher);
         }
         if (result == Matcher.INTERRUPTED) {
-            throw new RuntimeException("grok pattern matching was interrupted after [" +
-                matcherWatchdog.maxExecutionTimeInMillis() + "] ms");
+            throw new RuntimeException(
+                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
+            );
         }
         if (result == Matcher.FAILED) {
             return false;
@@ -302,16 +334,86 @@ public final class Grok {
     /**
      * Load built-in patterns.
      */
-    private static Map<String, String> loadBuiltinPatterns() {
-        String[] patternNames = new String[] {
-            "aws", "bacula", "bind", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-            "java", "junos", "linux-syslog", "maven", "mcollective-patterns", "mongodb", "nagios",
-            "postgresql", "rails", "redis", "ruby", "squid"
-        };
+    public static synchronized Map<String, String> getBuiltinPatterns(boolean ecsCompatibility) {
+        if (ecsCompatibility) {
+            if (ECS_V1_PATTERNS == null) {
+                ECS_V1_PATTERNS = loadPatterns(ecsCompatibility);
+            }
+            return ECS_V1_PATTERNS;
+        } else {
+            if (LEGACY_PATTERNS == null) {
+                LEGACY_PATTERNS = loadPatterns(ecsCompatibility);
+            }
+            return LEGACY_PATTERNS;
+        }
+    }
+
+    public static Map<String, String> getBuiltinPatterns(String ecsCompatibility) {
+        if (isValidEcsCompatibilityMode(ecsCompatibility)) {
+            return getBuiltinPatterns(ECS_COMPATIBILITY_MODES[1].equals(ecsCompatibility));
+        } else {
+            throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
+        }
+    }
+
+    public static boolean isValidEcsCompatibilityMode(String ecsCompatibility) {
+        return Arrays.asList(ECS_COMPATIBILITY_MODES).contains(ecsCompatibility);
+    }
+
+    private static Map<String, String> loadPatterns(boolean ecsCompatibility) {
+        String[] legacyPatternNames = {
+            "aws",
+            "bacula",
+            "bind",
+            "bro",
+            "exim",
+            "firewalls",
+            "grok-patterns",
+            "haproxy",
+            "httpd",
+            "java",
+            "junos",
+            "linux-syslog",
+            "maven",
+            "mcollective-patterns",
+            "mongodb",
+            "nagios",
+            "postgresql",
+            "rails",
+            "redis",
+            "ruby",
+            "squid" };
+        String[] ecsPatternNames = {
+            "aws",
+            "bacula",
+            "bind",
+            "bro",
+            "exim",
+            "firewalls",
+            "grok-patterns",
+            "haproxy",
+            "httpd",
+            "java",
+            "junos",
+            "linux-syslog",
+            "maven",
+            "mcollective",
+            "mongodb",
+            "nagios",
+            "postgresql",
+            "rails",
+            "redis",
+            "ruby",
+            "squid",
+            "zeek" };
+
+        String[] patternNames = ecsCompatibility ? ecsPatternNames : legacyPatternNames;
+        String directory = ecsCompatibility ? "/patterns/ecs-v1/" : "/patterns/legacy/";
+
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
         for (String pattern : patternNames) {
             try {
-                try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
+                try (InputStream is = Grok.class.getResourceAsStream(directory + pattern)) {
                     loadPatterns(builtinPatterns, is);
                 }
             } catch (IOException e) {
@@ -338,4 +440,3 @@ public final class Grok {
     }
 
 }
-

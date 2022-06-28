@@ -49,14 +49,22 @@ public final class FeatureAwareCheck {
         if (violations.isEmpty()) {
             systemOutPrintln("no custom violations found");
         } else {
-            violations.forEach(violation ->
-                    systemOutPrintln(
-                            "class [" + violation.name + "] implements"
-                                    + " [" + violation.interfaceName + " but does not implement"
-                                    + " [" + violation.expectedInterfaceName + "]")
+            violations.forEach(
+                violation -> systemOutPrintln(
+                    "class ["
+                        + violation.name
+                        + "] implements"
+                        + " ["
+                        + violation.interfaceName
+                        + " but does not implement"
+                        + " ["
+                        + violation.expectedInterfaceName
+                        + "]"
+                )
             );
             throw new IllegalStateException(
-                    "found custom" + (violations.size() == 1 ? "" : "s") + " in X-Pack not extending appropriate X-Pack mix-in");
+                "found custom" + (violations.size() == 1 ? "" : "s") + " in X-Pack not extending appropriate X-Pack mix-in"
+            );
         }
     }
 
@@ -65,9 +73,8 @@ public final class FeatureAwareCheck {
         System.out.println(s);
     }
 
-    private static void checkDirectories(
-            final Consumer<FeatureAwareViolation> callback,
-            final String... classDirectories) throws IOException {
+    private static void checkDirectories(final Consumer<FeatureAwareViolation> callback, final String... classDirectories)
+        throws IOException {
         for (final String classDirectory : classDirectories) {
             final Path root = pathsGet(classDirectory);
             if (Files.isDirectory(root)) {
@@ -141,27 +148,25 @@ public final class FeatureAwareCheck {
         checkClass(name, interfaces, callback);
     }
 
-    private static void checkClass(
-            final String name,
-            final List<String> interfaces,
-            final Consumer<FeatureAwareViolation> callback) {
+    private static void checkClass(final String name, final List<String> interfaces, final Consumer<FeatureAwareViolation> callback) {
         checkCustomForClass(ClusterState.Custom.class, XPackPlugin.XPackClusterStateCustom.class, name, interfaces, callback);
         checkCustomForClass(Metadata.Custom.class, XPackPlugin.XPackMetadataCustom.class, name, interfaces, callback);
         checkCustomForClass(PersistentTaskParams.class, XPackPlugin.XPackPersistentTaskParams.class, name, interfaces, callback);
     }
 
     private static void checkCustomForClass(
-            final Class<? extends ClusterState.FeatureAware> interfaceToCheck,
-            final Class<? extends ClusterState.FeatureAware> expectedInterface,
-            final String name,
-            final List<String> interfaces,
-            final Consumer<FeatureAwareViolation> callback) {
+        final Class<? extends ClusterState.FeatureAware> interfaceToCheck,
+        final Class<? extends ClusterState.FeatureAware> expectedInterface,
+        final String name,
+        final List<String> interfaces,
+        final Consumer<FeatureAwareViolation> callback
+    ) {
         final Set<String> interfaceSet = new TreeSet<>(interfaces);
         final String interfaceToCheckName = formatClassName(interfaceToCheck);
         final String expectedXPackInterfaceName = formatClassName(expectedInterface);
         if (interfaceSet.contains(interfaceToCheckName)
-                && name.equals(expectedXPackInterfaceName) == false
-                && interfaceSet.contains(expectedXPackInterfaceName) == false) {
+            && name.equals(expectedXPackInterfaceName) == false
+            && interfaceSet.contains(expectedXPackInterfaceName) == false) {
             assert name.startsWith("org/elasticsearch/license") || name.startsWith("org/elasticsearch/xpack");
             callback.accept(new FeatureAwareViolation(name, interfaceToCheckName, expectedXPackInterfaceName));
         }

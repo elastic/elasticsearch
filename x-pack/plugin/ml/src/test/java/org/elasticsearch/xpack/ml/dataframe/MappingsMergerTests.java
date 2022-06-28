@@ -63,12 +63,16 @@ public class MappingsMergerTests extends ESTestCase {
     }
 
     public void testMergeMappings_GivenPropertyFieldWithDifferentMapping() throws IOException {
-            Map<String, Object> index1Mappings = Collections.singletonMap("properties",
-                Collections.singletonMap("field_1", "field_1_mappings"));
+        Map<String, Object> index1Mappings = Collections.singletonMap(
+            "properties",
+            Collections.singletonMap("field_1", "field_1_mappings")
+        );
         MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", index1Mappings);
 
-        Map<String, Object> index2Mappings = Collections.singletonMap("properties",
-            Collections.singletonMap("field_1", "different_field_1_mappings"));
+        Map<String, Object> index2Mappings = Collections.singletonMap(
+            "properties",
+            Collections.singletonMap("field_1", "different_field_1_mappings")
+        );
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
         ImmutableOpenMap.Builder<String, MappingMetadata> index1MappingsMap = ImmutableOpenMap.builder();
@@ -82,11 +86,12 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse)
+        );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(),
-            containsString("cannot merge [properties] mappings because of differences for field [field_1]; "));
+        assertThat(e.getMessage(), containsString("cannot merge [properties] mappings because of differences for field [field_1]; "));
         assertThat(e.getMessage(), containsString("mapped as [different_field_1_mappings] in index [index_2]"));
         assertThat(e.getMessage(), containsString("mapped as [field_1_mappings] in index [index_1]"));
     }
@@ -189,11 +194,12 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse)
+        );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(),
-            containsString("cannot merge [runtime] mappings because of differences for field [field_1]; "));
+        assertThat(e.getMessage(), containsString("cannot merge [runtime] mappings because of differences for field [field_1]; "));
         assertThat(e.getMessage(), containsString("mapped as [different_field_1_mappings] in index [index_2]"));
         assertThat(e.getMessage(), containsString("mapped as [field_1_mappings] in index [index_1]"));
     }
@@ -318,7 +324,9 @@ public class MappingsMergerTests extends ESTestCase {
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
         ImmutableOpenMap<String, MappingMetadata> mergedMappings = MappingsMerger.mergeMappings(
-            newSourceWithExcludes("field_1", "runtime_field_2"), getMappingsResponse);
+            newSourceWithExcludes("field_1", "runtime_field_2"),
+            getMappingsResponse
+        );
 
         assertThat(mergedMappings.size(), equalTo(1));
         assertThat(mergedMappings.containsKey("_doc"), is(true));
@@ -334,11 +342,10 @@ public class MappingsMergerTests extends ESTestCase {
     }
 
     private static DataFrameAnalyticsSource newSource() {
-        return new DataFrameAnalyticsSource(new String[] {"index"}, null, null, null);
+        return new DataFrameAnalyticsSource(new String[] { "index" }, null, null, null);
     }
 
     private static DataFrameAnalyticsSource newSourceWithExcludes(String... excludes) {
-        return new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, null, excludes), null);
+        return new DataFrameAnalyticsSource(new String[] { "index" }, null, new FetchSourceContext(true, null, excludes), null);
     }
 }

@@ -1,8 +1,0 @@
-pr: 61825
-issues:
-  - 61755
-area: Infra/Scripting
-type: bug
-summary: Change compound assignment structure to support String concatenation
-versions:
-  - v8.0.0

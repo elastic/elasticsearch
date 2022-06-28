@@ -15,14 +15,25 @@ import java.io.IOException;
 
 public abstract class Suggester<T extends SuggestionSearchContext.SuggestionContext> {
 
-    protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
-        innerExecute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException;
+    protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(
+        String name,
+        T suggestion,
+        IndexSearcher searcher,
+        CharsRefBuilder spare
+    ) throws IOException;
 
-    protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
-        emptySuggestion(String name, T suggestion, CharsRefBuilder spare) throws IOException;
+    protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> emptySuggestion(
+        String name,
+        T suggestion,
+        CharsRefBuilder spare
+    ) throws IOException;
 
-    public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
-                execute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
+    public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> execute(
+        String name,
+        T suggestion,
+        IndexSearcher searcher,
+        CharsRefBuilder spare
+    ) throws IOException {
 
         // we only want to output an empty suggestion on empty shards
         if (searcher.getIndexReader().numDocs() == 0) {

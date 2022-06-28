@@ -20,13 +20,13 @@
  - do:
       index:
           index:  foobar
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - do:
        delete:
            index:  foobar
-           id:     1
+           id:     "1"
 
  - match:   { _index:   foobar }
  - match:   { _type: _doc }

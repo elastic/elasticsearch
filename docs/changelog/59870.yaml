@@ -1,9 +1,0 @@
-pr: 59870
-issues:
-  - 48170
-  - 35958
-area: Machine Learning
-type: deprecation
-summary: Remove deprecated `_xpack` endpoints
-versions:
-  - v8.0.0

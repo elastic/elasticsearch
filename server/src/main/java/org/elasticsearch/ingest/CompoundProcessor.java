@@ -47,8 +47,13 @@ public class CompoundProcessor implements Processor {
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
         this(ignoreFailure, processors, onFailureProcessors, System::nanoTime);
     }
-    CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors,
-                      LongSupplier relativeTimeProvider) {
+
+    CompoundProcessor(
+        boolean ignoreFailure,
+        List<Processor> processors,
+        List<Processor> onFailureProcessors,
+        LongSupplier relativeTimeProvider
+    ) {
         super();
         this.ignoreFailure = ignoreFailure;
         this.processors = processors;
@@ -128,35 +133,55 @@ public class CompoundProcessor implements Processor {
         final IngestMetric metric = processorWithMetric.v2();
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metric.preIngest();
-        processor.execute(ingestDocument, (result, e) -> {
-            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-            metric.postIngest(ingestTimeInNanos);
+        try {
+            processor.execute(ingestDocument, (result, e) -> {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
 
-            if (e != null) {
-                metric.ingestFailed();
-                if (ignoreFailure) {
-                    innerExecute(currentProcessor + 1, ingestDocument, handler);
+                if (e != null) {
+                    executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
                 } else {
-                    IngestProcessorException compoundProcessorException =
-                        newCompoundProcessorException(e, processor, ingestDocument);
-                    if (onFailureProcessors.isEmpty()) {
-                        handler.accept(null, compoundProcessorException);
+                    if (result != null) {
+                        innerExecute(currentProcessor + 1, result, handler);
                     } else {
-                        executeOnFailureAsync(0, ingestDocument, compoundProcessorException, handler);
+                        handler.accept(null, null);
                     }
                 }
-            } else {
-                if (result != null) {
-                    innerExecute(currentProcessor + 1, result, handler);
-                } else {
-                    handler.accept(null, null);
-                }
-            }
-        });
+            });
+        } catch (Exception e) {
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metric.postIngest(ingestTimeInNanos);
+            executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
+        }
     }
 
-    void executeOnFailureAsync(int currentOnFailureProcessor, IngestDocument ingestDocument, ElasticsearchException exception,
-                               BiConsumer<IngestDocument, Exception> handler) {
+    private void executeOnFailure(
+        int currentProcessor,
+        IngestDocument ingestDocument,
+        BiConsumer<IngestDocument, Exception> handler,
+        Processor processor,
+        IngestMetric metric,
+        Exception e
+    ) {
+        metric.ingestFailed();
+        if (ignoreFailure) {
+            innerExecute(currentProcessor + 1, ingestDocument, handler);
+        } else {
+            IngestProcessorException compoundProcessorException = newCompoundProcessorException(e, processor, ingestDocument);
+            if (onFailureProcessors.isEmpty()) {
+                handler.accept(null, compoundProcessorException);
+            } else {
+                executeOnFailureAsync(0, ingestDocument, compoundProcessorException, handler);
+            }
+        }
+    }
+
+    void executeOnFailureAsync(
+        int currentOnFailureProcessor,
+        IngestDocument ingestDocument,
+        ElasticsearchException exception,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
         if (currentOnFailureProcessor == 0) {
             putFailureMetadata(ingestDocument, exception);
         }

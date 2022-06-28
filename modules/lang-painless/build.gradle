@@ -8,18 +8,27 @@
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
-testClusters.all {
+testClusters.configureEach {
   module ':modules:mapper-extras'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+}
+
+configurations {
+  spi
+  compileOnlyApi.extendsFrom(spi)
+  if (isEclipse) {
+    // Eclipse buildship doesn't know about compileOnlyApi
+    api.extendsFrom(spi)
+  }
 }
 
 dependencies {
@@ -29,7 +38,7 @@ dependencies {
   api 'org.ow2.asm:asm-commons:7.2'
   api 'org.ow2.asm:asm-analysis:7.2'
   api 'org.ow2.asm:asm:7.2'
-  api project('spi')
+  spi project('spi')
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -52,7 +61,7 @@ tasks.named("test").configure {
  * Painless plugin */
 tasks.register("apiJavadoc", Javadoc) {
   source = sourceSets.main.allJava
-  classpath = sourceSets.main.runtimeClasspath
+  classpath = sourceSets.main.compileClasspath + sourceSets.main.output
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
@@ -65,6 +74,16 @@ tasks.register("apiJavadocJar", Jar) {
 tasks.named("assemble").configure {
   dependsOn "apiJavadocJar"
 }
+tasks.named("check").configure {
+  dependsOn "apiJavadocJar"
+}
+
+tasks.named("bundlePlugin").configure {
+  it.into("spi") {
+    from(configurations.spi)
+  }
+}
+
 /**********************************************
  *           Context API Generation           *
  **********************************************/
@@ -89,42 +108,38 @@ dependencies {
   }
 }
 
-testClusters {
-  generateContextCluster {
-    testDistribution = 'DEFAULT'
-  }
+def generateContextCluster = testClusters.register("generateContextCluster") {
+  testDistribution = 'DEFAULT'
 }
 
 tasks.register("generateContextDoc", DefaultTestClustersTask) {
   dependsOn sourceSets.doc.runtimeClasspath
-  useCluster testClusters.generateContextCluster
+  useCluster generateContextCluster
   doFirst {
     project.javaexec {
       mainClass = 'org.elasticsearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
-      systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"
+      systemProperty "cluster.uri", "${-> generateContextCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
     }.assertNormalExitValue()
   }
 }
 /**********************************************
  *           Context JSON Generation          *
  **********************************************/
-testClusters {
-  generateContextApiSpecCluster {
+def generateContextApiSpecCluster = testClusters.register("generateContextApiSpecCluster") {
     testDistribution = 'DEFAULT'
-  }
 }
 
 tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
   dependsOn sourceSets.doc.runtimeClasspath
-  useCluster testClusters.generateContextApiSpecCluster
+  useCluster generateContextApiSpecCluster
   doFirst {
     project.javaexec {
       mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
-      systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
-      systemProperty "jdksrc", System.getProperty("jdksrc")
-      systemProperty "packageSources", System.getProperty("packageSources")
+      systemProperty "cluster.uri", "${-> generateContextApiSpecCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
+      systemProperty "jdksrc", providers.systemProperty("jdksrc").getOrNull()
+      systemProperty "packageSources", providers.systemProperty("packageSources").getOrNull()
     }.assertNormalExitValue()
   }
 }
@@ -142,7 +157,17 @@ dependencies {
 }
 
 String grammarPath = 'src/main/antlr'
+// TODO: we shouldn't be generating files into the main source directory. Then we wouldn't
+// need to customize the spotless config below.
 String outputPath = 'src/main/java/org/elasticsearch/painless/antlr'
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
+  }
+}
 
 tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {

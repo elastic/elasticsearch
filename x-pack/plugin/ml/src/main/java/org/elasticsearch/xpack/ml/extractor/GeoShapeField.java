@@ -61,7 +61,7 @@ public class GeoShapeField extends SourceField {
                 if (geometry.type() != ShapeType.POINT) {
                     throw new IllegalArgumentException("Unexpected non-point geo_shape type: " + geometry.type().name());
                 }
-                Point pt = ((Point)geometry);
+                Point pt = ((Point) geometry);
                 return pt.getY() + "," + pt.getX();
             } else {
                 throw new IllegalArgumentException("Unexpected value for a geo_shape field: " + geoString);

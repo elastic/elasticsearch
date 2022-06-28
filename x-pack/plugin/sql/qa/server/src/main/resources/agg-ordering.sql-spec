@@ -159,3 +159,32 @@ SELECT CONCAT('foo', gender) g, MAX(salary) AS max, MIN(salary) AS min FROM test
 
 multipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_4
 SELECT CONCAT('foo', gender) g, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY g ORDER BY 3 DESC, 1 NULLS FIRST, 2;
+
+aggWithNullsFirst
+SELECT gender FROM test_emp GROUP BY gender ORDER BY gender NULLS FIRST;
+aggWithNullsLast
+SELECT gender FROM test_emp GROUP BY gender ORDER BY gender NULLS LAST;
+aggWithMultipleNullsLast
+SELECT gender, languages FROM test_emp GROUP BY gender, languages ORDER BY gender NULLS LAST, languages NULLS LAST;
+aggWithNullsLastDerivedField
+SELECT languages - 2 l FROM test_emp GROUP BY l ORDER BY l NULLS LAST;
+aggWithNullsFirstDerivedField
+SELECT languages - 2 l FROM test_emp GROUP BY l ORDER BY l NULLS FIRST;
+aggWithMultipleDerivedNullsLast
+SELECT CONCAT(gender, 'A') g, languages - 2 l FROM test_emp GROUP BY g, l ORDER BY g NULLS LAST, l NULLS LAST;
+aggWithMultipleDerivedNullsFirst
+SELECT CONCAT(gender, 'A') g, languages - 2 l FROM test_emp GROUP BY g, l ORDER BY g NULLS FIRST, l NULLS FIRST;
+aggWithDescNullsFirst
+SELECT gender FROM test_emp GROUP BY gender ORDER BY gender DESC NULLS FIRST;
+aggWithDescNullsLast
+SELECT gender FROM test_emp GROUP BY gender ORDER BY gender DESC NULLS LAST;
+aggWithMultipleDescNullsFirst
+SELECT gender, languages FROM test_emp GROUP BY gender, languages ORDER BY gender DESC NULLS FIRST, languages DESC NULLS FIRST;
+aggWithDescNullsFirstDerivedField
+SELECT languages - 2 l FROM test_emp GROUP BY l ORDER BY l DESC NULLS FIRST;
+aggWithDescNullsLastDerivedField
+SELECT languages - 2 l FROM test_emp GROUP BY l ORDER BY l DESC NULLS LAST;
+aggWithMultipleDerivedDescNullsLast
+SELECT CONCAT(gender, 'A') g, languages - 2 l FROM test_emp GROUP BY g, l ORDER BY g DESC NULLS LAST, l DESC NULLS LAST;
+aggWithMultipleDerivedDescNullsFirst
+SELECT CONCAT(gender, 'A') g, languages - 2 l FROM test_emp GROUP BY g, l ORDER BY g DESC NULLS FIRST, l DESC NULLS FIRST;

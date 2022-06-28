@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -383,8 +383,12 @@ public final class DataTypeConverter {
         Converter converter = converterFor(detectedType, dataType);
 
         if (converter == null) {
-            throw new QlIllegalArgumentException("cannot convert from [{}], type [{}] to [{}]", value, detectedType.typeName(),
-                    dataType.typeName());
+            throw new QlIllegalArgumentException(
+                "cannot convert from [{}], type [{}] to [{}]",
+                value,
+                detectedType.typeName(),
+                dataType.typeName()
+            );
         }
 
         return converter.convert(value);

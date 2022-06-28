@@ -9,8 +9,9 @@
 package org.elasticsearch.client.ml.calendars;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import org.elasticsearch.common.xcontent.XContentParser;
+
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ public class CalendarTests extends AbstractXContentTestCase<Calendar> {
             description = randomAlphaOfLength(20);
         }
 
-        CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
+        CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
         return new Calendar(generator.ofCodePointsLength(random(), 10, 10), items, description);
     }
 

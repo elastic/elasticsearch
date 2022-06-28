@@ -22,14 +22,14 @@ public class NormalizerResultHandlerTests extends ESTestCase {
     public void testParse() throws IOException {
 
         String testData = "{\"level\":\"leaf\",\"partition_field_name\":\"part\",\"partition_field_value\":\"v1\","
-                + "\"person_field_name\":\"pers\",\"function_name\":\"f\","
-                + "\"value_field_name\":\"x\",\"probability\":0.01,\"normalized_score\":88.88}\n"
-                + "{\"level\":\"leaf\",\"partition_field_name\":\"part\",\"partition_field_value\":\"v2\","
-                + "\"person_field_name\":\"pers\",\"function_name\":\"f\","
-                + "\"value_field_name\":\"x\",\"probability\":0.02,\"normalized_score\":44.44}\n"
-                + "{\"level\":\"leaf\",\"partition_field_name\":\"part\",\"partition_field_value\":\"v3\","
-                + "\"person_field_name\":\"pers\",\"function_name\":\"f\","
-                + "\"value_field_name\":\"x\",\"probability\":0.03,\"normalized_score\":22.22}\n";
+            + "\"person_field_name\":\"pers\",\"function_name\":\"f\","
+            + "\"value_field_name\":\"x\",\"probability\":0.01,\"normalized_score\":88.88}\n"
+            + "{\"level\":\"leaf\",\"partition_field_name\":\"part\",\"partition_field_value\":\"v2\","
+            + "\"person_field_name\":\"pers\",\"function_name\":\"f\","
+            + "\"value_field_name\":\"x\",\"probability\":0.02,\"normalized_score\":44.44}\n"
+            + "{\"level\":\"leaf\",\"partition_field_name\":\"part\",\"partition_field_value\":\"v3\","
+            + "\"person_field_name\":\"pers\",\"function_name\":\"f\","
+            + "\"value_field_name\":\"x\",\"probability\":0.03,\"normalized_score\":22.22}\n";
 
         InputStream is = new ByteArrayInputStream(testData.getBytes(StandardCharsets.UTF_8));
         NormalizerResultHandler handler = new NormalizerResultHandler(is);
@@ -41,4 +41,3 @@ public class NormalizerResultHandlerTests extends ESTestCase {
         assertEquals(22.22, results.get(2).getNormalizedScore(), EPSILON);
     }
 }
-

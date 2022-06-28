@@ -85,9 +85,11 @@ public class BitArrayTests extends ESTestCase {
     }
 
     public void testOr() {
-        try (BitArray bitArray1 = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE);
-             BitArray bitArray2 = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE);
-             BitArray bitArrayFull = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+        try (
+            BitArray bitArray1 = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE);
+            BitArray bitArray2 = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE);
+            BitArray bitArrayFull = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)
+        ) {
             int numBits = randomIntBetween(1000, 10000);
             for (int step = 0; step < 3; step++) {
                 for (int i = 0; i < numBits; i++) {

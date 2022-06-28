@@ -35,14 +35,22 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("test"));
         assertThat(e.getMessage(), equalTo("No encoder found for MIME type [test]"));
 
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE_WITH_CHARSET),
-            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE),
-                instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE),
-                instanceOf(CustomMustacheFactory.DefaultEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE),
-                instanceOf(CustomMustacheFactory.UrlEncoder.class));
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE_WITH_CHARSET),
+            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class)
+        );
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE),
+            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class)
+        );
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE),
+            instanceOf(CustomMustacheFactory.DefaultEncoder.class)
+        );
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE),
+            instanceOf(CustomMustacheFactory.UrlEncoder.class)
+        );
     }
 
     public void testJsonEscapeEncoder() {

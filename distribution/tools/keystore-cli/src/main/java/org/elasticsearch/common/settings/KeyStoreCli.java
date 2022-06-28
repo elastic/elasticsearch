@@ -20,6 +20,7 @@ public class KeyStoreCli extends LoggingAwareMultiCommand {
         super("A tool for managing settings stored in the elasticsearch keystore");
         subcommands.put("create", new CreateKeyStoreCommand());
         subcommands.put("list", new ListKeyStoreCommand());
+        subcommands.put("show", new ShowKeyStoreCommand());
         subcommands.put("add", new AddStringKeyStoreCommand());
         subcommands.put("add-file", new AddFileKeyStoreCommand());
         subcommands.put("remove", new RemoveSettingKeyStoreCommand());

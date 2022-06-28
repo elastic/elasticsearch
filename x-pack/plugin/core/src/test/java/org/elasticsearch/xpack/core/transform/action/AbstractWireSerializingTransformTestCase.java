@@ -14,9 +14,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
@@ -72,7 +72,7 @@ public abstract class AbstractWireSerializingTransformTestCase<T extends Writeab
 
     protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
         X original,
-        NamedWriteableRegistry namedWriteableRegistry,
+        NamedWriteableRegistry registry,
         Writeable.Writer<X> writer,
         Writeable.Reader<Y> reader,
         Version version

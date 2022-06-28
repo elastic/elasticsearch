@@ -8,13 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.dangling.import_index;
 
-import static java.util.Collections.singletonList;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -32,6 +25,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},
@@ -98,13 +98,12 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
     private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
-        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID),
+        this.nodeClient.execute(
+            FindDanglingIndexAction.INSTANCE,
+            new FindDanglingIndexRequest(indexUUID),
             listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {
-                    final String nodeIds = response.failures()
-                            .stream()
-                            .map(FailedNodeException::nodeId)
-                            .collect(Collectors.joining(","));
+                    final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
                     ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
 
                     for (FailedNodeException failure : response.failures()) {
@@ -128,11 +127,12 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 }
 
                 logger.debug(
-                        "Metadata versions {} found for index UUID [{}], selecting the highest",
-                        metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).collect(Collectors.toList()),
-                        indexUUID
+                    "Metadata versions {} found for index UUID [{}], selecting the highest",
+                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).collect(Collectors.toList()),
+                    indexUUID
                 );
                 l.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
-            }));
+            })
+        );
     }
 }

@@ -20,16 +20,17 @@ public class ShrinkIndexNameSupplierTests extends ESTestCase {
         {
             // if the lifecycle execution state contains a `shrink_index_name`, that one will be returned
             String shrinkIndexName = "the-shrink-index";
-            LifecycleExecutionState lifecycleExecutionState =
-                LifecycleExecutionState.builder().setShrinkIndexName(shrinkIndexName).build();
+            LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.builder().setShrinkIndexName(shrinkIndexName).build();
 
             assertThat(getShrinkIndexName(sourceIndexName, lifecycleExecutionState), is(shrinkIndexName));
         }
 
         {
             // if the lifecycle execution state does NOT contain a `shrink_index_name`, `shrink-` will be prefixed to the index name
-            assertThat(getShrinkIndexName(sourceIndexName, LifecycleExecutionState.builder().build()),
-                is(SHRUNKEN_INDEX_PREFIX + sourceIndexName));
+            assertThat(
+                getShrinkIndexName(sourceIndexName, LifecycleExecutionState.builder().build()),
+                is(SHRUNKEN_INDEX_PREFIX + sourceIndexName)
+            );
         }
     }
 }

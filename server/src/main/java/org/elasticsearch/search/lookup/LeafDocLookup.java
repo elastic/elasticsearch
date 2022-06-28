@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -26,11 +27,11 @@ import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(LeafDocLookup.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LeafDocLookup.class);
     static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
-    static final String TYPES_DEPRECATION_MESSAGE =
-            "[types removal] Looking up doc types [_type] in scripts is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Looking up doc types [_type] in scripts is deprecated.";
 
+    private final Map<String, DocValuesField> localCacheScriptFieldData = new HashMap<>(4);
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
@@ -39,8 +40,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                  LeafReaderContext reader) {
+    LeafDocLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+        LeafReaderContext reader
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
         this.reader = reader;
@@ -50,11 +54,42 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
+    public DocValuesField getScriptField(String fieldName) {
+        DocValuesField field = localCacheScriptFieldData.get(fieldName);
+
+        if (field == null) {
+            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
+
+            if (fieldType == null) {
+                throw new IllegalArgumentException("no field found for [" + fieldName + "] in mapping");
+            }
+
+            // Load the field data on behalf of the script. Otherwise, it would require
+            // additional permissions to deal with pagedbytes/ramusagestimator/etc.
+            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField>() {
+                @Override
+                public DocValuesField run() {
+                    return fieldDataLookup.apply(fieldType).load(reader).getScriptField(fieldName);
+                }
+            });
+
+            localCacheScriptFieldData.put(fieldName, field);
+        }
+
+        try {
+            field.setNextDocId(docId);
+        } catch (IOException ioe) {
+            throw ExceptionsHelper.convertToElastic(ioe);
+        }
+
+        return field;
+    }
+
     @Override
     public ScriptDocValues<?> get(Object key) {
         // deprecate _type
         if ("_type".equals(key)) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SCRIPTING, TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.SCRIPTING, TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
         }
         // assume its a string...
         String fieldName = key.toString();

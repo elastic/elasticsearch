@@ -99,14 +99,27 @@ public enum FormatNames {
     STRICT_YEAR_MONTH_DAY("strictYearMonthDay", "strict_year_month_day");
 
     private static final Set<String> ALL_NAMES = Arrays.stream(values())
-                                                       .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
-                                                       .collect(Collectors.toSet());
+        .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
+        .collect(Collectors.toSet());
 
     public static final Set<FormatNames> WEEK_BASED_FORMATS = EnumSet.of(
-        BASIC_WEEK_DATE, BASIC_WEEK_DATE_TIME, BASIC_WEEK_DATE_TIME_NO_MILLIS,
-        WEEK_DATE, WEEK_DATE_TIME, WEEK_DATE_TIME_NO_MILLIS, WEEK_YEAR, WEEKYEAR, WEEK_YEAR_WEEK, WEEKYEAR_WEEK_DAY,
-        STRICT_WEEK_DATE, STRICT_WEEK_DATE_TIME,
-        STRICT_WEEK_DATE_TIME_NO_MILLIS, STRICT_WEEKYEAR, STRICT_WEEKYEAR_WEEK, STRICT_WEEKYEAR_WEEK_DAY);
+        BASIC_WEEK_DATE,
+        BASIC_WEEK_DATE_TIME,
+        BASIC_WEEK_DATE_TIME_NO_MILLIS,
+        WEEK_DATE,
+        WEEK_DATE_TIME,
+        WEEK_DATE_TIME_NO_MILLIS,
+        WEEK_YEAR,
+        WEEKYEAR,
+        WEEK_YEAR_WEEK,
+        WEEKYEAR_WEEK_DAY,
+        STRICT_WEEK_DATE,
+        STRICT_WEEK_DATE_TIME,
+        STRICT_WEEK_DATE_TIME_NO_MILLIS,
+        STRICT_WEEKYEAR,
+        STRICT_WEEKYEAR_WEEK,
+        STRICT_WEEKYEAR_WEEK_DAY
+    );
 
     private final String camelCaseName;
     private final String snakeCaseName;
@@ -133,7 +146,7 @@ public enum FormatNames {
         return format.equals(camelCaseName) || format.equals(snakeCaseName);
     }
 
-    public  boolean isCamelCase(String format) {
+    public boolean isCamelCase(String format) {
         return format.equals(camelCaseName);
     }
 

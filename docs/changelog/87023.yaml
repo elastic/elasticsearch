@@ -1,0 +1,6 @@
+pr: 87023
+summary: Fix ML task auditor exception early in cluster lifecycle
+area: Machine Learning
+type: bug
+issues:
+ - 87002

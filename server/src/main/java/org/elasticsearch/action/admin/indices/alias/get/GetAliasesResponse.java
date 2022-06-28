@@ -35,8 +35,9 @@ public class GetAliasesResponse extends ActionResponse {
     public GetAliasesResponse(StreamInput in) throws IOException {
         super(in);
         aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
-        dataStreamAliases = in.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION) ?
-            in.readMap(StreamInput::readString, in1 -> in1.readList(DataStreamAlias::new)) : Collections.emptyMap();
+        dataStreamAliases = in.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION)
+            ? in.readMap(StreamInput::readString, in1 -> in1.readList(DataStreamAlias::new))
+            : Collections.emptyMap();
     }
 
     public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
@@ -64,8 +65,7 @@ public class GetAliasesResponse extends ActionResponse {
             return false;
         }
         GetAliasesResponse that = (GetAliasesResponse) o;
-        return Objects.equals(aliases, that.aliases) &&
-            Objects.equals(dataStreamAliases, that.dataStreamAliases);
+        return Objects.equals(aliases, that.aliases) && Objects.equals(dataStreamAliases, that.dataStreamAliases);
     }
 
     @Override

@@ -26,8 +26,12 @@ public class StatsHolder {
     private final AtomicReference<AnalysisStats> analysisStatsHolder;
     private final DataCountsTracker dataCountsTracker;
 
-    public StatsHolder(List<PhaseProgress> progress, @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats,
-                       DataCounts dataCounts) {
+    public StatsHolder(
+        List<PhaseProgress> progress,
+        @Nullable MemoryUsage memoryUsage,
+        @Nullable AnalysisStats analysisStats,
+        DataCounts dataCounts
+    ) {
         progressTracker = new ProgressTracker(progress);
         memoryUsageHolder = new AtomicReference<>(memoryUsage);
         analysisStatsHolder = new AtomicReference<>(analysisStats);

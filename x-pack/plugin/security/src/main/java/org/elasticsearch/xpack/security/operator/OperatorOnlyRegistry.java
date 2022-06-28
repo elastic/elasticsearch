@@ -41,7 +41,7 @@ public class OperatorOnlyRegistry {
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",
         "cluster:admin/shutdown/delete"
-        );
+    );
 
     private final ClusterSettings clusterSettings;
 
@@ -67,14 +67,17 @@ public class OperatorOnlyRegistry {
 
     private OperatorPrivilegesViolation checkClusterUpdateSettings(ClusterUpdateSettingsRequest request) {
         List<String> operatorOnlySettingKeys = Stream.concat(
-            request.transientSettings().keySet().stream(), request.persistentSettings().keySet().stream()
+            request.transientSettings().keySet().stream(),
+            request.persistentSettings().keySet().stream()
         ).filter(k -> {
             final Setting<?> setting = clusterSettings.get(k);
             return setting != null && setting.isOperatorOnly();
         }).collect(Collectors.toList());
         if (false == operatorOnlySettingKeys.isEmpty()) {
             return () -> (operatorOnlySettingKeys.size() == 1 ? "setting" : "settings")
-                + " [" + Strings.collectionToDelimitedString(operatorOnlySettingKeys, ",") + "]";
+                + " ["
+                + Strings.collectionToDelimitedString(operatorOnlySettingKeys, ",")
+                + "]";
         } else {
             return null;
         }

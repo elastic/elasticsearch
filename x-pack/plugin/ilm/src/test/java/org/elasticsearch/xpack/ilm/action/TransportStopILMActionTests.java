@@ -19,11 +19,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.hamcrest.Description;
 import org.mockito.ArgumentMatcher;
 
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -44,30 +43,26 @@ public class TransportStopILMActionTests extends ESTestCase {
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
 
-        TransportStopILMAction transportStopILMAction = new TransportStopILMAction(mock(TransportService.class),
-            clusterService, mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class));
+        TransportStopILMAction transportStopILMAction = new TransportStopILMAction(
+            mock(TransportService.class),
+            clusterService,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class)
+        );
         StopILMRequest request = new StopILMRequest();
         transportStopILMAction.masterOperation(request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
 
         verify(clusterService).submitStateUpdateTask(
-            eq("ilm_operation_mode_update"),
+            eq("ilm_operation_mode_update[stopping]"),
             argThat(new ArgumentMatcher<AckedClusterStateUpdateTask>() {
 
                 Priority actualPriority = null;
 
                 @Override
-                public boolean matches(Object argument) {
-                    if (argument instanceof AckedClusterStateUpdateTask == false) {
-                        return false;
-                    }
-                    actualPriority = ((AckedClusterStateUpdateTask) argument).priority();
+                public boolean matches(AckedClusterStateUpdateTask other) {
+                    actualPriority = other.priority();
                     return actualPriority == Priority.IMMEDIATE;
-                }
-
-                @Override
-                public void describeTo(Description description) {
-                    description.appendText("the cluster state update task priority must be URGENT but got: ")
-                        .appendText(actualPriority.name());
                 }
             })
         );

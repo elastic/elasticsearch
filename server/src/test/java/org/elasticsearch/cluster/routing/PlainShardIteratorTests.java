@@ -20,27 +20,35 @@ import java.util.List;
 public class PlainShardIteratorTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomPlainShardIterator(),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            randomPlainShardIterator(),
             i -> new PlainShardIterator(i.shardId(), i.getShardRoutings()),
             i -> {
                 ShardId shardId;
-                switch(randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 2)) {
                     case 0:
                         shardId = new ShardId(i.shardId().getIndex(), i.shardId().getId() + randomIntBetween(1, 1000));
                         break;
                     case 1:
-                        shardId = new ShardId(i.shardId().getIndexName(),
-                            i.shardId().getIndex().getUUID() + randomAlphaOfLengthBetween(1, 3), i.shardId().getId());
+                        shardId = new ShardId(
+                            i.shardId().getIndexName(),
+                            i.shardId().getIndex().getUUID() + randomAlphaOfLengthBetween(1, 3),
+                            i.shardId().getId()
+                        );
                         break;
                     case 2:
-                        shardId = new ShardId(i.shardId().getIndexName() + randomAlphaOfLengthBetween(1, 3),
-                            i.shardId().getIndex().getUUID(), i.shardId().getId());
+                        shardId = new ShardId(
+                            i.shardId().getIndexName() + randomAlphaOfLengthBetween(1, 3),
+                            i.shardId().getIndex().getUUID(),
+                            i.shardId().getId()
+                        );
                         break;
                     default:
                         throw new UnsupportedOperationException();
                 }
                 return new PlainShardIterator(shardId, i.getShardRoutings());
-            });
+            }
+        );
     }
 
     public void testCompareTo() {

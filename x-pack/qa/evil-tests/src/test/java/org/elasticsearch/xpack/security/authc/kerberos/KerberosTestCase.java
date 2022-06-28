@@ -21,7 +21,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.security.auth.Subject;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -32,6 +31,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import javax.security.auth.Subject;
 
 /**
  * Base Test class for Kerberos.
@@ -91,8 +92,10 @@ public abstract class KerberosTestCase extends ESTestCase {
     public static void setupKerberos() throws Exception {
         if (isLocaleUnsupported()) {
             Logger logger = LogManager.getLogger(KerberosTestCase.class);
-            logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
-                Locale.getDefault());
+            logger.warn(
+                "Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
+                Locale.getDefault()
+            );
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
@@ -120,9 +123,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
         // Create SPNs and UPNs
         serviceUserNames = new ArrayList<>();
-        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
-            serviceUserNames.add("HTTP/" + randomAlphaOfLength(8));
-        });
+        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> { serviceUserNames.add("HTTP/" + randomAlphaOfLength(8)); });
         final Path ktabPathForService = createPrincipalKeyTab(workDir, serviceUserNames.toArray(new String[0]));
         clientUserNames = new ArrayList<>();
         Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
@@ -134,7 +135,7 @@ public abstract class KerberosTestCase extends ESTestCase {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         });
-        settings =  KerberosRealmTestCase.buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
+        settings = KerberosRealmTestCase.buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
     }
 
     @After

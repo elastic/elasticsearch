@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.carrotsearch.hppc.ObjectContainer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -30,8 +28,13 @@ public class ElectMasterService {
 
     private static final Logger logger = LogManager.getLogger(ElectMasterService.class);
 
-    public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
-        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Property.Dynamic, Property.NodeScope, Property.Deprecated);
+    public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING = Setting.intSetting(
+        "discovery.zen.minimum_master_nodes",
+        -1,
+        Property.Dynamic,
+        Property.NodeScope,
+        Property.Deprecated
+    );
 
     private volatile int minimumMasterNodes;
 
@@ -65,10 +68,7 @@ public class ElectMasterService {
 
         @Override
         public String toString() {
-            return "Candidate{" +
-                "node=" + node +
-                ", clusterStateVersion=" + clusterStateVersion +
-                '}';
+            return "Candidate{" + "node=" + node + ", clusterStateVersion=" + clusterStateVersion + '}';
         }
 
         /**
@@ -118,8 +118,8 @@ public class ElectMasterService {
         if (minimumMasterNodes < 1) {
             return true;
         }
-        assert candidates.stream().map(MasterCandidate::getNode).collect(Collectors.toSet()).size() == candidates.size() :
-            "duplicates ahead: " + candidates;
+        assert candidates.stream().map(MasterCandidate::getNode).collect(Collectors.toSet()).size() == candidates.size()
+            : "duplicates ahead: " + candidates;
         return candidates.size() >= minimumMasterNodes;
     }
 
@@ -152,10 +152,13 @@ public class ElectMasterService {
     public void logMinimumMasterNodesWarningIfNecessary(ClusterState oldState, ClusterState newState) {
         // check if min_master_nodes setting is too low and log warning
         if (hasTooManyMasterNodes(oldState.nodes()) == false && hasTooManyMasterNodes(newState.nodes())) {
-            logger.warn("value for setting \"{}\" is too low. This can result in data loss! Please set it to at least a quorum of master-" +
-                    "eligible nodes (current value: [{}], total number of master-eligible nodes used for publishing in this round: [{}])",
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNodes(),
-                newState.getNodes().getMasterNodes().size());
+            logger.warn(
+                "value for setting \"{}\" is too low. This can result in data loss! Please set it to at least a quorum of master-"
+                    + "eligible nodes (current value: [{}], total number of master-eligible nodes used for publishing in this round: [{}])",
+                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
+                minimumMasterNodes(),
+                newState.getNodes().getMasterNodes().size()
+            );
         }
     }
 
@@ -172,8 +175,8 @@ public class ElectMasterService {
     /**
      * Returns a list of the next possible masters.
      */
-    public DiscoveryNode[] nextPossibleMasters(ObjectContainer<DiscoveryNode> nodes, int numberOfPossibleMasters) {
-        List<DiscoveryNode> sortedNodes = sortedMasterNodes(Arrays.asList(nodes.toArray(DiscoveryNode.class)));
+    public DiscoveryNode[] nextPossibleMasters(Collection<DiscoveryNode> nodes, int numberOfPossibleMasters) {
+        List<DiscoveryNode> sortedNodes = sortedMasterNodes(new ArrayList<>(nodes));
         if (sortedNodes == null) {
             return new DiscoveryNode[0];
         }
@@ -200,7 +203,7 @@ public class ElectMasterService {
     }
 
     /** master nodes go before other nodes, with a secondary sort by id **/
-     private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
+    private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
         if (o1.isMasterNode() && o2.isMasterNode() == false) {
             return -1;
         }

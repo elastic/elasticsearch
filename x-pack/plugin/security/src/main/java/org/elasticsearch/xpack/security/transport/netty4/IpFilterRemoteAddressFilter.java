@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ipfilter.AbstractRemoteAddressFilter;
+
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import java.net.InetSocketAddress;

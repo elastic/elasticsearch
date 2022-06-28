@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams;
@@ -14,9 +13,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -69,7 +68,7 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
     private void configureAutoCreateIndex(boolean value) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
-            .startObject("transient")
+            .startObject("persistent")
             .field(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), value)
             .endObject()
             .endObject();

@@ -1,8 +1,0 @@
-pr: 55399
-issues:
-  - 55378
-area: Search
-type: bug
-summary: Fix `VectorsFeatureSetUsage` serialization in BWC mode
-versions:
-  - v8.0.0

@@ -37,8 +37,7 @@ public final class TypeConverterBinding implements Element {
     private final Matcher<? super TypeLiteral<?>> typeMatcher;
     private final TypeConverter typeConverter;
 
-    TypeConverterBinding(Object source, Matcher<? super TypeLiteral<?>> typeMatcher,
-                         TypeConverter typeConverter) {
+    TypeConverterBinding(Object source, Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter typeConverter) {
         this.source = Objects.requireNonNull(source, "source");
         this.typeMatcher = Objects.requireNonNull(typeMatcher, "typeMatcher");
         this.typeConverter = Objects.requireNonNull(typeConverter, "typeConverter");

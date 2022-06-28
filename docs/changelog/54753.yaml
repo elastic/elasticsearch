@@ -1,8 +1,0 @@
-pr: 54753
-issues:
-  - 54744
-area: Aggregations
-type: bug
-summary: Fix `t_test` usage stats
-versions:
-  - v8.0.0

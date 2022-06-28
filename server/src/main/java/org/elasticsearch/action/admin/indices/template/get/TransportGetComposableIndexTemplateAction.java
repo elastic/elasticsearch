@@ -26,16 +26,29 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetComposableIndexTemplateAction
-    extends TransportMasterNodeReadAction<GetComposableIndexTemplateAction.Request, GetComposableIndexTemplateAction.Response> {
+public class TransportGetComposableIndexTemplateAction extends TransportMasterNodeReadAction<
+    GetComposableIndexTemplateAction.Request,
+    GetComposableIndexTemplateAction.Response> {
 
     @Inject
-    public TransportGetComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                                     ThreadPool threadPool, ActionFilters actionFilters,
-                                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetComposableIndexTemplateAction.Request::new, indexNameExpressionResolver,
-                GetComposableIndexTemplateAction.Response::new, ThreadPool.Names.SAME);
+    public TransportGetComposableIndexTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetComposableIndexTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetComposableIndexTemplateAction.Request::new,
+            indexNameExpressionResolver,
+            GetComposableIndexTemplateAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -44,8 +57,11 @@ public class TransportGetComposableIndexTemplateAction
     }
 
     @Override
-    protected void masterOperation(GetComposableIndexTemplateAction.Request request, ClusterState state,
-                                   ActionListener<GetComposableIndexTemplateAction.Response> listener) {
+    protected void masterOperation(
+        GetComposableIndexTemplateAction.Request request,
+        ClusterState state,
+        ActionListener<GetComposableIndexTemplateAction.Response> listener
+    ) {
         Map<String, ComposableIndexTemplate> allTemplates = state.metadata().templatesV2();
 
         // If we did not ask for a specific name, then we return all templates

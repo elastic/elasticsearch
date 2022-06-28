@@ -12,8 +12,8 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,9 +31,11 @@ public final class HasPrivilegesRequest implements Validatable, ToXContentObject
     private final Set<IndicesPrivileges> indexPrivileges;
     private final Set<ApplicationResourcePrivileges> applicationPrivileges;
 
-    public HasPrivilegesRequest(@Nullable Set<String> clusterPrivileges,
-                                @Nullable Set<IndicesPrivileges> indexPrivileges,
-                                @Nullable Set<ApplicationResourcePrivileges> applicationPrivileges) {
+    public HasPrivilegesRequest(
+        @Nullable Set<String> clusterPrivileges,
+        @Nullable Set<IndicesPrivileges> indexPrivileges,
+        @Nullable Set<ApplicationResourcePrivileges> applicationPrivileges
+    ) {
         this.clusterPrivileges = clusterPrivileges == null ? emptySet() : unmodifiableSet(clusterPrivileges);
         this.indexPrivileges = indexPrivileges == null ? emptySet() : unmodifiableSet(indexPrivileges);
         this.applicationPrivileges = applicationPrivileges == null ? emptySet() : unmodifiableSet(applicationPrivileges);
@@ -73,9 +75,9 @@ public final class HasPrivilegesRequest implements Validatable, ToXContentObject
             return false;
         }
         final HasPrivilegesRequest that = (HasPrivilegesRequest) o;
-        return Objects.equals(clusterPrivileges, that.clusterPrivileges) &&
-            Objects.equals(indexPrivileges, that.indexPrivileges) &&
-            Objects.equals(applicationPrivileges, that.applicationPrivileges);
+        return Objects.equals(clusterPrivileges, that.clusterPrivileges)
+            && Objects.equals(indexPrivileges, that.indexPrivileges)
+            && Objects.equals(applicationPrivileges, that.applicationPrivileges);
     }
 
     @Override

@@ -16,6 +16,7 @@ public class ByteBufferStreamInput extends StreamInput {
 
     private final ByteBuffer buffer;
 
+    @SuppressWarnings("cast")
     public ByteBufferStreamInput(ByteBuffer buffer) {
         this.buffer = (ByteBuffer) buffer.mark();
     }
@@ -129,6 +130,5 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
-    public void close() throws IOException {
-    }
+    public void close() throws IOException {}
 }

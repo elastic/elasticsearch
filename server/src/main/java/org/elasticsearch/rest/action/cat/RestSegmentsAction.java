@@ -38,9 +38,7 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cat/segments"),
-            new Route(GET, "/_cat/segments/{index}")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/segments"), new Route(GET, "/_cat/segments/{index}")));
     }
 
     @Override

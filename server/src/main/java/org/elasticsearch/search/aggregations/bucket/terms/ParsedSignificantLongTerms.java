@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -21,8 +21,11 @@ public class ParsedSignificantLongTerms extends ParsedSignificantTerms {
         return SignificantLongTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedSignificantLongTerms, Void> PARSER =
-            new ObjectParser<>(ParsedSignificantLongTerms.class.getSimpleName(), true, ParsedSignificantLongTerms::new);
+    private static final ObjectParser<ParsedSignificantLongTerms, Void> PARSER = new ObjectParser<>(
+        ParsedSignificantLongTerms.class.getSimpleName(),
+        true,
+        ParsedSignificantLongTerms::new
+    );
     static {
         declareParsedSignificantTermsFields(PARSER, ParsedBucket::fromXContent);
     }

@@ -26,6 +26,14 @@
         }
       ]
     },
+    "params":{
+      "defer_definition_decompression": {
+        "required": false,
+        "type": "boolean",
+        "description": "If set to `true` and a `compressed_definition` is provided, the request defers definition decompression and skips relevant validations.",
+        "default": false
+      }
+    },
     "body":{
       "description":"The trained model configuration",
       "required":true

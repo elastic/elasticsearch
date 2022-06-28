@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,9 +39,9 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
         if (randomBoolean()) {
             metrics.add(new RSquaredMetric());
         }
-        return randomBoolean() ?
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+        return randomBoolean()
+            ? new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10))
+            : new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
     @Override

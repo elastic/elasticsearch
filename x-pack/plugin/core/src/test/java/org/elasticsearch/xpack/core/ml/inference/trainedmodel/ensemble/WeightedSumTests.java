@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
@@ -41,19 +41,18 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
     }
 
     public void testAggregate() {
-        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        double[][] values = new double[][]{
-            new double[] {1.0},
-            new double[] {2.0},
-            new double[] {2.0},
-            new double[] {3.0},
-            new double[] {5.0}
-        };
+        double[] ones = new double[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        double[][] values = new double[][] {
+            new double[] { 1.0 },
+            new double[] { 2.0 },
+            new double[] { 2.0 },
+            new double[] { 3.0 },
+            new double[] { 5.0 } };
 
         WeightedSum weightedSum = new WeightedSum(ones);
         assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(13.0));
 
-        double[] variedWeights = new double[]{1.0, -1.0, .5, 1.0, 5.0};
+        double[] variedWeights = new double[] { 1.0, -1.0, .5, 1.0, 5.0 };
 
         weightedSum = new WeightedSum(variedWeights);
         assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(28.0));

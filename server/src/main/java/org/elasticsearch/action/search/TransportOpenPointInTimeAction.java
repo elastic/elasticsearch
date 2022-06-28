@@ -76,8 +76,10 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         if (minNodeVersion.before(Version.V_7_10_0)) {
             listener.onFailure(
-                new IllegalArgumentException("Point-in-time requires every node in the cluster on 7.10 or later; " +
-                    "got [" + minNodeVersion + "]"));
+                new IllegalArgumentException(
+                    "Point-in-time requires every node in the cluster on 7.10 or later; " + "got [" + minNodeVersion + "]"
+                )
+            );
             return;
         }
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
@@ -87,14 +89,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .allowPartialSearchResults(false);
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest(
-            task,
+            (SearchTask) task,
             searchRequest,
             "open_search_context",
             true,
-            (searchTask, shardTarget, connection, phaseListener) -> {
+            (searchTask, shardIt, connection, phaseListener) -> {
                 final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(
-                    shardTarget.getShardId(),
-                    shardTarget.getOriginalIndices(),
+                    shardIt.shardId(),
+                    shardIt.getOriginalIndices(),
                     request.keepAlive()
                 );
                 transportService.sendChildRequest(

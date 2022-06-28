@@ -10,11 +10,11 @@ package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Evaluation of regression results.
@@ -39,13 +39,19 @@ public class Regression implements Evaluation {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Regression, Void> PARSER = new ConstructingObjectParser<>(
-        NAME, true, a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
+        NAME,
+        true,
+        a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(constructorArg(), PREDICTED_FIELD);
         PARSER.declareNamedObjects(
-            optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), c), METRICS);
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), c),
+            METRICS
+        );
     }
 
     public static Regression fromXContent(XContentParser parser) {
@@ -70,7 +76,7 @@ public class Regression implements Evaluation {
     private final List<EvaluationMetric> metrics;
 
     public Regression(String actualField, String predictedField) {
-        this(actualField, predictedField, (List<EvaluationMetric>)null);
+        this(actualField, predictedField, (List<EvaluationMetric>) null);
     }
 
     public Regression(String actualField, String predictedField, EvaluationMetric... metrics) {
@@ -98,11 +104,11 @@ public class Regression implements Evaluation {
         builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
 
         if (metrics != null) {
-           builder.startObject(METRICS.getPreferredName());
-           for (EvaluationMetric metric : metrics) {
-               builder.field(metric.getName(), metric);
-           }
-           builder.endObject();
+            builder.startObject(METRICS.getPreferredName());
+            for (EvaluationMetric metric : metrics) {
+                builder.field(metric.getName(), metric);
+            }
+            builder.endObject();
         }
 
         builder.endObject();

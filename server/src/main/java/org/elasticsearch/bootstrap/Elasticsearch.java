@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
@@ -42,18 +43,14 @@ class Elasticsearch extends EnvironmentAwareCommand {
     // visible for testing
     Elasticsearch() {
         super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
-        versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
-            "Prints Elasticsearch version information and exits");
-        daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
-            "Starts Elasticsearch in the background")
+        versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
+        daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
-        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
-            "Creates a pid file in the specified path on start")
+        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"), "Creates a pid file in the specified path on start")
             .availableUnless(versionOption)
             .withRequiredArg()
             .withValuesConvertedBy(new PathConverter());
-        quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"),
-            "Turns off standard output/error streams logging in console")
+        quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"), "Turns off standard output/error streams logging in console")
             .availableUnless(versionOption)
             .availableUnless(daemonizeOption);
     }
@@ -62,13 +59,15 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
-        overrideDnsCachePolicyProperties();
+        bootstrapSecurityProperties();
+        org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
+
         /*
          * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
          * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
          * forces such policies to take effect immediately.
          */
-        System.setSecurityManager(new SecurityManager() {
+        org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
 
             @Override
             public void checkPermission(Permission perm) {
@@ -80,23 +79,32 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
-            final String basePath = System.getProperty("es.logs.base_path");
-            // It's possible to fail before logging has been configured, in which case there's no point
-            // suggesting that the user look in the log file.
-            if (basePath != null) {
-                Terminal.DEFAULT.errorPrintln(
-                    "ERROR: Elasticsearch did not exit normally - check the logs at "
-                        + basePath
-                        + System.getProperty("file.separator")
-                        + System.getProperty("es.logs.cluster_name") + ".log"
-                );
-            }
+            printLogsSuggestion();
             exit(status);
         }
     }
 
-    private static void overrideDnsCachePolicyProperties() {
-        for (final String property : new String[] {"networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
+    /**
+     * Prints a message directing the user to look at the logs. A message is only printed if
+     * logging has been configured.
+     */
+    static void printLogsSuggestion() {
+        final String basePath = System.getProperty("es.logs.base_path");
+        // It's possible to fail before logging has been configured, in which case there's no point
+        // suggesting that the user look in the log file.
+        if (basePath != null) {
+            Terminal.DEFAULT.errorPrintln(
+                "ERROR: Elasticsearch did not exit normally - check the logs at "
+                    + basePath
+                    + System.getProperty("file.separator")
+                    + System.getProperty("es.logs.cluster_name")
+                    + ".log"
+            );
+        }
+    }
+
+    private static void bootstrapSecurityProperties() {
+        for (final String property : new String[] { "networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
             final String overrideProperty = "es." + property;
             final String overrideValue = System.getProperty(overrideProperty);
             if (overrideValue != null) {
@@ -104,11 +112,13 @@ class Elasticsearch extends EnvironmentAwareCommand {
                     // round-trip the property to an integer and back to a string to ensure that it parses properly
                     Security.setProperty(property, Integer.toString(Integer.valueOf(overrideValue)));
                 } catch (final NumberFormatException e) {
-                    throw new IllegalArgumentException(
-                            "failed to parse [" + overrideProperty + "] with value [" + overrideValue + "]", e);
+                    throw new IllegalArgumentException("failed to parse [" + overrideProperty + "] with value [" + overrideValue + "]", e);
                 }
             }
         }
+
+        // policy file codebase declarations in security.policy rely on property expansion, see PolicyUtil.readPolicy
+        Security.setProperty("policy.expandProperties", "true");
     }
 
     static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
@@ -153,8 +163,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv)
-        throws NodeValidationException, UserException {
+    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) throws NodeValidationException,
+        UserException {
         try {
             Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv);
         } catch (BootstrapException | RuntimeException e) {

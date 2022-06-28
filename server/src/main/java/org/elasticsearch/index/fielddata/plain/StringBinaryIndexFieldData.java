@@ -45,8 +45,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
 
     @Override
     public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
-                sortMode, nested);
+        XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
@@ -58,9 +57,18 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
             throw new IllegalStateException("Cannot load doc values", e);
         }
     }
+
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("can't sort on binary field");
     }
 

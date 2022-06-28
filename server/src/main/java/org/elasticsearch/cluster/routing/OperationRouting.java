@@ -13,13 +13,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -37,15 +37,20 @@ import static org.elasticsearch.core.Booleans.parseBoolean;
 
 public class OperationRouting {
 
-    public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
-            Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
-                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
+        "cluster.routing.use_adaptive_replica_selection",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OperationRouting.class);
     private static final String IGNORE_AWARENESS_ATTRIBUTES_PROPERTY = "es.search.ignore_awareness_attributes";
     static final String IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE =
-        "searches will not be routed based on awareness attributes starting in version 8.0.0; " +
-            "to opt into this behaviour now please set the system property [" + IGNORE_AWARENESS_ATTRIBUTES_PROPERTY + "] to [true]";
+        "searches will not be routed based on awareness attributes starting in version 8.0.0; "
+            + "to opt into this behaviour now please set the system property ["
+            + IGNORE_AWARENESS_ATTRIBUTES_PROPERTY
+            + "] to [true]";
 
     private List<String> awarenessAttributes;
     private boolean useAdaptiveReplicaSelection;
@@ -56,11 +61,16 @@ public class OperationRouting {
         if (ignoreAwarenessAttr == false) {
             awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
             if (awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "searches_not_routed_on_awareness_attributes",
-                    IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
+                deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    "searches_not_routed_on_awareness_attributes",
+                    IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE
+                );
             }
-            clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                this::setAwarenessAttributes);
+            clusterSettings.addSettingsUpdateConsumer(
+                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+                this::setAwarenessAttributes
+            );
         } else {
             awarenessAttributes = Collections.emptyList();
         }
@@ -81,48 +91,87 @@ public class OperationRouting {
         boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
         if (ignoreAwarenessAttr == false) {
             if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "searches_not_routed_on_awareness_attributes",
-                    IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
+                deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    "searches_not_routed_on_awareness_attributes",
+                    IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE
+                );
             }
             this.awarenessAttributes = awarenessAttributes;
         }
     }
 
-    public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
-        return shards(clusterState, index, id, routing).shardsIt();
+    public ShardIterator indexShards(
+        ClusterState clusterState,
+        String index,
+        IndexRouting indexRouting,
+        String id,
+        @Nullable String routing
+    ) {
+        return shards(clusterState, index, indexRouting, id, routing).shardsIt();
     }
 
-    public ShardIterator getShards(ClusterState clusterState, String index, String id, @Nullable String routing,
-                                   @Nullable String preference) {
-        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().getLocalNodeId(),
-            clusterState.nodes(), preference, null, null);
+    /**
+     * Shards to use for a {@code GET} operation.
+     */
+    public ShardIterator getShards(
+        ClusterState clusterState,
+        String index,
+        String id,
+        @Nullable String routing,
+        @Nullable String preference
+    ) {
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
+        return preferenceActiveShardIterator(
+            shards(clusterState, index, indexRouting, id, routing),
+            clusterState.nodes().getLocalNodeId(),
+            clusterState.nodes(),
+            preference,
+            null,
+            null
+        );
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        return preferenceActiveShardIterator(indexShard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(),
-            preference, null, null);
+        return preferenceActiveShardIterator(
+            indexShard,
+            clusterState.nodes().getLocalNodeId(),
+            clusterState.nodes(),
+            preference,
+            null,
+            null
+        );
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState,
-                                                           String[] concreteIndices,
-                                                           @Nullable Map<String, Set<String>> routing,
-                                                           @Nullable String preference) {
+    public GroupShardsIterator<ShardIterator> searchShards(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        @Nullable Map<String, Set<String>> routing,
+        @Nullable String preference
+    ) {
         return searchShards(clusterState, concreteIndices, routing, preference, null, null);
     }
 
-
-    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState,
-                                                           String[] concreteIndices,
-                                                           @Nullable Map<String, Set<String>> routing,
-                                                           @Nullable String preference,
-                                                           @Nullable ResponseCollectorService collectorService,
-                                                           @Nullable Map<String, Long> nodeCounts) {
+    public GroupShardsIterator<ShardIterator> searchShards(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        @Nullable Map<String, Set<String>> routing,
+        @Nullable String preference,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = preferenceActiveShardIterator(shard,
-                    clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, collectorService, nodeCounts);
+            ShardIterator iterator = preferenceActiveShardIterator(
+                shard,
+                clusterState.nodes().getLocalNodeId(),
+                clusterState.nodes(),
+                preference,
+                collectorService,
+                nodeCounts
+            );
             if (iterator != null) {
                 set.add(iterator);
             }
@@ -137,24 +186,25 @@ public class OperationRouting {
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
-    private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] concreteIndices,
-                                                              @Nullable Map<String, Set<String>> routing) {
+    private Set<IndexShardRoutingTable> computeTargetedShards(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        @Nullable Map<String, Set<String>> routing
+    ) {
         routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
         final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
-            final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+            final IndexRoutingTable indexRoutingTable = indexRoutingTable(clusterState, index);
             final IndexMetadata indexMetadata = indexMetadata(clusterState, index);
-            final Set<String> effectiveRouting = routing.get(index);
-            if (effectiveRouting != null) {
-                for (String r : effectiveRouting) {
-                    final int routingPartitionSize = indexMetadata.getRoutingPartitionSize();
-                    for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
-                        set.add(RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset)));
-                    }
+            final Set<String> indexSearchRouting = routing.get(index);
+            if (indexSearchRouting != null) {
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+                for (String r : indexSearchRouting) {
+                    indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
             } else {
-                for (IndexShardRoutingTable indexShard : indexRouting) {
+                for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                     set.add(indexShard);
                 }
             }
@@ -162,10 +212,14 @@ public class OperationRouting {
         return set;
     }
 
-    private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId,
-                                                        DiscoveryNodes nodes, @Nullable String preference,
-                                                        @Nullable ResponseCollectorService collectorService,
-                                                        @Nullable Map<String, Long> nodeCounts) {
+    private ShardIterator preferenceActiveShardIterator(
+        IndexShardRoutingTable indexShard,
+        String localNodeId,
+        DiscoveryNodes nodes,
+        @Nullable String preference,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
         }
@@ -203,10 +257,8 @@ public class OperationRouting {
             preferenceType = Preference.parse(preference);
             switch (preferenceType) {
                 case PREFER_NODES:
-                    final Set<String> nodesIds =
-                            Arrays.stream(
-                                    preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
-                            ).collect(Collectors.toSet());
+                    final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
+                        .collect(Collectors.toSet());
                     return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
                 case LOCAL:
                     return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
@@ -237,8 +289,12 @@ public class OperationRouting {
         }
     }
 
-    private ShardIterator shardRoutings(IndexShardRoutingTable indexShard, DiscoveryNodes nodes,
-            @Nullable ResponseCollectorService collectorService, @Nullable Map<String, Long> nodeCounts) {
+    private ShardIterator shardRoutings(
+        IndexShardRoutingTable indexShard,
+        DiscoveryNodes nodes,
+        @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
         if (awarenessAttributes.isEmpty()) {
             if (useAdaptiveReplicaSelection) {
                 return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
@@ -258,7 +314,7 @@ public class OperationRouting {
         return indexRouting;
     }
 
-    protected IndexMetadata indexMetadata(ClusterState clusterState, String index) {
+    private IndexMetadata indexMetadata(ClusterState clusterState, String index) {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             throw new IndexNotFoundException(index);
@@ -266,43 +322,12 @@ public class OperationRouting {
         return indexMetadata;
     }
 
-    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String id, String routing) {
-        int shardId = generateShardId(indexMetadata(clusterState, index), id, routing);
-        return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
+    private IndexShardRoutingTable shards(ClusterState clusterState, String index, IndexRouting indexRouting, String id, String routing) {
+        return clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.shardId(id, routing));
     }
 
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
-        return new ShardId(indexMetadata.getIndex(), generateShardId(indexMetadata, id, routing));
+        return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).shardId(id, routing));
     }
-
-    public static int generateShardId(IndexMetadata indexMetadata, @Nullable String id, @Nullable String routing) {
-        final String effectiveRouting;
-        final int partitionOffset;
-
-        if (routing == null) {
-            assert(indexMetadata.isRoutingPartitionedIndex() == false) : "A routing value is required for gets from a partitioned index";
-            effectiveRouting = id;
-        } else {
-            effectiveRouting = routing;
-        }
-
-        if (indexMetadata.isRoutingPartitionedIndex()) {
-            partitionOffset = Math.floorMod(Murmur3HashFunction.hash(id), indexMetadata.getRoutingPartitionSize());
-        } else {
-            // we would have still got 0 above but this check just saves us an unnecessary hash calculation
-            partitionOffset = 0;
-        }
-
-        return calculateScaledShardId(indexMetadata, effectiveRouting, partitionOffset);
-    }
-
-    private static int calculateScaledShardId(IndexMetadata indexMetadata, String effectiveRouting, int partitionOffset) {
-        final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
-
-        // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
-        // of original index to hash documents
-        return Math.floorMod(hash, indexMetadata.getRoutingNumShards()) / indexMetadata.getRoutingFactor();
-    }
-
 }

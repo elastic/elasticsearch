@@ -9,9 +9,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,6 +32,7 @@ public class Header {
     String actionName;
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
     Set<String> features;
+    private Compression.Scheme compressionScheme = null;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
@@ -80,6 +81,10 @@ public class Header {
         return actionName;
     }
 
+    public Compression.Scheme getCompressionScheme() {
+        return compressionScheme;
+    }
+
     boolean needsToReadVariableHeader() {
         return headers == null;
     }
@@ -112,9 +117,29 @@ public class Header {
         }
     }
 
+    void setCompressionScheme(Compression.Scheme compressionScheme) {
+        assert isCompressed();
+        this.compressionScheme = compressionScheme;
+    }
+
     @Override
     public String toString() {
-        return "Header{" + networkMessageSize + "}{" + version + "}{" + requestId + "}{" + isRequest() + "}{" + isError() + "}{"
-                + isHandshake() + "}{" + isCompressed() + "}{" + actionName + "}";
+        return "Header{"
+            + networkMessageSize
+            + "}{"
+            + version
+            + "}{"
+            + requestId
+            + "}{"
+            + isRequest()
+            + "}{"
+            + isError()
+            + "}{"
+            + isHandshake()
+            + "}{"
+            + isCompressed()
+            + "}{"
+            + actionName
+            + "}";
     }
 }

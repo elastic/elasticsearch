@@ -1,7 +1,0 @@
-pr: 55544
-issues: []
-area: Security
-type: enhancement
-summary: Change default hashing algorithm for FIPS 140
-versions:
-  - v8.0.0

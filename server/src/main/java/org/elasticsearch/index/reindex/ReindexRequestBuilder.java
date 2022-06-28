@@ -15,19 +15,24 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class ReindexRequestBuilder extends
-        AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
+public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
     private final IndexRequestBuilder destination;
 
-    public ReindexRequestBuilder(ElasticsearchClient client,
-            ActionType<BulkByScrollResponse> action) {
-        this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE),
-                new IndexRequestBuilder(client, IndexAction.INSTANCE));
+    public ReindexRequestBuilder(ElasticsearchClient client, ActionType<BulkByScrollResponse> action) {
+        this(
+            client,
+            action,
+            new SearchRequestBuilder(client, SearchAction.INSTANCE),
+            new IndexRequestBuilder(client, IndexAction.INSTANCE)
+        );
     }
 
-    private ReindexRequestBuilder(ElasticsearchClient client,
-            ActionType<BulkByScrollResponse> action,
-            SearchRequestBuilder search, IndexRequestBuilder destination) {
+    private ReindexRequestBuilder(
+        ElasticsearchClient client,
+        ActionType<BulkByScrollResponse> action,
+        SearchRequestBuilder search,
+        IndexRequestBuilder destination
+    ) {
         super(client, action, search, new ReindexRequest(search.request(), destination.request()));
         this.destination = destination;
     }

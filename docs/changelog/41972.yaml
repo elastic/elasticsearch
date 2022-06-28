@@ -1,8 +1,0 @@
-pr: 41972
-issues:
-  - 41970
-area: Aggregations
-type: bug
-summary: Throw exception if legacy interval cannot be parsed in `DateIntervalWrapper`
-versions:
-  - v8.0.0

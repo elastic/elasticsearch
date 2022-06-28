@@ -224,20 +224,12 @@ public final class TransformAggregations {
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> outputField,
-                            (v1, v2) -> v1
-                        )
+                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> outputField, (v1, v2) -> v1)
                     ),
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> agg.getType(),
-                            (v1, v2) -> v1
-                        )
+                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> agg.getType(), (v1, v2) -> v1)
                     )
             );
         }

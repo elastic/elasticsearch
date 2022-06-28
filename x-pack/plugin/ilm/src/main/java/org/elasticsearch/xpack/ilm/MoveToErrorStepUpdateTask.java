@@ -39,9 +39,15 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     private final LongSupplier nowSupplier;
     private final Exception cause;
 
-    public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier,
-                                     BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction,
-                                     Consumer<ClusterState> stateChangeConsumer) {
+    public MoveToErrorStepUpdateTask(
+        Index index,
+        String policy,
+        Step.StepKey currentStepKey,
+        Exception cause,
+        LongSupplier nowSupplier,
+        BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction,
+        Consumer<ClusterState> stateChangeConsumer
+    ) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
@@ -81,8 +87,11 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     @Override
     public void onFailure(String source, Exception e) {
         final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
-                "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.", policy, index.getName(),
-                currentStepKey);
+            "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.",
+            policy,
+            index.getName(),
+            currentStepKey
+        );
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             logger.debug(messageSupplier, e);
         } else {

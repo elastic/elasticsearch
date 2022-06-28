@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Set;
@@ -16,6 +16,7 @@ import static org.hamcrest.Matchers.hasItem;
 
 public abstract class AbstractNumericFieldMapperTestCase extends MapperTestCase {
     protected abstract Set<String> types();
+
     protected abstract Set<String> wholeTypes();
 
     public final void testTypesAndWholeTypes() {

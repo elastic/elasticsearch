@@ -1,0 +1,228 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+          {
+            "cluster": ["manage_api_key"]
+          }
+
+  - do:
+      security.put_role:
+        name: "user_role"
+        body:  >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_manager"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "admin_role" ],
+            "full_name" : "API key manager"
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_user_1"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "user_role" ],
+            "full_name" : "API key user 1"
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_user_2"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "user_role" ],
+            "full_name" : "API key user 2"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "use_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_user_1"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_user_2"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "api_key_manager"
+        ignore: 404
+
+---
+"Test query api key":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.create_api_key:
+        body: >
+          {
+            "name": "manager-api-key",
+            "expiration": "10d",
+            "metadata": {
+               "letter": "a",
+               "number": 42
+            }
+          }
+  - match: { name: "manager-api-key" }
+  - set: { id: manager_key_id }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "user1-api-key",
+            "expiration": "1d",
+            "metadata": {
+              "letter": "a",
+              "number": 1
+            }
+          }
+  - match: { name: "user1-api-key" }
+  - set: { id: user1_key_id }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_2
+      security.create_api_key:
+        body: >
+          {
+            "name": "user2-api-key",
+            "expiration": "1d",
+            "metadata": {
+              "letter": "b",
+              "number": 42
+            }
+          }
+  - match: { name: "user2-api-key" }
+  - set: { id: user2_key_id }
+
+  # empty body works just like match_all
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.query_api_keys:
+        body: {}
+  - match: { total: 3 }
+  - match: { count: 3 }
+
+  # match_all
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "match_all": {} }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${user1_key_id}" }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_2
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "wildcard": {"name": "user*"} }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${user2_key_id}" }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "wildcard": {"name": "user*"} },
+            "sort": [ {"creation": {"order": "desc"}} ],
+            "from": 1,
+            "size": 1
+          }
+  - match: { total: 2 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${user1_key_id}" }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "wildcard": {"name": "*key"} },
+            "sort": [ "expiration", "username" ],
+            "size": 1
+          }
+  - match: { total: 3 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${user1_key_id}" }
+  - set: { api_keys.0.expiration: expiration0 }
+  - set: { api_keys.0.username: username0 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "wildcard": {"name": "*key"} },
+            "sort": [ "expiration", "username" ],
+            "size": 1,
+            "search_after": [ "${expiration0}", "${username0}" ]
+          }
+  - match: { total: 3 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${user2_key_id}" }
+  - set: { api_keys.0.expiration: expiration1 }
+  - set: { api_keys.0.username: username1 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "wildcard": {"name": "*key"} },
+            "sort": [ "expiration", "username" ],
+            "size": 1,
+            "search_after": [ "${expiration1}", "${username1}" ]
+          }
+  - match: { total: 3 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${manager_key_id}" }

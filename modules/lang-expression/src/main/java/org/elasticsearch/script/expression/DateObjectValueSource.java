@@ -10,8 +10,8 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.joda.time.DateTimeZone;
@@ -28,8 +28,12 @@ class DateObjectValueSource extends FieldDataValueSource {
     final String methodName;
     final ToIntFunction<ReadableDateTime> function;
 
-    DateObjectValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode,
-                          String methodName, ToIntFunction<ReadableDateTime> function) {
+    DateObjectValueSource(
+        IndexFieldData<?> indexFieldData,
+        MultiValueMode multiValueMode,
+        String methodName,
+        ToIntFunction<ReadableDateTime> function
+    ) {
         super(indexFieldData, multiValueMode);
 
         Objects.requireNonNull(methodName);
@@ -46,7 +50,7 @@ class DateObjectValueSource extends FieldDataValueSource {
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
-                joda.setMillis((long)docValues.doubleValue());
+                joda.setMillis((long) docValues.doubleValue());
                 return function.applyAsInt(joda);
             }
 

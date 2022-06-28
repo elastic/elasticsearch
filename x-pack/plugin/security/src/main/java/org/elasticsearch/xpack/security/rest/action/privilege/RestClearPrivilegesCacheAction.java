@@ -40,8 +40,7 @@ public class RestClearPrivilegesCacheAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] applicationNames = request.paramAsStringArrayOrEmptyIfAll("application");
-        final ClearSecurityCacheRequest req =
-            new ClearSecurityCacheRequest().cacheName("application_privileges").keys(applicationNames);
+        final ClearSecurityCacheRequest req = new ClearSecurityCacheRequest().cacheName("application_privileges").keys(applicationNames);
         return channel -> client.execute(ClearSecurityCacheAction.INSTANCE, req, new NodesResponseRestListener<>(channel));
     }
 

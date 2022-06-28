@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Objects;
@@ -26,7 +26,8 @@ public final class FollowInfoResponse {
             @SuppressWarnings("unchecked")
             List<FollowerInfo> infos = (List<FollowerInfo>) args[0];
             return new FollowInfoResponse(infos);
-        });
+        }
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FollowerInfo.PARSER, FOLLOWER_INDICES_FIELD);
@@ -71,17 +72,26 @@ public final class FollowInfoResponse {
             "follower_info",
             true,
             args -> {
-                return new FollowerInfo((String) args[0], (String) args[1], (String) args[2],
-                    Status.fromString((String) args[3]), (FollowConfig) args[4]);
-            });
+                return new FollowerInfo(
+                    (String) args[0],
+                    (String) args[1],
+                    (String) args[2],
+                    Status.fromString((String) args[3]),
+                    (FollowConfig) args[4]
+                );
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOWER_INDEX_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), REMOTE_CLUSTER_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> FollowConfig.fromXContent(p), PARAMETERS_FIELD);
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> FollowConfig.fromXContent(p),
+                PARAMETERS_FIELD
+            );
         }
 
         private final String followerIndex;
@@ -90,8 +100,7 @@ public final class FollowInfoResponse {
         private final Status status;
         private final FollowConfig parameters;
 
-        FollowerInfo(String followerIndex, String remoteCluster, String leaderIndex, Status status,
-                            FollowConfig parameters) {
+        FollowerInfo(String followerIndex, String remoteCluster, String leaderIndex, Status status, FollowConfig parameters) {
             this.followerIndex = followerIndex;
             this.remoteCluster = remoteCluster;
             this.leaderIndex = leaderIndex;
@@ -124,11 +133,11 @@ public final class FollowInfoResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FollowerInfo that = (FollowerInfo) o;
-            return Objects.equals(followerIndex, that.followerIndex) &&
-                Objects.equals(remoteCluster, that.remoteCluster) &&
-                Objects.equals(leaderIndex, that.leaderIndex) &&
-                status == that.status &&
-                Objects.equals(parameters, that.parameters);
+            return Objects.equals(followerIndex, that.followerIndex)
+                && Objects.equals(remoteCluster, that.remoteCluster)
+                && Objects.equals(leaderIndex, that.leaderIndex)
+                && status == that.status
+                && Objects.equals(parameters, that.parameters);
         }
 
         @Override

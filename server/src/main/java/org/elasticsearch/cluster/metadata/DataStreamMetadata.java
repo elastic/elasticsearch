@@ -12,13 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,17 +33,18 @@ import java.util.Objects;
 public class DataStreamMetadata implements Metadata.Custom {
 
     public static final String TYPE = "data_stream";
+
+    public static final DataStreamMetadata EMPTY = new DataStreamMetadata(org.elasticsearch.core.Map.of(), org.elasticsearch.core.Map.of());
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField DATA_STREAM_ALIASES = new ParseField("data_stream_aliases");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStreamMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false,
-        args -> {
-            Map<String, DataStream> dataStreams = (Map<String, DataStream>) args[0];
-            Map<String, DataStreamAlias> dataStreamAliases = (Map<String, DataStreamAlias>) args[1];
-            if (dataStreamAliases == null) {
-                dataStreamAliases = Collections.emptyMap();
-            }
-            return new DataStreamMetadata(dataStreams, dataStreamAliases);
+    private static final ConstructingObjectParser<DataStreamMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false, args -> {
+        Map<String, DataStream> dataStreams = (Map<String, DataStream>) args[0];
+        Map<String, DataStreamAlias> dataStreamAliases = (Map<String, DataStreamAlias>) args[1];
+        if (dataStreamAliases == null) {
+            dataStreamAliases = Collections.emptyMap();
+        }
+        return new DataStreamMetadata(dataStreams, dataStreamAliases);
     });
 
     static {
@@ -70,15 +71,18 @@ public class DataStreamMetadata implements Metadata.Custom {
     private final Map<String, DataStream> dataStreams;
     private final Map<String, DataStreamAlias> dataStreamAliases;
 
-    public DataStreamMetadata(Map<String, DataStream> dataStreams,
-                              Map<String, DataStreamAlias> dataStreamAliases) {
+    public DataStreamMetadata(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
         this.dataStreams = Collections.unmodifiableMap(new HashMap<>(dataStreams));
         this.dataStreamAliases = Collections.unmodifiableMap(new HashMap<>(dataStreamAliases));
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, DataStream::new), in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION) ?
-            in.readMap(StreamInput::readString, DataStreamAlias::new) : Collections.emptyMap());
+        this(
+            in.readMap(StreamInput::readString, DataStream::new),
+            in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)
+                ? in.readMap(StreamInput::readString, DataStreamAlias::new)
+                : Collections.emptyMap()
+        );
     }
 
     public Map<String, DataStream> dataStreams() {
@@ -127,11 +131,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(DATA_STREAM.getPreferredName());
-        for (Map.Entry<String, DataStream> dataStream : dataStreams.entrySet()) {
-            builder.field(dataStream.getKey(), dataStream.getValue());
-        }
-        builder.endObject();
+        builder.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams);
         builder.startObject(DATA_STREAM_ALIASES.getPreferredName());
         for (Map.Entry<String, DataStreamAlias> dataStream : dataStreamAliases.entrySet()) {
             dataStream.getValue().toXContent(builder, params);
@@ -154,8 +154,7 @@ public class DataStreamMetadata implements Metadata.Custom {
             return false;
         }
         DataStreamMetadata other = (DataStreamMetadata) obj;
-        return Objects.equals(this.dataStreams, other.dataStreams) &&
-            Objects.equals(this.dataStreamAliases, other.dataStreamAliases);
+        return Objects.equals(this.dataStreams, other.dataStreams) && Objects.equals(this.dataStreamAliases, other.dataStreamAliases);
     }
 
     @Override
@@ -169,18 +168,28 @@ public class DataStreamMetadata implements Metadata.Custom {
         final Diff<Map<String, DataStreamAlias>> dataStreamAliasDiff;
 
         DataStreamMetadataDiff(DataStreamMetadata before, DataStreamMetadata after) {
-            this.dataStreamDiff = DiffableUtils.diff(before.dataStreams, after.dataStreams,
-                DiffableUtils.getStringKeySerializer());
-            this.dataStreamAliasDiff = DiffableUtils.diff(before.dataStreamAliases, after.dataStreamAliases,
-                DiffableUtils.getStringKeySerializer());
+            this.dataStreamDiff = DiffableUtils.diff(before.dataStreams, after.dataStreams, DiffableUtils.getStringKeySerializer());
+            this.dataStreamAliasDiff = DiffableUtils.diff(
+                before.dataStreamAliases,
+                after.dataStreamAliases,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         DataStreamMetadataDiff(StreamInput in) throws IOException {
-            this.dataStreamDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                DataStream::new, DataStream::readDiffFrom);
+            this.dataStreamDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                DataStream::new,
+                DataStream::readDiffFrom
+            );
             if (in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
-                this.dataStreamAliasDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                    DataStreamAlias::new, DataStreamAlias::readDiffFrom);
+                this.dataStreamAliasDiff = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    DataStreamAlias::new,
+                    DataStreamAlias::readDiffFrom
+                );
             } else {
                 this.dataStreamAliasDiff = null;
             }
@@ -190,8 +199,9 @@ public class DataStreamMetadata implements Metadata.Custom {
         public Metadata.Custom apply(Metadata.Custom part) {
             return new DataStreamMetadata(
                 dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams),
-                dataStreamAliasDiff != null ? dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases) :
-                    Collections.emptyMap()
+                dataStreamAliasDiff != null
+                    ? dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases)
+                    : Collections.emptyMap()
             );
         }
 
@@ -206,6 +216,11 @@ public class DataStreamMetadata implements Metadata.Custom {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_7_0;
         }
     }
 }

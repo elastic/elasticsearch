@@ -1,0 +1,456 @@
+[[release-notes-7.15.2]]
+== {es} version 7.15.2
+
+Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
+
+[[enhancement-7.15.2]]
+[float]
+=== Enhancements
+
+Authorization::
+* Better logging and internal user handling for operator privileges {es-pull}79331[#79331]
+
+[[bug-7.15.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Possible source of leaked delayable writables {es-pull}80166[#80166]
+
+Authorization::
+* Marking operator user no longer depends on license state {es-pull}79595[#79595]
+* Preserve request headers in a mixed version cluster {es-pull}79412[#79412] (issue: {es-issue}79354[#79354])
+* Try set operator user header on each node {es-pull}79528[#79528]
+
+Geo::
+* Fix circuit breaker leak in `MultiTerms` aggregation {es-pull}79362[#79362]
+* Guard geoline aggregation from parents aggegator that emit empty buckets {es-pull}79129[#79129] (issue: {es-issue}79128[#79128])
+
+Indices APIs::
+* Correctly merge lists with primitives {es-pull}80336[#80336] (issue: {es-issue}78211[#78211])
+
+Infra/Core::
+* Treat system indices with unexpected type as needing upgrade {es-pull}78622[#78622] (issue: {es-issue}78456[#78456])
+
+License::
+* Put License API can return HTTP 500 {es-pull}79093[#79093] (issue: {es-issue}74058[#74058])
+
+Machine Learning::
+* Add `bucket_count_ks_test` results reader for internode communication {es-pull}79063[#79063]
+* Fix cancellation of named pipe connection on Linux if the remote end does not connect within the configured timeout period {ml-pull}2102[#2102]
+
+Mapping::
+* Fix execution of exists query within nested queries on field with `doc_values` disabled {es-pull}78841[#78841] (issue: {es-issue}76362[#76362])
+
+Network::
+* Ensure `indexing_data` CCR requests are compressed {es-pull}79413[#79413]
+
+Snapshot/Restore::
+* Create cache files with CREATE_NEW & SPARSE options {es-pull}79371[#79371]
+* Quicker shared cache file preallocation {es-pull}79447[#79447]
+
+TLS::
+* Fix parsing of PBES2 encrypted PKCS#8 keys {es-pull}78904[#78904] (issues: {es-issue}8[#8], {es-issue}32021[#32021], {es-issue}78901[#78901])
+
+[[upgrade-7.15.2]]
+[float]
+=== Upgrades
+
+Packaging::
+* Bump bundled JDK to 17.0.1 {es-pull}80034[#80034] (issue: {es-issue}80001[#80001])
+
+
+
+[[release-notes-7.15.1]]
+== {es} version 7.15.1
+
+Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
+
+[[known-issues-7.15.1]]
+[discrete]
+=== Known issues
+
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
+
+[[enhancement-7.15.1]]
+[float]
+=== Enhancements
+
+Search::
+* Fail early if an index request has the wrong type {es-pull}77417[#77417]
+
+Packaging::
+* Use `grep` in Docker regexes instead of `bash` {es-pull}78154[#78154] (issue: {es-issue}77862[#77862])
+
+
+
+[[bug-7.15.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix bug with significant terms background count {es-pull}76730[#76730] (issue: {es-issue}76729[#76729])
+* Fix aggregation memory leak for CCS {es-pull}78404[#78404] (issue: {es-issue}72309[#72309])
+
+Allocation::
+* Match IPv6 addresses without compressed id from settings {es-pull}77404[#77404] (issue: {es-issue}72091[#72091])
+* Change single node disk watermark deprecation to a warning {es-pull}77166[#77166] (issue: {es-issue}73733[#73733])
+
+CompositeAggs::
+* Revert the change to use segment ordinals in composite terms aggregations {es-pull}78848[#78848] (issues: {es-issue}74559[#74559], {es-issue}78836[#78836])
+
+Data streams::
+* Properly handle wildcards in data stream deletion requests {es-pull}78463[#78463] (issue: {es-issue}78422[#78422])
+
+Geo::
+* Make feature factory more resilient to invalid polygons {es-pull}77200[#77200] (issue: {es-issue}77071[#77071])
+* Support for aggregation names with dots in vector tiles {es-pull}77477[#77477] (issue: {es-issue}77361[#77361])
+* Add vector tile endpoint support for source parameters in the body of requests {es-pull}77377[#77377] (issues: {es-issue}77264[#77264], {es-issue}77365[#77365])
+* Change `geo_shape` mapping created before version 6.6.0 to use the legacy mapper {es-pull}77881[#77881] (issue: {es-issue}77857[#77857])
+
+ILM+SLM::
+* Implement `DiffableStringMap's` get and `containsKey` in terms of the wrapped `innerMap` {es-pull}77965[#77965]
+
+Infra/Core::
+* Ensure `sys.` index patterns are transformed before use {es-pull}78492[#78492]
+* `AutoCreate` should work for non-primary system indices {es-pull}77045[#77045] (issue: {es-issue}65970[#65970])
+
+Infra/Node Lifecycle::
+* Ensure Node Shutdown doesn't stall when all nodes in the cluster have a copy of a shard {es-pull}78578[#78578]
+* Handle master failure in `NodeSeenService` {es-pull}77220[#77220] (issue: {es-issue}76689[#76689])
+
+Machine Learning::
+* Fix minor autoscaling edge case check {es-pull}78102[#78102]
+
+Mapping::
+* `NullPointer` fix for field capabilities API {es-pull}76742[#76742] (issue: {es-issue}76716[#76716])
+
+Search::
+* Add support for `QueryString-parsed` wildcard queries on runtime keyword fields {es-pull}76867[#76867] (issue: {es-issue}76838[#76838])
+* Propagate original indices in `NodeTermsEnumRequest` {es-pull}77776[#77776] (issue: {es-issue}77508[#77508])
+* Choose postings format from `FieldMapper` instead of `MappedFieldType` {es-pull}77234[#77234] (issue: {es-issue}77183[#77183])
+
+Snapshot/Restore::
+* Fix issue where snapshot can get stuck if queued after a delete operation where a shard is in a `MISSING` state {es-pull}78587[#78587]
+* Fix `AzureBlobStore#convertStreamToByteBuffer` chunking in Windows {es-pull}78772[#78772]
+
+Stats::
+* Change the name of the shards field in `_node/stats` API to `shard_stats` {es-pull}78531[#78531] (issues: {es-issue}75433[#75433], {es-issue}78311[#78311])
+* Detect when a deserialized Map is immutable before changing it in `IndexDiskUsageStats` (#77219) {es-pull}77390[#77390] (issues: {es-issue}77219[#77219], {es-issue}77327[#77327])
+
+TLS::
+* Fix `issuerDN` for created certificates {es-pull}77828[#77828] (issue: {es-issue}69403[#69403])
+
+
+
+[[upgrade-7.15.1]]
+[float]
+=== Upgrades
+
+Packaging::
+* Upgrade bundled JDK to Java 17 {es-pull}78197[#78197] (issue: {es-issue}78168[#78168])
+
+
+[[release-notes-7.15.0]]
+== {es} version 7.15.0
+
+Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
+
+[[known-issues-7.15.0]]
+[discrete]
+=== Known issues
+
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
+
+include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
+
+[[breaking-7.15.0]]
+[float]
+=== Breaking changes
+
+Infra/Core::
+* Remove quota-aware-fs plugin {es-pull}76352[#76352] (issue: {es-issue}70309[#70309])
+
+Search::
+* Remove xpack actions for vector field {es-pull}75017[#75017] (issues: {es-issue}53076[#53076], {es-issue}74974[#74974])
+
+
+
+[[deprecation-7.15.0]]
+[float]
+=== Deprecations
+
+Store::
+* Deprecate SimpleFS and replace it with NIOFS {es-pull}75156[#75156]
+
+
+
+[[feature-7.15.0]]
+[float]
+=== New features
+
+EQL::
+* Add multi-valued fields support. Part 1 {es-pull}74567[#74567]
+* Backwards compatibility support for multi value fields update {es-pull}76605[#76605]
+* Multi-value fields support {es-pull}76610[#76610]
+
+Geo::
+* Remove vector tile feature flag {es-pull}76068[#76068]
+
+Infra/Node Lifecycle::
+* Remove Node Shutdown API feature flag {es-pull}76588[#76588] (issue: {es-issue}70338[#70338])
+
+Machine Learning::
+* Add 'model_prune_window' field to AD job config {es-pull}75741[#75741] (issue: {es-issue}1962[#1962])
+
+Mapping::
+* Unsigned longs should be compatible with index sorting {es-pull}75599[#75599]
+
+
+
+[[enhancement-7.15.0]]
+[float]
+=== Enhancements
+
+Allocation::
+* Clarify allocation explain if random shard chosen {es-pull}75670[#75670]
+* Prefer primaries in cluster allocation explain {es-pull}76220[#76220]
+
+Authentication::
+* Add kibana-system service account {es-pull}76449[#76449]
+* Support 2b and 2y prefixes in bcrypt {es-pull}76083[#76083] (issues: {es-issue}51132[#51132], {es-issue}56086[#56086])
+* Support `password_hash` for Change Password API {es-pull}75500[#75500]
+
+Authorization::
+* Add threshold time logging for Authorized indices {es-pull}75439[#75439]
+* Fix privileges for `GetRollupIndexCapabilities` API {es-pull}75614[#75614] (issue: {es-issue}74779[#74779])
+* Granting `kibana_system` reserved role access to "all" privileges to .internal.alerts* index {es-pull}76624[#76624]
+
+Cluster Coordination::
+* Distinguish timeouts/failures in follower checker {es-pull}75519[#75519]
+* Indicate quorumness of discovered nodes earlier {es-pull}74823[#74823]
+* Warn on possible master service starvation {es-pull}74820[#74820]
+
+Data streams::
+* Add filter support to data stream aliases {es-pull}74784[#74784] (issue: {es-issue}66163[#66163])
+
+EQL::
+* Minimise CCS roundtrips {es-pull}76076[#76076]
+
+Engine::
+* Refresh after force-merge {es-pull}76221[#76221] (issue: {es-issue}74649[#74649])
+
+Geo::
+* Add 'mvt' field type format to geo fields {es-pull}75367[#75367] (issue: {es-issue}73872[#73872])
+
+ILM+SLM::
+* Add phase configs to ILM telemetry {es-pull}74575[#74575] (issue: {es-issue}69152[#69152])
+* Add validation of the `number_of_shards` parameter in Shrink Action of ILM {es-pull}74219[#74219] (issue: {es-issue}72724[#72724])
+* Allow ILM move-to-step without `action` or `name` {es-pull}75435[#75435] (issue: {es-issue}58128[#58128])
+* Update ILM message for out of order phases error {es-pull}75099[#75099] (issue: {es-issue}70336[#70336])
+
+Infra/CLI::
+* In `MultiCommand,` show command list when required {es-pull}75993[#75993]
+
+Infra/Logging::
+* Adds minimal traceparent header support to Elasticsearch {es-pull}74210[#74210]
+
+Infra/Plugins::
+* Add support in plugins for a separate spi classloader {es-pull}76288[#76288] (issue: {es-issue}74448[#74448])
+
+Infra/Resiliency::
+* Print suggestion to view log on fatal error {es-pull}75418[#75418] (issue: {es-issue}61767[#61767])
+
+Infra/Scripting::
+* Add Fields API to aggregation scripts and field scripts {es-pull}76325[#76325]
+* Add ability to allow list instance methods on the script class {es-pull}76045[#76045]
+* Add fields api to runtime fields contexts {es-pull}76265[#76265]
+* Script: Def encoding parser {es-pull}74840[#74840]
+* Script: Fields API for Filter context {es-pull}76119[#76119]
+* Script: Fields API for Sort and Score scripts {es-pull}75863[#75863] (issue: {es-issue}61388[#61388])
+* Script: Mangle user function names {es-pull}72892[#72892] (issue: {es-issue}69742[#69742])
+* Script: ulong via fields API {es-pull}76519[#76519] (issue: {es-issue}64361[#64361])
+
+Ingest::
+* Add support for `_meta` field to ingest pipelines {es-pull}75905[#75905]
+* Configurable `media_type` for mustache template encoding on append processor {es-pull}76210[#76210]
+* Json processor: `add_to_root_conflict_strategy` option {es-pull}74967[#74967]
+* Json processor: allow duplicate keys {es-pull}74956[#74956]
+* Map iteration support for `ForEach` processor {es-pull}64062[#64062] (issue: {es-issue}55215[#55215])
+* Support for wildcards and override option for `dot_expander` processor {es-pull}74601[#74601]
+
+License::
+* Add persistent licensed feature tracking {es-pull}76476[#76476]
+
+Machine Learning::
+* Add `datafeed_config` field to anomaly detection job configs {es-pull}74265[#74265]
+* Adding `datafeed_config` to job in high level rest client {es-pull}75338[#75338]
+* Adding new `p_value` scoring heuristic to significant terms aggregation {es-pull}75313[#75313]
+* Delete expired annotations {es-pull}75617[#75617] (issue: {es-issue}75572[#75572])
+* Deleting a job now deletes the datafeed if necessary {es-pull}76010[#76010]
+* Integrating ML with the node shutdown API {es-pull}75188[#75188]
+* Throttle job audit msgs if delayed data occurs for consecutive buckets {es-pull}75815[#75815] (issue: {es-issue}73679[#73679])
+* Speed up training of regression and classification models on very large data sets {ml-pull}1941[#1941]
+* Improve regression and classification training accuracy for small data sets {ml-pull}1960[#1960]
+* Prune models for split fields (by, partition) that haven't seen data updates for a given period of time {ml-pull}1962[#1962]
+
+Mapping::
+* Handle runtime subfields when shadowing dynamic mappings {es-pull}75595[#75595] (issue: {es-issue}75454[#75454])
+
+Network::
+* Drop `ReceiveTimeoutTransportException` stack trace {es-pull}75671[#75671]
+* Ensure `indexing_data` is compressed appropriately {es-pull}76321[#76321] (issue: {es-issue}73497[#73497])
+* Respond with same compression scheme received {es-pull}76372[#76372] (issue: {es-issue}73497[#73497])
+
+Other::
+* Add `resolve_during_rolling_upgrade` field to deprecation issue {es-pull}74226[#74226] (issue: {es-issue}73091[#73091])
+
+Packaging::
+* Accept settings in snake case in Docker image {es-pull}74327[#74327] (issue: {es-issue}74036[#74036])
+* Change env var prefix in Docker settings support {es-pull}76192[#76192] (issues: {es-issue}74327[#74327], {es-issue}76148[#76148])
+* Reduce default Docker image size in 7.x {es-pull}75079[#75079]
+* Tighten up write permissions in Docker image {es-pull}70635[#70635]
+
+Query Languages::
+* Introduce `ParserUtils` to consolidate code {es-pull}76399[#76399]
+
+Recovery::
+* Add peer recoveries using snapshot files when possible {es-pull}76237[#76237] (issue: {es-issue}73496[#73496])
+* Add peer recovery planners that take into account available snapshots {es-pull}75840[#75840]
+* Compute latest snapshot directly in `TransportGetShardSnapshotAction` {es-pull}76254[#76254] (issue: {es-issue}73496[#73496])
+* Keep track of data recovered from snapshots in `RecoveryState` {es-pull}76499[#76499] (issue: {es-issue}73496[#73496])
+
+Reindex::
+* Log reindex bulk request completion {es-pull}75935[#75935]
+
+Search::
+* Add index disk usage API {es-pull}74051[#74051] (issue: {es-issue}74051[#74051])
+* Allow specifying index in pinned queries {es-pull}74873[#74873] (issue: {es-issue}67855[#67855])
+* Compress async search responses before storing {es-pull}74766[#74766] (issue: {es-issue}67594[#67594])
+* Emit multiple fields from a runtime field script {es-pull}75108[#75108] (issue: {es-issue}68203[#68203])
+* Replaced `field_masking_span` occurrences with respective `ParseField` {es-pull}74718[#74718] (issue: {es-issue}63527[#63527])
+* Search performance - better caching logic for queries on wildcard field {es-pull}76035[#76035] (issue: {es-issue}75848[#75848])
+* Support search slicing with point-in-time {es-pull}74457[#74457] (issue: {es-issue}65740[#65740])
+* Track Lucene field usage {es-pull}74227[#74227] (issue: {es-issue}73944[#73944])
+* Unsigned long should accept value with zero fraction {es-pull}75646[#75646] (issue: {es-issue}67565[#67565])
+
+Security::
+* A new search API for API keys - core search function {es-pull}75335[#75335] (issues: {es-issue}71023[#71023], {es-issue}73705[#73705])
+* Add sort and pagination support for `QueryApiKey` API {es-pull}76144[#76144] (issue: {es-issue}71023[#71023])
+* HLRC support for query API key API {es-pull}76520[#76520] (issues: {es-issue}71023[#71023], {es-issue}75335[#75335], {es-issue}76144[#76144])
+* Query API key - Rest spec and yaml tests {es-pull}76238[#76238] (issue: {es-issue}71023[#71023])
+* Return file-backed service tokens from all nodes {es-pull}75200[#75200] (issue: {es-issue}74530[#74530])
+* `OnChange` listener now only runs when there is actual change {es-pull}75207[#75207] (issue: {es-issue}44701[#44701])
+
+Snapshot/Restore::
+* Add the ability to fetch the latest successful shard snapshot {es-pull}75080[#75080] (issue: {es-issue}73496[#73496])
+* Fix `SnapshotInfo#toXContent` delegation {es-pull}75899[#75899]
+* Implement Numeric Offset Parameter in Get Snapshots API {es-pull}76233[#76233] (issue: {es-issue}74350[#74350])
+* Include extra snapshot details in logs/APIs {es-pull}75917[#75917]
+* Prevent searchable snapshots indices to be shrunk/split {es-pull}75227[#75227] (issue: {es-issue}56595[#56595])
+* Return Total Result Count and Remaining Count in Get Snapshots Response {es-pull}76150[#76150]
+
+Stats::
+* Adding shard count to node stats api {es-pull}75433[#75433]
+* Aggregate data tier index stats separately from node stats {es-pull}76322[#76322]
+
+Store::
+* Replace internal usages of SimpleFS with NIOFS {es-pull}74996[#74996]
+
+TLS::
+* Add `KeyUsage,` `ExtendedKeyUsage,` `CipherSuite` & Protocol to SSL diagnos… {es-pull}65634[#65634] (issue: {es-issue}63784[#63784])
+* Solved issue "certutil: large passwords not set" #30944 {es-pull}36689[#36689]
+
+Task Management::
+* Adding the option to abort persistent tasks locally {es-pull}74115[#74115]
+* Include reason in cancellation exceptions {es-pull}75332[#75332] (issue: {es-issue}74825[#74825])
+
+Transform::
+* Align transform checkpoint range with `date_histogram` interval for better performance {es-pull}74004[#74004] (issue: {es-issue}62746[#62746])
+* Changing hard coded 10k page size limit to 65k {es-pull}74651[#74651] (issue: {es-issue}57719[#57719])
+* Improve performance by using point in time API for search {es-pull}74984[#74984] (issue: {es-issue}73481[#73481])
+* Optimize composite agg execution using ordered groupings {es-pull}75424[#75424]
+
+
+
+[[bug-7.15.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix `docCountError` calculation for multiple reduces {es-pull}76391[#76391] (issues: {es-issue}43874[#43874], {es-issue}75667[#75667])
+* Fix wrong error upper bound when performing incremental reductions {es-pull}43874[#43874] (issue: {es-issue}40005[#40005])
+
+Allocation::
+* Active masternode crash caused by datanode Input/output error {es-pull}76480[#76480] (issues: {es-issue}1[#1], {es-issue}436[#436])
+
+Distributed::
+* Wrap exception with `SendRequestTransportException` instead of `TransportException` {es-pull}73551[#73551]
+
+Geo::
+* Alias field does not work with `geo_shape` query {es-pull}74895[#74895]
+* Use contains relation for `geo_point` intersection over `geo_point` field {es-pull}75272[#75272] (issue: {es-issue}75103[#75103])
+
+ILM+SLM::
+* Changing `wait_for_snapshot` to check start time rather than finish time {es-pull}75644[#75644]
+
+Indices APIs::
+* Fix pending deletes timeout log message {es-pull}75776[#75776]
+
+Infra/Core::
+* Add system data streams to feature state snapshots {es-pull}75902[#75902] (issue: {es-issue}75860[#75860])
+* Fix for `JarHell` Bootstrap Check can yield false positives {es-pull}76217[#76217] (issue: {es-issue}75701[#75701])
+
+Infra/Scripting::
+* Fix the error message for instance methods that don't exist {es-pull}76512[#76512]
+
+Ingest::
+* Execute `EnrichPolicyRunner` on a non dedicated master node {es-pull}76881[#76881] (issue: {es-issue}70436[#70436])
+
+Machine Learning::
+* Allow for larger models in the inference step for data frame analytics {es-pull}76116[#76116] (issue: {es-issue}76093[#76093])
+* Ignore exceptions while opening job after SIGTERM to JVM {es-pull}75850[#75850]
+* Prevent accidentally asking for more resources when scaling down and improve scaling size estimations {es-pull}74691[#74691] (issue: {es-issue}74709[#74709])
+* When setting upgrade mode ensure that internal actions don't throw unnecessary permissions errors {es-pull}75880[#75880]
+* Fix potential "process stopped unexpectedly: Fatal error" for training regression and classification models  {ml-pull}1997[#1997] (issue: {ml-issue}1956[#1956])
+
+Network::
+* Ensure replica requests are marked as `index_data` (#75008) {es-pull}75014[#75014] (issue: {es-issue}73497[#73497])
+* Fix memory/breaker leaks for outbound responses (#76474) {es-pull}76536[#76536] (issues: {es-issue}65921[#65921], {es-issue}76474[#76474])
+
+Search::
+* Remove invalid path from Open PIT rest spec {es-pull}77609[#77609]
+* Skip noop normalizing {es-pull}74656[#74656]
+
+Security::
+* Don't remove warning headers on all failure {es-pull}76434[#76434] (issue: {es-issue}75739[#75739])
+
+Snapshot/Restore::
+* Fix Get Snapshots Request Cancellation with ignore_unavailable=true {es-pull}78004[#78004] (issue: {es-issue}77980[#77980])
+* Fix Spurious Warnings During Snapshot Delete {es-pull}75911[#75911]
+* Include full blob key in Azure read operations exceptions {es-pull}75920[#75920] (issue: {es-issue}75916[#75916])
+* Not throwing `FileNotFoundException` if `BlobContainer` has been deleted {es-pull}75991[#75991]
+
+Transform::
+* Fix potential deadlock when using `stop_at_checkpoint` {es-pull}76034[#76034] (issue: {es-issue}75846[#75846])
+
+
+
+[[upgrade-7.15.0]]
+[float]
+=== Upgrades
+
+Ingest::
+* Upgrade Tika to 1.27 for ingest {es-pull}75191[#75191]
+
+Network::
+* Upgrade to Netty 4.1.66 {es-pull}76135[#76135]
+
+Query Languages::
+* Upgrade ANTLR and move it into QL {es-pull}76358[#76358] (issues: {es-issue}74448[#74448], {es-issue}76288[#76288], {es-issue}76354[#76354])
+
+Snapshot/Restore::
+* Upgrade GCS SDK to 1.117.1 {es-pull}74938[#74938]
+
+
+

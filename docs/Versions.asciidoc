@@ -1,8 +1,8 @@
 
 include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        8.9.0
-:lucene_version_path:   8_9_0
+:lucene_version:        8.11.1
+:lucene_version_path:   8_11_1
 :jdk:                   1.8.0_131
 :jdk_major:             8
 :build_flavor:          default
@@ -55,26 +55,7 @@ endif::[]
 :javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
 ///////
-Permanently unreleased branches (master, n.X)
-///////
-ifeval::["{source_branch}"=="master"]
-:permanently-unreleased-branch:
-endif::[]
-ifeval::["{source_branch}"=="{major-version}"]
-:permanently-unreleased-branch:
-endif::[]
-
-///////
 Shared attribute values are pulled from elastic/docs
 ///////
 
 include::{docs-root}/shared/attributes.asciidoc[]
-
-///////
-APM does not build n.x documentation. Links from .x branches should point to master instead
-///////
-ifeval::["{source_branch}"=="7.x"]
-:apm-server-ref:       {apm-server-ref-m}
-:apm-server-ref-v:     {apm-server-ref-m}
-:apm-overview-ref-v:   {apm-overview-ref-m}
-endif::[]

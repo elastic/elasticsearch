@@ -26,9 +26,7 @@ public class RestClearScrollAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(DELETE, "/_search/scroll"),
-            new Route(DELETE, "/_search/scroll/{scroll_id}")));
+        return unmodifiableList(asList(new Route(DELETE, "/_search/scroll"), new Route(DELETE, "/_search/scroll/{scroll_id}")));
     }
 
     @Override

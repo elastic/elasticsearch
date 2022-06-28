@@ -33,7 +33,8 @@ final class SnapshotRequestConverters {
 
     static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
         String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot").addCommaSeparatedPathParts(repositories)
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addCommaSeparatedPathParts(repositories)
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
@@ -60,7 +61,8 @@ final class SnapshotRequestConverters {
     }
 
     static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot").addPathPart(deleteRepositoryRequest.name())
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(deleteRepositoryRequest.name())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
@@ -115,11 +117,11 @@ final class SnapshotRequestConverters {
 
     static Request cloneSnapshot(CloneSnapshotRequest cloneSnapshotRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart("_snapshot")
-                .addPathPart(cloneSnapshotRequest.repository())
-                .addPathPart(cloneSnapshotRequest.source())
-                .addPathPart("_clone")
-                .addPathPart(cloneSnapshotRequest.target())
-                .build();
+            .addPathPart(cloneSnapshotRequest.repository())
+            .addPathPart(cloneSnapshotRequest.source())
+            .addPathPart("_clone")
+            .addPathPart(cloneSnapshotRequest.target())
+            .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(cloneSnapshotRequest.masterNodeTimeout());

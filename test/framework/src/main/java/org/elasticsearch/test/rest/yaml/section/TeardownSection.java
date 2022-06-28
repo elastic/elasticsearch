@@ -9,7 +9,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,8 +40,10 @@ public class TeardownSection {
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);
             if ("do".equals(parser.currentName()) == false) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "section [" + parser.currentName() + "] not supported within teardown section");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "section [" + parser.currentName() + "] not supported within teardown section"
+                );
             }
             executableSections.add(DoSection.parse(parser));
             parser.nextToken();

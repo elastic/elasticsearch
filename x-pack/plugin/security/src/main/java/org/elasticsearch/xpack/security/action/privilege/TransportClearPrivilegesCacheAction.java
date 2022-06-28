@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.privilege;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,8 +25,11 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportClearPrivilegesCacheAction extends TransportNodesAction<ClearPrivilegesCacheRequest, ClearPrivilegesCacheResponse,
-    ClearPrivilegesCacheRequest.Node, ClearPrivilegesCacheResponse.Node> {
+public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
+    ClearPrivilegesCacheRequest,
+    ClearPrivilegesCacheResponse,
+    ClearPrivilegesCacheRequest.Node,
+    ClearPrivilegesCacheResponse.Node> {
 
     private final CompositeRolesStore rolesStore;
     private final CacheInvalidatorRegistry cacheInvalidatorRegistry;
@@ -37,7 +41,8 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
         TransportService transportService,
         ActionFilters actionFilters,
         CompositeRolesStore rolesStore,
-        CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+        CacheInvalidatorRegistry cacheInvalidatorRegistry
+    ) {
         super(
             ClearPrivilegesCacheAction.NAME,
             threadPool,
@@ -47,14 +52,18 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
             ClearPrivilegesCacheRequest::new,
             ClearPrivilegesCacheRequest.Node::new,
             ThreadPool.Names.MANAGEMENT,
-            ClearPrivilegesCacheResponse.Node.class);
+            ClearPrivilegesCacheResponse.Node.class
+        );
         this.rolesStore = rolesStore;
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
     }
 
     @Override
     protected ClearPrivilegesCacheResponse newResponse(
-        ClearPrivilegesCacheRequest request, List<ClearPrivilegesCacheResponse.Node> nodes, List<FailedNodeException> failures) {
+        ClearPrivilegesCacheRequest request,
+        List<ClearPrivilegesCacheResponse.Node> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new ClearPrivilegesCacheResponse(clusterService.getClusterName(), nodes, failures);
     }
 
@@ -64,7 +73,7 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
     }
 
     @Override
-    protected ClearPrivilegesCacheResponse.Node newNodeResponse(StreamInput in) throws IOException {
+    protected ClearPrivilegesCacheResponse.Node newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new ClearPrivilegesCacheResponse.Node(in);
     }
 
@@ -73,8 +82,10 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
         if (request.getApplicationNames() == null || request.getApplicationNames().length == 0) {
             cacheInvalidatorRegistry.invalidateCache("application_privileges");
         } else {
-            cacheInvalidatorRegistry.invalidateByKey("application_privileges",
-                org.elasticsearch.core.List.of(request.getApplicationNames()));
+            cacheInvalidatorRegistry.invalidateByKey(
+                "application_privileges",
+                org.elasticsearch.core.List.of(request.getApplicationNames())
+            );
         }
         if (request.clearRolesCache()) {
             rolesStore.invalidateAll();

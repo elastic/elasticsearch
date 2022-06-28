@@ -32,10 +32,12 @@ public class IndicesExistsIT extends ESIntegTestCase {
 
         createIndex("foo", "foobar", "bar", "barbaz");
 
-        IndicesExistsRequestBuilder indicesExistsRequestBuilder = client().admin().indices().prepareExists("foo*")
-                .setExpandWildcardsOpen(false);
+        IndicesExistsRequestBuilder indicesExistsRequestBuilder = client().admin()
+            .indices()
+            .prepareExists("foo*")
+            .setExpandWildcardsOpen(false);
         IndicesExistsRequest request = indicesExistsRequestBuilder.request();
-        //check that ignore unavailable and allow no indices are set to false. That is their only valid value as it can't be overridden
+        // check that ignore unavailable and allow no indices are set to false. That is their only valid value as it can't be overridden
         assertFalse(request.indicesOptions().ignoreUnavailable());
         assertFalse(request.indicesOptions().allowNoIndices());
         assertThat(indicesExistsRequestBuilder.get().isExists(), equalTo(false));
@@ -43,8 +45,10 @@ public class IndicesExistsIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("foobar").get());
 
         assertThat(client().admin().indices().prepareExists("foo*").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareExists("foo*").setExpandWildcardsOpen(false)
-                .setExpandWildcardsClosed(false).get().isExists(), equalTo(false));
+        assertThat(
+            client().admin().indices().prepareExists("foo*").setExpandWildcardsOpen(false).setExpandWildcardsClosed(false).get().isExists(),
+            equalTo(false)
+        );
         assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareExists("foob*").setExpandWildcardsClosed(false).get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("bar*").get().isExists(), equalTo(true));
@@ -56,8 +60,12 @@ public class IndicesExistsIT extends ESIntegTestCase {
         createIndex("ro");
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY,
-            SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("ro", blockSetting);
                 assertThat(client().admin().indices().prepareExists("ro").execute().actionGet().isExists(), equalTo(true));

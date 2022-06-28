@@ -36,13 +36,18 @@ public class UpdateSettingsStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetadata.getIndex().getName())
-            .masterNodeTimeout(TimeValue.MAX_VALUE)
-            .settings(settings);
-        getClient().admin().indices().updateSettings(updateSettingsRequest,
-                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+    public void performAction(
+        IndexMetadata indexMetadata,
+        ClusterState currentState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(
+            TimeValue.MAX_VALUE
+        ).settings(settings);
+        getClient().admin()
+            .indices()
+            .updateSettings(updateSettingsRequest, ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
     }
 
     public Settings getSettings() {
@@ -63,7 +68,6 @@ public class UpdateSettingsStep extends AsyncActionStep {
             return false;
         }
         UpdateSettingsStep other = (UpdateSettingsStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(settings, other.settings);
+        return super.equals(obj) && Objects.equals(settings, other.settings);
     }
 }

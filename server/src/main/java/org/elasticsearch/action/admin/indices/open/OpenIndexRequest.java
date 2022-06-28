@@ -27,8 +27,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRequest.Replaceable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, false, true);
+
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, false, true);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     public OpenIndexRequest(StreamInput in) throws IOException {
@@ -40,8 +42,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         }
     }
 
-    public OpenIndexRequest() {
-    }
+    public OpenIndexRequest() {}
 
     /**
      * Constructs a new open index request for the specified index.

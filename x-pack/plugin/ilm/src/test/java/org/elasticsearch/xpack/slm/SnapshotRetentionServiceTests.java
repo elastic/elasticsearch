@@ -46,13 +46,20 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
     }
 
     public void testJobsAreScheduled() throws InterruptedException {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
         ClockMock clock = new ClockMock();
 
         ThreadPool threadPool = new TestThreadPool("test");
-        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, clusterSettings);
-             SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY, FakeRetentionTask::new, clock)) {
+        try (
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, clusterSettings);
+            SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY, FakeRetentionTask::new, clock)
+        ) {
             service.init(clusterService);
             assertThat(service.getScheduler().jobCount(), equalTo(0));
 
@@ -79,18 +86,24 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
     }
 
     public void testManualTriggering() throws InterruptedException {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
         ClockMock clock = new ClockMock();
         AtomicInteger invoked = new AtomicInteger(0);
 
         ThreadPool threadPool = new TestThreadPool("test");
-        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, clusterSettings);
-             SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY,
-                 () -> new FakeRetentionTask(event -> {
-                     assertThat(event.getJobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
-                     invoked.incrementAndGet();
-                 }), clock)) {
+        try (
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, clusterSettings);
+            SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY, () -> new FakeRetentionTask(event -> {
+                assertThat(event.getJobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
+                invoked.incrementAndGet();
+            }), clock)
+        ) {
             service.init(clusterService);
             service.onMaster();
             service.triggerRetention();

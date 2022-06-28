@@ -27,8 +27,7 @@ public class IpRangeFieldMapperTests extends MapperServiceTestCase {
         cases.put("192.168.0.0/16", "192.168.255.255");
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
-            ParsedDocument doc =
-                mapper.parse(source(b -> b.field("field", entry.getKey())));
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", entry.getKey())));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(3, fields.length);
             IndexableField dvField = fields[0];
@@ -37,9 +36,9 @@ public class IpRangeFieldMapperTests extends MapperServiceTestCase {
             assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
             IndexableField storedField = fields[2];
             assertTrue(storedField.fieldType().stored());
-            String strVal =
-                InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0")) + " : " +
-                    InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
+            String strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0"))
+                + " : "
+                + InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
             assertThat(storedField.stringValue(), containsString(strVal));
         }
     }

@@ -28,8 +28,12 @@ public class RestDeleteCalendarEventAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(DELETE, BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}",
-                    RestApiVersion.V_7).build()
+                .replaces(
+                    DELETE,
+                    PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 

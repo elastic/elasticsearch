@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
@@ -108,7 +109,6 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparis
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
-
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     public ExecutionInfo debugOptimize(LogicalPlan verified) {
@@ -121,67 +121,73 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch("Substitutions", Limiter.ONCE,
-                new RewritePivot(),
-                new ReplaceRegexMatch(),
-                new ReplaceAggregatesWithLiterals(),
-                new ReplaceCountInLocalRelation()
-                );
-
-        Batch refs = new Batch("Replace References", Limiter.ONCE,
-                new ReplaceReferenceAttributeWithSource()
-                );
-
-        Batch operators = new Batch("Operator Optimization",
-                // combining
-                new CombineProjections(),
-                // folding
-                new ReplaceFoldableAttributes(),
-                new FoldNull(),
-                new ConstantFolding(),
-                new SimplifyConditional(),
-                new SimplifyCase(),
-                // boolean
-                new BooleanSimplification(),
-                new LiteralsOnTheRight(),
-                new BinaryComparisonSimplification(),
-                // needs to occur before BinaryComparison combinations (see class)
-                new PropagateEquals(),
-                new PropagateNullable(),
-                new CombineBinaryComparisons(),
-                new CombineDisjunctionsToIn(),
-                new SimplifyComparisonsArithmetics(SqlDataTypes::areCompatible),
-                // prune/elimination
-                new PruneLiteralsInGroupBy(),
-                new PruneDuplicatesInGroupBy(),
-                new PruneFilters(),
-                new PruneOrderByForImplicitGrouping(),
-                new PruneLiteralsInOrderBy(),
-                new PruneOrderByNestedFields(),
-                new PruneCast(),
-                // order by alignment of the aggs
-                new SortAggregateOnOrderBy(),
-                new PushDownAndCombineFilters()
+        Batch substitutions = new Batch(
+            "Substitutions",
+            Limiter.ONCE,
+            new RewritePivot(),
+            new ReplaceRegexMatch(),
+            new ReplaceAggregatesWithLiterals()
         );
 
-        Batch aggregate = new Batch("Aggregation Rewrite",
-                new ReplaceMinMaxWithTopHits(),
-                new ReplaceAggsWithMatrixStats(),
-                new ReplaceAggsWithExtendedStats(),
-                new ReplaceAggsWithStats(),
-                new ReplaceSumWithStats(),
-                new PromoteStatsToExtendedStats(),
-                new ReplaceAggsWithPercentiles(),
-                new ReplaceAggsWithPercentileRanks()
-                );
+        Batch refs = new Batch("Replace References", Limiter.ONCE, new ReplaceReferenceAttributeWithSource());
 
-        Batch local = new Batch("Skip Elasticsearch",
-                new SkipQueryOnLimitZero(),
-                new SkipQueryIfFoldingProjection()
-                );
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE,
-                CleanAliases.INSTANCE,
-                new SetAsOptimized());
+        Batch operators = new Batch(
+            "Operator Optimization",
+            // combining
+            new CombineProjections(),
+            // folding
+            new ReplaceFoldableAttributes(),
+            new FoldNull(),
+            new ReplaceAggregationsInLocalRelations(),
+            new ConstantFolding(),
+            new SimplifyConditional(),
+            new SimplifyCase(),
+            // boolean
+            new BooleanSimplification(),
+            new LiteralsOnTheRight(),
+            new BinaryComparisonSimplification(),
+            // needs to occur before BinaryComparison combinations (see class)
+            new PropagateEquals(),
+            new PropagateNullable(),
+            new CombineBinaryComparisons(),
+            new CombineDisjunctionsToIn(),
+            new SimplifyComparisonsArithmetics(SqlDataTypes::areCompatible),
+            // prune/elimination
+            new PruneDuplicatesInGroupBy(),
+            new PruneFilters(),
+            new PruneOrderByForImplicitGrouping(),
+            new PruneLiteralsInOrderBy(),
+            new PruneOrderByNestedFields(),
+            new PruneCast(),
+            // order by alignment of the aggs
+            new SortAggregateOnOrderBy(),
+            // ReplaceAggregationsInLocalRelations, ConstantFolding and PruneFilters must all be applied before this:
+            new PushDownAndCombineFilters()
+        );
+
+        Batch aggregate = new Batch(
+            "Aggregation Rewrite",
+            new ReplaceMinMaxWithTopHits(),
+            new ReplaceAggsWithMatrixStats(),
+            new ReplaceAggsWithExtendedStats(),
+            new ReplaceAggsWithStats(),
+            new ReplaceSumWithStats(),
+            new PromoteStatsToExtendedStats(),
+            new ReplaceAggsWithPercentiles(),
+            new ReplaceAggsWithPercentileRanks()
+        );
+
+        Batch local = new Batch(
+            "Skip Elasticsearch",
+            new SkipQueryOnLimitZero(),
+            new SkipQueryForLiteralAggregations(),
+            new PushProjectionsIntoLocalRelation(),
+            // must run after `PushProjectionsIntoLocalRelation` because it removes the distinction between implicit
+            // and explicit groupings
+            new PruneLiteralsInGroupBy()
+        );
+
+        Batch label = new Batch("Set as Optimized", Limiter.ONCE, CleanAliases.INSTANCE, new SetAsOptimized());
 
         return Arrays.asList(substitutions, refs, operators, aggregate, local, label);
     }
@@ -199,8 +205,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 // fallback - should not happen
                 else {
-                    UnresolvedAttribute attr = new UnresolvedAttribute(namedExpression.source(), namedExpression.name(), null,
-                            "Unexpected alias");
+                    UnresolvedAttribute attr = new UnresolvedAttribute(
+                        namedExpression.source(),
+                        namedExpression.name(),
+                        null,
+                        "Unexpected alias"
+                    );
                     return new Pivot(plan.source(), plan.child(), plan.column(), singletonList(attr), plan.aggregates());
                 }
             }
@@ -268,7 +278,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            // everything was eliminated, the grouping
             if (prunedGroupings.size() > 0) {
                 List<Expression> newGroupings = new ArrayList<>(groupings);
                 newGroupings.removeAll(prunedGroupings);
@@ -359,8 +368,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // projection has no nested field references, remove any nested orders
                 if (nestedTopFields.isEmpty()) {
                     orders.removeAll(nestedOrders.values());
-                }
-                else {
+                } else {
                     // remove orders that are not ancestors of the nested projections
                     for (Entry<String, Order> entry : nestedOrders.entrySet()) {
                         String parent = entry.getKey();
@@ -457,7 +465,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     // Check if the groupings (a, y) match the orderings (b, x) through the aggregates' aliases (x, y)
                                     // e.g. SELECT a AS x, b AS y ... GROUP BY a, y ORDER BY b, x
                                     if ((equalsAsAttribute(child, group)
-                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))
+                                        && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))
                                         || (equalsAsAttribute(alias, group)
                                             && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
                                         isMatching.set(Boolean.TRUE);
@@ -554,7 +562,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
         private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
 
-            //TODO: this need rewriting when moving functions of NamedExpression
+            // TODO: this need rewriting when moving functions of NamedExpression
 
             // collect aliases in the lower list
             AttributeMap.Builder<NamedExpression> aliasesBuilder = AttributeMap.builder();
@@ -576,7 +584,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return replaced;
         }
     }
-
 
     // replace attributes of foldable expressions with the foldable trees
     // SELECT 5 a, 3 + 2 b ... WHERE a < 10 ORDER BY b
@@ -643,11 +650,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         private boolean canPropagateFoldable(LogicalPlan p) {
             return p instanceof Project
-                    || p instanceof Filter
-                    || p instanceof SubQueryAlias
-                    || p instanceof Aggregate
-                    || p instanceof Limit
-                    || p instanceof OrderBy;
+                || p instanceof Filter
+                || p instanceof SubQueryAlias
+                || p instanceof Aggregate
+                || p instanceof Limit
+                || p instanceof OrderBy;
         }
     }
 
@@ -676,8 +683,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
             } else if (e instanceof Alias == false
-                    && e.nullable() == Nullability.TRUE
-                    && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                && e.nullable() == Nullability.TRUE
+                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                     return Literal.of(e, null);
                 }
             return e;
@@ -812,10 +819,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      * and to iif(count(1)=0,null,literal) for the other three.
      * Additionally count(DISTINCT literal) is converted to iif(count(1)=0, 0, 1).
      */
-    private static class ReplaceAggregatesWithLiterals extends OptimizerRule<LogicalPlan> {
+    private static class ReplaceAggregatesWithLiterals extends OptimizerBasicRule {
 
         @Override
-        protected LogicalPlan rule(LogicalPlan p) {
+        public LogicalPlan apply(LogicalPlan p) {
             return p.transformExpressionsDown(AggregateFunction.class, a -> {
                 if (Stats.isTypeCompatible(a) || (a instanceof Count && ((Count) a).distinct())) {
 
@@ -842,17 +849,43 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    /**
-     * A COUNT in a local relation will always be 1.
-     */
-    private static class ReplaceCountInLocalRelation extends OptimizerRule<Aggregate> {
+    static class ReplaceAggregationsInLocalRelations extends OptimizerRule<UnaryPlan> {
 
         @Override
-        protected LogicalPlan rule(Aggregate a) {
-            boolean hasLocalRelation = a.anyMatch(LocalRelation.class::isInstance);
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if (plan instanceof Aggregate || plan instanceof Filter || plan instanceof OrderBy) {
+                LocalRelation relation = unfilteredLocalRelation(plan.child());
+                if (relation != null) {
+                    long count = relation.executable() instanceof EmptyExecutable ? 0L : 1L;
 
-            return hasLocalRelation ? a.transformExpressionsDown(Count.class, c -> new Literal(c.source(), 1, c.dataType())) : a;
+                    return plan.transformExpressionsDown(AggregateFunction.class, aggregateFunction -> {
+                        if (aggregateFunction instanceof Count) {
+                            return Literal.of(aggregateFunction, count);
+                        } else if (count == 0) {
+                            return Literal.of(aggregateFunction, null);
+                        } else {
+                            // note, most aggregation functions have already been substituted in ReplaceAggregatesWithLiterals
+                            return aggregateFunction;
+                        }
+                    });
+                }
+            }
+
+            return plan;
         }
+
+        private LocalRelation unfilteredLocalRelation(LogicalPlan plan) {
+            List<LogicalPlan> filterOrLeaves = plan.collectFirstChildren(p -> p instanceof Filter || p instanceof LeafPlan);
+
+            if (filterOrLeaves.size() == 1) {
+                LogicalPlan filterOrLeaf = filterOrLeaves.get(0);
+                if (filterOrLeaf instanceof LocalRelation) {
+                    return (LocalRelation) filterOrLeaf;
+                }
+            }
+            return null;
+        }
+
     }
 
     static class ReplaceAggsWithMatrixStats extends OptimizerBasicRule {
@@ -1058,16 +1091,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan p) {
             Map<PercentileKey, Set<Expression>> percentsPerAggKey = new LinkedHashMap<>();
 
-            p.forEachExpressionUp(Percentile.class, per ->
-                percentsPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.percent())
+            p.forEachExpressionUp(
+                Percentile.class,
+                per -> percentsPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.percent())
             );
 
             // create a Percentile agg for each agg key
             Map<PercentileKey, Percentiles> percentilesPerAggKey = new LinkedHashMap<>();
-            percentsPerAggKey.forEach((aggKey, percents) -> percentilesPerAggKey.put(
-                aggKey,
-                new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents),
-                    aggKey.percentilesConfig())));
+            percentsPerAggKey.forEach(
+                (aggKey, percents) -> percentilesPerAggKey.put(
+                    aggKey,
+                    new Percentiles(
+                        percents.iterator().next().source(),
+                        aggKey.field(),
+                        new ArrayList<>(percents),
+                        aggKey.percentilesConfig()
+                    )
+                )
+            );
 
             return p.transformExpressionsUp(Percentile.class, per -> {
                 PercentileKey a = new PercentileKey(per);
@@ -1083,16 +1124,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan p) {
             final Map<PercentileKey, Set<Expression>> valuesPerAggKey = new LinkedHashMap<>();
 
-            p.forEachExpressionUp(PercentileRank.class, per ->
-                valuesPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.value())
+            p.forEachExpressionUp(
+                PercentileRank.class,
+                per -> valuesPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.value())
             );
 
             // create a PercentileRank agg for each agg key
             Map<PercentileKey, PercentileRanks> ranksPerAggKey = new LinkedHashMap<>();
-            valuesPerAggKey.forEach((aggKey, values) -> ranksPerAggKey.put(
-                aggKey,
-                new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values),
-                    aggKey.percentilesConfig())));
+            valuesPerAggKey.forEach(
+                (aggKey, values) -> ranksPerAggKey.put(
+                    aggKey,
+                    new PercentileRanks(
+                        values.iterator().next().source(),
+                        aggKey.field(),
+                        new ArrayList<>(values),
+                        aggKey.percentilesConfig()
+                    )
+                )
+            );
 
             return p.transformExpressionsUp(PercentileRank.class, per -> {
                 PercentileRanks ranks = ranksPerAggKey.get(new PercentileKey(per));
@@ -1145,68 +1194,81 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         return new LocalRelation(plan.source(), new EmptyExecutable(plan.output()));
     }
 
-    static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
+    static class PushProjectionsIntoLocalRelation extends OptimizerRule<UnaryPlan> {
+
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            List<LogicalPlan> leaves = plan.collectLeaves();
-
-            List<LogicalPlan> projectOrAggregates = plan.collect(p ->
-                p instanceof Project || p instanceof Aggregate);
-
-            if (leaves.size() == 1 && projectOrAggregates.size() == 1) {
-                LogicalPlan leaf = leaves.get(0);
-                LogicalPlan projectOrAggregate = projectOrAggregates.get(0);
-
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if ((plan instanceof Project || plan instanceof Aggregate) && plan.child() instanceof LocalRelation) {
+                LocalRelation relation = (LocalRelation) plan.child();
                 List<Object> foldedValues = null;
 
-                // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
-                boolean isNonSkippedLocalRelation = leaf instanceof LocalRelation
-                    && ((LocalRelation) leaf).executable() instanceof EmptyExecutable == false;
-
-                if (projectOrAggregate instanceof Project && isNonSkippedLocalRelation) {
-                    foldedValues = extractConstants(((Project) projectOrAggregate).projections());
-                } else if (projectOrAggregate instanceof Aggregate) {
-                    Aggregate a = (Aggregate) projectOrAggregate;
-                    List<Object> folded = extractConstants(a.aggregates());
-
-                    boolean onlyConstantAggregations = leaf instanceof EsRelation
-                        && folded.size() == a.aggregates().size()
-                        && a.groupings().isEmpty();
-
-                    if (isNonSkippedLocalRelation || onlyConstantAggregations) {
-                        foldedValues = folded;
+                if (relation.executable() instanceof SingletonExecutable) {
+                    if (plan instanceof Aggregate) {
+                        foldedValues = extractLiterals(((Aggregate) plan).aggregates());
+                    } else {
+                        foldedValues = extractLiterals(((Project) plan).projections());
+                    }
+                } else if (relation.executable() instanceof EmptyExecutable) {
+                    if (plan instanceof Aggregate) {
+                        Aggregate agg = (Aggregate) plan;
+                        if (agg.groupings().isEmpty()) {
+                            // Implicit groupings on empty relations must produce a singleton result set with the aggregation results
+                            // E.g. `SELECT COUNT(*) WHERE FALSE`
+                            foldedValues = extractLiterals(agg.aggregates());
+                        } else {
+                            // Explicit groupings on empty relations like `SELECT 'a' WHERE FALSE GROUP BY 1`
+                            return new LocalRelation(plan.source(), new EmptyExecutable(plan.output()));
+                        }
                     }
                 }
 
                 if (foldedValues != null) {
-                    return new LocalRelation(projectOrAggregate.source(),
-                        new SingletonExecutable(projectOrAggregate.output(), foldedValues.toArray()));
+                    return new LocalRelation(plan.source(), new SingletonExecutable(plan.output(), foldedValues.toArray()));
                 }
             }
 
             return plan;
         }
 
-        private List<Object> extractConstants(List<? extends NamedExpression> named) {
+        private List<Object> extractLiterals(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
                 if (n instanceof Alias) {
                     Alias a = (Alias) n;
                     if (a.child().foldable()) {
                         values.add(a.child().fold());
-                    }
-                    // not everything is foldable, bail out early
-                    else {
-                        return values;
+                    } else {
+                        // not everything is foldable, bail out early
+                        return null;
                     }
                 } else if (n.foldable()) {
                     values.add(n.fold());
                 } else {
                     // not everything is foldable, bail-out early
-                    return values;
+                    return null;
                 }
             }
             return values;
+        }
+
+    }
+
+    static class SkipQueryForLiteralAggregations extends OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate plan) {
+            if (plan.groupings().isEmpty() && plan.child() instanceof EsRelation && plan.aggregates().stream().allMatch(this::foldable)) {
+                return plan.replaceChild(new LocalRelation(plan.source(), new SingletonExecutable()));
+            }
+
+            return plan;
+        }
+
+        private boolean foldable(Expression e) {
+            if (e instanceof Alias) {
+                e = ((Alias) e).child();
+            }
+            return e.foldable();
         }
 
     }

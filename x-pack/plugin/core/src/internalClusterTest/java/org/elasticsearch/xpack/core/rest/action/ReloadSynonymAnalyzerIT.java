@@ -81,19 +81,25 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         Path config = internalCluster().getInstance(Environment.class).configFile();
         String synonymsFileName = "synonyms.txt";
         Path synonymsFile = config.resolve(synonymsFileName);
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile), StandardCharsets.UTF_8))) {
+        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(Files.newOutputStream(synonymsFile), StandardCharsets.UTF_8))) {
             out.println("foo, baz");
         }
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-                .put("index.number_of_shards", cluster().numDataNodes() * 2)
-                .put("index.number_of_replicas", 1)
-                .put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
-                .put("analysis.analyzer.my_synonym_analyzer.filter", "my_synonym_filter")
-                .put("analysis.filter.my_synonym_filter.type", "synonym")
-                .put("analysis.filter.my_synonym_filter.updateable", "true")
-                .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer"));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", cluster().numDataNodes() * 2)
+                        .put("index.number_of_replicas", 1)
+                        .put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
+                        .put("analysis.analyzer.my_synonym_analyzer.filter", "my_synonym_filter")
+                        .put("analysis.filter.my_synonym_filter.type", "synonym")
+                        .put("analysis.filter.my_synonym_filter.updateable", "true")
+                        .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName)
+                )
+                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer")
+        );
 
         client().prepareIndex("test", "_doc", "1").setSource("field", "foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh("test").execute().actionGet());
@@ -110,18 +116,23 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         // now update synonyms file several times and trigger reloading
         for (int i = 0; i < 10; i++) {
             String testTerm = randomAlphaOfLength(10);
-            try (PrintWriter out = new PrintWriter(
-                    new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+            try (
+                PrintWriter out = new PrintWriter(
+                    new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8)
+                )
+            ) {
                 out.println("foo, baz, " + testTerm);
             }
             ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest("test"))
-                    .actionGet();
+                .actionGet();
             assertNoFailures(reloadResponse);
             assertEquals(cluster().numDataNodes(), reloadResponse.getSuccessfulShards());
             assertTrue(reloadResponse.getReloadDetails().containsKey("test"));
             assertEquals("test", reloadResponse.getReloadDetails().get("test").getIndexName());
-            assertEquals(Collections.singleton("my_synonym_analyzer"),
-                    reloadResponse.getReloadDetails().get("test").getReloadedAnalyzers());
+            assertEquals(
+                Collections.singleton("my_synonym_analyzer"),
+                reloadResponse.getReloadDetails().get("test").getReloadedAnalyzers()
+            );
 
             analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
             assertEquals(3, analyzeResponse.getTokens().size());

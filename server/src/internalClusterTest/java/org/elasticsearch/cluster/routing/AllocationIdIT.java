@@ -76,10 +76,14 @@ public class AllocationIdIT extends ESIntegTestCase {
         final String indexName = "index42";
         final String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum").build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")
+                .build()
+        );
         final int numDocs = indexDocs(indexName, "foo", "bar");
         final IndexSettings indexSettings = getIndexSettings(indexName, node1);
         final Set<String> allocationIds = getAllocationIds(indexName);
@@ -112,9 +116,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // allocate stale primary
-        client(node1).admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
-            .get();
+        client(node1).admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
 
         // allocation fails due to corruption marker
         assertBusy(() -> {
@@ -125,7 +127,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         });
 
         internalCluster().stopNode(node1);
-        try(Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
         node1 = internalCluster().startNode(node1DataPathSettings);
@@ -135,9 +137,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // no any valid shard is there; have to invoke AllocateStalePrimary again
-        client().admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
-            .get();
+        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true)).get();
 
         ensureYellow(indexName);
 
@@ -152,12 +152,15 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {
-        final ClusterHealthStatus indexHealthStatus = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indexName)).actionGet().getStatus();
+        final ClusterHealthStatus indexHealthStatus = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest(indexName))
+            .actionGet()
+            .getStatus();
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
-    private int indexDocs(String indexName, Object ... source) throws InterruptedException {
+    private int indexDocs(String indexName, Object... source) throws InterruptedException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {
@@ -203,22 +206,28 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private void putFakeCorruptionMarker(IndexSettings indexSettings, ShardId shardId, Path indexPath) throws IOException {
-        try(Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.markStoreCorrupted(new IOException("fake ioexception"));
         }
     }
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
-                    .get().getExplanation();
+            final ClusterAllocationExplanation explanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(shardId.id())
+                .setPrimary(true)
+                .get()
+                .getExplanation();
 
             final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            assertThat(
+                shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY)
+            );
         });
     }
 

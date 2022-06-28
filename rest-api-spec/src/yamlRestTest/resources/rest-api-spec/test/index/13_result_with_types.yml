@@ -5,7 +5,7 @@
       index:
           index:  test_index
           type:   test
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
   - match:   { result: created }
@@ -14,7 +14,7 @@
       index:
           index:    test_index
           type:     test
-          id:       1
+          id:       "1"
           body:     { foo: bar }
           op_type:  index
 

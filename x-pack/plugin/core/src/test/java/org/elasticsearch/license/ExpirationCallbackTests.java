@@ -23,8 +23,11 @@ public class ExpirationCallbackTests extends ESTestCase {
         NoopPostExpirationCallback post = new NoopPostExpirationCallback(min, max, frequency);
         long now = System.currentTimeMillis();
         long expiryDate = now + expiryDuration.getMillis();
-        assertThat(post.delay(expiryDate, now),
-                equalTo(TimeValue.timeValueMillis(expiryDuration.getMillis() + min.getMillis()))); // before license expiry
+        assertThat(
+            post.delay(expiryDate, now),
+            // before license expiry
+            equalTo(TimeValue.timeValueMillis(expiryDuration.getMillis() + min.getMillis()))
+        );
         assertThat(post.delay(expiryDate, expiryDate), equalTo(min)); // on license expiry
         int latestValidTriggerDelay = (int) (expiryDuration.getMillis() + max.getMillis());
         int earliestValidTriggerDelay = (int) (expiryDuration.getMillis() + min.getMillis());
@@ -87,50 +90,66 @@ public class ExpirationCallbackTests extends ESTestCase {
         assertExpirationCallbackScheduleTime(pre, expiryDuration.millis(), latestValidTriggerDelay, earliestValidTriggerDelay);
     }
 
-    private void assertExpirationCallbackDelay(ExpirationCallback expirationCallback, long expiryDuration,
-                                               int latestValidTriggerDelay, int earliestValidTriggerDelay) {
+    private void assertExpirationCallbackDelay(
+        ExpirationCallback expirationCallback,
+        long expiryDuration,
+        int latestValidTriggerDelay,
+        int earliestValidTriggerDelay
+    ) {
         long now = System.currentTimeMillis();
         long expiryDate = now + expiryDuration;
         // bounds
         assertThat(expirationCallback.delay(expiryDate, now + earliestValidTriggerDelay), equalTo(TimeValue.timeValueMillis(0)));
         assertThat(expirationCallback.delay(expiryDate, now + latestValidTriggerDelay), equalTo(TimeValue.timeValueMillis(0)));
         // in match
-        assertThat(expirationCallback.delay(expiryDate,
-                now + randomIntBetween(earliestValidTriggerDelay, latestValidTriggerDelay)),
-                equalTo(TimeValue.timeValueMillis(0)));
+        assertThat(
+            expirationCallback.delay(expiryDate, now + randomIntBetween(earliestValidTriggerDelay, latestValidTriggerDelay)),
+            equalTo(TimeValue.timeValueMillis(0))
+        );
         // out of bounds
         int deltaBeforeEarliestMatch = between(1, earliestValidTriggerDelay);
-        assertThat(expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch),
-                equalTo(TimeValue.timeValueMillis(earliestValidTriggerDelay - deltaBeforeEarliestMatch)));
+        assertThat(
+            expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch),
+            equalTo(TimeValue.timeValueMillis(earliestValidTriggerDelay - deltaBeforeEarliestMatch))
+        );
         int deltaAfterLatestMatch = between(latestValidTriggerDelay + 1, Integer.MAX_VALUE); // after expiry and after max
         assertThat(expirationCallback.delay(expiryDate, expiryDate + deltaAfterLatestMatch), nullValue());
     }
 
-    public void assertExpirationCallbackScheduleTime(ExpirationCallback expirationCallback, long expiryDuration,
-                                                      int latestValidTriggerDelay, int earliestValidTriggerDelay) {
+    public void assertExpirationCallbackScheduleTime(
+        ExpirationCallback expirationCallback,
+        long expiryDuration,
+        int latestValidTriggerDelay,
+        int earliestValidTriggerDelay
+    ) {
         long now = System.currentTimeMillis();
         long expiryDate = now + expiryDuration;
         int validTriggerInterval = between(earliestValidTriggerDelay, latestValidTriggerDelay);
-        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate,
-                now + validTriggerInterval, now + validTriggerInterval),
-                equalTo(now + validTriggerInterval));
-        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + validTriggerInterval),
-                equalTo(now + validTriggerInterval + expirationCallback.getFrequency()));
+        assertThat(
+            expirationCallback.nextScheduledTimeForExpiry(expiryDate, now + validTriggerInterval, now + validTriggerInterval),
+            equalTo(now + validTriggerInterval)
+        );
+        assertThat(
+            expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + validTriggerInterval),
+            equalTo(now + validTriggerInterval + expirationCallback.getFrequency())
+        );
 
         int deltaBeforeEarliestMatch = between(1, earliestValidTriggerDelay - 1);
-        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + deltaBeforeEarliestMatch),
-                equalTo(now + deltaBeforeEarliestMatch +
-                        expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch).getMillis()));
-        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate,
-                now + deltaBeforeEarliestMatch, now + deltaBeforeEarliestMatch),
-                equalTo(now + deltaBeforeEarliestMatch +
-                        expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch).getMillis()));
+        assertThat(
+            expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + deltaBeforeEarliestMatch),
+            equalTo(now + deltaBeforeEarliestMatch + expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch).getMillis())
+        );
+        assertThat(
+            expirationCallback.nextScheduledTimeForExpiry(expiryDate, now + deltaBeforeEarliestMatch, now + deltaBeforeEarliestMatch),
+            equalTo(now + deltaBeforeEarliestMatch + expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch).getMillis())
+        );
 
         int deltaAfterLatestMatch = between(latestValidTriggerDelay + 1, Integer.MAX_VALUE); // after expiry and after max
         assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + deltaAfterLatestMatch), equalTo(-1L));
-        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate,
-                now + deltaAfterLatestMatch, now + deltaAfterLatestMatch),
-                equalTo(-1L));
+        assertThat(
+            expirationCallback.nextScheduledTimeForExpiry(expiryDate, now + deltaAfterLatestMatch, now + deltaAfterLatestMatch),
+            equalTo(-1L)
+        );
     }
 
     private static class NoopPostExpirationCallback extends ExpirationCallback.Post {

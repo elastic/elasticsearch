@@ -1,9 +1,0 @@
-pr: 64708
-issues:
-  - 64689
-  - 51816
-area: Infra/REST API
-type: UNKNOWN
-summary: Handle incorrect header values
-versions:
-  - v8.0.0

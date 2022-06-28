@@ -65,30 +65,30 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
      * (inclusive) to {@code progress} (exclusive) is available. Calling this method potentially triggers the execution of one or
      * more listeners that are waiting for the progress to reach a value lower than the one just updated.
      *
-     * @param progress the new progress value
+     * @param progressValue the new progress value
      */
-    public void onProgress(final long progress) {
+    public void onProgress(final long progressValue) {
         ensureNotCompleted();
 
-        if (progress <= start) {
-            assert false : progress + " <= " + start;
+        if (progressValue <= start) {
+            assert false : progressValue + " <= " + start;
             throw new IllegalArgumentException("Cannot update progress with a value less than [start=" + start + ']');
         }
-        if (end < progress) {
-            assert false : end + " < " + progress;
+        if (end < progressValue) {
+            assert false : end + " < " + progressValue;
             throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
         }
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {
-            assert this.progress < progress : this.progress + " < " + progress;
-            this.progress = progress;
+            assert this.progress < progressValue : this.progress + " < " + progressValue;
+            this.progress = progressValue;
 
-            final List<Tuple<Long, ActionListener<Long>>> listeners = this.listeners;
-            if (listeners != null) {
+            final List<Tuple<Long, ActionListener<Long>>> listenersCopy = this.listeners;
+            if (listenersCopy != null) {
                 List<Tuple<Long, ActionListener<Long>>> listenersToKeep = null;
-                for (Tuple<Long, ActionListener<Long>> listener : listeners) {
-                    if (progress < listener.v1()) {
+                for (Tuple<Long, ActionListener<Long>> listener : listenersCopy) {
+                    if (progressValue < listener.v1()) {
                         if (listenersToKeep == null) {
                             listenersToKeep = new ArrayList<>();
                         }
@@ -104,7 +104,7 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
             }
         }
         if (listenersToExecute != null) {
-            listenersToExecute.forEach(listener -> executeListener(listener, () -> progress));
+            listenersToExecute.forEach(listener -> executeListener(listener, () -> progressValue));
         }
         assert invariant();
     }
@@ -152,22 +152,22 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
      */
     public void addListener(ActionListener<Long> listener, long value) {
         boolean executeImmediate = false;
-        final long progress;
+        final long progressValue;
         synchronized (this) {
-            progress = this.progress;
-            if (completed || value <= progress) {
+            progressValue = this.progress;
+            if (completed || value <= progressValue) {
                 executeImmediate = true;
             } else {
-                List<Tuple<Long, ActionListener<Long>>> listeners = this.listeners;
-                if (listeners == null) {
-                    listeners = new ArrayList<>();
+                List<Tuple<Long, ActionListener<Long>>> listenersCopy = this.listeners;
+                if (listenersCopy == null) {
+                    listenersCopy = new ArrayList<>();
                 }
-                listeners.add(Tuple.tuple(value, listener));
-                this.listeners = listeners;
+                listenersCopy.add(Tuple.tuple(value, listener));
+                this.listeners = listenersCopy;
             }
         }
         if (executeImmediate) {
-            executeListener(listener, completed ? () -> actionGet(0L) : () -> progress);
+            executeListener(listener, completed ? () -> actionGet(0L) : () -> progressValue);
         }
         assert invariant();
     }

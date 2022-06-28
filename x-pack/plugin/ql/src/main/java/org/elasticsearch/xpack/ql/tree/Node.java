@@ -221,10 +221,11 @@ public abstract class Node<T extends Node<T>> {
         return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
     }
 
-     public final T replaceChildrenSameSize(List<T> newChildren) {
+    public final T replaceChildrenSameSize(List<T> newChildren) {
         if (newChildren.size() != children.size()) {
             throw new QlIllegalArgumentException(
-                "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]");
+                "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]"
+            );
         }
         return replaceChildren(newChildren);
     }
@@ -330,8 +331,7 @@ public abstract class Node<T extends Node<T>> {
                     if (column < depth - 1) {
                         sb.append(" ");
                     }
-                }
-                else {
+                } else {
                     // if the child has no parent (elder on the previous level), it means its the last sibling
                     sb.append((column == depth - 1) ? "\\" : "  ");
                 }
@@ -342,6 +342,7 @@ public abstract class Node<T extends Node<T>> {
 
         sb.append(nodeString());
 
+        @SuppressWarnings("HiddenField")
         List<T> children = children();
         if (children.isEmpty() == false) {
             sb.append("\n");
@@ -365,6 +366,7 @@ public abstract class Node<T extends Node<T>> {
     public String propertiesToString(boolean skipIfChild) {
         StringBuilder sb = new StringBuilder();
 
+        @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
         int remainingProperties = TO_STRING_MAX_PROP;
@@ -387,7 +389,7 @@ public abstract class Node<T extends Node<T>> {
 
                 String stringValue = toString(prop);
 
-                //: Objects.toString(prop);
+                // : Objects.toString(prop);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
                     int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
                     sb.append(stringValue.substring(0, cutoff));

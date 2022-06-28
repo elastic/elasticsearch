@@ -1,0 +1,5 @@
+pr: 84774
+summary: Increase store ref before analyzing disk usage
+area: Search
+type: bug
+issues: []

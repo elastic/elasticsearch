@@ -1,9 +1,0 @@
-pr: 45497
-issues:
-  - 42612
-  - 43187
-area: Reindex
-type: enhancement
-summary: Reindex search resiliency
-versions:
-  - v8.0.0

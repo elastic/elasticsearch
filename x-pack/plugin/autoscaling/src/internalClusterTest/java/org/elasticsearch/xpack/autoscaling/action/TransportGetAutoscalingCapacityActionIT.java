@@ -37,7 +37,7 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     public void testCurrentCapacity() throws Exception {
         assertThat(capacity().results().keySet(), Matchers.empty());
         long memory = OsProbe.getInstance().getTotalPhysicalMemorySize();
-        long storage = internalCluster().getInstance(NodeEnvironment.class).nodePaths()[0].fileStore.getTotalSpace();
+        long storage = internalCluster().getInstance(NodeEnvironment.class).dataPaths()[0].fileStore.getTotalSpace();
         assertThat(memory, greaterThan(0L));
         assertThat(storage, greaterThan(0L));
         putAutoscalingPolicy("test");

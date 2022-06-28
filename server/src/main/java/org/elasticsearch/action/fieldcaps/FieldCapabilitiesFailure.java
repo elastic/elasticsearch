@@ -9,15 +9,15 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
+            builder.stringListField(INDICES_FIELD.getPreferredName(), indices);
             builder.startObject(FAILURE_FIELD.getPreferredName());
             {
                 ElasticsearchException.generateFailureXContent(builder, params, exception, true);
@@ -58,25 +58,24 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FieldCapabilitiesFailure, Void> PARSER =
-        new ConstructingObjectParser<>("field_capabilities_failure", true, a -> {
+    private static final ConstructingObjectParser<FieldCapabilitiesFailure, Void> PARSER = new ConstructingObjectParser<>(
+        "field_capabilities_failure",
+        true,
+        a -> {
             List<String> list = (List<String>) a[0];
             return new FieldCapabilitiesFailure(list.toArray(new String[list.size()]), (Exception) a[1]);
-        });
+        }
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
-                Exception e = ElasticsearchException.failureFromXContent(p);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
-                return e;
-            },
-            FAILURE_FIELD
-        );
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
+            Exception e = ElasticsearchException.failureFromXContent(p);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
+            return e;
+        }, FAILURE_FIELD);
     }
 
     public static FieldCapabilitiesFailure fromXContent(XContentParser parser) throws IOException {
@@ -99,11 +98,6 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
 
     FieldCapabilitiesFailure addIndex(String index) {
         this.indices.add(index);
-        return this;
-    }
-
-    FieldCapabilitiesFailure addIndices(List<String> indices) {
-        this.indices.addAll(indices);
         return this;
     }
 }

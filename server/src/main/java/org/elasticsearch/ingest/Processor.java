@@ -83,8 +83,8 @@ public interface Processor {
          *
          * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
          */
-        Processor create(Map<String, Factory> processorFactories, String tag,
-                         String description, Map<String, Object> config) throws Exception;
+        Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
+            throws Exception;
     }
 
     /**
@@ -130,9 +130,17 @@ public interface Processor {
          */
         public final Client client;
 
-        public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
-                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Client client, Consumer<Runnable> genericExecutor ) {
+        public Parameters(
+            Environment env,
+            ScriptService scriptService,
+            AnalysisRegistry analysisRegistry,
+            ThreadContext threadContext,
+            LongSupplier relativeTimeSupplier,
+            BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
+            IngestService ingestService,
+            Client client,
+            Consumer<Runnable> genericExecutor
+        ) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;

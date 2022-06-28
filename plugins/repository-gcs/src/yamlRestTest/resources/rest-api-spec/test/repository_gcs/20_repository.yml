@@ -12,9 +12,9 @@ setup:
         body:
           type: gcs
           settings:
-            bucket: ${bucket}
+            bucket: @bucket@
             client: "integration_test"
-            base_path: "${base_path}"
+            base_path: "@base_path@"
 
   # Remove the snapshots, if a previous test failed to delete them. This is
   # useful for third party tests that runs the test against a real external service.
@@ -37,9 +37,9 @@ setup:
       snapshot.get_repository:
         repository: repository
 
-  - match: { repository.settings.bucket : ${bucket} }
+  - match: { repository.settings.bucket : @bucket@ }
   - match: { repository.settings.client : "integration_test" }
-  - match: { repository.settings.base_path : "${base_path}" }
+  - match: { repository.settings.base_path : "@base_path@" }
 
   # Index documents
   - do:
@@ -49,17 +49,17 @@ setup:
           - index:
               _index: docs
               _type:  doc
-              _id:    1
+              _id:    "1"
           - snapshot: one
           - index:
               _index: docs
               _type:  doc
-              _id:    2
+              _id:    "2"
           - snapshot: one
           - index:
               _index: docs
               _type:  doc
-              _id:    3
+              _id:    "3"
           - snapshot: one
 
   - do:
@@ -97,22 +97,22 @@ setup:
           - index:
               _index: docs
               _type:  doc
-              _id:    4
+              _id:    "4"
           - snapshot: two
           - index:
               _index: docs
               _type:  doc
-              _id:    5
+              _id:    "5"
           - snapshot: two
           - index:
               _index: docs
               _type:  doc
-              _id:    6
+              _id:    "6"
           - snapshot: two
           - index:
               _index: docs
               _type:  doc
-              _id:    7
+              _id:    "7"
           - snapshot: two
 
   - do:

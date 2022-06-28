@@ -32,8 +32,9 @@ public final class AnalyzerRules {
             Expression condition = replaceRawBoolFieldWithEquals(filter.condition());
             // otherwise look for binary logic
             if (condition == filter.condition()) {
-                condition = condition.transformUp(BinaryLogic.class, b ->
-                    b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
+                condition = condition.transformUp(
+                    BinaryLogic.class,
+                    b -> b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
                 );
             }
 
@@ -55,7 +56,6 @@ public final class AnalyzerRules {
             return false;
         }
     }
-
 
     public abstract static class AnalyzerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 

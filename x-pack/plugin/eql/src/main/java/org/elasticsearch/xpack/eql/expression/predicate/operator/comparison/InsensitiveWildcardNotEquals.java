@@ -16,9 +16,7 @@ import java.time.ZoneId;
 
 public class InsensitiveWildcardNotEquals extends InsensitiveNotEquals {
 
-    public InsensitiveWildcardNotEquals(Source source,
-                                        Expression left,
-                                        Expression right, ZoneId zoneId) {
+    public InsensitiveWildcardNotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, zoneId);
     }
 

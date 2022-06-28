@@ -48,15 +48,18 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff diff(Map<Integer, TestDiffable> before, Map<Integer, TestDiffable> after) {
+            protected MapDiff<Integer, TestDiffable, Map<Integer, TestDiffable>> diff(
+                Map<Integer, TestDiffable> before,
+                Map<Integer, TestDiffable> after
+            ) {
                 return DiffableUtils.diff(before, after, keySerializer);
             }
 
             @Override
-            protected MapDiff readDiff(StreamInput in) throws IOException {
+            protected MapDiff<Integer, TestDiffable, Map<Integer, TestDiffable>> readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readJdkMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
-                        : DiffableUtils.readJdkMapDiff(in, keySerializer, diffableValueSerializer());
+                    ? DiffableUtils.readJdkMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
+                    : DiffableUtils.readJdkMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
 
@@ -72,12 +75,12 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff diff(Map<Integer, String> before, Map<Integer, String> after) {
+            protected MapDiff<Integer, String, Map<Integer, String>> diff(Map<Integer, String> before, Map<Integer, String> after) {
                 return DiffableUtils.diff(before, after, keySerializer, nonDiffableValueSerializer());
             }
 
             @Override
-            protected MapDiff readDiff(StreamInput in) throws IOException {
+            protected MapDiff<Integer, String, Map<Integer, String>> readDiff(StreamInput in) throws IOException {
                 return DiffableUtils.readJdkMapDiff(in, keySerializer, nonDiffableValueSerializer());
             }
         }.execute();
@@ -96,16 +99,22 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff diff(ImmutableOpenMap<Integer, TestDiffable> before, ImmutableOpenMap<Integer, TestDiffable> after) {
+            protected MapDiff<Integer, TestDiffable, ImmutableOpenMap<Integer, TestDiffable>> diff(
+                ImmutableOpenMap<Integer, TestDiffable> before,
+                ImmutableOpenMap<Integer, TestDiffable> after
+            ) {
                 return DiffableUtils.diff(before, after, keySerializer);
             }
 
             @Override
-            protected MapDiff readDiff(StreamInput in) throws IOException {
+            protected MapDiff<Integer, TestDiffable, ImmutableOpenMap<Integer, TestDiffable>> readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readImmutableOpenMapDiff(in, keySerializer,
-                        new DiffableUtils.DiffableValueReader<>(TestDiffable::readFrom, TestDiffable::readDiffFrom))
-                        : DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, diffableValueSerializer());
+                    ? DiffableUtils.readImmutableOpenMapDiff(
+                        in,
+                        keySerializer,
+                        new DiffableUtils.DiffableValueReader<>(TestDiffable::readFrom, TestDiffable::readDiffFrom)
+                    )
+                    : DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
 
@@ -121,12 +130,15 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff diff(ImmutableOpenMap<Integer, String> before, ImmutableOpenMap<Integer, String> after) {
+            protected MapDiff<Integer, String, ImmutableOpenMap<Integer, String>> diff(
+                ImmutableOpenMap<Integer, String> before,
+                ImmutableOpenMap<Integer, String> after
+            ) {
                 return DiffableUtils.diff(before, after, keySerializer, nonDiffableValueSerializer());
             }
 
             @Override
-            protected MapDiff readDiff(StreamInput in) throws IOException {
+            protected MapDiff<Integer, String, ImmutableOpenMap<Integer, String>> readDiff(StreamInput in) throws IOException {
                 return DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, nonDiffableValueSerializer());
             }
         }.execute();
@@ -145,15 +157,18 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff diff(ImmutableOpenIntMap<TestDiffable> before, ImmutableOpenIntMap<TestDiffable> after) {
+            protected MapDiff<Integer, TestDiffable, ImmutableOpenIntMap<TestDiffable>> diff(
+                ImmutableOpenIntMap<TestDiffable> before,
+                ImmutableOpenIntMap<TestDiffable> after
+            ) {
                 return DiffableUtils.diff(before, after, keySerializer);
             }
 
             @Override
-            protected MapDiff readDiff(StreamInput in) throws IOException {
+            protected MapDiff<Integer, TestDiffable, ImmutableOpenIntMap<TestDiffable>> readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
-                        : DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, diffableValueSerializer());
+                    ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
+                    : DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
 
@@ -169,12 +184,15 @@ public class DiffableTests extends ESTestCase {
             }
 
             @Override
-            protected MapDiff diff(ImmutableOpenIntMap<String> before, ImmutableOpenIntMap<String> after) {
+            protected MapDiff<Integer, String, ImmutableOpenIntMap<String>> diff(
+                ImmutableOpenIntMap<String> before,
+                ImmutableOpenIntMap<String> after
+            ) {
                 return DiffableUtils.diff(before, after, keySerializer, nonDiffableValueSerializer());
             }
 
             @Override
-            protected MapDiff readDiff(StreamInput in) throws IOException {
+            protected MapDiff<Integer, String, ImmutableOpenIntMap<String>> readDiff(StreamInput in) throws IOException {
                 return DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, nonDiffableValueSerializer());
             }
         }.execute();
@@ -189,15 +207,19 @@ public class DiffableTests extends ESTestCase {
         protected final Set<Integer> keys = randomPositiveIntSet();
         protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[0])));
         protected final Set<Integer> keysThatAreNotRemoved = Sets.difference(keys, keysToRemove);
-        protected final Set<Integer> keysToOverride = new HashSet<>(randomSubsetOf(randomInt(keysThatAreNotRemoved.size()),
-                keysThatAreNotRemoved.toArray(new Integer[keysThatAreNotRemoved.size()])));
+        protected final Set<Integer> keysToOverride = new HashSet<>(
+            randomSubsetOf(
+                randomInt(keysThatAreNotRemoved.size()),
+                keysThatAreNotRemoved.toArray(new Integer[keysThatAreNotRemoved.size()])
+            )
+        );
         // make sure keysToAdd does not contain elements in keys
         protected final Set<Integer> keysToAdd = Sets.difference(randomPositiveIntSet(), keys);
         protected final Set<Integer> keysUnchanged = Sets.difference(keysThatAreNotRemoved, keysToOverride);
 
         protected final DiffableUtils.KeySerializer<Integer> keySerializer = randomBoolean()
-                ? DiffableUtils.getIntKeySerializer()
-                : DiffableUtils.getVIntKeySerializer();
+            ? DiffableUtils.getIntKeySerializer()
+            : DiffableUtils.getVIntKeySerializer();
 
         protected final boolean useProtoForDiffableSerialization = randomBoolean();
 
@@ -279,7 +301,7 @@ public class DiffableTests extends ESTestCase {
             MapDiff<Integer, V, T> diffMap = diff(beforeMap, afterMap);
 
             // check properties of diffMap
-            assertThat(new HashSet(diffMap.getDeletes()), equalTo(keysToRemove));
+            assertThat(new HashSet<>(diffMap.getDeletes()), equalTo(keysToRemove));
             if (diffableValues()) {
                 assertThat(diffMap.getDiffs().keySet(), equalTo(keysToOverride));
                 for (Integer key : keysToOverride) {
@@ -329,7 +351,7 @@ public class DiffableTests extends ESTestCase {
     abstract class JdkMapDriver<V> extends MapDriver<Map<Integer, V>, V> {
 
         @Override
-        protected Map<Integer, V> createMap(Map values) {
+        protected Map<Integer, V> createMap(Map<Integer, V> values) {
             return values;
         }
 
@@ -347,7 +369,7 @@ public class DiffableTests extends ESTestCase {
     abstract class ImmutableOpenMapDriver<V> extends MapDriver<ImmutableOpenMap<Integer, V>, V> {
 
         @Override
-        protected ImmutableOpenMap<Integer, V> createMap(Map values) {
+        protected ImmutableOpenMap<Integer, V> createMap(Map<Integer, V> values) {
             return ImmutableOpenMap.<Integer, V>builder().putAll(values).build();
         }
 
@@ -362,11 +384,10 @@ public class DiffableTests extends ESTestCase {
         }
     }
 
-
     abstract class ImmutableOpenIntMapDriver<V> extends MapDriver<ImmutableOpenIntMap<V>, V> {
 
         @Override
-        protected ImmutableOpenIntMap<V> createMap(Map values) {
+        protected ImmutableOpenIntMap<V> createMap(Map<Integer, V> values) {
             return ImmutableOpenIntMap.<V>builder().putAll(values).build();
         }
 

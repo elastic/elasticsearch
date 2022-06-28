@@ -13,13 +13,13 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -37,21 +37,23 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestTermVectorsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTermVectorsAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
-        "Specifying types in term vector requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/{index}/_termvectors"),
-            new Route(POST, "/{index}/_termvectors"),
-            new Route(GET, "/{index}/_termvectors/{id}"),
-            new Route(POST, "/{index}/_termvectors/{id}"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_termvectors"),
-            new Route(POST, "/{index}/{type}/_termvectors"),
-            new Route(GET, "/{index}/{type}/{id}/_termvectors"),
-            new Route(POST, "/{index}/{type}/{id}/_termvectors")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/{index}/_termvectors"),
+                new Route(POST, "/{index}/_termvectors"),
+                new Route(GET, "/{index}/_termvectors/{id}"),
+                new Route(POST, "/{index}/_termvectors/{id}"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_termvectors"),
+                new Route(POST, "/{index}/{type}/_termvectors"),
+                new Route(GET, "/{index}/{type}/{id}/_termvectors"),
+                new Route(POST, "/{index}/{type}/{id}/_termvectors")
+            )
+        );
     }
 
     @Override
@@ -63,14 +65,10 @@ public class RestTermVectorsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
-            termVectorsRequest = new TermVectorsRequest(request.param("index"),
-                request.param("type"),
-                request.param("id"));
+            deprecationLogger.critical(DeprecationCategory.TYPES, "termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
+            termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
         } else {
-            termVectorsRequest = new TermVectorsRequest(request.param("index"),
-                MapperService.SINGLE_MAPPING_NAME,
-                request.param("id"));
+            termVectorsRequest = new TermVectorsRequest(request.param("index"), MapperService.SINGLE_MAPPING_NAME, request.param("id"));
         }
 
         if (request.hasContentOrSourceParam()) {

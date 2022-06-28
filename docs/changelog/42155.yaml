@@ -1,7 +1,0 @@
-pr: 42155
-issues: []
-area: TLS
-type: enhancement
-summary: Add `ChaCha20` TLS ciphers on Java 12+
-versions:
-  - v8.0.0

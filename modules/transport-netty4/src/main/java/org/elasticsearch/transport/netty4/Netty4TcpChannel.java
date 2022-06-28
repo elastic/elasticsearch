@@ -11,11 +11,12 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelPromise;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CompletableContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
@@ -145,10 +146,13 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public String toString() {
-        return "Netty4TcpChannel{" +
-            "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + channel.remoteAddress() +
-            ", profile=" + profile +
-            '}';
+        return "Netty4TcpChannel{"
+            + "localAddress="
+            + getLocalAddress()
+            + ", remoteAddress="
+            + channel.remoteAddress()
+            + ", profile="
+            + profile
+            + '}';
     }
 }

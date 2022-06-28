@@ -1,0 +1,5 @@
+pr: 83354
+summary: Add missing `indices.recovery.internal_action_retry_timeout` to list of settings
+area: Recovery
+type: bug
+issues: []

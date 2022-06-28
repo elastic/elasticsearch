@@ -1,8 +1,0 @@
-pr: 39346
-issues:
-  - 39073
-area: Snapshot/Restore
-type: enhancement
-summary: Unify blob store compress setting
-versions:
-  - v8.0.0

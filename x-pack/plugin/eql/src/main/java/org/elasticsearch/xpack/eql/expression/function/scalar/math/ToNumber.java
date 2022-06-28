@@ -85,21 +85,20 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
         ScriptTemplate valueScript = asScript(value);
         ScriptTemplate baseScript = asScript(base);
 
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s)"),
-                "number",
-                valueScript.template(),
-                baseScript.template()),
-                paramsBuilder()
-                    .script(valueScript.params())
-                    .script(baseScript.params())
-                    .build(), dataType());
+        return new ScriptTemplate(
+            format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s)"), "number", valueScript.template(), baseScript.template()),
+            paramsBuilder().script(valueScript.params()).script(baseScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

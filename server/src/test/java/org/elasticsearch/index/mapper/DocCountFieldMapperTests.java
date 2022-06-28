@@ -18,10 +18,7 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
 
     public void testParseValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument doc = mapper.parse(source(b ->
-            b.field("foo", 500)
-                .field(CONTENT_TYPE, 100)
-        ));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("foo", 500).field(CONTENT_TYPE, 100)));
 
         IndexableField field = doc.rootDoc().getField(DOC_COUNT_FIELD);
         assertEquals(DOC_COUNT_FIELD, field.stringValue());
@@ -43,8 +40,10 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
     public void testInvalidDocument_NonNumericDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, "foo"))));
-        assertThat(e.getCause().getMessage(),
-            containsString("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
+        );
     }
 
     public void testInvalidDocument_FractionalDocCount() throws Exception {
@@ -55,8 +54,7 @@ public class DocCountFieldMapperTests extends MapperServiceTestCase {
 
     public void testInvalidDocument_ArrayDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
         assertThat(e.getCause().getMessage(), containsString("Arrays are not allowed for field [_doc_count]."));
     }
 }

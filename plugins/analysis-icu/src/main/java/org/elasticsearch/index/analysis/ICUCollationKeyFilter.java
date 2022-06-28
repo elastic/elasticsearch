@@ -19,6 +19,7 @@ package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
+
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -68,42 +69,40 @@ import java.io.IOException;
  */
 @Deprecated
 public final class ICUCollationKeyFilter extends TokenFilter {
-  private Collator collator = null;
-  private RawCollationKey reusableKey = new RawCollationKey();
-  private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+    private Collator collator = null;
+    private RawCollationKey reusableKey = new RawCollationKey();
+    private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
 
-  /**
-   *
-   * @param input Source token stream
-   * @param collator CollationKey generator
-   */
-  public ICUCollationKeyFilter(TokenStream input, Collator collator) {
-    super(input);
-    // clone the collator: see http://userguide.icu-project.org/collation/architecture
-    try {
-      this.collator = (Collator) collator.clone();
-    } catch (CloneNotSupportedException e) {
-      throw new RuntimeException(e);
+    /**
+     *
+     * @param input Source token stream
+     * @param collator CollationKey generator
+     */
+    public ICUCollationKeyFilter(TokenStream input, Collator collator) {
+        super(input);
+        // clone the collator: see http://userguide.icu-project.org/collation/architecture
+        try {
+            this.collator = (Collator) collator.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Override
-  public boolean incrementToken() throws IOException {
-    if (input.incrementToken()) {
-      char[] termBuffer = termAtt.buffer();
-      String termText = new String(termBuffer, 0, termAtt.length());
-      collator.getRawCollationKey(termText, reusableKey);
-      int encodedLength = IndexableBinaryStringTools.getEncodedLength(
-          reusableKey.bytes, 0, reusableKey.size);
-      if (encodedLength > termBuffer.length) {
-        termAtt.resizeBuffer(encodedLength);
-      }
-      termAtt.setLength(encodedLength);
-      IndexableBinaryStringTools.encode(reusableKey.bytes, 0, reusableKey.size,
-          termAtt.buffer(), 0, encodedLength);
-      return true;
-    } else {
-      return false;
+    @Override
+    public boolean incrementToken() throws IOException {
+        if (input.incrementToken()) {
+            char[] termBuffer = termAtt.buffer();
+            String termText = new String(termBuffer, 0, termAtt.length());
+            collator.getRawCollationKey(termText, reusableKey);
+            int encodedLength = IndexableBinaryStringTools.getEncodedLength(reusableKey.bytes, 0, reusableKey.size);
+            if (encodedLength > termBuffer.length) {
+                termAtt.resizeBuffer(encodedLength);
+            }
+            termAtt.setLength(encodedLength);
+            IndexableBinaryStringTools.encode(reusableKey.bytes, 0, reusableKey.size, termAtt.buffer(), 0, encodedLength);
+            return true;
+        } else {
+            return false;
+        }
     }
-  }
 }

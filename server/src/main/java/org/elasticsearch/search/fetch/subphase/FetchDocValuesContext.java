@@ -40,9 +40,14 @@ public class FetchDocValuesContext {
         int maxAllowedDocvalueFields = searchExecutionContext.getIndexSettings().getMaxDocvalueFields();
         if (fields.size() > maxAllowedDocvalueFields) {
             throw new IllegalArgumentException(
-                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
-                    + "] but was [" + fields.size() + "]. This limit can be set by changing the ["
-                    + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: ["
+                    + maxAllowedDocvalueFields
+                    + "] but was ["
+                    + fields.size()
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
     }
 

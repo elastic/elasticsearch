@@ -31,7 +31,7 @@ public class NamedDiffableValueSerializer<T extends NamedDiffable<T>> extends Di
 
     @Override
     public boolean supportsVersion(Diff<T> value, Version version) {
-        return version.onOrAfter(((NamedDiff<?>)value).getMinimalSupportedVersion());
+        return version.onOrAfter(((NamedDiff<?>) value).getMinimalSupportedVersion());
     }
 
     @Override

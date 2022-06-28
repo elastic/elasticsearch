@@ -8,12 +8,13 @@
 
 package org.elasticsearch.client;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import joptsimple.internal.Strings;
+
 import org.apache.http.Header;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A test case with access to internals of a RestClient.

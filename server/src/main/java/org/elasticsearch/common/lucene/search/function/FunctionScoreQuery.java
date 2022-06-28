@@ -93,7 +93,12 @@ public class FunctionScoreQuery extends Query {
     }
 
     public enum ScoreMode implements Writeable {
-        FIRST, AVG, MAX, SUM, MIN, MULTIPLY;
+        FIRST,
+        AVG,
+        MAX,
+        SUM,
+        MIN,
+        MULTIPLY;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -135,7 +140,6 @@ public class FunctionScoreQuery extends Query {
         this(subQuery, function, CombineFunction.MULTIPLY, null, DEFAULT_MAX_BOOST);
     }
 
-
     /**
      * Creates a FunctionScoreQuery with a single function
      * @param subQuery The query to match.
@@ -157,8 +161,14 @@ public class FunctionScoreQuery extends Query {
      * @param minScore The minimum score to consider a document.
      * @param maxBoost The maximum applicable boost.
      */
-    public FunctionScoreQuery(Query subQuery, ScoreMode scoreMode, ScoreFunction[] functions,
-                              CombineFunction combineFunction, Float minScore, float maxBoost) {
+    public FunctionScoreQuery(
+        Query subQuery,
+        ScoreMode scoreMode,
+        ScoreFunction[] functions,
+        CombineFunction combineFunction,
+        Float minScore,
+        float maxBoost
+    ) {
         if (Arrays.stream(functions).anyMatch(func -> func == null)) {
             throw new IllegalArgumentException("Score function should not be null");
         }
@@ -218,8 +228,8 @@ public class FunctionScoreQuery extends Query {
         }
 
         org.apache.lucene.search.ScoreMode subQueryScoreMode = combineFunction != CombineFunction.REPLACE
-                ? org.apache.lucene.search.ScoreMode.COMPLETE
-                : org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+            ? org.apache.lucene.search.ScoreMode.COMPLETE
+            : org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
         Weight[] filterWeights = new Weight[functions.length];
         for (int i = 0; i < functions.length; ++i) {
             if (functions[i].needsScores()) {
@@ -227,8 +237,11 @@ public class FunctionScoreQuery extends Query {
             }
             if (functions[i] instanceof FilterScoreFunction) {
                 Query filter = ((FilterScoreFunction) functions[i]).filter;
-                filterWeights[i] = searcher.createWeight(searcher.rewrite(filter),
-                        org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
+                filterWeights[i] = searcher.createWeight(
+                    searcher.rewrite(filter),
+                    org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES,
+                    1f
+                );
             }
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
@@ -271,8 +284,17 @@ public class FunctionScoreQuery extends Query {
                     docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
                 }
             }
-            return new FunctionFactorScorer(this, subQueryScorer, scoreMode, functions, maxBoost, leafFunctions,
-                docSets, combineFunction, needsScores);
+            return new FunctionFactorScorer(
+                this,
+                subQueryScorer,
+                scoreMode,
+                functions,
+                maxBoost,
+                leafFunctions,
+                docSets,
+                combineFunction,
+                needsScores
+            );
         }
 
         @Override
@@ -298,7 +320,9 @@ public class FunctionScoreQuery extends Query {
                 for (int i = 0; i < functions.length; ++i) {
                     if (filterWeights[i] != null) {
                         final Bits docSet = Lucene.asSequentialAccessBits(
-                                context.reader().maxDoc(), filterWeights[i].scorerSupplier(context));
+                            context.reader().maxDoc(),
+                            filterWeights[i].scorerSupplier(context)
+                        );
                         if (docSet.get(doc) == false) {
                             continue;
                         }
@@ -308,8 +332,12 @@ public class FunctionScoreQuery extends Query {
                     if (function instanceof FilterScoreFunction) {
                         float factor = functionExplanation.getValue().floatValue();
                         Query filterQuery = ((FilterScoreFunction) function).filter;
-                        Explanation filterExplanation = Explanation.match(factor, "function score, product of:",
-                            Explanation.match(1.0f, "match filter: " + filterQuery.toString()), functionExplanation);
+                        Explanation filterExplanation = Explanation.match(
+                            factor,
+                            "function score, product of:",
+                            Explanation.match(1.0f, "match filter: " + filterQuery.toString()),
+                            functionExplanation
+                        );
                         functionsExplanations.add(filterExplanation);
                     } else {
                         functionsExplanations.add(functionExplanation);
@@ -328,7 +356,9 @@ public class FunctionScoreQuery extends Query {
                     double score = scorer.computeScore(doc, expl.getValue().floatValue());
                     factorExplanation = Explanation.match(
                         (float) score,
-                        "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]", functionsExplanations);
+                        "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
+                        functionsExplanations
+                    );
                 }
                 expl = combineFunction.explain(expl, factorExplanation, maxBoost);
             }
@@ -354,9 +384,17 @@ public class FunctionScoreQuery extends Query {
         private final float maxBoost;
         private final boolean needsScores;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, ScoreFunction[] functions,
-                                     float maxBoost, LeafScoreFunction[] leafFunctions, Bits[] docSets,
-                                     CombineFunction scoreCombiner, boolean needsScores) throws IOException {
+        private FunctionFactorScorer(
+            CustomBoostFactorWeight w,
+            Scorer scorer,
+            ScoreMode scoreMode,
+            ScoreFunction[] functions,
+            float maxBoost,
+            LeafScoreFunction[] leafFunctions,
+            Bits[] docSets,
+            CombineFunction scoreCombiner,
+            boolean needsScores
+        ) throws IOException {
             super(scorer, w);
             this.scoreMode = scoreMode;
             this.functions = functions;
@@ -391,7 +429,7 @@ public class FunctionScoreQuery extends Query {
 
         protected double computeScore(int docId, float subQueryScore) throws IOException {
             double factor = 1d;
-            switch(scoreMode) {
+            switch (scoreMode) {
                 case FIRST:
                     for (int i = 0; i < leafFunctions.length; i++) {
                         if (docSets[i].get(docId)) {
@@ -475,10 +513,12 @@ public class FunctionScoreQuery extends Query {
             return false;
         }
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return Objects.equals(this.subQuery, other.subQuery) && this.maxBoost == other.maxBoost &&
-            Objects.equals(this.combineFunction, other.combineFunction) && Objects.equals(this.minScore, other.minScore) &&
-            Objects.equals(this.scoreMode, other.scoreMode) &&
-            Arrays.equals(this.functions, other.functions);
+        return Objects.equals(this.subQuery, other.subQuery)
+            && this.maxBoost == other.maxBoost
+            && Objects.equals(this.combineFunction, other.combineFunction)
+            && Objects.equals(this.minScore, other.minScore)
+            && Objects.equals(this.scoreMode, other.scoreMode)
+            && Arrays.equals(this.functions, other.functions);
     }
 
     @Override

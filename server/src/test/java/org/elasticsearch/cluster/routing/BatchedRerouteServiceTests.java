@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -34,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class BatchedRerouteServiceTests extends ESTestCase {
@@ -65,10 +67,13 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
             rerouteCountBeforeReroute = Math.max(rerouteCountBeforeReroute, rerouteCount.get());
-            batchedRerouteService.reroute("iteration " + i, randomFrom(EnumSet.allOf(Priority.class)),
-                ActionListener.wrap(countDownLatch::countDown));
+            batchedRerouteService.reroute(
+                "iteration " + i,
+                randomFrom(EnumSet.allOf(Priority.class)),
+                ActionListener.wrap(countDownLatch::countDown)
+            );
         }
-        countDownLatch.await(10, TimeUnit.SECONDS);
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         assertThat(rerouteCountBeforeReroute, lessThan(rerouteCount.get()));
     }
 
@@ -96,16 +101,24 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             return s;
         });
 
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String contextHeader = "test-context-header";
+
         final int iterations = scaledRandomIntBetween(1, 100);
         final CountDownLatch tasksSubmittedCountDown = new CountDownLatch(iterations);
         final CountDownLatch tasksCompletedCountDown = new CountDownLatch(iterations);
         final List<Runnable> actions = new ArrayList<>(iterations);
         final Function<Priority, Runnable> rerouteFromPriority = priority -> () -> {
             final AtomicBoolean alreadyRun = new AtomicBoolean();
-            batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.wrap(() -> {
-                assertTrue(alreadyRun.compareAndSet(false, true));
-                tasksCompletedCountDown.countDown();
-            }));
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                final String contextValue = randomAlphaOfLength(10);
+                threadContext.putHeader(contextHeader, contextValue);
+                batchedRerouteService.reroute("reroute at " + priority, priority, ActionListener.wrap(() -> {
+                    assertTrue(alreadyRun.compareAndSet(false, true));
+                    assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
+                    tasksCompletedCountDown.countDown();
+                }));
+            }
             tasksSubmittedCountDown.countDown();
         };
         actions.add(rerouteFromPriority.apply(Priority.URGENT)); // ensure at least one URGENT priority reroute
@@ -120,7 +133,8 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     tasksSubmittedCountDown.countDown(); // this task might be submitted later
                 }
                 actions.add(() -> {
-                    clusterService.submitStateUpdateTask("other task " + iteration + " at " + priority,
+                    clusterService.submitStateUpdateTask(
+                        "other task " + iteration + " at " + priority,
                         new ClusterStateUpdateTask(priority) {
 
                             @Override
@@ -154,7 +168,8 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                                 tasksCompletedCountDown.countDown();
                             }
-                        });
+                        }
+                    );
                     if (submittedConcurrentlyWithReroute) {
                         tasksSubmittedCountDown.countDown();
                     }
@@ -182,33 +197,35 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         final int iterations = between(1, 100);
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
-            batchedRerouteService.reroute("iteration " + i,
-                randomFrom(EnumSet.allOf(Priority.class)), ActionListener.wrap(
-                    r -> {
-                        countDownLatch.countDown();
-                        if (rarely()) {
-                            throw new ElasticsearchException("failure during notification");
-                        }
-                    }, e -> {
-                        countDownLatch.countDown();
-                        if (randomBoolean()) {
-                            throw new ElasticsearchException("failure during failure notification", e);
-                        }
-                    }));
+            batchedRerouteService.reroute("iteration " + i, randomFrom(EnumSet.allOf(Priority.class)), ActionListener.wrap(r -> {
+                countDownLatch.countDown();
+                if (rarely()) {
+                    throw new ElasticsearchException("failure during notification");
+                }
+            }, e -> {
+                countDownLatch.countDown();
+                if (randomBoolean()) {
+                    throw new ElasticsearchException("failure during failure notification", e);
+                }
+            }));
             if (rarely()) {
-                clusterService.getMasterService().setClusterStatePublisher(
-                    randomBoolean()
-                        ? ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService())
-                        : (event, publishListener, ackListener)
-                        -> publishListener.onFailure(new FailedToCommitClusterStateException("simulated")));
+                clusterService.getMasterService()
+                    .setClusterStatePublisher(
+                        randomBoolean()
+                            ? ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService())
+                            : (event, publishListener, ackListener) -> publishListener.onFailure(
+                                new FailedToCommitClusterStateException("simulated")
+                            )
+                    );
             }
 
             if (rarely()) {
                 clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
                     ClusterState state = clusterService.state();
-                    return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes())
-                        .masterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId())).build();
-                }, (source, e) -> { });
+                    return ClusterState.builder(state)
+                        .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId()))
+                        .build();
+                }, ActionListener.wrap(() -> {}));
             }
         }
 

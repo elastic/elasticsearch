@@ -23,8 +23,7 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(POST, "/_watcher/_start")
-                .replaces(POST, URI_BASE + "/watcher/_start", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_watcher/_start").replaces(POST, URI_BASE + "/watcher/_start", RestApiVersion.V_7).build()
         );
     }
 
@@ -43,8 +42,7 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         @Override
         public List<Route> routes() {
             return org.elasticsearch.core.List.of(
-                Route.builder(POST, "/_watcher/_stop")
-                    .replaces(POST, URI_BASE + "/watcher/_stop", RestApiVersion.V_7).build()
+                Route.builder(POST, "/_watcher/_stop").replaces(POST, URI_BASE + "/watcher/_stop", RestApiVersion.V_7).build()
             );
         }
 

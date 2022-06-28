@@ -178,7 +178,7 @@ query.
 [discrete]
 ==== Accepted Formats
 
-In much the same way the geo_point type can accept different
+In much the same way the `geo_point` type can accept different
 representations of the geo point, the filter can accept it as well:
 
 [discrete]

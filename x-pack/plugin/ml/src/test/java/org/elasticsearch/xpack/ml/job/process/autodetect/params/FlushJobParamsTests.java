@@ -33,9 +33,9 @@ public class FlushJobParamsTests extends ESTestCase {
 
     public void testBuilder_GivenCalcInterimAndStart() {
         FlushJobParams params = FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("42").build())
-                .build();
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("42").build())
+            .build();
         assertTrue(params.shouldCalculateInterim());
         assertFalse(params.shouldAdvanceTime());
         assertFalse(params.shouldSkipTime());
@@ -44,20 +44,19 @@ public class FlushJobParamsTests extends ESTestCase {
     }
 
     public void testBuilder_GivenCalcInterimAndEnd_throws() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().endTime("100").build())
-                .build());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FlushJobParams.builder().calcInterim(true).forTimeRange(TimeRange.builder().endTime("100").build()).build()
+        );
 
         assertEquals("Invalid flush parameters: 'start' has not been specified.", e.getMessage());
     }
 
     public void testBuilder_GivenCalcInterimAndStartAndEnd() {
         FlushJobParams params = FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("3600").endTime("7200").build())
-                .build();
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("3600").endTime("7200").build())
+            .build();
         assertTrue(params.shouldCalculateInterim());
         assertFalse(params.shouldAdvanceTime());
         assertEquals("3600", params.getStart());
@@ -74,10 +73,7 @@ public class FlushJobParamsTests extends ESTestCase {
     }
 
     public void testBuilder_GivenCalcInterimAndAdvanceTime() {
-        FlushJobParams params = FlushJobParams.builder()
-                .calcInterim(true)
-                .advanceTime("1940")
-                .build();
+        FlushJobParams params = FlushJobParams.builder().calcInterim(true).advanceTime("1940").build();
         assertTrue(params.shouldCalculateInterim());
         assertEquals("", params.getStart());
         assertEquals("", params.getEnd());
@@ -87,10 +83,10 @@ public class FlushJobParamsTests extends ESTestCase {
 
     public void testBuilder_GivenCalcInterimWithTimeRangeAndAdvanceTime() {
         FlushJobParams params = FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("1").endTime("2").build())
-                .advanceTime("1940")
-                .build();
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("1").endTime("2").build())
+            .advanceTime("1940")
+            .build();
         assertTrue(params.shouldCalculateInterim());
         assertEquals("1", params.getStart());
         assertEquals("2", params.getEnd());
@@ -99,15 +95,19 @@ public class FlushJobParamsTests extends ESTestCase {
     }
 
     public void testBuilder_GivenAdvanceTimeIsEarlierThanSkipTime() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> FlushJobParams.builder().advanceTime("2017-01-01T00:00:00Z").skipTime("2017-02-01T00:00:00Z").build());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> FlushJobParams.builder().advanceTime("2017-01-01T00:00:00Z").skipTime("2017-02-01T00:00:00Z").build()
+        );
 
         assertEquals("advance_time [2017-01-01T00:00:00Z] must be later than skip_time [2017-02-01T00:00:00Z]", e.getMessage());
     }
 
     public void testBuilder_GivenAdvanceTimeIsEqualToSkipTime() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> FlushJobParams.builder().advanceTime("2017-01-01T00:00:00Z").skipTime("2017-01-01T00:00:00Z").build());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> FlushJobParams.builder().advanceTime("2017-01-01T00:00:00Z").skipTime("2017-01-01T00:00:00Z").build()
+        );
 
         assertEquals("advance_time [2017-01-01T00:00:00Z] must be later than skip_time [2017-01-01T00:00:00Z]", e.getMessage());
     }
@@ -120,39 +120,48 @@ public class FlushJobParamsTests extends ESTestCase {
     }
 
     public void testValidate_GivenOnlyStartSpecified() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> FlushJobParams.builder().forTimeRange(TimeRange.builder().startTime("1").build()).build());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FlushJobParams.builder().forTimeRange(TimeRange.builder().startTime("1").build()).build()
+        );
 
         assertEquals("Invalid flush parameters: unexpected 'start'.", e.getMessage());
     }
 
     public void testFlushUpload_GivenOnlyEndSpecified() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> FlushJobParams.builder().forTimeRange(TimeRange.builder().endTime("1").build()).build());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FlushJobParams.builder().forTimeRange(TimeRange.builder().endTime("1").build()).build()
+        );
 
         assertEquals("Invalid flush parameters: unexpected 'end'.", e.getMessage());
     }
 
     public void testFlushUpload_GivenInterimResultsAndOnlyEndSpecified() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> FlushJobParams.builder().calcInterim(true).forTimeRange(TimeRange.builder().endTime("1").build()).build());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FlushJobParams.builder().calcInterim(true).forTimeRange(TimeRange.builder().endTime("1").build()).build()
+        );
 
         assertEquals("Invalid flush parameters: 'start' has not been specified.", e.getMessage());
     }
 
     public void testFlushUpload_GivenInterimResultsAndStartAndEndSpecifiedAsEpochs() {
-        FlushJobParams params = FlushJobParams.builder().calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("1428494400").endTime("1428498000").build()).build();
+        FlushJobParams params = FlushJobParams.builder()
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("1428494400").endTime("1428498000").build())
+            .build();
         assertTrue(params.shouldCalculateInterim());
         assertFalse(params.shouldAdvanceTime());
         assertEquals("1428494400", params.getStart());
         assertEquals("1428498000", params.getEnd());
     }
 
-
     public void testFlushUpload_GivenInterimResultsAndSameStartAndEnd() {
-        FlushJobParams params = FlushJobParams.builder().calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("1428494400").endTime("1428494400").build()).build();
+        FlushJobParams params = FlushJobParams.builder()
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("1428494400").endTime("1428494400").build())
+            .build();
 
         assertTrue(params.shouldCalculateInterim());
         assertFalse(params.shouldAdvanceTime());
@@ -161,8 +170,10 @@ public class FlushJobParamsTests extends ESTestCase {
     }
 
     public void testFlushUpload_GivenInterimResultsAndOnlyStartSpecified() {
-        FlushJobParams params = FlushJobParams.builder().calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("1428494400").build()).build();
+        FlushJobParams params = FlushJobParams.builder()
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("1428494400").build())
+            .build();
 
         assertTrue(params.shouldCalculateInterim());
         assertFalse(params.shouldAdvanceTime());
@@ -189,9 +200,11 @@ public class FlushJobParamsTests extends ESTestCase {
     }
 
     public void testFlushUpload_GivenCalcInterimWithTimeRangeAndAdvanceTime() {
-        FlushJobParams params = FlushJobParams.builder().calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("150").endTime("300").build())
-                .advanceTime("200").build();
+        FlushJobParams params = FlushJobParams.builder()
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("150").endTime("300").build())
+            .advanceTime("200")
+            .build();
         assertTrue(params.shouldCalculateInterim());
         assertEquals("150", params.getStart());
         assertEquals("300", params.getEnd());

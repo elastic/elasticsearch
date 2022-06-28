@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.transform.notifications;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 
 import java.util.Date;

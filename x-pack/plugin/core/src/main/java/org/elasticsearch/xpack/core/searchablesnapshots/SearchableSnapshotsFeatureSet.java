@@ -11,9 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -39,7 +40,7 @@ public class SearchableSnapshotsFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS);
+        return SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override
@@ -59,19 +60,13 @@ public class SearchableSnapshotsFeatureSet implements XPackFeatureSet {
         int numSharedCacheSnapIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
-                if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
+                if (SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
                     numSharedCacheSnapIndices++;
                 } else {
                     numFullCopySnapIndices++;
                 }
             }
         }
-        listener.onResponse(
-            new SearchableSnapshotFeatureSetUsage(
-                available(),
-                numFullCopySnapIndices,
-                numSharedCacheSnapIndices
-            )
-        );
+        listener.onResponse(new SearchableSnapshotFeatureSetUsage(available(), numFullCopySnapIndices, numSharedCacheSnapIndices));
     }
 }

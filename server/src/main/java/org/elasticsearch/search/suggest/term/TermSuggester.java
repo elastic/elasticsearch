@@ -33,17 +33,18 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
     @Override
     public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare)
-            throws IOException {
+        throws IOException {
         DirectSpellChecker directSpellChecker = suggestion.getDirectSpellCheckerSettings().createDirectSpellChecker();
         final IndexReader indexReader = searcher.getIndexReader();
-        TermSuggestion response = new TermSuggestion(
-                name, suggestion.getSize(), suggestion.getDirectSpellCheckerSettings().sort()
-        );
+        TermSuggestion response = new TermSuggestion(name, suggestion.getSize(), suggestion.getDirectSpellCheckerSettings().sort());
         List<Token> tokens = queryTerms(suggestion, spare);
         for (Token token : tokens) {
             // TODO: Extend DirectSpellChecker in 4.1, to get the raw suggested words as BytesRef
             SuggestWord[] suggestedWords = directSpellChecker.suggestSimilar(
-                    token.term, suggestion.getShardSize(), indexReader, suggestion.getDirectSpellCheckerSettings().suggestMode()
+                token.term,
+                suggestion.getShardSize(),
+                indexReader,
+                suggestion.getDirectSpellCheckerSettings().suggestMode()
             );
             Text key = new Text(new BytesArray(token.term.bytes()));
             TermSuggestion.Entry resultEntry = new TermSuggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
@@ -59,15 +60,20 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
     private static List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {
         final List<Token> result = new ArrayList<>();
         final String field = suggestion.getField();
-        DirectCandidateGenerator.analyze(suggestion.getAnalyzer(), suggestion.getText(), field,
-                new DirectCandidateGenerator.TokenConsumer() {
-            @Override
-            public void nextToken() {
-                Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRefBuilder())));
-                result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset()));
-            }
-        }, spare);
-       return result;
+        DirectCandidateGenerator.analyze(
+            suggestion.getAnalyzer(),
+            suggestion.getText(),
+            field,
+            new DirectCandidateGenerator.TokenConsumer() {
+                @Override
+                public void nextToken() {
+                    Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRefBuilder())));
+                    result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset()));
+                }
+            },
+            spare
+        );
+        return result;
     }
 
     private static class Token {

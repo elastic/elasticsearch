@@ -15,11 +15,11 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -73,6 +73,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -83,10 +84,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         initMappers((Map<String, Object>) mappingMap.get(this.type));
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetadata(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
-        this.source = new CompressedXContent(
-                (builder, params) -> builder.mapContents(mapping), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping), XContentType.JSON, ToXContent.EMPTY_PARAMS);
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
@@ -94,6 +95,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         initMappers(withoutType);
     }
 
+    @SuppressWarnings("unchecked")
     private void initMappers(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
@@ -105,8 +107,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
                     try {
                         required = nodeBooleanValue(fieldNode);
                     } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
-                            "Illegal value in field [_routing.required].", ex);
+                        throw new IllegalArgumentException(
+                            "Failed to create mapping for type [" + this.type() + "]. " + "Illegal value in field [_routing.required].",
+                            ex
+                        );
                     }
                 }
             }
@@ -133,6 +137,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {

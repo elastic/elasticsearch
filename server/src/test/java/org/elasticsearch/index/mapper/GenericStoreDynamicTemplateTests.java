@@ -32,7 +32,7 @@ public class GenericStoreDynamicTemplateTests extends MapperServiceTestCase {
 
         boolean stored = false;
         for (IndexableField field : doc.getFields("age")) {
-            stored |=  field.fieldType().stored();
+            stored |= field.fieldType().stored();
         }
         assertTrue(stored);
     }

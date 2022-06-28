@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
@@ -29,7 +31,8 @@ public class RestPreviewTransformActionDeprecated extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(POST, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_preview")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build()
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -41,8 +44,9 @@ public class RestPreviewTransformActionDeprecated extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentParser();
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        PreviewTransformAction.Request request = PreviewTransformAction.Request.fromXContent(parser);
+        PreviewTransformAction.Request request = PreviewTransformAction.Request.fromXContent(parser, timeout);
         return channel -> client.execute(PreviewTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

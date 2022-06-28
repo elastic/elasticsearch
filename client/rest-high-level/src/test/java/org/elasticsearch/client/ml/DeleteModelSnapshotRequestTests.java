@@ -12,14 +12,18 @@ import org.elasticsearch.test.ESTestCase;
 public class DeleteModelSnapshotRequestTests extends ESTestCase {
 
     public void test_WithNullJobId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () ->
-            new DeleteModelSnapshotRequest(null, randomAlphaOfLength(10)));
+        NullPointerException ex = expectThrows(
+            NullPointerException.class,
+            () -> new DeleteModelSnapshotRequest(null, randomAlphaOfLength(10))
+        );
         assertEquals("[job_id] must not be null", ex.getMessage());
     }
 
     public void test_WithNullSnapshotId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, ()
-            -> new DeleteModelSnapshotRequest(randomAlphaOfLength(10), null));
+        NullPointerException ex = expectThrows(
+            NullPointerException.class,
+            () -> new DeleteModelSnapshotRequest(randomAlphaOfLength(10), null)
+        );
         assertEquals("[snapshot_id] must not be null", ex.getMessage());
     }
 }

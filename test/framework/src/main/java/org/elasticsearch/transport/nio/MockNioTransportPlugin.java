@@ -27,11 +27,25 @@ public class MockNioTransportPlugin extends Plugin implements NetworkPlugin {
     public static final String MOCK_NIO_TRANSPORT_NAME = "mock-nio";
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
-                                                          CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        return Collections.singletonMap(MOCK_NIO_TRANSPORT_NAME,
-            () -> new MockNioTransport(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler,
-                namedWriteableRegistry, circuitBreakerService));
+    public Map<String, Supplier<Transport>> getTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService
+    ) {
+        return Collections.singletonMap(
+            MOCK_NIO_TRANSPORT_NAME,
+            () -> new MockNioTransport(
+                settings,
+                Version.CURRENT,
+                threadPool,
+                networkService,
+                pageCacheRecycler,
+                namedWriteableRegistry,
+                circuitBreakerService
+            )
+        );
     }
 }

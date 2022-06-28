@@ -18,7 +18,8 @@ import org.elasticsearch.index.VersionType;
  * A delete document action request builder.
  */
 public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder>
-        implements WriteRequestBuilder<DeleteRequestBuilder> {
+    implements
+        WriteRequestBuilder<DeleteRequestBuilder> {
 
     public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action) {
         super(client, action, new DeleteRequest());

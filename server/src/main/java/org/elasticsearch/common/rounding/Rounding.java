@@ -71,8 +71,7 @@ public abstract class Rounding implements Writeable {
 
         public Builder(TimeValue interval) {
             this.unit = null;
-            if (interval.millis() < 1)
-                throw new IllegalArgumentException("Zero or negative time interval not supported");
+            if (interval.millis() < 1) throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval.millis();
         }
 
@@ -149,7 +148,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public long round(long utcMillis) {
 
-            // field.roundFloor() works as long as the offset doesn't change.  It is worth getting this case out of the way first, as
+            // field.roundFloor() works as long as the offset doesn't change. It is worth getting this case out of the way first, as
             // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
             // of working in UTC.
             if (timeZone.isFixed()) {
@@ -163,7 +162,7 @@ public abstract class Rounding implements Writeable {
             if (unitRoundsToMidnight) {
                 final long anyLocalStartOfDay = field.roundFloor(utcMillis);
                 // `anyLocalStartOfDay` is _supposed_ to be the Unix timestamp for the start of the day in question in the current time
-                // zone.  Mostly this just means "midnight", which is fine, and on days with no local midnight it's the first time that
+                // zone. Mostly this just means "midnight", which is fine, and on days with no local midnight it's the first time that
                 // does occur on that day which is also ok. However, on days with >1 local midnight this is _one_ of the midnights, but
                 // may not be the first. Check whether this is happening, and fix it if so.
 
@@ -192,8 +191,7 @@ public abstract class Rounding implements Writeable {
                     // Therefore the previous offset _is_ in effect at `alsoLocalStartOfDay`, and it's earlier than anyLocalStartOfDay,
                     // so this is the answer to use.
                     return alsoLocalStartOfDay;
-                }
-                else {
+                } else {
                     // The previous offset is not in effect at `alsoLocalStartOfDay`, so the current offset must be.
                     return anyLocalStartOfDay;
                 }
@@ -213,7 +211,7 @@ public abstract class Rounding implements Writeable {
                     }
 
                     // The offset _did_ change in [rounded, utcMillis]. Put differently, this means that none of the times in
-                    // [previousTransition+1, utcMillis] were rounded, so the rounded time must be <= previousTransition.  This means
+                    // [previousTransition+1, utcMillis] were rounded, so the rounded time must be <= previousTransition. This means
                     // it's sufficient to try and round previousTransition down.
                     assert previousTransition < utcMillis;
                     utcMillis = previousTransition;
@@ -270,8 +268,7 @@ public abstract class Rounding implements Writeable {
         private final DateTimeZone timeZone;
 
         TimeIntervalRounding(long interval, DateTimeZone timeZone) {
-            if (interval < 1)
-                throw new IllegalArgumentException("Zero or negative time interval not supported");
+            if (interval < 1) throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
         }

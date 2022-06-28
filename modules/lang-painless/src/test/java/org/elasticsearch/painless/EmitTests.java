@@ -21,8 +21,8 @@ public class EmitTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.test"));
+        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.test"));
         contexts.put(TestFieldScript.CONTEXT, whitelists);
         return contexts;
     }
@@ -38,12 +38,12 @@ public class EmitTests extends ScriptTestCase {
     public void testEmit() {
         TestFieldScript script = exec("emit(1L)");
         assertNotNull(script);
-        assertArrayEquals(new long[]{1L}, script.fetchValues());
+        assertArrayEquals(new long[] { 1L }, script.fetchValues());
     }
 
     public void testEmitFromUserFunction() {
         TestFieldScript script = exec("void doEmit(long l) { emit(l) } doEmit(1L); doEmit(100L)");
         assertNotNull(script);
-        assertArrayEquals(new long[]{1L, 100L}, script.fetchValues());
+        assertArrayEquals(new long[] { 1L, 100L }, script.fetchValues());
     }
 }

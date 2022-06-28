@@ -1,9 +1,0 @@
-pr: 46967
-issues:
-  - 46763
-  - 42612
-area: Reindex
-type: enhancement
-summary: Reindex v2 rethrottle sliced fix
-versions:
-  - v8.0.0

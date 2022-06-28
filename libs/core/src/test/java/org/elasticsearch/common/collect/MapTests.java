@@ -15,7 +15,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class MapTests extends ESTestCase {
 
-    private static final String[] numbers = {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"};
+    private static final String[] numbers = { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
 
     public void testMapOfZero() {
         final java.util.Map<String, Integer> map = Map.of();
@@ -43,38 +43,117 @@ public class MapTests extends ESTestCase {
     }
 
     public void testMapOfFive() {
-        final java.util.Map<String, Integer> map = Map.of(numbers[0], 0, numbers[1], 1, numbers[2], 2, numbers[3], 3,
-            numbers[4], 4);
+        final java.util.Map<String, Integer> map = Map.of(numbers[0], 0, numbers[1], 1, numbers[2], 2, numbers[3], 3, numbers[4], 4);
         validateMapContents(map, 5);
     }
 
     public void testMapOfSix() {
-        final java.util.Map<String, Integer> map = Map.of(numbers[0], 0, numbers[1], 1, numbers[2], 2, numbers[3], 3,
-            numbers[4], 4, numbers[5], 5);
+        final java.util.Map<String, Integer> map = Map.of(
+            numbers[0],
+            0,
+            numbers[1],
+            1,
+            numbers[2],
+            2,
+            numbers[3],
+            3,
+            numbers[4],
+            4,
+            numbers[5],
+            5
+        );
         validateMapContents(map, 6);
     }
 
     public void testMapOfSeven() {
-        final java.util.Map<String, Integer> map = Map.of(numbers[0], 0, numbers[1], 1, numbers[2], 2, numbers[3], 3,
-            numbers[4], 4, numbers[5], 5, numbers[6], 6);
+        final java.util.Map<String, Integer> map = Map.of(
+            numbers[0],
+            0,
+            numbers[1],
+            1,
+            numbers[2],
+            2,
+            numbers[3],
+            3,
+            numbers[4],
+            4,
+            numbers[5],
+            5,
+            numbers[6],
+            6
+        );
         validateMapContents(map, 7);
     }
 
     public void testMapOfEight() {
-        final java.util.Map<String, Integer> map = Map.of(numbers[0], 0, numbers[1], 1, numbers[2], 2, numbers[3], 3,
-            numbers[4], 4, numbers[5], 5, numbers[6], 6, numbers[7], 7);
+        final java.util.Map<String, Integer> map = Map.of(
+            numbers[0],
+            0,
+            numbers[1],
+            1,
+            numbers[2],
+            2,
+            numbers[3],
+            3,
+            numbers[4],
+            4,
+            numbers[5],
+            5,
+            numbers[6],
+            6,
+            numbers[7],
+            7
+        );
         validateMapContents(map, 8);
     }
 
     public void testMapOfNine() {
-        final java.util.Map<String, Integer> map = Map.of(numbers[0], 0, numbers[1], 1, numbers[2], 2, numbers[3], 3,
-            numbers[4], 4, numbers[5], 5, numbers[6], 6, numbers[7], 7, numbers[8], 8);
+        final java.util.Map<String, Integer> map = Map.of(
+            numbers[0],
+            0,
+            numbers[1],
+            1,
+            numbers[2],
+            2,
+            numbers[3],
+            3,
+            numbers[4],
+            4,
+            numbers[5],
+            5,
+            numbers[6],
+            6,
+            numbers[7],
+            7,
+            numbers[8],
+            8
+        );
         validateMapContents(map, 9);
     }
 
     public void testMapOfTen() {
-        final java.util.Map<String, Integer> map = Map.of(numbers[0], 0, numbers[1], 1, numbers[2], 2, numbers[3], 3,
-            numbers[4], 4, numbers[5], 5, numbers[6], 6, numbers[7], 7, numbers[8], 8, numbers[9], 9);
+        final java.util.Map<String, Integer> map = Map.of(
+            numbers[0],
+            0,
+            numbers[1],
+            1,
+            numbers[2],
+            2,
+            numbers[3],
+            3,
+            numbers[4],
+            4,
+            numbers[5],
+            5,
+            numbers[6],
+            6,
+            numbers[7],
+            7,
+            numbers[8],
+            8,
+            numbers[9],
+            9
+        );
         validateMapContents(map, 10);
     }
 

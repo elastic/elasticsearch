@@ -1,0 +1,633 @@
+[[release-notes-7.16.3]]
+== {es} version 7.16.3
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+[[enhancement-7.16.3]]
+[float]
+=== Enhancements
+
+Security::
+* Add "maintenance" permission to the fleet-server service account {es-pull}82125[#82125]
+
+
+
+[[bug-7.16.3]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Fix docs and error message for role `field_security` {es-pull}81283[#81283]
+
+Infra/Scripting::
+* Track this pointer capture from blocks within lambdas {es-pull}82228[#82228] (issue: {es-issue}82224[#82224])
+
+
+
+[[upgrade-7.16.3]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.17.1 {es-pull}82111[#82111]
+
+
+[[release-notes-7.16.2]]
+== {es} version 7.16.2
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+[[enhancement-7.16.2]]
+[float]
+=== Enhancements
+
+Other::
+* Add deprecation notices for boost mappings to API {es-pull}81605[#81605] (issue: {es-issue}78396[#78396])
+
+Packaging::
+* Improve Docker image's cacert scripting {es-pull}81659[#81659]
+
+
+[[bug-7.16.2]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Add delete privilege to `kibana_system` for APM and Endpoint ILM policies {es-pull}81811[#81811]
+
+Infra/Logging::
+* Add `doPrivileged` section in deprecation logger {es-pull}81819[#81819] (issue: {es-issue}81708[#81708])
+
+Java High Level REST Client::
+* Change HLRC's `LifecyclePolicy` to allow all valid ILM actions {es-pull}81483[#81483] (issue: {es-issue}81461[#81461])
+
+Machine Learning::
+* Fix `LangIdent` model when multiple unicode scripts are present {es-pull}81876[#81876] (issue: {es-issue}80675[#80675])
+* Model snapshot upgrade needs a stats endpoint {es-pull}81641[#81641] (issue: {es-issue}81519[#81519])
+
+Packaging::
+* Change default shell to bash in default Docker image {es-pull}81828[#81828] (issue: {es-issue}80820[#80820])
+
+
+[[regression-7.16.2]]
+[float]
+=== Regressions
+
+Infra/Scripting::
+* Fix superclass functional interface resolution in Painless {es-pull}81698[#81698] (issue: {es-issue}81696[#81696])
+
+
+[[upgrade-7.16.2]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.17.0 {es-pull}81902[#81902]
+
+
+[[release-notes-7.16.1]]
+== {es} version 7.16.1
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+[discrete]
+[[security-updates-7.16.1]]
+=== Security updates
+
+* A high severity vulnerability
+(https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-44228[CVE-2021-44228]) for
+https://logging.apache.org/log4j/2.x/[Apache Log4j 2] versions 2.0 to 2.14 was
+disclosed publicly on the project's
+https://github.com/apache/logging-log4j2/pull/608[GitHub] on December 9, 2021.
++
+For information about affected {es} versions and mitigation steps, see our
+related
+https://discuss.elastic.co/t/apache-log4j2-remote-code-execution-rce-vulnerability-cve-2021-44228-esa-2021-31/291476[security
+announcement].
+
+[[known-issues-7.16.1]]
+[discrete]
+=== Known issues
+
+include::7.16.asciidoc[tag=painless-functional-interface-resolution-81696-known-issue]
+
+[[enhancement-7.16.1]]
+[float]
+=== Enhancements
+
+Infra/Logging::
+* Disable JNDI lookups via the `log4j2.formatMsgNoLookups` system property {es-pull}81622[#81622]
+* Patch log4j jar to remove the `JndiLookup` class from the classpath {es-pull}81629[#81629]
+
+Infra/Core::
+* Allow plugins permission to register MBeans {es-pull}81508[#81508] (issue: {es-issue}76329[#76329])
+
+Other::
+* Deprecate multifield mappings templates {es-pull}81329[#81329] (issue: {es-issue}78445[#78445])
+
+[[bug-7.16.1]]
+[float]
+=== Bug fixes
+
+Autoscaling::
+* Calculate autoscaling capacity off the transport threads {es-pull}80499[#80499] (issue: {es-issue}79104[#79104])
+
+CCR::
+* Stop auto-followers when resetting metadata {es-pull}81290[#81290] (issues: {es-issue}81242[#81242], {es-issue}81247[#81247])
+
+ILM+SLM::
+* Allow the `unfollow` action in the frozen phase {es-pull}81434[#81434]
+
+Indices APIs::
+* Implement `getMinimalSupportedVersion` for all `NameDiffs` {es-pull}81374[#81374] (issue: {es-issue}81262[#81262])
+
+Infra/Core::
+* Allow configuration of `ThreadPool` warning times {es-pull}81487[#81487]
+
+Infra/Logging::
+* Add `trace.id` to indexed deprecation logs {es-pull}81524[#81524]
+
+Infra/Scripting::
+* Use the implicit context cache {es-pull}81552[#81552] (issue: {es-issue}81486[#81486])
+
+Machine Learning::
+* Make model snapshot upgrade autoscaling friendly {es-pull}81123[#81123] (issue: {es-issue}81012[#81012])
+
+Network::
+* Fail fast remote cluster requests when `skip_unavailable` is `true` {es-pull}80589[#80589] (issue: {es-issue}74773[#74773])
+* Fix channel open trace logging {es-pull}81308[#81308]
+
+Other::
+* Adding a deprecation info API check for `discovery.zen.minimum_master_nodes` {es-pull}81282[#81282] (issue: {es-issue}81260[#81260])
+
+SQL::
+* Fix metrics reporting when sorting on aggregated values {es-pull}81510[#81510] (issue: {es-issue}81502[#81502])
+* Fix rearranging columns in PIVOT queries {es-pull}81032[#81032] (issue: {es-issue}80952[#80952])
+* Only resolve aliases if asked for local cluster {es-pull}81158[#81158] (issue: {es-issue}81157[#81157])
+
+Search::
+* Handle partial search result with point in time {es-pull}81349[#81349] (issue: {es-issue}81256[#81256])
+
+Transform::
+* Fix wire compatibility version for transform cluster state {es-pull}81300[#81300] (issue: {es-issue}81292[#81292])
+* Handle `PIT index not found` error {es-pull}81368[#81368] (issues: {es-issue}81252[#81252], {es-issue}81256[#81256])
+
+
+
+[[release-notes-7.16.0]]
+== {es} version 7.16.0
+
+Also see <<breaking-changes-7.16,Breaking changes in 7.16>>.
+
+[[deprecation-7.16.0]]
+[float]
+=== Deprecations
+
+Allocation::
+* Improve single-node watermark deprecation checks {es-pull}80824[#80824] (issue: {es-issue}80817[#80817])
+
+Authentication::
+* Adding a deprecation info API check for SAML `nameid_format` setting {es-pull}77276[#77276] (issues: {es-issue}42404[#42404], {es-issue}44090[#44090])
+
+Cluster Coordination::
+* Adding a deprecation info check for `cluster.join.timeout` {es-pull}76944[#76944] (issue: {es-issue}42404[#42404])
+
+Geo::
+* Adding deprecation checks for `geo_shape` parameters {es-pull}76627[#76627] (issues: {es-issue}42404[#42404], {es-issue}70850[#70850])
+
+ILM+SLM::
+* Add deprecation info and warnings for an empty `_tier_preference` {es-pull}79305[#79305] (issue: {es-issue}76147[#76147])
+* Adding deprecation logging and deprecation info API for ILM freeze ation {es-pull}77969[#77969] (issues: {es-issue}42404[#42404], {es-issue}70192[#70192])
+
+Indices APIs::
+* Add frozen index deprecation check {es-pull}78915[#78915] (issue: {es-issue}70192[#70192])
+* Deprecate `ignore_throttled` parameter {es-pull}77479[#77479] (issue: {es-issue}70192[#70192])
+* Warn when searching a frozen index {es-pull}78184[#78184] (issue: {es-issue}70192[#70192])
+
+Infra/Logging::
+* Change default deprecation logger level to `CRITICAL` {es-pull}77030[#77030] (issue: {es-issue}76754[#76754])
+* Deprecation logs indexing is enabled by default {es-pull}78991[#78991] (issues: {es-issue}76292[#76292], {es-issue}78850[#78850])
+* Exposing the ability to log deprecated settings at non-critical level {es-pull}79107[#79107] (issues: {es-issue}77482[#77482], {es-issue}78781[#78781])
+* REST API to reset deprecation indexing cache {es-pull}78392[#78392] (issue: {es-issue}78134[#78134])
+* Add category field to deprecation logs {es-pull}77550[#77550] (issue: {es-issue}67443[#67443])
+
+Infra/Scripting::
+* Script: Deprecate script context cache {es-pull}79508[#79508] (issue: {es-issue}62899[#62899])
+
+Java High Level REST Client::
+* Add deprecation headers to HLRC classes {es-pull}79754[#79754]
+
+Machine Learning::
+* Deprecate `estimated_heap_memory_usage_bytes` and replace with `model_size_bytes` {es-pull}80545[#80545]
+
+Monitoring::
+* Deprecate monitoring settings {es-pull}79499[#79499]
+* Deprecate `create_legacy_templates` setting on HTTP exporters {es-pull}78564[#78564]
+* Deprecate the monitoring ingest settings {es-pull}77659[#77659] (issue: {es-issue}77459[#77459])
+
+[[known-issues-7.16.0]]
+[discrete]
+=== Known issues
+
+// tag::painless-functional-interface-resolution-81696-known-issue[]
+* Painless: Any Painless script where a method call resolves a lambda argument
+to a `UnaryOperator` or a `BinaryOperator` type results in an
+`IllegalArgumentException`. This exception results in a compilation error when
+static types are used, or a runtime error for dynamic types. Use standard
+procedural statements as a workaround, such as `if/else`, `while`, and `for`
+statements.
++
+The following example is a `UnaryOperator` type that will result in a failure:
++
+[source,Java]
+----
+List l = ['abc', '123']; l.replaceAll(f -> f.replace('abc', 'doremi');
+----
++
+The following example is a possible workaround:
++
+[source,Java]
+----
+List l = ['abc', '123'];
+for (int i = 0; i < l.size(); ++i) {
+    l.set(i, l.get(i).replace('abc', 'doremi'));
+}
+----
+// end::painless-functional-interface-resolution-81696-known-issue[]
+
+[[feature-7.16.0]]
+[float]
+=== New features
+
+Data streams::
+* API for adding and removing indices from a data stream {es-pull}79279[#79279] (issue: {es-issue}75852[#75852])
+
+EQL::
+* Introduce repeatable queries {es-pull}75082[#75082]
+* Refine repeatable queries {es-pull}78895[#78895] (issue: {es-issue}75082[#75082])
+
+Machine Learning::
+* Text/Log categorization multi-bucket aggregation {es-pull}71752[#71752]
+
+SQL::
+* Add ability to perform CCS through SQL querying {es-pull}78903[#78903]
+
+Search::
+* Profile the fetch phase {es-pull}77064[#77064] (issue: {es-issue}75892[#75892])
+
+
+
+[[enhancement-7.16.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Adds support for the rate aggregation under a composite aggregation {es-pull}76992[#76992] (issue: {es-issue}76988[#76988])
+* Interrupt aggregation reduce phase if the search task is cancelled {es-pull}71714[#71714] (issue: {es-issue}71021[#71021])
+* Add deprecation check for adjacency matrix setting {es-pull}77802[#77802] (issue: {es-issue}46327[#46327])
+
+Allocation::
+* Replace `RoutingTable#shardsWithState(...)` with `RoutingNodes#unassigned(...)` {es-pull}78931[#78931] (issue: {es-issue}77466[#77466])
+* Reuse local node in async shard fetch responses {es-pull}77991[#77991] (issue: {es-issue}77266[#77266])
+
+Audit::
+* Add cluster UUID and name to audit logs {es-pull}79401[#79401] (issue: {es-issue}72408[#72408])
+
+Authentication::
+* Remove HTTPS check for API Keys & Service Accounts {es-pull}76801[#76801]
+
+Authorization::
+* Add privileges to `kibana_system` for upgrading endpoint hidden indices {es-pull}80140[#80140]
+* Allow fleet-server service account to set up Fleet {es-pull}78192[#78192] (issue: {es-issue}78078[#78078])
+* Grant additional privileges for endpoint transform indices to `kibana_system` {es-pull}79619[#79619]
+* Grant privileges required by package upgrade to `kibana_system` {es-pull}78049[#78049] (issue: {es-issue}77294[#77294])
+* Optimize FLS/DLS setup in `IndicePermission` authz {es-pull}77832[#77832]
+* Skip loading authorized indices if requests do not need them {es-pull}78321[#78321]
+* Superuser fastpath for `indexAccessControl` {es-pull}78498[#78498]
+* Update transform destination index privilege for `kibana_system` {es-pull}79076[#79076]
+* Use fixed size memory allocation in `IndicesPermission` {es-pull}77748[#77748]
+* Add proper permissions to fleet server for Endpoint response index {es-pull}80231[#80231]
+* Migrate custom role providers to licensed feature {es-pull}79127[#79127]
+
+CCR::
+* Add description to shard changes action request {es-pull}80275[#80275] (issue: {es-issue}79311[#79311])
+
+Cluster Coordination::
+* Add cluster state serialization stats {es-pull}78816[#78816]
+* Add timing stats to publication process {es-pull}76771[#76771] (issue: {es-issue}76625[#76625])
+* Get hot threads on lagging nodes {es-pull}78879[#78879]
+* Improve error message in 8.x to 7.x downgrade {es-pull}78644[#78644] (issue: {es-issue}78638[#78638])
+* Improve logging in `LeaderChecker` {es-pull}78883[#78883]
+* Mention "warn threshold" in master service slowlog {es-pull}76815[#76815] (issue: {es-issue}76625[#76625])
+* Recycle pages used by outgoing publications {es-pull}77407[#77407] (issue: {es-issue}77317[#77317])
+* Reuse previous indices lookup when possible {es-pull}79004[#79004] (issues: {es-issue}77888[#77888], {es-issue}78980[#78980])
+* Validate PING and STATE connections at join time {es-pull}77741[#77741]
+
+Composite aggregations::
+* Support `_first` and `_last` ordering of missing values in composite aggregations {es-pull}76740[#76740] (issues: {es-issue}34550[#34550], {es-issue}63523[#63523])
+
+Data streams::
+* More accurate error message for data stream and alias {es-pull}79027[#79027] (issues: {es-issue}58327[#58327], {es-issue}66163[#66163])
+
+Distributed::
+* Add Fleet search API to wait on refreshes {es-pull}73134[#73134] (issue: {es-issue}71449[#71449])
+* Add support for superseding in `CancellableSingleObjectCache` {es-pull}80199[#80199]
+
+EQL::
+* Sequences will now support nano-timestamps {es-pull}76953[#76953] (issue: {es-issue}68812[#68812])
+
+Engine::
+* Apply the reader wrapper on `can_match` source {es-pull}78988[#78988]
+* Enable sort optimization in query Lucene changes {es-pull}77907[#77907]
+* Honor max segment size when setting `only_expunge_deletes` on force merge {es-pull}77478[#77478] (issues: {es-issue}61764[#61764], {es-issue}77270[#77270])
+
+Geo::
+* Add support for metrics aggregations to mvt end point {es-pull}78614[#78614] (issue: {es-issue}77072[#77072])
+* Include `_index` property for each hit in `_mvt` response {es-pull}77995[#77995] (issue: {es-issue}77205[#77205])
+* Add `track_total_hits` support in mvt API {es-pull}78074[#78074] (issue: {es-issue}77222[#77222])
+
+ILM+SLM::
+* Improve `LifecycleExecutionState` parsing {es-pull}77855[#77855] (issue: {es-issue}77466[#77466])
+* Reduce the number of times that `LifecycleExecutionState` is parsed when running a policy {es-pull}77863[#77863] (issue: {es-issue}77466[#77466])
+* Add built-in ILM policies for common user use cases {es-pull}76791[#76791]
+* Allow for setting the total shards per node in the Allocate ILM action {es-pull}76134[#76134]
+
+Indices APIs::
+* Fleet: Add `action_response` into `.fleet-actions-results` mapping {es-pull}79584[#79584]
+* Store template's mappings as bytes for disk serialization {es-pull}78746[#78746]
+* Allow indices lookup to be built lazily {es-pull}78745[#78745] (issue: {es-issue}77466[#77466])
+
+Infra/Core::
+* Add optional content checking to `ResourceWatcher` {es-pull}79423[#79423]
+* Add other time accounting in `HotThreads` {es-pull}79392[#79392]
+* Add upgrade preparation and completion callbacks to `SystemIndexPlugin` {es-pull}78542[#78542]
+* Cache `index.hidden` setting {es-pull}78612[#78612] (issue: {es-issue}77974[#77974])
+* Enable wait/blocked time accounting {es-pull}77935[#77935] (issue: {es-issue}72376[#72376])
+* Handle empty /proc/self/cgroup file {es-pull}78659[#78659] (issue: {es-issue}77833[#77833])
+* Implement framework for migrating system indices {es-pull}78951[#78951]
+* Require System Index Descriptors to allow a specific suffix {es-pull}78355[#78355]
+* Support mem type in nodes `hot_threads` API {es-pull}72850[#72850] (issue: {es-issue}70345[#70345])
+* Use enum field for `HotThreads` report type {es-pull}77462[#77462]
+
+Infra/Node Lifecycle::
+* Enable exit on out of memory error {es-pull}71542[#71542]
+
+Infra/Scripting::
+* Add a direct sub classes data structure to the Painless lookup {es-pull}76955[#76955]
+* Add ability to augment classes with fields from other classes in Painless {es-pull}76628[#76628]
+* Add dynamic (duck) type resolution to Painless static types {es-pull}78575[#78575]
+* Adds a lookup method to Painless for finding methods of all sub classes {es-pull}77044[#77044]
+* `UnsignedLong` field type converter {es-pull}77271[#77271]
+* Compile/cache eviction history metric placeholders {es-pull}78257[#78257] (issue: {es-issue}62899[#62899])
+
+Infra/Settings::
+* Add `show` command to the keystore CLI {es-pull}76693[#76693] (issue: {es-issue}57261[#57261])
+* Filtering setting deprecation info API messages based on a setting {es-pull}78725[#78725]
+
+Ingest::
+* Add enrich node cache {es-pull}76800[#76800] (issue: {es-issue}48988[#48988])
+* Add indices pipeline settings check when deleting a pipeline {es-pull}77013[#77013]
+* Allow range types to be used for enrich matching {es-pull}76110[#76110]
+* ECS support for Grok processor {es-pull}76885[#76885] (issue: {es-issue}66528[#66528])
+* Improving cache lookup to reduce recomputing / searches {es-pull}77259[#77259]
+* Make enrich policy execution cancelable {es-pull}77188[#77188] (issue: {es-issue}48988[#48988])
+* Optimistic concurrency control for updating ingest pipelines {es-pull}78551[#78551] (issue: {es-issue}77031[#77031])
+* Sync grok processor patterns with Logstash {es-pull}76752[#76752]
+* Updating ingest pipeline without changes is no-op {es-pull}78196[#78196] (issue: {es-issue}77382[#77382])
+
+Java High Level REST Client::
+* Add support for rest compatibility headers to the HLRC {es-pull}78490[#78490] (issue: {es-issue}77859[#77859])
+
+License::
+* Add license family attribute to feature usage tracking {es-pull}76622[#76622]
+* Add utility for tracking licensed persistent tasks {es-pull}76672[#76672]
+* Separate feature usage tracking for FLS and DLS {es-pull}79152[#79152]
+* Use a licensed feature per realm-type (+custom) {es-pull}78810[#78810]
+
+Machine Learning::
+* Add new `normalize_above` parameter to `p_value` significant terms heuristic {es-pull}78833[#78833]
+* Add new default char filter `first_line_with_letters` for machine learning categorization {es-pull}77457[#77457]
+* Add new `defer_definition_decompression` parameter to put trained model API {es-pull}77189[#77189] (issue: {es-issue}77132[#77132])
+* Enable ML on macOS on ARM {es-pull}78203[#78203]
+* Track feature usage for data frame analytics, inference, and anomaly jobs {es-pull}76789[#76789]
+* Speed up training of regression and classification models {ml-pull}2024[#2024]
+* Improve concurrency for training regression and classification models {ml-pull}2031[#2031]
+* Improve aspects of implementation of `skip_model_update` rule {ml-pull}2053[#2053]
+* Make sure instrumentation captures the best hyperparameters found for training classification and regression models {ml-pull}2057{#2057}
+
+Mapping::
+* Better error message for long keys in flattened fields {es-pull}80433[#80433] (issue: {es-issue}78248[#78248])
+* Add `time_series_metric` parameter {es-pull}76766[#76766] (issue: {es-issue}74014[#74014])
+* Add dimension mapping parameter {es-pull}74450[#74450] (issue: {es-issue}74014[#74014])
+
+Monitoring::
+* Remove license check for monitoring data retention {es-pull}79010[#79010]
+
+Packaging::
+* Switch to Ubuntu docker base image {es-pull}80640[#80640]
+* Use Cloudflare's zlib in Docker images {es-pull}81245[#81245] (issue: {es-issue}81208[#81208])
+* Use almalinux as the Docker base image {es-pull}80524[#80524] (issue: {es-issue}76681[#76681])
+
+Recovery::
+* Add support for peer recoveries using snapshots after primary failovers {es-pull}77420[#77420] (issue: {es-issue}73496[#73496])
+* Respect generational files in `recoveryDiff` {es-pull}77695[#77695] (issues: {es-issue}55142[#55142], {es-issue}55239[#55239])
+* Limit concurrent snapshot file restores in recovery per node {es-pull}79316[#79316] (issue: {es-issue}79044[#79044])
+
+Search::
+* Add `_ignored` and `_routing` metatada fields to fields API {es-pull}78981[#78981] (issues: {es-issue}75836[#75836], {es-issue}78828[#78828])
+* Add `_index` and `_version` metatada fields to fields API {es-pull}79042[#79042] (issues: {es-issue}75836[#75836], {es-issue}78828[#78828])
+* Add ability to retrieve `_id` via fields option {es-pull}78828[#78828] (issue: {es-issue}75836[#75836])
+* Add node-level field capabilities API requests {es-pull}79212[#79212] (issues: {es-issue}74648[#74648], {es-issue}77047[#77047], {es-issue}78647[#78647])
+* Add segment sorter for data streams {es-pull}75195[#75195]
+* Add sort optimization with after from Lucene {es-pull}64292[#64292]
+* Don't always rewrite the Lucene query in search phases {es-pull}79358[#79358]
+* Expand segment sorter for all timeseries indices {es-pull}78639[#78639] (issue: {es-issue}75195[#75195])
+* Node level can match action {es-pull}78765[#78765]
+* Search - return ignored field values from fields API {es-pull}78697[#78697] (issue: {es-issue}74121[#74121])
+* Support request cache on frozen tier {es-pull}77694[#77694] (issue: {es-issue}75309[#75309])
+* Use `search_coordination` threadpool for field capabilities API requests {es-pull}79378[#79378] (issue: {es-issue}79212[#79212])
+* Create a sha-256 hash of the shard request cache key {es-pull}74877[#74877] (issue: {es-issue}74061[#74061])
+
+Security::
+* Add `extensionName()` to security extension {es-pull}79329[#79329]
+* Optimize `StringMatcher` for match-all patterns {es-pull}77738[#77738]
+* `CreateApiKey` response now returns the base64-encoded credentials {es-pull}77351[#77351] (issue: {es-issue}50235[#50235])
+
+Snapshot/Restore::
+* Add filtering by SLM policy to get snapshots API {es-pull}77321[#77321]
+* Add sort by shard count and failed shard count to get snapshots API {es-pull}77011[#77011]
+* Add descriptions to various tasks {es-pull}76700[#76700]
+* Add maintenance service to clean up unused docs in snapshot blob cache {es-pull}77686[#77686]
+* Add periodic maintenance task to clean up unused blob store cache docs {es-pull}78438[#78438] (issue: {es-issue}77686[#77686])
+* Filter Unneeded `SnapshotInfo` Instances Early in `TransportGetSnapshotsAction` {es-pull}78032[#78032] (issue: {es-issue}74350[#74350])
+* Implement exclude patterns for snapshot and repository names in get snapshots API {es-pull}77308[#77308]
+* Implement sort by repository name in get snapshots API {es-pull}77049[#77049]
+* Implement `from_sort_value` parameter in get snapshots API {es-pull}77618[#77618]
+
+Stats::
+* Add cluster applier stats {es-pull}77552[#77552]
+* Limit count of HTTP channels with tracked stats {es-pull}77303[#77303]
+* Speedup computing cluster health {es-pull}78969[#78969] (issue: {es-issue}77466[#77466])
+* Handle cgroups v2 in `OsProbe` {es-pull}77128[#77128] (issues: {es-issue}76812[#76812], {es-issue}77126[#77126])
+
+Transform::
+* Add `_meta` field to `TransformConfig` {es-pull}79003[#79003] (issue: {es-issue}77506[#77506])
+* Add method to collect deprecations from a transform configuration {es-pull}77565[#77565]
+* Add transform upgrade endpoint {es-pull}77566[#77566]
+* Reduce indexes to query based on checkpoints {es-pull}75839[#75839]
+* Implement the ability to preview the existing transform {es-pull}76697[#76697] (issue: {es-issue}76427[#76427])
+
+[[bug-7.16.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Add extra round trip to aggregation tests {es-pull}79638[#79638] (issue: {es-issue}73680[#73680])
+* Fix rate aggregation with custom `_doc_count` {es-pull}79346[#79346] (issue: {es-issue}77734[#77734])
+* Fix several potential circuit breaker leaks in aggregators {es-pull}79676[#79676]
+* Scale doubles to floats when necessary to match the field {es-pull}78344[#78344] (issue: {es-issue}77033[#77033])
+* Support for aggregation names with dots in first element path of a pipeline aggregation {es-pull}77481[#77481]
+
+Allocation::
+* Make `disk.threshold_enabled` operator only {es-pull}78822[#78822] (issue: {es-issue}77846[#77846])
+
+Authorization::
+* Improve permission granting for index referred by multiple names {es-pull}78902[#78902]
+* Tighten API key behaviour with DLS and incompatible license {es-pull}78378[#78378]
+
+CAT APIs::
+* Adjust `_cat/templates` to not request all metadata {es-pull}78829[#78829]
+
+CCR::
+* Clear auto-follow errors on deleting pattern {es-pull}80544[#80544] (issue: {es-issue}77723[#77723])
+
+CRUD::
+* Use query param instead of a system property for opting in for new cluster health response code {es-pull}79351[#79351] (issues: {es-issue}70849[#70849], {es-issue}78940[#78940])
+
+Cluster Coordination::
+* Avoid early release of local forking requests {es-pull}77641[#77641] (issues: {es-issue}77407[#77407], {es-issue}77634[#77634])
+* Check for global blocks after `IndexNotFoundException` in `TransportMasterNodeAction` {es-pull}78128[#78128] (issue: {es-issue}70572[#70572])
+* Improve control of outgoing connection lifecycles {es-pull}77295[#77295] (issue: {es-issue}67873[#67873])
+* Only remove active peer on connection failure {es-pull}79557[#79557] (issues: {es-issue}77295[#77295], {es-issue}79550[#79550])
+* Reduce merging in `PersistedClusterStateService` {es-pull}79793[#79793] (issue: {es-issue}77466[#77466])
+
+CompositeAggs::
+* Fix composite aggregation tests failing after #76740 {es-pull}77691[#77691] (issues: {es-issue}76740[#76740], {es-issue}77650[#77650])
+* Revert 74559 (Avoid global ordinals in composite) {es-pull}78846[#78846] (issues: {es-issue}74559[#74559], {es-issue}78836[#78836])
+
+Data streams::
+* Add replicated field to get data stream API response {es-pull}80988[#80988] (issue: {es-issue}118899[#118899])
+* Correct check for write index and increment generation on all data stream backing index operations {es-pull}79916[#79916]
+* Fix data stream bug causing it to rollover to a non-existent Index {es-pull}79759[#79759]
+* Fix `IndexNotFoundException` error when handling remove alias action {es-pull}80312[#80312]
+* Fix data stream alias validation {es-pull}81040[#81040] (issue: {es-issue}80972[#80972])
+
+Distributed::
+* Fix Fleet search API with no checkpoints {es-pull}79400[#79400]
+* Modify Fleet search URLs to avoid URL collisions {es-pull}79776[#79776]
+
+EQL::
+* Add optional fields and limit joining keys on non-null values only {es-pull}79677[#79677]
+
+Geo::
+* Fix bug filtering collinear points on vertical lines {es-pull}81155[#81155] (issues: {es-issue}59501[#59501], {es-issue}81076[#81076])
+* Spherical mercator transformation should handle properly out of bounds latitudes {es-pull}81145[#81145] (issue: {es-issue}81128[#81128])
+* Vector tiles: Add key bucket value to the aggregation layer {es-pull}79634[#79634] (issue: {es-issue}79585[#79585])
+
+ILM+SLM::
+* Prevent duplicate ILM cluster state updates from being created {es-pull}78390[#78390] (issues: {es-issue}77466[#77466], {es-issue}78246[#78246])
+* Run ILM and SLM stopping cluster state updates at `IMMEDIATE` priority {es-pull}80207[#80207] (issue: {es-issue}80099[#80099])
+* Validate that snapshot repository exists for ILM policies during `GenerateSnapshotNameStep` {es-pull}77657[#77657] (issue: {es-issue}72957[#72957])
+
+Indices APIs::
+* Get templates APIs don't support lists {es-pull}78989[#78989] (issue: {es-issue}78829[#78829])
+
+Infra/Core::
+* Avoid spurious deprecation warnings when calling Deprecation Info API {es-pull}78151[#78151] (issue: {es-issue}78098[#78098])
+* Fix overflow/underflow in `CompositeBytesReference` {es-pull}78893[#78893]
+* Fix race condition in Feature Migration Status API {es-pull}80572[#80572] (issue: {es-issue}79680[#79680])
+* Prevent stack overflow in rounding {es-pull}80450[#80450]
+* Set `LIBFFI_TMPDIR` at startup {es-pull}80651[#80651] (issues: {es-issue}18272[#18272], {es-issue}73309[#73309], {es-issue}74545[#74545], {es-issue}77014[#77014], {es-issue}77053[#77053], {es-issue}77285[#77285], {es-issue}80617[#80617])
+* Strip index blocks from settings for reindex targets {es-pull}80887[#80887] (issue: {es-issue}80654[#80654])
+* Eschew leniency when parsing time zones {es-pull}77267[#77267] (issues: {es-issue}73955[#73955], {es-issue}76415[#76415])
+* Fix ingest timezone parsing {es-pull}63876[#63876] (issue: {es-issue}63458[#63458])
+
+Infra/Logging::
+* Disable deprecation log indexing until templates are loaded {es-pull}80406[#80406] (issue: {es-issue}80265[#80265])
+
+Infra/Settings::
+* Stricter `UpdateSettingsRequest` parsing on the REST layer {es-pull}79228[#79228] (issue: {es-issue}29268[#29268])
+* Fix flood stage with system indices {es-pull}80674[#80674]
+
+Ingest::
+* Addressing assertion failure, 'downgrading' to exception - enrich {es-pull}79717[#79717]
+* Fix executing missing enrich policy bug {es-pull}80728[#80728]
+
+Java High Level REST Client::
+* Force typed keys in the HLRC get async search {es-pull}78992[#78992] (issue: {es-issue}77608[#77608])
+
+Machine Learning::
+* Address potential ML feature reset permissions bug {es-pull}79179[#79179]
+* Adjust ML memory tracker to reduce logging impact {es-pull}78482[#78482]
+* Audit job open failures and stop any corresponding datafeeds {es-pull}80665[#80665] (issues: {es-issue}48934[#48934], {es-issue}80621[#80621])
+* Fix acceptable model snapshot versions in ML deprecation checker {es-pull}81060[#81060] (issues: {es-issue}79387[#79387], {es-issue}81039[#81039], {es-issue}119745[#119745])
+* Fix autoscaling capacity consistency {es-pull}81181[#81181]
+* Fix bug in inference stats persister for when feature reset is called {es-pull}77213[#77213] (issue: {es-issue}77182[#77182])
+* Fix datafeed preview with remote indices {es-pull}81099[#81099] (issue: {es-issue}77109[#77109])
+* Fix language identification bug when multi-languages are present {es-pull}80675[#80675]
+* Fix model snapshot sorting when sorting by `min_version` {es-pull}80596[#80596] (issue: {es-issue}80561[#80561])
+* ML legacy index templates that are no longer needed should be deleted {es-pull}80874[#80874] (issue: {es-issue}80876[#80876])
+* Need to tolerate .ml-config being an alias {es-pull}80025[#80025]
+* Parent datafeed actions to the datafeed's persistent task {es-pull}81143[#81143]
+* Wait for .ml-state-write alias to be readable {es-pull}79731[#79731] (issue: {es-issue}79636[#79636])
+* Improve the estimates of hyperparameter importance in data frame analytics and avoid incorrectly stopping the hyperparameter search prematurely {ml-pull}2073[#2073]
+* Fix numerical instability in hyperparameter optimization for training regression and classification models {ml-pull}2078[#2078]
+* Fix numerical stability issues in time series modeling {ml-pull}2083[#[2083]]
+
+Mapping::
+* Disable request cache for non-deterministic runtime fields {es-pull}75054[#75054]
+* Fix `TextFieldMapper` Retaining a Reference to its Builder {es-pull}77251[#77251] (issue: {es-issue}73845[#73845])
+
+Packaging::
+* Ensure `LIBFFI_TMPDIR` is exported by init script {es-pull}80794[#80794]
+
+Recovery::
+* Do not release snapshot file download permit during recovery retries {es-pull}79409[#79409] (issue: {es-issue}79316[#79316])
+
+SQL::
+* Fix `NULLS FIRST/LAST` for aggregations {es-pull}77750[#77750] (issue: {es-issue}34550[#34550])
+* Fix use of `requestTimeout` and `pageTimeout` query parameters {es-pull}79360[#79360] (issue: {es-issue}72151[#72151])
+* Swap JDBC `page.timeout` and `query.timeout` properties in query requests {es-pull}79491[#79491] (issue: {es-issue}79430[#79430])
+
+Search::
+* Minimize search source of shard level search requests {es-pull}80634[#80634] (issue: {es-issue}80187[#80187])
+* Prevent `NullPointerException` in `SourceConfirmedTextQuery` {es-pull}80472[#80472] (issue: {es-issue}80419[#80419])
+* `_terms_enum` API `index_filter` doesn’t work with `_tier` field on upgraded cluster {es-pull}79553[#79553] (issue: {es-issue}79200[#79200])
+* Undeprecate the auto complete thread pool {es-pull}80204[#80204]
+* Wildcard field regex query fix {es-pull}78839[#78839] (issue: {es-issue}78391[#78391])
+
+Snapshot/Restore::
+* Fix Queued Snapshot Clone not Starting after Data Node Drops Out {es-pull}77111[#77111] (issue: {es-issue}77101[#77101])
+* Fix Temporarily Leaking Shard Level Metadata Blobs in some Cases {es-pull}76562[#76562]
+* Fix after restore Lucene.pruneUnreferencedFiles() conditional {es-pull}81047[#81047] (issues: {es-issue}68821[#68821], {es-issue}75308[#75308])
+* Improve handling of corrupt `index.latest` blob {es-pull}77339[#77339]
+* Submit GCS delete batch requests incrementally {es-pull}80540[#80540]
+* Fix repository-azure for empty settings on reload {es-pull}79559[#79559]
+
+Transform::
+* Fix transform feature reset permissions bug {es-pull}79178[#79178]
+* Respect timeout parameters in all APIs {es-pull}79468[#79468] (issue: {es-issue}79268[#79268])
+
+Watcher::
+* Fix watcher check that determines when to serialize indices options {es-pull}78070[#78070] (issue: {es-issue}78035[#78035])
+* Fix index action simulation when indexing several documents {es-pull}76820[#76820] (issues: {es-issue}66735[#66735], {es-issue}74148[#74148])
+
+[[upgrade-7.16.0]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade JNA to 5.10.0 {es-pull}80617[#80617] (issue: {es-issue}77014[#77014])
+
+Watcher::
+* Update owasp-java-html-sanitizer dependency {es-pull}80806[#80806]

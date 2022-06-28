@@ -1,9 +1,0 @@
-pr: 50277
-issues:
-  - 49926
-  - 46166
-area: Packaging
-type: UNKNOWN
-summary: Make the Docker build more re-usable in Cloud
-versions:
-  - v8.0.0

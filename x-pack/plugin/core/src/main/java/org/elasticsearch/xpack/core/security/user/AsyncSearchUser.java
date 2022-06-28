@@ -16,19 +16,24 @@ public class AsyncSearchUser extends User {
     public static final String NAME = UsernamesField.ASYNC_SEARCH_NAME;
     public static final AsyncSearchUser INSTANCE = new AsyncSearchUser();
     public static final String ROLE_NAME = UsernamesField.ASYNC_SEARCH_ROLE;
-    public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME,
+    public static final Role ROLE = Role.builder(
+        new RoleDescriptor(
+            ROLE_NAME,
             new String[] { "cancel_task" },
             new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + "*")
-                            .privileges("all")
-                            .allowRestrictedIndices(true).build(),
-            },
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + "*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(), },
             null,
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null), null).build();
+            null
+        ),
+        null
+    ).build();
 
     private AsyncSearchUser() {
         super(NAME, ROLE_NAME);

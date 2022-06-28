@@ -1,8 +1,0 @@
-pr: 27600
-issues:
-  - 27583
-area: Infra/Settings
-type: enhancement
-summary: Remove setting `index.optimize_auto_generated_id`
-versions:
-  - v8.0.0

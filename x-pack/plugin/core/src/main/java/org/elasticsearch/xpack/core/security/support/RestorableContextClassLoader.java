@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.SpecialPermission;
+
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-
-import org.elasticsearch.SpecialPermission;
 
 /**
  * A <em>try-with-resource</em> compatible object for configuring a thread {@link Thread#getContextClassLoader()}.

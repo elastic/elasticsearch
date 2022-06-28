@@ -29,16 +29,27 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Settings settings1 = Settings.builder()
-            .put(settings)
-            .put("xpack.security.transport.ssl.enabled", true).build();
-        return new SecurityNetty4ServerTransport(settings1, version, threadPool,
-            networkService, PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-            new NoneCircuitBreakerService(), null, createSSLService(settings1), new SharedGroupFactory(settings1)) {
+        Settings settings1 = Settings.builder().put(settings).put("xpack.security.transport.ssl.enabled", true).build();
+        return new SecurityNetty4ServerTransport(
+            settings1,
+            version,
+            threadPool,
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            namedWriteableRegistry,
+            new NoneCircuitBreakerService(),
+            null,
+            createSSLService(settings1),
+            new SharedGroupFactory(settings1)
+        ) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
-                                         ActionListener<Version> listener) {
+            public void executeHandshake(
+                DiscoveryNode node,
+                TcpChannel channel,
+                ConnectionProfile profile,
+                ActionListener<Version> listener
+            ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {

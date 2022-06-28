@@ -137,5 +137,5 @@ e.g. based on geolocation of the user.
 
 There are a few limitations relative to other script languages:
 
-* Only numeric, boolean, date, and geo_point fields may be accessed
+* Only numeric, `boolean`, `date`, and `geo_point` fields may be accessed
 * Stored fields are not available

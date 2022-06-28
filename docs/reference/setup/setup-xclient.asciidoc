@@ -1,9 +1,8 @@
 [role="xpack"]
-[testenv="basic"]
 [[setup-xpack-client]]
 == Configuring {xpack} Java Clients
 
-deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
 
 If you want to use a Java {javaclient}/transport-client.html[transport client] with a
 cluster where {xpack} is installed, then you must download and configure the
@@ -113,4 +112,5 @@ Then in your project's `pom.xml` if using maven, add the following repositories 
 --
 
 . If you are using {stack} {security-features}, there are more configuration
-steps. See {ref}/java-clients.html[Java Client and security].
+steps. Refer to 
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-overview.html[the Java Client documentation].

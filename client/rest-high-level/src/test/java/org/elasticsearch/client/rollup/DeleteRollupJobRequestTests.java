@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 public class DeleteRollupJobRequestTests extends ESTestCase {
 
     public void testRequireConfiguration() {
-        final NullPointerException e = expectThrows(NullPointerException.class, ()-> new DeleteRollupJobRequest(null));
+        final NullPointerException e = expectThrows(NullPointerException.class, () -> new DeleteRollupJobRequest(null));
         assertEquals("id parameter must not be null", e.getMessage());
     }
 }

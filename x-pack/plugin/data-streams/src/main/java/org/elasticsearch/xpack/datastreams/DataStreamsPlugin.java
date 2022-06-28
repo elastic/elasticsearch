@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.datastreams.action.DeleteDataStreamTransportActio
 import org.elasticsearch.xpack.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.xpack.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.action.PromoteDataStreamTransportAction;
-import org.elasticsearch.xpack.datastreams.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.xpack.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDeleteDataStreamAction;

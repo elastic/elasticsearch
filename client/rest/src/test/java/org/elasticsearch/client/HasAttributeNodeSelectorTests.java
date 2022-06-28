@@ -63,9 +63,13 @@ public class HasAttributeNodeSelectorTests extends RestClientTestCase {
         if (randomBoolean()) {
             roles.add("ingest");
         }
-        return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
-                randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(roles),
-                attributes);
+        return new Node(
+            new HttpHost("dummy"),
+            Collections.<HttpHost>emptySet(),
+            randomAsciiAlphanumOfLength(5),
+            randomAsciiAlphanumOfLength(5),
+            new Roles(roles),
+            attributes
+        );
     }
 }

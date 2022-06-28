@@ -14,6 +14,7 @@ import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -57,9 +58,16 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector putMetricCollector;
     final RequestMetricCollector multiPartUploadMetricCollector;
 
-    S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
-                ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetadata repositoryMetadata, BigArrays bigArrays) {
+    S3BlobStore(
+        S3Service service,
+        String bucket,
+        boolean serverSideEncryption,
+        ByteSizeValue bufferSize,
+        String cannedACL,
+        String storageClass,
+        RepositoryMetadata repositoryMetadata,
+        BigArrays bigArrays
+    ) {
         this.service = service;
         this.bigArrays = bigArrays;
         this.bucket = bucket;
@@ -92,8 +100,7 @@ class S3BlobStore implements BlobStore {
         this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("PUT")
-                    || request.getHttpMethod().name().equals("POST");
+                assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
@@ -114,8 +121,7 @@ class S3BlobStore implements BlobStore {
     }
 
     private long getRequestCount(Request<?> request) {
-        Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
-            .getCounter(AWSRequestMetrics.Field.RequestCount.name());
+        Number requestCount = request.getAWSRequestMetrics().getTimingInfo().getCounter(AWSRequestMetrics.Field.RequestCount.name());
         if (requestCount == null) {
             logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
             return 0L;

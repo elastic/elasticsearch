@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-update-job]]
 = Update {anomaly-jobs} API
 ++++
@@ -195,6 +194,10 @@ experimental[] (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 ====
 //End model_plot_config
+
+`model_prune_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-prune-window]
 
 `model_snapshot_retention_days`::
 (long)

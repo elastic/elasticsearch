@@ -16,25 +16,25 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  {}
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:  { "foo": "Apache Lucene powers Elasticsearch" }
 
   - do:
       index:
         index: test
-        id:    3
+        id:    "3"
         body:  { "foo": "Elasticsearch is based on Apache Lucene" }
 
   - do:
       index:
         index: test
-        id:    4
+        id:    "4"
         body:  { "foo": "The Apache Software Foundation manages many projects including Lucene" }
 
   - do:
@@ -252,3 +252,25 @@ setup:
                   term: "lucane"
 
   - match: { "hits.total.value": 3 }
+
+---
+"Wildcard highlighting":
+
+  - skip:
+      version: " - 7.17.2"
+      reason: "Wildcard highlighting on match_only_text was fixed in 7.17.3"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              foo: "many"
+          highlight:
+            fields:
+              "*": {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.foo: "The Apache Software Foundation manages many projects including Lucene" }
+  - match: { hits.hits.0.highlight.foo.0: "The Apache Software Foundation manages <em>many</em> projects including Lucene" }

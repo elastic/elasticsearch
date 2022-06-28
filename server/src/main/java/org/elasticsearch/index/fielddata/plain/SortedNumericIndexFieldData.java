@@ -53,10 +53,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public SortedNumericIndexFieldData build(
-            IndexFieldDataCache cache,
-            CircuitBreakerService breakerService
-        ) {
+        public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             return new SortedNumericIndexFieldData(name, numericType);
         }
     }
@@ -87,25 +84,23 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    protected XFieldComparatorSource dateComparatorSource(
-        Object missingValue,
-        MultiValueMode sortMode,
-        Nested nested
-    ) {
+    protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE_NANOSECONDS) {
             // converts date_nanos values to millisecond resolution
-            return new LongValuesComparatorSource(this, missingValue,
-                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds), NumericType.DATE);
+            return new LongValuesComparatorSource(
+                this,
+                missingValue,
+                sortMode,
+                nested,
+                dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds),
+                NumericType.DATE
+            );
         }
         return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE);
     }
 
     @Override
-    protected XFieldComparatorSource dateNanosComparatorSource(
-        Object missingValue,
-        MultiValueMode sortMode,
-        Nested nested
-    ) {
+    protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE) {
             // converts date values to nanosecond resolution
             return new LongValuesComparatorSource(

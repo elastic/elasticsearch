@@ -16,7 +16,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-
 public class BucketNormalizableTests extends ESTestCase {
     private static final String INDEX_NAME = "foo-index";
     private static final double EPSILON = 0.0001;

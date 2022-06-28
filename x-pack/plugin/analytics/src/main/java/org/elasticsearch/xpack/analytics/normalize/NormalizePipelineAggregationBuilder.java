@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.analytics.normalize;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -25,9 +25,9 @@ import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Mean;
 import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Percent;
 import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.RescaleZeroToOne;
@@ -41,8 +41,10 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<NormalizePipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-        NAME, false, (args, name) -> new NormalizePipelineAggregationBuilder(name, (String) args[0],
-        (String) args[1], (List<String>) args[2]));
+        NAME,
+        false,
+        (args, name) -> new NormalizePipelineAggregationBuilder(name, (String) args[0], (String) args[1], (List<String>) args[2])
+    );
 
     static {
         PARSER.declareString(optionalConstructorArg(), FORMAT);

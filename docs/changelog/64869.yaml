@@ -1,8 +1,0 @@
-pr: 64869
-issues:
-  - 58646
-area: EQL
-type: UNKNOWN
-summary: Add option for returning results from the tail of the stream
-versions:
-  - v8.0.0

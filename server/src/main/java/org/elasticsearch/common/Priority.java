@@ -32,12 +32,18 @@ public enum Priority {
 
     public static Priority fromByte(byte b) {
         switch (b) {
-            case 0: return IMMEDIATE;
-            case 1: return URGENT;
-            case 2: return HIGH;
-            case 3: return NORMAL;
-            case 4: return LOW;
-            case 5: return LANGUID;
+            case 0:
+                return IMMEDIATE;
+            case 1:
+                return URGENT;
+            case 2:
+                return HIGH;
+            case 3:
+                return NORMAL;
+            case 4:
+                return LOW;
+            case 5:
+                return LANGUID;
             default:
                 throw new IllegalArgumentException("can't find priority for [" + b + "]");
         }

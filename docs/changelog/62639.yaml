@@ -1,8 +1,0 @@
-pr: 62639
-issues:
-  - 62623
-area: Mapping
-type: deprecation
-summary: Remove mapping boost parameter entirely
-versions:
-  - v8.0.0

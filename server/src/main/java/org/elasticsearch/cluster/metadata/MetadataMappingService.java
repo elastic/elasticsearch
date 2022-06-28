@@ -19,11 +19,11 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -34,7 +34,6 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -63,8 +62,10 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateRequest>
-        execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(
+            ClusterState currentState,
+            List<PutMappingClusterStateUpdateRequest> tasks
+        ) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
@@ -91,10 +92,13 @@ public class MetadataMappingService {
             }
         }
 
-        private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
-                                          Map<Index, MapperService> indexMapperServices) throws IOException {
+        private ClusterState applyRequest(
+            ClusterState currentState,
+            PutMappingClusterStateUpdateRequest request,
+            Map<Index, MapperService> indexMapperServices
+        ) {
+            final CompressedXContent mappingUpdateSource = request.source();
             String mappingType = request.type();
-            CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
             final Metadata metadata = currentState.metadata();
             final List<IndexMetadata> updateList = new ArrayList<>();
             for (Index index : request.indices()) {
@@ -102,17 +106,22 @@ public class MetadataMappingService {
                 // IMPORTANT: always get the metadata from the state since it get's batched
                 // and if we pull it from the indexService we might miss an update etc.
                 final IndexMetadata indexMetadata = currentState.getMetadata().getIndexSafe(index);
-
+                DocumentMapper existingMapper = mapperService.documentMapper();
+                if (existingMapper != null && existingMapper.mappingSource().equals(mappingUpdateSource)) {
+                    continue;
+                }
                 // this is paranoia... just to be sure we use the exact same metadata tuple on the update that
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetadata);
-                // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper existingMapper = mapperService.documentMapper();
 
                 String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
                 if (existingMapper != null && existingMapper.type().equals(typeForUpdate) == false) {
-                    throw new IllegalArgumentException("Rejecting mapping update to [" + mapperService.index().getName() +
-                        "] as the final mapping would have more than 1 type: " + Arrays.asList(existingMapper.type(), typeForUpdate));
+                    throw new IllegalArgumentException(
+                        "Rejecting mapping update to ["
+                            + mapperService.index().getName()
+                            + "] as the final mapping would have more than 1 type: "
+                            + Arrays.asList(existingMapper.type(), typeForUpdate)
+                    );
                 }
 
                 Mapping newMapping;
@@ -128,15 +137,15 @@ public class MetadataMappingService {
                     mappingType = newMapping.type();
                 } else if (mappingType.equals(newMapping.type()) == false
                     && (isMappingSourceTyped(request.type(), mappingUpdateSource)
-                    || mapperService.resolveDocumentType(mappingType).equals(newMapping.type()) == false)) {
-                    throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
-                }
+                        || mapperService.resolveDocumentType(mappingType).equals(newMapping.type()) == false)) {
+                            throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
+                        }
             }
             assert mappingType != null;
 
             if (MapperService.DEFAULT_MAPPING.equals(mappingType) == false
-                    && MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false
-                    && mappingType.charAt(0) == '_') {
+                && MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false
+                && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_', found: [" + mappingType + "]");
             }
             Metadata.Builder builder = Metadata.builder(metadata);
@@ -182,8 +191,10 @@ public class MetadataMappingService {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
-                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                for (DocumentMapper mapper : Arrays.asList(
+                    mapperService.documentMapper(),
+                    mapperService.documentMapper(MapperService.DEFAULT_MAPPING)
+                )) {
                     if (mapper != null) {
                         indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource()));
                     }
@@ -208,41 +219,69 @@ public class MetadataMappingService {
 
         @Override
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
-            return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
+            return String.join(", ", tasks.stream().map(t -> (CharSequence) t.type())::iterator);
         }
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-                request,
-                ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
-                putMappingExecutor,
-                new AckedClusterStateTaskListener() {
+        final Metadata metadata = clusterService.state().metadata();
+        boolean noop = true;
+        for (Index index : request.indices()) {
+            final IndexMetadata indexMetadata = metadata.index(index);
+            if (indexMetadata == null) {
+                // local store recovery sends a mapping update request during application of a cluster state on t he data node which
+                // might we receive here before the CS update that created the index has been applied on all nodes and thus the index
+                // isn't found in the state yet but will be visible to the CS update below
+                noop = false;
+                break;
+            }
+            final MappingMetadata mappingMetadata = indexMetadata.mapping();
+            if (mappingMetadata == null) {
+                noop = false;
+                break;
+            }
+            if (request.source().equals(mappingMetadata.source()) == false) {
+                noop = false;
+                break;
+            }
+        }
+        if (noop) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        listener.onFailure(e);
-                    }
+        clusterService.submitStateUpdateTask(
+            "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
+            request,
+            ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
+            putMappingExecutor,
+            new AckedClusterStateTaskListener() {
 
-                    @Override
-                    public boolean mustAck(DiscoveryNode discoveryNode) {
-                        return true;
-                    }
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
 
-                    @Override
-                    public void onAllNodesAcked(@Nullable Exception e) {
-                        listener.onResponse(AcknowledgedResponse.of(e == null));
-                    }
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-                    @Override
-                    public void onAckTimeout() {
-                        listener.onResponse(AcknowledgedResponse.FALSE);
-                    }
+                @Override
+                public void onAllNodesAcked(@Nullable Exception e) {
+                    listener.onResponse(AcknowledgedResponse.of(e == null));
+                }
 
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return request.ackTimeout();
-                    }
-                });
+                @Override
+                public void onAckTimeout() {
+                    listener.onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            }
+        );
     }
 }

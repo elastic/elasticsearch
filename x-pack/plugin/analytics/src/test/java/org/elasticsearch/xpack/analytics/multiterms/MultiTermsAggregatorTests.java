@@ -21,9 +21,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -169,12 +169,19 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD }, null, iw -> {
             iw.addDocument(
                 org.elasticsearch.core.List.of(
-                    new FloatDocValuesField(FLOAT_FIELD, 1.0f), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                    new FloatDocValuesField(FLOAT_FIELD, 1.0f),
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                )
             );
-            iw.addDocument(org.elasticsearch.core.List.of(
-                new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))));
-            iw.addDocument(org.elasticsearch.core.List.of(
-                new NumericDocValuesField(INT_FIELD, 1), new FloatDocValuesField(FLOAT_FIELD, 1.0f)));
+            iw.addDocument(
+                org.elasticsearch.core.List.of(
+                    new NumericDocValuesField(INT_FIELD, 3),
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
+                )
+            );
+            iw.addDocument(
+                org.elasticsearch.core.List.of(new NumericDocValuesField(INT_FIELD, 1), new FloatDocValuesField(FLOAT_FIELD, 1.0f))
+            );
             iw.addDocument(
                 org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 2),
@@ -218,14 +225,19 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             iw -> {
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new FloatDocValuesField(FLOAT_FIELD, 1.0f), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new FloatDocValuesField(FLOAT_FIELD, 1.0f),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")))
+                        new NumericDocValuesField(INT_FIELD, 3),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
+                    )
                 );
-                iw.addDocument(org.elasticsearch.core.List.of(
-                    new NumericDocValuesField(INT_FIELD, 1), new FloatDocValuesField(FLOAT_FIELD, 1.0f)));
+                iw.addDocument(
+                    org.elasticsearch.core.List.of(new NumericDocValuesField(INT_FIELD, 1), new FloatDocValuesField(FLOAT_FIELD, 1.0f))
+                );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 2),
@@ -271,19 +283,27 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
             iw.addDocument(
                 org.elasticsearch.core.List.of(
-                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")), new SortedNumericDocValuesField(INT_FIELD, 1))
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
+                    new SortedNumericDocValuesField(INT_FIELD, 1)
+                )
             );
             iw.addDocument(
                 org.elasticsearch.core.List.of(
-                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")), new SortedNumericDocValuesField(INT_FIELD, 2))
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
+                    new SortedNumericDocValuesField(INT_FIELD, 2)
+                )
             );
             iw.addDocument(
                 org.elasticsearch.core.List.of(
-                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")), new SortedNumericDocValuesField(INT_FIELD, 3))
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")),
+                    new SortedNumericDocValuesField(INT_FIELD, 3)
+                )
             );
             iw.addDocument(
                 org.elasticsearch.core.List.of(
-                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")), new SortedNumericDocValuesField(INT_FIELD, 3))
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")),
+                    new SortedNumericDocValuesField(INT_FIELD, 3)
+                )
             );
         }, h -> {
             assertThat(h.getBuckets(), hasSize(3));
@@ -347,23 +367,33 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             iw -> {
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 3),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")))
+                        new NumericDocValuesField(INT_FIELD, 3),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 1), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 1),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 2), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 2),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 3),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
             },
             h -> {
@@ -500,23 +530,33 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             iw -> {
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 3),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")))
+                        new NumericDocValuesField(INT_FIELD, 3),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 1), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 1),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 2), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 2),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
                 iw.addDocument(
                     org.elasticsearch.core.List.of(
-                        new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
+                        new NumericDocValuesField(INT_FIELD, 3),
+                        new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
+                    )
                 );
             },
             h -> {

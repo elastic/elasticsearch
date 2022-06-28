@@ -27,7 +27,7 @@ public class PutDataFrameAnalyticsActionResponseTests extends AbstractWireSerial
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
-        namedWriteables.addAll(new MlInferenceNamedXContentProvider()   .getNamedWriteables());
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
 

@@ -190,13 +190,14 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
     }
 
     private static <T> T[] removeArrayElement(T[] array, int index) {
-        final Object result = Array.newInstance(array.getClass().getComponentType(), array.length - 1);
+        @SuppressWarnings("unchecked")
+        final T[] result = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length - 1);
         System.arraycopy(array, 0, result, 0, index);
         if (index < array.length - 1) {
             System.arraycopy(array, index + 1, result, index, array.length - index - 1);
         }
 
-        return (T[]) result;
+        return result;
     }
 
     public static <T> T[] appendElement(final T[] array, final T element) {
@@ -214,7 +215,6 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         }
         return result;
     }
-
 
     /**
      * An inner node in this trie. Inner nodes store up to 64 key-value pairs
@@ -329,6 +329,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
             }
         }
 
+        @SuppressWarnings("unchecked")
         private InnerNode<K, V> putExisting(K key, int hash, int hashBits, int slot, V value, MutableValueInt newValue) {
             final K[] keys2 = Arrays.copyOf(keys, keys.length);
             final Object[] subNodes2 = Arrays.copyOf(subNodes, subNodes.length);
@@ -377,7 +378,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         }
 
         private InnerNode<K, V> removeSlot(int hash6, int slot) {
-            final long mask2 = mask  & ~(1L << hash6);
+            final long mask2 = mask & ~(1L << hash6);
             final K[] keys2 = removeArrayElement(keys, slot);
             final Object[] subNodes2 = removeArrayElement(subNodes, slot);
             return new InnerNode<>(mask2, keys2, subNodes2);

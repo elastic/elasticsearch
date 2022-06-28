@@ -62,8 +62,7 @@ public class LicenseOperationModeTests extends ESTestCase {
                 OperationMode.resolve(licenseType);
 
                 fail(String.format(Locale.ROOT, "[%s] should not be recognized as an operation mode", type));
-            }
-            catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 assertThat(e.getMessage(), equalTo("unknown license type [" + type + "]"));
             }
         }

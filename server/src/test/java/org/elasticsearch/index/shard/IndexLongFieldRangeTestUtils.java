@@ -42,9 +42,10 @@ public class IndexLongFieldRangeTestUtils {
                 break;
             } else if (Boolean.TRUE.equals(complete) || randomBoolean()) {
                 range = range.extendWithShardRange(
-                        i,
-                        shardCount,
-                        randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRangeWireTests.randomSpecificRange());
+                    i,
+                    shardCount,
+                    randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRangeWireTests.randomSpecificRange()
+                );
             }
         }
 
@@ -55,8 +56,8 @@ public class IndexLongFieldRangeTestUtils {
 
     static boolean checkForSameInstances(IndexLongFieldRange expected, IndexLongFieldRange actual) {
         final boolean expectSame = expected == IndexLongFieldRange.UNKNOWN
-                || expected == IndexLongFieldRange.EMPTY
-                || expected == IndexLongFieldRange.NO_SHARDS;
+            || expected == IndexLongFieldRange.EMPTY
+            || expected == IndexLongFieldRange.NO_SHARDS;
         if (expectSame) {
             assertSame(expected, actual);
         }

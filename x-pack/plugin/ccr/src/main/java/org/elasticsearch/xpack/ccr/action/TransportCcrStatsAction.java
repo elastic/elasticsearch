@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,14 +38,14 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
 
     @Inject
     public TransportCcrStatsAction(
-            TransportService transportService,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            AutoFollowCoordinator autoFollowCoordinator,
-            CcrLicenseChecker ccrLicenseChecker,
-            Client client
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        AutoFollowCoordinator autoFollowCoordinator,
+        CcrLicenseChecker ccrLicenseChecker,
+        Client client
     ) {
         super(
             CcrStatsAction.NAME,
@@ -73,11 +73,8 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
     }
 
     @Override
-    protected void masterOperation(
-            CcrStatsAction.Request request,
-            ClusterState state,
-            ActionListener<CcrStatsAction.Response> listener
-    ) throws Exception {
+    protected void masterOperation(CcrStatsAction.Request request, ClusterState state, ActionListener<CcrStatsAction.Response> listener)
+        throws Exception {
         CheckedConsumer<FollowStatsAction.StatsResponses, Exception> handler = statsResponse -> {
             AutoFollowStats stats = autoFollowCoordinator.getStats();
             listener.onResponse(new CcrStatsAction.Response(stats, statsResponse));

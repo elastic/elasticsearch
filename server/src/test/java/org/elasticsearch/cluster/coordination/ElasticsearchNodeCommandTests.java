@@ -9,20 +9,19 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.List;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -32,6 +31,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -62,8 +62,13 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         builder.endObject();
 
         Metadata loadedMetadata;
-        try (XContentParser parser = createParser(hasMissingCustoms ? ElasticsearchNodeCommand.namedXContentRegistry : xContentRegistry(),
-            JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+        try (
+            XContentParser parser = createParser(
+                hasMissingCustoms ? ElasticsearchNodeCommand.namedXContentRegistry : xContentRegistry(),
+                JsonXContent.jsonXContent,
+                BytesReference.bytes(builder)
+            )
+        ) {
             loadedMetadata = Metadata.fromXContent(parser);
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
@@ -82,7 +87,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
                 final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
                 assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
             }
-        }  else {
+        } else {
             assertThat(loadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
         }
     }
@@ -100,8 +105,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             for (int i = 0; i < numDataStreams; i++) {
                 String dataStreamName = "name" + 1;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
-                mdBuilder.put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                    List.of(backingIndex.getIndex())));
+                mdBuilder.put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex())));
             }
         }
         mdBuilder.indexGraveyard(graveyard.build());
@@ -112,8 +116,8 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
             Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
-            .flatMap(Function.identity())
-            .collect(Collectors.toList())
+                .flatMap(Function.identity())
+                .collect(Collectors.toList())
         );
     }
 }

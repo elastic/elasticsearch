@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -44,9 +44,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         final TimeValue ttl = this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, ListenableFuture<CachedResult>>builder()
-                    .setExpireAfterWrite(ttl)
-                    .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
-                    .build();
+                .setExpireAfterWrite(ttl)
+                .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
+                .build();
         } else {
             cache = null;
         }
@@ -138,19 +138,28 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                             // cached credential hash matches the credential hash for this forestalled request
                             handleCachedAuthentication(cachedResult.user, ActionListener.wrap(authResult -> {
                                 if (authResult.isAuthenticated()) {
-                                    logger.debug("realm [{}] authenticated user [{}], with roles [{}] (cached)",
-                                        name(), token.principal(), authResult.getUser().roles());
+                                    logger.debug(
+                                        "realm [{}] authenticated user [{}], with roles [{}] (cached)",
+                                        name(),
+                                        token.principal(),
+                                        authResult.getUser().roles()
+                                    );
                                 } else {
-                                    logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
-                                        name(), token.principal(), authResult.getMessage());
+                                    logger.debug(
+                                        "realm [{}] authenticated user [{}] from cache, but then failed [{}]",
+                                        name(),
+                                        token.principal(),
+                                        authResult.getMessage()
+                                    );
                                 }
                                 listener.onResponse(authResult);
                             }, listener::onFailure));
                         } else {
                             logger.trace(
-                                "realm [{}], provided credentials for user [{}] do not match (known good) cached credentials," +
-                                    " invalidating cache and retrying",
-                                name(), token.principal()
+                                "realm [{}], provided credentials for user [{}] do not match (known good) cached credentials,"
+                                    + " invalidating cache and retrying",
+                                name(),
+                                token.principal()
                             );
                             // its credential hash does not match the
                             // hash of the credential for this forestalled request.
@@ -172,8 +181,8 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                         listener.onResponse(cachedResult.authenticationResult);
                     } else {
                         logger.trace(
-                            "realm [{}], provided credentials for user [{}] do not match (possibly invalid) cached credentials," +
-                                " invalidating cache and retrying",
+                            "realm [{}], provided credentials for user [{}] do not match (possibly invalid) cached credentials,"
+                                + " invalidating cache and retrying",
                             name(),
                             token.principal()
                         );
@@ -183,7 +192,10 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
             } else {
                 logger.trace(
-                    "realm [{}] does not have a cached result for user [{}]; attempting fresh authentication", name(), token.principal());
+                    "realm [{}] does not have a cached result for user [{}]; attempting fresh authentication",
+                    name(),
+                    token.principal()
+                );
                 // attempt authentication against the authentication source
                 doAuthenticate(token, ActionListener.wrap(authResult -> {
                     if (authResult.isAuthenticated() == false) {
@@ -193,7 +205,10 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     } else if (authResult.getUser().enabled() == false) {
                         logger.debug(
                             "realm [{}] cannot authenticate [{}], user is not enabled ([{}])",
-                            name(), token.principal(), authResult.getUser());
+                            name(),
+                            token.principal(),
+                            authResult.getUser()
+                        );
                         // a new request should trigger a new authentication
                         cache.invalidate(token.principal(), listenableCacheEntry);
                     } else {

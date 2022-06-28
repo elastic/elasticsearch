@@ -35,7 +35,7 @@ reindexed into a target index.
 *Side Effects*
 
 `ctx['op']`::
-        Use the default of `index` to update a document. Set to `none` to
+        Use the default of `index` to update a document. Set to `noop` to
         specify no operation or `delete` to delete the current document from
         the index.
 

@@ -235,12 +235,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sort]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]

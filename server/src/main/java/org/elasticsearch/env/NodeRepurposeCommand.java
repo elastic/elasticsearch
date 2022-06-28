@@ -7,9 +7,11 @@
  */
 package org.elasticsearch.env;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +33,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 
@@ -63,7 +64,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
+    protected void processDataPaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
         throws IOException {
         assert DiscoveryNode.canContainData(env.settings()) == false;
 
@@ -74,18 +75,18 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+    private void processNoMasterNoDataNode(Terminal terminal, Path[] paths, Environment env) throws IOException {
+        NodeEnvironment.DataPath[] dataPaths = toDataPaths(paths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePaths);
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting index metadata paths");
-        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodePaths);
+        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(dataPaths);
 
         Set<Path> indexPaths = uniqueParentPaths(shardDataPaths, indexMetadataPaths);
 
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), paths);
 
         final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
         if (indexPaths.isEmpty() && metadata.indices().isEmpty()) {
@@ -93,9 +94,10 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             return;
         }
 
-        final Set<String> indexUUIDs = Sets.union(indexUUIDsFor(indexPaths),
-            StreamSupport.stream(metadata.indices().values().spliterator(), false)
-                .map(imd -> imd.value.getIndexUUID()).collect(Collectors.toSet()));
+        final Set<String> indexUUIDs = Sets.union(
+            indexUUIDsFor(indexPaths),
+            metadata.indices().values().stream().map(IndexMetadata::getIndexUUID).collect(Collectors.toSet())
+        );
 
         outputVerboseInformation(terminal, indexPaths, indexUUIDs, metadata);
 
@@ -107,23 +109,23 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         removePaths(terminal, indexPaths); // clean-up shard dirs
         // clean-up all metadata dirs
-        MetadataStateFormat.deleteMetaState(dataPaths);
+        MetadataStateFormat.deleteMetaState(paths);
         IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
 
         terminal.println("Node successfully repurposed to no-master and no-data.");
     }
 
-    private void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+    private void processMasterNoDataNode(Terminal terminal, Path[] paths, Environment env) throws IOException {
+        NodeEnvironment.DataPath[] dataPaths = toDataPaths(paths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePaths);
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(dataPaths);
         if (shardDataPaths.isEmpty()) {
             terminal.println(NO_SHARD_DATA_TO_CLEAN_UP_FOUND);
             return;
         }
 
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), paths);
 
         final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
 
@@ -162,6 +164,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             terminal.println("Use -v to see list of paths and indices affected");
         }
     }
+
     private String toIndexName(String uuid, Metadata metadata) {
         if (metadata != null) {
             for (ObjectObjectCursor<String, IndexMetadata> indexMetadata : metadata.indices()) {
@@ -178,8 +181,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     static String noMasterMessage(int indexes, int shards, int indexMetadata) {
-        return "Found " + indexes + " indices ("
-                + shards + " shards and " + indexMetadata + " index meta data) to clean up";
+        return "Found " + indexes + " indices (" + shards + " shards and " + indexMetadata + " index meta data) to clean up";
     }
 
     static String shardMessage(int shards, int indices) {
@@ -206,7 +208,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         return Arrays.stream(paths).flatMap(Collection::stream).map(Path::getParent).collect(Collectors.toSet());
     }
 
-    //package-private for testing
+    // package-private for testing
     OptionParser getParser() {
         return parser;
     }

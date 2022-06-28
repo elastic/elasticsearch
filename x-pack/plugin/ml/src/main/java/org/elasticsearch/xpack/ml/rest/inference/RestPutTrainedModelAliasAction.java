@@ -6,19 +6,19 @@
  */
 package org.elasticsearch.xpack.ml.rest.inference;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction.Request.MODEL_ALIAS;
-import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-
-import java.io.IOException;
-import java.util.List;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction.Request.MODEL_ALIAS;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPutTrainedModelAliasAction extends BaseRestHandler {
 

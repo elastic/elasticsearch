@@ -31,8 +31,8 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
 
     @SuppressWarnings("unchecked")
     public MinAndMax(StreamInput in) throws IOException {
-        this.minValue = (T)Lucene.readSortValue(in);
-        this.maxValue = (T)Lucene.readSortValue(in);
+        this.minValue = (T) Lucene.readSortValue(in);
+        this.maxValue = (T) Lucene.readSortValue(in);
     }
 
     @Override
@@ -58,9 +58,10 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
     /**
      * Return a {@link Comparator} for {@link MinAndMax} values according to the provided {@link SortOrder}.
      */
-    public static Comparator<MinAndMax<?>> getComparator(SortOrder order) {
-        Comparator<MinAndMax<?>> cmp = order == SortOrder.ASC  ?
-            Comparator.comparing(MinAndMax::getMin) : Comparator.comparing(MinAndMax::getMax);
+    public static <T extends Comparable<? super T>> Comparator<MinAndMax<T>> getComparator(SortOrder order) {
+        Comparator<MinAndMax<T>> cmp = order == SortOrder.ASC
+            ? Comparator.comparing(MinAndMax::getMin)
+            : Comparator.comparing(MinAndMax::getMax);
         if (order == SortOrder.DESC) {
             cmp = cmp.reversed();
         }

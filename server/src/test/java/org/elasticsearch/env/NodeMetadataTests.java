@@ -34,20 +34,41 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testEqualsHashcodeSerialization() {
         final Path tempDir = createTempDir();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new NodeMetadata(randomAlphaOfLength(10), randomVersion()),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            new NodeMetadata(randomAlphaOfLength(10), randomVersion(), Version.CURRENT),
             nodeMetadata -> {
                 final long generation = NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, tempDir);
-                final Tuple<NodeMetadata, Long> nodeMetadataLongTuple
-                    = NodeMetadata.FORMAT.loadLatestStateWithGeneration(logger, xContentRegistry(), tempDir);
+                final Tuple<NodeMetadata, Long> nodeMetadataLongTuple = NodeMetadata.FORMAT.loadLatestStateWithGeneration(
+                    logger,
+                    xContentRegistry(),
+                    tempDir
+                );
                 assertThat(nodeMetadataLongTuple.v2(), equalTo(generation));
                 return nodeMetadataLongTuple.v1();
-            }, nodeMetadata -> {
-                if (randomBoolean()) {
-                    return new NodeMetadata(randomAlphaOfLength(21 - nodeMetadata.nodeId().length()), nodeMetadata.nodeVersion());
-                } else {
-                    return new NodeMetadata(nodeMetadata.nodeId(), randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion));
+            },
+            nodeMetadata -> {
+                switch (randomInt(3)) {
+                    case 0:
+                        return new NodeMetadata(
+                            randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
+                            nodeMetadata.nodeVersion(),
+                            nodeMetadata.oldestIndexVersion()
+                        );
+                    case 1:
+                        return new NodeMetadata(
+                            nodeMetadata.nodeId(),
+                            randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion),
+                            nodeMetadata.oldestIndexVersion()
+                        );
+                    default:
+                        return new NodeMetadata(
+                            nodeMetadata.nodeId(),
+                            nodeMetadata.nodeVersion(),
+                            randomValueOtherThan(nodeMetadata.oldestIndexVersion(), this::randomVersion)
+                        );
                 }
-            });
+            }
+        );
     }
 
     public void testReadsFormatWithoutVersion() throws IOException {
@@ -68,33 +89,45 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradesLegitimateVersions() {
         final String nodeId = randomAlphaOfLength(10);
-        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId,
-            randomValueOtherThanMany(v -> v.after(Version.CURRENT) || v.before(Version.CURRENT.minimumIndexCompatibilityVersion()),
-                this::randomVersion)).upgradeToCurrentVersion();
+        final NodeMetadata nodeMetadata = new NodeMetadata(
+            nodeId,
+            randomValueOtherThanMany(
+                v -> v.after(Version.CURRENT) || v.before(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                this::randomVersion
+            ),
+            Version.CURRENT
+        ).upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
         assertThat(nodeMetadata.nodeId(), equalTo(nodeId));
     }
 
     public void testUpgradesMissingVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, Version.V_EMPTY).upgradeToCurrentVersion();
+        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, Version.V_EMPTY, Version.CURRENT).upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
         assertThat(nodeMetadata.nodeId(), equalTo(nodeId));
     }
 
     public void testDoesNotUpgradeFutureVersion() {
-        final IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> new NodeMetadata(randomAlphaOfLength(10), tooNewVersion())
-                .upgradeToCurrentVersion());
-        assertThat(illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]")));
+        final IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> new NodeMetadata(randomAlphaOfLength(10), tooNewVersion(), Version.CURRENT).upgradeToCurrentVersion()
+        );
+        assertThat(
+            illegalStateException.getMessage(),
+            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]"))
+        );
     }
 
     public void testDoesNotUpgradeAncientVersion() {
-        final IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> new NodeMetadata(randomAlphaOfLength(10), tooOldVersion()).upgradeToCurrentVersion());
-        assertThat(illegalStateException.getMessage(),
-            allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
+        final IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> new NodeMetadata(randomAlphaOfLength(10), tooOldVersion(), Version.CURRENT).upgradeToCurrentVersion()
+        );
+        assertThat(
+            illegalStateException.getMessage(),
+            allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]"))
+        );
     }
 
     public static Version tooNewVersion() {

@@ -8,12 +8,14 @@
 
 package org.elasticsearch.search.dfs;
 
-
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,17 +34,30 @@ public class AggregatedDfs implements Writeable {
         termStatistics = HppcMaps.newMap(size);
         for (int i = 0; i < size; i++) {
             Term term = new Term(in.readString(), in.readBytesRef());
-            TermStatistics stats = new TermStatistics(in.readBytesRef(),
-                in.readVLong(),
-                DfsSearchResult.subOne(in.readVLong()));
+            BytesRef term2 = in.readBytesRef();
+            final long docFreq = in.readVLong();
+            assert docFreq >= 0;
+            long totalTermFreq = DfsSearchResult.subOne(in.readVLong());
+            if (in.getVersion().before(Version.V_7_0_0)) {
+                if (totalTermFreq == -1L) {
+                    // Lucene 7 and earlier used -1 to denote that this information wasn't stored by the codec
+                    // or that this field omitted term frequencies and positions. It used docFreq as fallback in that case
+                    // when calculating similarities. See LUCENE-8007 for more information.
+                    totalTermFreq = docFreq;
+                }
+            }
+            TermStatistics stats = new TermStatistics(term2, docFreq, totalTermFreq);
             termStatistics.put(term, stats);
         }
         fieldStatistics = DfsSearchResult.readFieldStats(in);
         maxDoc = in.readVLong();
     }
 
-    public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics,
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+    public AggregatedDfs(
+        ObjectObjectHashMap<Term, TermStatistics> termStatistics,
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics,
+        long maxDoc
+    ) {
         this.termStatistics = termStatistics;
         this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;

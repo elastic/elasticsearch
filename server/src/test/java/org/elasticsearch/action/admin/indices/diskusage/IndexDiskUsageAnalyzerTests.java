@@ -21,12 +21,15 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -35,15 +38,28 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,13 +76,32 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
+    protected static Directory createNewDirectory() {
+        final Directory dir = LuceneTestCase.newDirectory();
+        if (randomBoolean()) {
+            return new FilterDirectory(dir) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        analyzeDiskUsageAfterDeleteRandomDocuments(dir);
+                    } finally {
+                        super.close();
+                    }
+                }
+            };
+        } else {
+            return dir;
+        }
+    }
+
     public void testStoredFields() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -80,22 +115,46 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             });
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             final IndexDiskUsageStats perField = collectPerFieldStats(dir);
-            assertFieldStats("total", "stored field",
-                stats.total().getStoredFieldBytes(), perField.total().getStoredFieldBytes(), 0.01, 1024);
+            assertFieldStats(
+                "total",
+                "stored field",
+                stats.total().getStoredFieldBytes(),
+                perField.total().getStoredFieldBytes(),
+                0.01,
+                1024
+            );
 
-            assertFieldStats("sf1", "stored field",
-                stats.getFields().get("sf1").getStoredFieldBytes(), stats.total().getStoredFieldBytes() / 6, 0.01, 512);
+            assertFieldStats(
+                "sf1",
+                "stored field",
+                stats.getFields().get("sf1").getStoredFieldBytes(),
+                stats.total().getStoredFieldBytes() / 6,
+                0.01,
+                512
+            );
 
-            assertFieldStats("sf2", "stored field",
-                stats.getFields().get("sf2").getStoredFieldBytes(), stats.total().getStoredFieldBytes() / 3, 0.01, 512);
+            assertFieldStats(
+                "sf2",
+                "stored field",
+                stats.getFields().get("sf2").getStoredFieldBytes(),
+                stats.total().getStoredFieldBytes() / 3,
+                0.01,
+                512
+            );
 
-            assertFieldStats("sf3", "stored field",
-                stats.getFields().get("sf3").getStoredFieldBytes(), stats.total().getStoredFieldBytes() / 2, 0.01, 512);
+            assertFieldStats(
+                "sf3",
+                "stored field",
+                stats.getFields().get("sf3").getStoredFieldBytes(),
+                stats.total().getStoredFieldBytes() / 2,
+                0.01,
+                512
+            );
         }
     }
 
     public void testTermVectors() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final FieldType fieldType = randomTermVectorsFieldType();
@@ -111,19 +170,43 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             final IndexDiskUsageStats perField = collectPerFieldStats(dir);
             logger.info("--> stats {} per field {}", stats, perField);
-            assertFieldStats("total", "term vectors",
-                stats.total().getTermVectorsBytes(), perField.total().getTermVectorsBytes(), 0.01, 1024);
-            assertFieldStats("v1", "term vectors",
-                stats.getFields().get("v1").getTermVectorsBytes(), stats.total().getTermVectorsBytes() / 7, 0.01, 512);
-            assertFieldStats("v2", "term vectors",
-                stats.getFields().get("v2").getTermVectorsBytes(), stats.total().getTermVectorsBytes() * 2 / 7, 0.01, 512);
-            assertFieldStats("v3", "term vectors",
-                stats.getFields().get("v3").getTermVectorsBytes(), stats.total().getTermVectorsBytes() * 4 / 7, 0.01, 512);
+            assertFieldStats(
+                "total",
+                "term vectors",
+                stats.total().getTermVectorsBytes(),
+                perField.total().getTermVectorsBytes(),
+                0.01,
+                1024
+            );
+            assertFieldStats(
+                "v1",
+                "term vectors",
+                stats.getFields().get("v1").getTermVectorsBytes(),
+                stats.total().getTermVectorsBytes() / 7,
+                0.01,
+                512
+            );
+            assertFieldStats(
+                "v2",
+                "term vectors",
+                stats.getFields().get("v2").getTermVectorsBytes(),
+                stats.total().getTermVectorsBytes() * 2 / 7,
+                0.01,
+                512
+            );
+            assertFieldStats(
+                "v3",
+                "term vectors",
+                stats.getFields().get("v3").getTermVectorsBytes(),
+                stats.total().getTermVectorsBytes() * 4 / 7,
+                0.01,
+                512
+            );
         }
     }
 
-    public void testPoints() throws Exception {
-        try (Directory dir = newDirectory()) {
+    public void testBinaryPoints() throws Exception {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -138,20 +221,82 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             final IndexDiskUsageStats perField = collectPerFieldStats(dir);
             logger.info("--> stats {} per field {}", stats, perField);
-            assertFieldStats("total", "points",
-                stats.total().getPointsBytes(), perField.total().getPointsBytes(), 0.01, 1024);
-            assertFieldStats("pt1", "points",
-                stats.getFields().get("pt1").getPointsBytes(), stats.total().getPointsBytes() / 7, 0.01, 512);
-            assertFieldStats("pt2", "points",
-                stats.getFields().get("pt2").getPointsBytes(), stats.total().getPointsBytes() * 2 / 7, 0.01, 512);
-            assertFieldStats("pt3", "points",
-                stats.getFields().get("pt3").getPointsBytes(), stats.total().getPointsBytes() * 4 / 7, 0.01, 512);
+            assertFieldStats("total", "points", stats.total().getPointsBytes(), perField.total().getPointsBytes(), 0.01, 1024);
+            assertFieldStats("pt1", "points", stats.getFields().get("pt1").getPointsBytes(), stats.total().getPointsBytes() / 7, 0.01, 512);
+            assertFieldStats(
+                "pt2",
+                "points",
+                stats.getFields().get("pt2").getPointsBytes(),
+                stats.total().getPointsBytes() * 2 / 7,
+                0.01,
+                512
+            );
+            assertFieldStats(
+                "pt3",
+                "points",
+                stats.getFields().get("pt3").getPointsBytes(),
+                stats.total().getPointsBytes() * 4 / 7,
+                0.01,
+                512
+            );
+        }
+    }
+
+    public void testTriangle() throws Exception {
+        try (Directory dir = createNewDirectory()) {
+            final CodecMode codec = randomFrom(CodecMode.values());
+            indexRandomly(dir, codec, between(100, 1000), doc -> {
+                final double ratio = randomDouble();
+                if (ratio <= 0.25) {
+                    addFieldsToDoc(
+                        doc,
+                        LatLonShape.createIndexableFields("triangle_1", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                    );
+                }
+                if (ratio <= 0.50) {
+                    addFieldsToDoc(
+                        doc,
+                        LatLonShape.createIndexableFields("triangle_2", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                    );
+                }
+                addFieldsToDoc(
+                    doc,
+                    LatLonShape.createIndexableFields("triangle_3", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                );
+            });
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            final IndexDiskUsageStats perField = collectPerFieldStats(dir);
+            logger.info("--> stats {} per field {}", stats, perField);
+            assertFieldStats("total", "points", stats.total().getPointsBytes(), perField.total().getPointsBytes(), 0.01, 2048);
+            assertFieldStats(
+                "triangle_1",
+                "points",
+                stats.getFields().get("triangle_1").getPointsBytes(),
+                stats.total().getPointsBytes() / 7,
+                0.01,
+                2048
+            );
+            assertFieldStats(
+                "triangle_2",
+                "triangle",
+                stats.getFields().get("triangle_2").getPointsBytes(),
+                stats.total().getPointsBytes() * 2 / 7,
+                0.01,
+                2048
+            );
+            assertFieldStats(
+                "triangle_3",
+                "triangle",
+                stats.getFields().get("triangle_3").getPointsBytes(),
+                stats.total().getPointsBytes() * 4 / 7,
+                0.01,
+                2048
+            );
         }
     }
 
     public void testCompletionField() throws Exception {
-        IndexWriterConfig config = new IndexWriterConfig()
-            .setCommitOnClose(true)
+        IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(false)
             .setCodec(new Lucene87Codec(Lucene87Codec.Mode.BEST_SPEED) {
                 @Override
@@ -164,7 +309,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
             });
 
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, config)) {
                 int numDocs = randomIntBetween(100, 1000);
                 for (int i = 0; i < numDocs; i++) {
@@ -177,37 +322,63 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
             }
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
-            assertFieldStats("suggest_1", "inverted_index",
+            assertFieldStats(
+                "suggest_1",
+                "inverted_index",
                 stats.getFields().get("suggest_1").getInvertedIndexBytes(),
-                stats.total().totalBytes() / 3, 0.05, 2048);
+                stats.total().totalBytes() / 3,
+                0.05,
+                2048
+            );
 
-            assertFieldStats("suggest_2", "inverted_index",
+            assertFieldStats(
+                "suggest_2",
+                "inverted_index",
                 stats.getFields().get("suggest_2").getInvertedIndexBytes(),
-                stats.total().totalBytes() * 2 / 3, 0.05, 2048);
+                stats.total().totalBytes() * 2 / 3,
+                0.05,
+                2048
+            );
 
             final IndexDiskUsageStats perField = collectPerFieldStats(dir);
-            assertFieldStats("suggest_1", "inverted_index",
+            assertFieldStats(
+                "suggest_1",
+                "inverted_index",
                 stats.getFields().get("suggest_1").getInvertedIndexBytes(),
-                perField.getFields().get("suggest_1").getInvertedIndexBytes(), 0.05, 2048);
+                perField.getFields().get("suggest_1").getInvertedIndexBytes(),
+                0.05,
+                2048
+            );
 
-            assertFieldStats("suggest_2", "inverted_index",
+            assertFieldStats(
+                "suggest_2",
+                "inverted_index",
                 stats.getFields().get("suggest_2").getInvertedIndexBytes(),
-                perField.getFields().get("suggest_2").getInvertedIndexBytes(), 0.05, 2048);
+                perField.getFields().get("suggest_2").getInvertedIndexBytes(),
+                0.05,
+                2048
+            );
         }
     }
 
     public void testMixedFields() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), IndexDiskUsageAnalyzerTests::addRandomFields);
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
-            try (Directory perFieldDir = newDirectory()) {
+            try (Directory perFieldDir = createNewDirectory()) {
                 rewriteIndexWithPerFieldCodec(dir, codec, perFieldDir);
                 final IndexDiskUsageStats perFieldStats = collectPerFieldStats(perFieldDir);
                 assertStats(stats, perFieldStats);
                 assertStats(IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(perFieldDir), () -> {}), perFieldStats);
             }
+        }
+    }
+
+    private static void addFieldsToDoc(Document doc, IndexableField[] fields) {
+        for (IndexableField field : fields) {
+            doc.add(field);
         }
     }
 
@@ -242,8 +413,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields) throws IOException {
-        IndexWriterConfig config = new IndexWriterConfig()
-            .setCommitOnClose(true)
+        IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(randomBoolean())
             .setCodec(new Lucene87Codec(codecMode.mode()));
         try (IndexWriter writer = new IndexWriter(directory, config)) {
@@ -302,10 +472,15 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    static void addRandomPoints(Document doc) {
+    static void addRandomIntLongPoints(Document doc) {
         final int numValues = random().nextInt(5);
         for (int i = 0; i < numValues; i++) {
-            doc.add(new IntPoint("pt-" + randomIntBetween(1, 2), random().nextInt()));
+            if (randomBoolean()) {
+                doc.add(new IntPoint("int_point_" + randomIntBetween(1, 2), random().nextInt()));
+            }
+            if (randomBoolean()) {
+                doc.add(new LongPoint("long_point_" + randomIntBetween(1, 2), random().nextLong()));
+            }
         }
     }
 
@@ -334,7 +509,20 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             addRandomPostings(doc);
         }
         if (randomBoolean()) {
-            addRandomPoints(doc);
+            addRandomIntLongPoints(doc);
+        }
+        if (randomBoolean()) {
+            final int numValues = random().nextInt(5);
+            for (int i = 0; i < numValues; i++) {
+                addFieldsToDoc(
+                    doc,
+                    LatLonShape.createIndexableFields(
+                        "triangle_" + randomIntBetween(1, 2),
+                        GeoTestUtil.nextLatitude(),
+                        GeoTestUtil.nextLongitude()
+                    )
+                );
+            }
         }
         if (randomBoolean()) {
             addRandomStoredFields(doc, between(1, 3));
@@ -403,8 +591,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
     static void rewriteIndexWithPerFieldCodec(Directory source, CodecMode mode, Directory dst) throws IOException {
         try (DirectoryReader reader = DirectoryReader.open(source)) {
-            IndexWriterConfig config = new IndexWriterConfig()
-                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            IndexWriterConfig config = new IndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setUseCompoundFile(randomBoolean())
                 .setCodec(new Lucene87Codec(mode.mode()) {
                     @Override
@@ -517,31 +704,40 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 continue;
             }
             // Allow difference up to 2.5KB as we can load up to 256 long values in the table for numeric docValues
-            assertFieldStats(field, "doc values",
-                actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
-            assertFieldStats(field, "inverted index",
-                actualField.getInvertedIndexBytes(), expectedField.getInvertedIndexBytes(), 0.01, 1024);
+            assertFieldStats(field, "doc values", actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
+            assertFieldStats(
+                field,
+                "inverted index",
+                actualField.getInvertedIndexBytes(),
+                expectedField.getInvertedIndexBytes(),
+                0.01,
+                2048
+            );
         }
         // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();
         IndexDiskUsageStats.PerFieldDiskUsage expectedTotal = perFieldStats.total();
-        assertFieldStats("total", "stored fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.01, 1024);
-        assertFieldStats("total", "points", actualTotal.getPointsBytes(), expectedTotal.getPointsBytes(), 0.01, 1024);
-        assertFieldStats("total", "term vectors", actualTotal.getTermVectorsBytes(), expectedTotal.getTermVectorsBytes(), 0.01, 1024);
-        assertFieldStats("total", "norms", actualTotal.getNormsBytes(), expectedTotal.getNormsBytes(), 0.01, 1024);
+        assertFieldStats("total", "stored fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.01, 2048);
+        assertFieldStats("total", "points", actualTotal.getPointsBytes(), expectedTotal.getPointsBytes(), 0.01, 2048);
+        assertFieldStats("total", "term vectors", actualTotal.getTermVectorsBytes(), expectedTotal.getTermVectorsBytes(), 0.01, 2048);
+        assertFieldStats("total", "norms", actualTotal.getNormsBytes(), expectedTotal.getNormsBytes(), 0.01, 2048);
     }
 
-    private static void assertFieldStats(String fieldName, String fieldType,
-                                         long actualBytes, long expectedBytes,
-                                         double allowErrorPercentage, long allowErrorBytes) {
+    private static void assertFieldStats(
+        String fieldName,
+        String fieldType,
+        long actualBytes,
+        long expectedBytes,
+        double allowErrorPercentage,
+        long allowErrorBytes
+    ) {
         long margin = allowErrorBytes;
         if (allowErrorPercentage * actualBytes > allowErrorBytes) {
             margin = (long) (allowErrorPercentage * actualBytes);
         }
         final boolean inRange = expectedBytes - margin <= actualBytes && actualBytes <= expectedBytes + margin;
         if (inRange == false) {
-            throw new AssertionError(
-                "field=" + fieldName + " type=" + fieldType + " actual=" + actualBytes + " expected=" + expectedBytes);
+            throw new AssertionError("field=" + fieldName + " type=" + fieldType + " actual=" + actualBytes + " expected=" + expectedBytes);
         }
     }
 
@@ -553,5 +749,70 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
     private static ShardId testShardId() {
         return new ShardId("test_index", "_na_", randomIntBetween(0, 3));
+    }
+
+    private static class RandomMatchQuery extends Query {
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new ConstantScoreWeight(this, 1.0f) {
+                @Override
+                public Scorer scorer(LeafReaderContext context) {
+                    final FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    for (int i = 0; i < bits.length(); i++) {
+                        if (randomBoolean()) {
+                            bits.set(i);
+                        }
+                    }
+                    return new ConstantScoreScorer(this, 1.0f, ScoreMode.COMPLETE_NO_SCORES, new BitSetIterator(bits, bits.length()));
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "RandomMatchQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+    }
+
+    /**
+     * Asserts that we properly handle situations where segments have FieldInfos, but associated documents are gone
+     */
+    private static void analyzeDiskUsageAfterDeleteRandomDocuments(Directory dir) throws IOException {
+        int iterations = between(5, 20);
+        for (int i = 0; i < iterations; i++) {
+            IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true);
+            final IndexWriter.DocStats docStats;
+            try (IndexWriter writer = new IndexWriter(dir, config); DirectoryReader reader = DirectoryReader.open(writer)) {
+                writer.deleteDocuments(new RandomMatchQuery());
+                writer.flush();
+                writer.commit();
+                docStats = writer.getDocStats();
+            }
+            IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            if (docStats.numDocs == 0) {
+                return;
+            }
+            assertThat(stats.total().getPointsBytes(), greaterThanOrEqualTo(0L));
+        }
     }
 }

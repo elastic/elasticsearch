@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -39,7 +38,8 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms").build();
+            .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
     }
 
     public void testMasterRestart() throws Exception {
@@ -48,14 +48,19 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
     public void testDroppedOutNode() throws Exception {
         testLostMaster((master, dataNode) -> {
-            final MockTransportService masterTransportService
-                = (MockTransportService) internalCluster().getInstance(TransportService.class, master);
+            final MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                master
+            );
             final TransportService dataTransportService = internalCluster().getInstance(TransportService.class, dataNode);
             masterTransportService.addFailToSendNoConnectRule(dataTransportService, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
 
             assertBusy(() -> {
-                final ClusterHealthStatus indexHealthStatus = client(master).admin().cluster()
-                    .health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
+                final ClusterHealthStatus indexHealthStatus = client(master).admin()
+                    .cluster()
+                    .health(Requests.clusterHealthRequest("test"))
+                    .actionGet()
+                    .getStatus();
                 assertThat(indexHealthStatus, Matchers.is(ClusterHealthStatus.RED));
             });
             masterTransportService.clearAllRules();

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -131,8 +131,7 @@ public class BucketTests extends AbstractXContentTestCase<Bucket> {
         Bucket bucket1 = new Bucket("foo", new Date(123), 123);
         bucket1.setRecords(Collections.singletonList(new AnomalyRecord("foo", new Date(123), 123)));
         Bucket bucket2 = new Bucket("foo", new Date(123), 123);
-        bucket2.setRecords(Arrays.asList(new AnomalyRecord("foo", new Date(123), 123),
-                new AnomalyRecord("foo", new Date(123), 123)));
+        bucket2.setRecords(Arrays.asList(new AnomalyRecord("foo", new Date(123), 123), new AnomalyRecord("foo", new Date(123), 123)));
 
         assertFalse(bucket1.equals(bucket2));
         assertFalse(bucket2.equals(bucket1));

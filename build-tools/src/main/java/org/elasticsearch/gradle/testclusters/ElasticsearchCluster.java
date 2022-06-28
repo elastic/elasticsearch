@@ -15,6 +15,7 @@ import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logger;
@@ -331,6 +332,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
         ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+                if (node.getVersion().onOrAfter("7.16.0")) {
+                    node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
+                }
+            }
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
                 commonNodeConfig(node, nodeNames, firstNode);
@@ -402,6 +408,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.goToNextVersion();
         commonNodeConfig(node, null, null);
         // We need to translate these settings there as there's no support to do per version config for testclusters yet
+
+        if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+            if (node.getVersion().onOrAfter("7.16.0")) {
+                node.settings.put("cluster.deprecation_indexing.enabled", "false");
+            }
+        }
+
         if (node.getVersion().onOrAfter("7.0.0")) {
             if (node.settings.containsKey("xpack.security.authc.realms.file1.type")) {
                 node.settings.remove("xpack.security.authc.realms.file1.type");
@@ -433,13 +446,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void extraJarFile(File from) {
-        nodes.all(node -> node.extraJarFile(from));
+    public void extraJarFiles(FileCollection from) {
+        nodes.all(node -> node.extraJarFiles(from));
     }
 
     @Override
     public void user(Map<String, String> userSpec) {
         nodes.all(node -> node.user(userSpec));
+    }
+
+    @Override
+    public void rolesFile(File rolesYml) {
+        nodes.all(node -> node.rolesFile(rolesYml));
     }
 
     private void writeUnicastHostsFiles() {

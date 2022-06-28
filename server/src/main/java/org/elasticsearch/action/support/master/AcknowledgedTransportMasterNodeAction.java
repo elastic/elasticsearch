@@ -18,22 +18,55 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Base class for the common case of a {@link TransportMasterNodeAction} that responds with an {@link AcknowledgedResponse}.
  */
-public abstract class AcknowledgedTransportMasterNodeAction<Request extends MasterNodeRequest<Request>>
-        extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public abstract class AcknowledgedTransportMasterNodeAction<Request extends MasterNodeRequest<Request>> extends TransportMasterNodeAction<
+    Request,
+    AcknowledgedResponse> {
 
-    protected AcknowledgedTransportMasterNodeAction(String actionName, TransportService transportService, ClusterService clusterService,
-                                                    ThreadPool threadPool, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                                    IndexNameExpressionResolver indexNameExpressionResolver, String executor) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver,
-                AcknowledgedResponse::readFrom, executor);
+    protected AcknowledgedTransportMasterNodeAction(
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        String executor
+    ) {
+        super(
+            actionName,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver,
+            AcknowledgedResponse::readFrom,
+            executor
+        );
     }
 
-    protected AcknowledgedTransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
-                                                    TransportService transportService, ClusterService clusterService,
-                                                    ThreadPool threadPool, ActionFilters actionFilters,
-                                                    Writeable.Reader<Request> request,
-                                                    IndexNameExpressionResolver indexNameExpressionResolver, String executor) {
-        super(actionName, canTripCircuitBreaker, transportService, clusterService, threadPool, actionFilters, request,
-            indexNameExpressionResolver, AcknowledgedResponse::readFrom, executor);
+    protected AcknowledgedTransportMasterNodeAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        String executor
+    ) {
+        super(
+            actionName,
+            canTripCircuitBreaker,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver,
+            AcknowledgedResponse::readFrom,
+            executor
+        );
     }
 }

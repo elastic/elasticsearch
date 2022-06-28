@@ -12,6 +12,7 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
+
 import org.elasticsearch.core.List;
 
 import java.util.Locale;
@@ -25,20 +26,22 @@ import static java.lang.String.format;
 final class GoogleCloudStorageHttpStatsCollector implements HttpResponseInterceptor {
     // The specification for the current API (v1) endpoints can be found at:
     // https://cloud.google.com/storage/docs/json_api/v1
-    private static final java.util.List<Function<String, HttpRequestTracker>> trackerFactories =
-        List.of(
-            (bucket) ->
-                HttpRequestTracker.get(format(Locale.ROOT, "/download/storage/v1/b/%s/o/.+", bucket),
-                    GoogleCloudStorageOperationsStats::trackGetOperation),
+    private static final java.util.List<Function<String, HttpRequestTracker>> trackerFactories = List.of(
+        (bucket) -> HttpRequestTracker.get(
+            format(Locale.ROOT, "/download/storage/v1/b/%s/o/.+", bucket),
+            GoogleCloudStorageOperationsStats::trackGetOperation
+        ),
 
-            (bucket) ->
-                HttpRequestTracker.get(format(Locale.ROOT, "/storage/v1/b/%s/o/.+", bucket),
-                    GoogleCloudStorageOperationsStats::trackGetOperation),
+        (bucket) -> HttpRequestTracker.get(
+            format(Locale.ROOT, "/storage/v1/b/%s/o/.+", bucket),
+            GoogleCloudStorageOperationsStats::trackGetOperation
+        ),
 
-            (bucket) ->
-                HttpRequestTracker.get(format(Locale.ROOT, "/storage/v1/b/%s/o", bucket),
-                    GoogleCloudStorageOperationsStats::trackListOperation)
-            );
+        (bucket) -> HttpRequestTracker.get(
+            format(Locale.ROOT, "/storage/v1/b/%s/o", bucket),
+            GoogleCloudStorageOperationsStats::trackListOperation
+        )
+    );
 
     private final GoogleCloudStorageOperationsStats gcsOperationStats;
     private final java.util.List<HttpRequestTracker> trackers;
@@ -53,8 +56,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     @Override
     public void interceptResponse(final HttpResponse response) {
         // TODO keep track of unsuccessful requests in different entries
-        if (response.isSuccessStatusCode() == false)
-            return;
+        if (response.isSuccessStatusCode() == false) return;
 
         final HttpRequest request = response.getRequest();
         for (HttpRequestTracker tracker : trackers) {
@@ -78,16 +80,17 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
         private final Pattern pathPattern;
         private final Consumer<GoogleCloudStorageOperationsStats> statsTracker;
 
-        private HttpRequestTracker(final String method,
-                                   final String pathPattern,
-                                   final Consumer<GoogleCloudStorageOperationsStats> statsTracker) {
+        private HttpRequestTracker(
+            final String method,
+            final String pathPattern,
+            final Consumer<GoogleCloudStorageOperationsStats> statsTracker
+        ) {
             this.method = method;
             this.pathPattern = Pattern.compile(pathPattern);
             this.statsTracker = statsTracker;
         }
 
-        private static HttpRequestTracker get(final String pathPattern,
-                                              final Consumer<GoogleCloudStorageOperationsStats> statsConsumer) {
+        private static HttpRequestTracker get(final String pathPattern, final Consumer<GoogleCloudStorageOperationsStats> statsConsumer) {
             return new HttpRequestTracker("GET", pathPattern, statsConsumer);
         }
 
@@ -100,16 +103,14 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
          * @return {@code true} if the http request was tracked, {@code false} otherwise.
          */
         private boolean track(final HttpRequest httpRequest, final GoogleCloudStorageOperationsStats stats) {
-            if (matchesCriteria(httpRequest) == false)
-                return false;
+            if (matchesCriteria(httpRequest) == false) return false;
 
             statsTracker.accept(stats);
             return true;
         }
 
         private boolean matchesCriteria(final HttpRequest httpRequest) {
-            return method.equalsIgnoreCase(httpRequest.getRequestMethod()) &&
-                pathMatches(httpRequest.getUrl());
+            return method.equalsIgnoreCase(httpRequest.getRequestMethod()) && pathMatches(httpRequest.getUrl());
         }
 
         private boolean pathMatches(final GenericUrl url) {

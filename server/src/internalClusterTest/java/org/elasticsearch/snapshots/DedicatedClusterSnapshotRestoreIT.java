@@ -11,6 +11,9 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -33,6 +36,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -59,6 +63,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -870,7 +875,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
-        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean validateClusterForming() {
+                // skip this step since BusyMasterServiceDisruption prevents the master queue from ever emptying
+                return false;
+            }
+        });
 
         logger.info("-->  wait for shard snapshots to show as failed");
         assertBusy(
@@ -1066,7 +1077,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             logger,
             otherDataNode,
             state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .entries()
+                .forRepo(repoName)
                 .stream()
                 .anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED)
         );
@@ -1103,7 +1114,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository(repoName, "fs");
         createIndex("some-index");
 
-        final SnapshotsService snapshotsService = internalCluster().getMasterNodeInstance(SnapshotsService.class);
+        final SnapshotsService snapshotsService = internalCluster().getAnyMasterNodeInstance(SnapshotsService.class);
         final Snapshot snapshot1 = PlainActionFuture.get(
             f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
         );
@@ -1302,6 +1313,38 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                     either(containsString("[test-repo] repository is not in started state")).or(containsString("[test-repo] missing"))
                 );
             }
+        }
+    }
+
+    public void testDeleteSnapshotsOfDifferentIndexSets() throws IllegalAccessException {
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
+        );
+        mockAppender.start();
+        final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
+        Loggers.addAppender(logger, mockAppender);
+        try {
+            final String index1 = "index-1";
+            final String index2 = "index-2";
+            createIndexWithContent("index-1");
+            createIndexWithContent("index-2");
+            createFullSnapshot(repoName, "full-snapshot");
+            final String snapshot1 = "index-1-snapshot";
+            final String snapshot2 = "index-2-snapshot";
+            createSnapshot(repoName, snapshot1, org.elasticsearch.core.List.of(index1));
+            createSnapshot(repoName, snapshot2, org.elasticsearch.core.List.of(index2));
+
+            clusterAdmin().prepareDeleteSnapshot(repoName, snapshot1, snapshot2).get();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
         }
     }
 

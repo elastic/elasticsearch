@@ -13,8 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.hamcrest.Matchers;
 
-import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 public class RestrictedTrustConfigTests extends ESTestCase {
 

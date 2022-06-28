@@ -16,7 +16,11 @@ import java.util.Locale;
  */
 public enum JobState {
 
-    CLOSING, CLOSED, OPENED, FAILED, OPENING;
+    CLOSING,
+    CLOSED,
+    OPENED,
+    FAILED,
+    OPENING;
 
     public static JobState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

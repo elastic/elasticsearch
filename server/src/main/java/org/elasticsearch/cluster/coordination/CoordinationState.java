@@ -102,8 +102,15 @@ public class CoordinationState {
     }
 
     public boolean isElectionQuorum(VoteCollection joinVotes) {
-        return electionStrategy.isElectionQuorum(localNode, getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion(),
-            getLastCommittedConfiguration(), getLastAcceptedConfiguration(), joinVotes);
+        return electionStrategy.isElectionQuorum(
+            localNode,
+            getCurrentTerm(),
+            getLastAcceptedTerm(),
+            getLastAcceptedVersion(),
+            getLastCommittedConfiguration(),
+            getLastAcceptedConfiguration(),
+            joinVotes
+        );
     }
 
     public boolean isPublishQuorum(VoteCollection votes) {
@@ -136,7 +143,8 @@ public class CoordinationState {
         if (lastAcceptedConfiguration.isEmpty() == false) {
             logger.debug("setInitialState: rejecting since last-accepted configuration is nonempty: {}", lastAcceptedConfiguration);
             throw new CoordinationStateRejectedException(
-                "initial state already set: last-accepted configuration now " + lastAcceptedConfiguration);
+                "initial state already set: last-accepted configuration now " + lastAcceptedConfiguration
+            );
         }
 
         assert getLastAcceptedTerm() == 0 : getLastAcceptedTerm();
@@ -164,10 +172,14 @@ public class CoordinationState {
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
         if (startJoinRequest.getTerm() <= getCurrentTerm()) {
-            logger.debug("handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
-                startJoinRequest, getCurrentTerm());
-            throw new CoordinationStateRejectedException("incoming term " + startJoinRequest.getTerm() +
-                " not greater than current term " + getCurrentTerm());
+            logger.debug(
+                "handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
+                startJoinRequest,
+                getCurrentTerm()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming term " + startJoinRequest.getTerm() + " not greater than current term " + getCurrentTerm()
+            );
         }
 
         logger.debug("handleStartJoin: leaving term [{}] due to {}", getCurrentTerm(), startJoinRequest);
@@ -193,8 +205,13 @@ public class CoordinationState {
         joinVotes = new VoteCollection();
         publishVotes = new VoteCollection();
 
-        return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(),
-            getLastAcceptedVersionOrMetadataVersion());
+        return new Join(
+            localNode,
+            startJoinRequest.getSourceNode(),
+            getCurrentTerm(),
+            getLastAcceptedTerm(),
+            getLastAcceptedVersionOrMetadataVersion()
+        );
     }
 
     /**
@@ -208,10 +225,10 @@ public class CoordinationState {
         assert join.targetMatches(localNode) : "handling join " + join + " for the wrong node " + localNode;
 
         if (join.getTerm() != getCurrentTerm()) {
-            logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])",
-                getCurrentTerm(), join.getTerm());
+            logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])", getCurrentTerm(), join.getTerm());
             throw new CoordinationStateRejectedException(
-                "incoming term " + join.getTerm() + " does not match current term " + getCurrentTerm());
+                "incoming term " + join.getTerm() + " does not match current term " + getCurrentTerm()
+            );
         }
 
         if (startedJoinSinceLastReboot == false) {
@@ -221,19 +238,34 @@ public class CoordinationState {
 
         final long lastAcceptedTerm = getLastAcceptedTerm();
         if (join.getLastAcceptedTerm() > lastAcceptedTerm) {
-            logger.debug("handleJoin: ignored join as joiner has a better last accepted term (expected: <=[{}], actual: [{}])",
-                lastAcceptedTerm, join.getLastAcceptedTerm());
-            throw new CoordinationStateRejectedException("incoming last accepted term " + join.getLastAcceptedTerm() +
-                " of join higher than current last accepted term " + lastAcceptedTerm);
+            logger.debug(
+                "handleJoin: ignored join as joiner has a better last accepted term (expected: <=[{}], actual: [{}])",
+                lastAcceptedTerm,
+                join.getLastAcceptedTerm()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming last accepted term "
+                    + join.getLastAcceptedTerm()
+                    + " of join higher than current last accepted term "
+                    + lastAcceptedTerm
+            );
         }
 
         if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersionOrMetadataVersion()) {
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
-                getLastAcceptedVersionOrMetadataVersion(), join.getLastAcceptedVersion(), lastAcceptedTerm);
-            throw new CoordinationStateRejectedException("incoming last accepted version " + join.getLastAcceptedVersion() +
-                " of join higher than current last accepted version " + getLastAcceptedVersionOrMetadataVersion()
-                + " in term " + lastAcceptedTerm);
+                getLastAcceptedVersionOrMetadataVersion(),
+                join.getLastAcceptedVersion(),
+                lastAcceptedTerm
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming last accepted version "
+                    + join.getLastAcceptedVersion()
+                    + " of join higher than current last accepted version "
+                    + getLastAcceptedVersionOrMetadataVersion()
+                    + " in term "
+                    + lastAcceptedTerm
+            );
         }
 
         if (getLastAcceptedConfiguration().isEmpty()) {
@@ -250,8 +282,14 @@ public class CoordinationState {
         electionWon = isElectionQuorum(joinVotes);
         assert prevElectionWon == false || electionWon : // we cannot go from won to not won
             "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
-        logger.debug("handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}", join,
-            join.getSourceNode(), electionWon, lastAcceptedTerm, getLastAcceptedVersion());
+        logger.debug(
+            "handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}",
+            join,
+            join.getSourceNode(),
+            electionWon,
+            lastAcceptedTerm,
+            getLastAcceptedVersion()
+        );
 
         if (electionWon && prevElectionWon == false) {
             logger.debug("handleJoin: election won in term [{}] with {}", getCurrentTerm(), joinVotes);
@@ -277,18 +315,33 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("cannot start publishing next value before accepting previous one");
         }
         if (clusterState.term() != getCurrentTerm()) {
-            logger.debug("handleClientValue: ignored request due to term mismatch " +
-                    "(expected: [term {} version >{}], actual: [term {} version {}])",
-                getCurrentTerm(), lastPublishedVersion, clusterState.term(), clusterState.version());
-            throw new CoordinationStateRejectedException("incoming term " + clusterState.term() + " does not match current term " +
-                getCurrentTerm());
+            logger.debug(
+                "handleClientValue: ignored request due to term mismatch "
+                    + "(expected: [term {} version >{}], actual: [term {} version {}])",
+                getCurrentTerm(),
+                lastPublishedVersion,
+                clusterState.term(),
+                clusterState.version()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming term " + clusterState.term() + " does not match current term " + getCurrentTerm()
+            );
         }
         if (clusterState.version() <= lastPublishedVersion) {
-            logger.debug("handleClientValue: ignored request due to version mismatch " +
-                    "(expected: [term {} version >{}], actual: [term {} version {}])",
-                getCurrentTerm(), lastPublishedVersion, clusterState.term(), clusterState.version());
-            throw new CoordinationStateRejectedException("incoming cluster state version " + clusterState.version() +
-                " lower or equal to last published version " + lastPublishedVersion);
+            logger.debug(
+                "handleClientValue: ignored request due to version mismatch "
+                    + "(expected: [term {} version >{}], actual: [term {} version {}])",
+                getCurrentTerm(),
+                lastPublishedVersion,
+                clusterState.term(),
+                clusterState.version()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming cluster state version "
+                    + clusterState.version()
+                    + " lower or equal to last published version "
+                    + lastPublishedVersion
+            );
         }
 
         if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
@@ -301,8 +354,8 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration()) :
-            "last committed configuration should not change";
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
+            : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();
         lastPublishedConfiguration = clusterState.getLastAcceptedConfiguration();
@@ -323,26 +376,40 @@ public class CoordinationState {
     public PublishResponse handlePublishRequest(PublishRequest publishRequest) {
         final ClusterState clusterState = publishRequest.getAcceptedState();
         if (clusterState.term() != getCurrentTerm()) {
-            logger.debug("handlePublishRequest: ignored publish request due to term mismatch (expected: [{}], actual: [{}])",
-                getCurrentTerm(), clusterState.term());
-            throw new CoordinationStateRejectedException("incoming term " + clusterState.term() + " does not match current term " +
-                getCurrentTerm());
+            logger.debug(
+                "handlePublishRequest: ignored publish request due to term mismatch (expected: [{}], actual: [{}])",
+                getCurrentTerm(),
+                clusterState.term()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming term " + clusterState.term() + " does not match current term " + getCurrentTerm()
+            );
         }
         if (clusterState.term() == getLastAcceptedTerm() && clusterState.version() <= getLastAcceptedVersion()) {
             if (clusterState.term() == ZEN1_BWC_TERM
                 && clusterState.nodes().getMasterNode().equals(getLastAcceptedState().nodes().getMasterNode()) == false) {
-                logger.debug("handling publish request in compatibility mode despite version mismatch (expected: >[{}], actual: [{}])",
-                    getLastAcceptedVersion(), clusterState.version());
+                logger.debug(
+                    "handling publish request in compatibility mode despite version mismatch (expected: >[{}], actual: [{}])",
+                    getLastAcceptedVersion(),
+                    clusterState.version()
+                );
             } else {
-                logger.debug("handlePublishRequest: ignored publish request due to version mismatch (expected: >[{}], actual: [{}])",
-                    getLastAcceptedVersion(), clusterState.version());
-                throw new CoordinationStateRejectedException("incoming version " + clusterState.version() +
-                    " lower or equal to current version " + getLastAcceptedVersion());
+                logger.debug(
+                    "handlePublishRequest: ignored publish request due to version mismatch (expected: >[{}], actual: [{}])",
+                    getLastAcceptedVersion(),
+                    clusterState.version()
+                );
+                throw new CoordinationStateRejectedException(
+                    "incoming version " + clusterState.version() + " lower or equal to current version " + getLastAcceptedVersion()
+                );
             }
         }
 
-        logger.trace("handlePublishRequest: accepting publish request for version [{}] and term [{}]",
-            clusterState.version(), clusterState.term());
+        logger.trace(
+            "handlePublishRequest: accepting publish request for version [{}] and term [{}]",
+            clusterState.version(),
+            clusterState.term()
+        );
         persistedState.setLastAcceptedState(clusterState);
         assert getLastAcceptedState() == clusterState;
 
@@ -364,24 +431,39 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("election not won");
         }
         if (publishResponse.getTerm() != getCurrentTerm()) {
-            logger.debug("handlePublishResponse: ignored publish response due to term mismatch (expected: [{}], actual: [{}])",
-                getCurrentTerm(), publishResponse.getTerm());
-            throw new CoordinationStateRejectedException("incoming term " + publishResponse.getTerm()
-                + " does not match current term " + getCurrentTerm());
+            logger.debug(
+                "handlePublishResponse: ignored publish response due to term mismatch (expected: [{}], actual: [{}])",
+                getCurrentTerm(),
+                publishResponse.getTerm()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming term " + publishResponse.getTerm() + " does not match current term " + getCurrentTerm()
+            );
         }
         if (publishResponse.getVersion() != lastPublishedVersion) {
-            logger.debug("handlePublishResponse: ignored publish response due to version mismatch (expected: [{}], actual: [{}])",
-                lastPublishedVersion, publishResponse.getVersion());
-            throw new CoordinationStateRejectedException("incoming version " + publishResponse.getVersion() +
-                " does not match current version " + lastPublishedVersion);
+            logger.debug(
+                "handlePublishResponse: ignored publish response due to version mismatch (expected: [{}], actual: [{}])",
+                lastPublishedVersion,
+                publishResponse.getVersion()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming version " + publishResponse.getVersion() + " does not match current version " + lastPublishedVersion
+            );
         }
 
-        logger.trace("handlePublishResponse: accepted publish response for version [{}] and term [{}] from [{}]",
-            publishResponse.getVersion(), publishResponse.getTerm(), sourceNode);
+        logger.trace(
+            "handlePublishResponse: accepted publish response for version [{}] and term [{}] from [{}]",
+            publishResponse.getVersion(),
+            publishResponse.getTerm(),
+            sourceNode
+        );
         publishVotes.addVote(sourceNode);
         if (isPublishQuorum(publishVotes)) {
-            logger.trace("handlePublishResponse: value committed for version [{}] and term [{}]",
-                publishResponse.getVersion(), publishResponse.getTerm());
+            logger.trace(
+                "handlePublishResponse: value committed for version [{}] and term [{}]",
+                publishResponse.getVersion(),
+                publishResponse.getTerm()
+            );
             return Optional.of(new ApplyCommitRequest(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
         }
 
@@ -396,28 +478,48 @@ public class CoordinationState {
      */
     public void handleCommit(ApplyCommitRequest applyCommit) {
         if (applyCommit.getTerm() != getCurrentTerm()) {
-            logger.debug("handleCommit: ignored commit request due to term mismatch " +
-                    "(expected: [term {} version {}], actual: [term {} version {}])",
-                getLastAcceptedTerm(), getLastAcceptedVersion(), applyCommit.getTerm(), applyCommit.getVersion());
-            throw new CoordinationStateRejectedException("incoming term " + applyCommit.getTerm() + " does not match current term " +
-                getCurrentTerm());
+            logger.debug(
+                "handleCommit: ignored commit request due to term mismatch "
+                    + "(expected: [term {} version {}], actual: [term {} version {}])",
+                getLastAcceptedTerm(),
+                getLastAcceptedVersion(),
+                applyCommit.getTerm(),
+                applyCommit.getVersion()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming term " + applyCommit.getTerm() + " does not match current term " + getCurrentTerm()
+            );
         }
         if (applyCommit.getTerm() != getLastAcceptedTerm()) {
-            logger.debug("handleCommit: ignored commit request due to term mismatch " +
-                    "(expected: [term {} version {}], actual: [term {} version {}])",
-                getLastAcceptedTerm(), getLastAcceptedVersion(), applyCommit.getTerm(), applyCommit.getVersion());
-            throw new CoordinationStateRejectedException("incoming term " + applyCommit.getTerm() + " does not match last accepted term " +
-                getLastAcceptedTerm());
+            logger.debug(
+                "handleCommit: ignored commit request due to term mismatch "
+                    + "(expected: [term {} version {}], actual: [term {} version {}])",
+                getLastAcceptedTerm(),
+                getLastAcceptedVersion(),
+                applyCommit.getTerm(),
+                applyCommit.getVersion()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming term " + applyCommit.getTerm() + " does not match last accepted term " + getLastAcceptedTerm()
+            );
         }
         if (applyCommit.getVersion() != getLastAcceptedVersion()) {
-            logger.debug("handleCommit: ignored commit request due to version mismatch (term {}, expected: [{}], actual: [{}])",
-                getLastAcceptedTerm(), getLastAcceptedVersion(), applyCommit.getVersion());
-            throw new CoordinationStateRejectedException("incoming version " + applyCommit.getVersion() +
-                " does not match current version " + getLastAcceptedVersion());
+            logger.debug(
+                "handleCommit: ignored commit request due to version mismatch (term {}, expected: [{}], actual: [{}])",
+                getLastAcceptedTerm(),
+                getLastAcceptedVersion(),
+                applyCommit.getVersion()
+            );
+            throw new CoordinationStateRejectedException(
+                "incoming version " + applyCommit.getVersion() + " does not match current version " + getLastAcceptedVersion()
+            );
         }
 
-        logger.trace("handleCommit: applying commit request for term [{}] and version [{}]", applyCommit.getTerm(),
-            applyCommit.getVersion());
+        logger.trace(
+            "handleCommit: applying commit request for term [{}] and version [{}]",
+            applyCommit.getTerm(),
+            applyCommit.getVersion()
+        );
 
         persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
@@ -479,17 +581,17 @@ public class CoordinationState {
             Metadata.Builder metadataBuilder = null;
             if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
                 final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
-                        .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
-                        .build();
+                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
+                    .build();
                 metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
                 metadataBuilder.coordinationMetadata(coordinationMetadata);
             }
             // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
-            assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false ||
-                lastAcceptedState.term() == ZEN1_BWC_TERM :
-                "received cluster state with empty cluster uuid but not Zen1 BWC term: " + lastAcceptedState;
-            if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false &&
-                lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
+            assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
+                || lastAcceptedState.term() == ZEN1_BWC_TERM
+                : "received cluster state with empty cluster uuid but not Zen1 BWC term: " + lastAcceptedState;
+            if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
+                && lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
                 if (metadataBuilder == null) {
                     metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
                 }
@@ -506,8 +608,7 @@ public class CoordinationState {
             }
         }
 
-        default void close() throws IOException {
-        }
+        default void close() throws IOException {}
     }
 
     /**

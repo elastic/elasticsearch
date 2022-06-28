@@ -49,8 +49,9 @@ public class MockBatchedDocumentsIterator<T> extends BatchedResultsIterator<T> {
     @Override
     public Deque<Result<T>> next() {
         if (requireIncludeInterim != null && requireIncludeInterim != includeInterim) {
-            throw new IllegalStateException("Required include interim value [" + requireIncludeInterim + "]; actual was ["
-                    + includeInterim + "]");
+            throw new IllegalStateException(
+                "Required include interim value [" + requireIncludeInterim + "]; actual was [" + includeInterim + "]"
+            );
         }
         if (wasTimeRangeCalled == false || hasNext() == false) {
             throw new NoSuchElementException();

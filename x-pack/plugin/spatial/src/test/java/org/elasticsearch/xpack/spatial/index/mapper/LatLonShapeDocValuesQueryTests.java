@@ -42,15 +42,15 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         Polygon polygon = GeoTestUtil.nextPolygon();
-        Query q1 = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, polygon);
-        Query q2 = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q1 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q2 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkEqual(q1, q2);
 
-        Query q3 = new LatLonShapeDocValuesQuery(FIELD_NAME + "x",ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q3 = new LatLonShapeDocValuesQuery(FIELD_NAME + "x", ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkUnequal(q1, q3);
 
-        Rectangle rectangle  = GeoTestUtil.nextBox();
-        Query q4 = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, rectangle);
+        Rectangle rectangle = GeoTestUtil.nextBox();
+        Query q4 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, rectangle);
         QueryUtils.checkUnequal(q1, q4);
     }
 
@@ -67,7 +67,8 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
-            @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometryFunc = ESTestCase.randomFrom(
+            @SuppressWarnings("unchecked")
+            Function<Boolean, Geometry> geometryFunc = ESTestCase.randomFrom(
                 GeometryTestUtils::randomLine,
                 GeometryTestUtils::randomPoint,
                 GeometryTestUtils::randomPolygon
@@ -135,6 +136,10 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             LatLonGeometry[] geometries = randomLuceneQueryGeometries();
             for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
+                if (relation == ShapeField.QueryRelation.CONTAINS) {
+                    // We don't check this here as it might fail due to LUCENE-10514
+                    continue;
+                }
                 Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, geometries);
                 Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, geometries);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
@@ -159,10 +164,14 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
 
     private LatLonGeometry randomLuceneQueryGeometry() {
         switch (randomInt(3)) {
-            case 0: return GeoTestUtil.nextPolygon();
-            case 1: return GeoTestUtil.nextCircle();
-            case 2: return new Point(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
-            default: return GeoTestUtil.nextBox();
+            case 0:
+                return GeoTestUtil.nextPolygon();
+            case 1:
+                return GeoTestUtil.nextCircle();
+            case 2:
+                return new Point(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
+            default:
+                return GeoTestUtil.nextBox();
         }
     }
 }

@@ -111,7 +111,6 @@ public class ToNumberFunctionProcessor implements Processor {
         return Objects.hash(value, base);
     }
 
-
     @Override
     public String getWriteableName() {
         return NAME;

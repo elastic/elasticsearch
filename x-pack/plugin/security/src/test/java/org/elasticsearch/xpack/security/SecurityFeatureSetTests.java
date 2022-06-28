@@ -13,12 +13,12 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -38,12 +38,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 public class SecurityFeatureSetTests extends ESTestCase {
 
     private Settings settings;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private Realms realms;
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
@@ -60,7 +60,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
@@ -73,23 +73,22 @@ public class SecurityFeatureSetTests extends ESTestCase {
     }
 
     public void testEnabled() {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore, roleMappingStore, ipFilter);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         assertThat(featureSet.enabled(), is(true));
 
         when(licenseState.isSecurityEnabled()).thenReturn(false);
-        featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
+        featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(false));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testUsage() throws Exception {
         final boolean explicitlyDisabled = randomBoolean();
         final boolean operatorPrivilegesAvailable = randomBoolean();
         final boolean enabled = explicitlyDisabled == false && randomBoolean();
         when(licenseState.isSecurityEnabled()).thenReturn(enabled);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(operatorPrivilegesAvailable);
+        when(licenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(operatorPrivilegesAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
@@ -122,12 +121,12 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
-        when(ipFilter.usageStats())
-                .thenReturn(MapBuilder.<String, Object>newMapBuilder()
-                        .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
-                        .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
-                        .map());
-
+        when(ipFilter.usageStats()).thenReturn(
+            MapBuilder.<String, Object>newMapBuilder()
+                .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
+                .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
+                .map()
+        );
 
         final boolean rolesStoreEnabled = randomBoolean();
         configureRoleStoreUsage(rolesStoreEnabled);
@@ -158,8 +157,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
             settings.put("xpack.security.operator_privileges.enabled", true);
         }
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
-                realms, rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(
+            settings.build(),
+            licenseState,
+            realms,
+            rolesStore,
+            roleMappingStore,
+            ipFilter
+        );
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage securityUsage = future.get();
@@ -281,8 +286,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
         configureRealmsUsage(Collections.emptyMap());
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
-                realms, rolesStore, roleMappingStore, ipFilter);
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(
+            settings.build(),
+            licenseState,
+            realms,
+            rolesStore,
+            roleMappingStore,
+            ipFilter
+        );
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage securityUsage = future.get();
@@ -324,14 +335,16 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
     private void configureRealmsUsage(Map<String, Object> realmsUsageStats) {
         doAnswer(invocationOnMock -> {
-            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
             listener.onResponse(realmsUsageStats);
             return Void.TYPE;
-        }).when(realms).usageStats(any(ActionListener.class));
+        }).when(realms).usageStats(anyActionListener());
     }
 
     private void configureRoleStoreUsage(boolean rolesStoreEnabled) {
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
             if (rolesStoreEnabled) {
                 listener.onResponse(Collections.singletonMap("count", 1));
@@ -339,12 +352,13 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 listener.onResponse(Collections.emptyMap());
             }
             return Void.TYPE;
-        }).when(rolesStore).usageStats(any(ActionListener.class));
+        }).when(rolesStore).usageStats(anyActionListener());
     }
 
     private void configureRoleMappingStoreUsage(boolean roleMappingStoreEnabled) {
         doAnswer(invocationOnMock -> {
-            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
             if (roleMappingStoreEnabled) {
                 final Map<String, Object> map = new HashMap<>();
                 map.put("size", 12L);
@@ -354,6 +368,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 listener.onResponse(Collections.emptyMap());
             }
             return Void.TYPE;
-        }).when(roleMappingStore).usageStats(any(ActionListener.class));
+        }).when(roleMappingStore).usageStats(anyActionListener());
     }
 }

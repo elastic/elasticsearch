@@ -50,15 +50,23 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         } else {
             // only test different storage classes when running against the default endpoint, i.e. a genuine S3 service
             if (randomBoolean()) {
-                final String storageClass
-                    = randomFrom("standard", "reduced_redundancy", "standard_ia", "onezone_ia", "intelligent_tiering");
+                final String storageClass = randomFrom(
+                    "standard",
+                    "reduced_redundancy",
+                    "standard_ia",
+                    "onezone_ia",
+                    "intelligent_tiering"
+                );
                 logger.info("--> using storage_class [{}]", storageClass);
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository("test-repo")
             .setType("s3")
-            .setSettings(settings).get();
+            .setSettings(settings)
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 }

@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus.State;
@@ -40,12 +40,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -82,10 +82,20 @@ public class ActionWrapperTests extends ESTestCase {
 
     public void testThatMultipleResultsCanBeReturned() throws Exception {
         final LoggingAction loggingAction = new LoggingAction(new TextTemplate("{{key}}"), null, null);
-        final ExecutableAction<LoggingAction> executableAction =
-            new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine());
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path", null);
+        final ExecutableAction<LoggingAction> executableAction = new ExecutableLoggingAction(
+            loggingAction,
+            logger,
+            new MockTextTemplateEngine()
+        );
+        ActionWrapper wrapper = new ActionWrapper(
+            "_action",
+            null,
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            executableAction,
+            "ctx.payload.my_path",
+            null
+        );
 
         WatchExecutionContext ctx = mockExecutionContent(watch);
 
@@ -105,14 +115,22 @@ public class ActionWrapperTests extends ESTestCase {
             final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
             assertThat(map, hasKey("foreach"));
             assertThat(map.get("foreach"), instanceOf(List.class));
-            List<Map<String, Object>> actions = (List) map.get("foreach");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> actions = (List<Map<String, Object>>) map.get("foreach");
             assertThat(actions, hasSize(3));
         }
     }
 
     public void testThatSpecifiedPathIsNotCollection() {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path", null);
+        ActionWrapper wrapper = new ActionWrapper(
+            "_action",
+            null,
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            executableAction,
+            "ctx.payload.my_path",
+            null
+        );
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Collections.singletonMap("my_path", "not a map"));
         when(ctx.payload()).thenReturn(payload);
@@ -122,13 +140,22 @@ public class ActionWrapperTests extends ESTestCase {
         assertThat(result.action().status(), is(Action.Result.Status.FAILURE));
         assertThat(result.action(), instanceOf(Action.Result.FailureWithException.class));
         Action.Result.FailureWithException failureWithException = (Action.Result.FailureWithException) result.action();
-        assertThat(failureWithException.getException().getMessage(),
-            is("specified foreach object was not a an array/collection: [ctx.payload.my_path]"));
+        assertThat(
+            failureWithException.getException().getMessage(),
+            is("specified foreach object was not a an array/collection: [ctx.payload.my_path]")
+        );
     }
 
     public void testEmptyCollection() {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path", null);
+        ActionWrapper wrapper = new ActionWrapper(
+            "_action",
+            null,
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            executableAction,
+            "ctx.payload.my_path",
+            null
+        );
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Collections.singletonMap("my_path", Collections.emptyList()));
         when(ctx.payload()).thenReturn(payload);
@@ -138,13 +165,22 @@ public class ActionWrapperTests extends ESTestCase {
         assertThat(result.action().status(), is(Action.Result.Status.FAILURE));
         assertThat(result.action(), instanceOf(Action.Result.FailureWithException.class));
         Action.Result.FailureWithException failureWithException = (Action.Result.FailureWithException) result.action();
-        assertThat(failureWithException.getException().getMessage(),
-            is("foreach object [ctx.payload.my_path] was an empty list, could not run any action"));
+        assertThat(
+            failureWithException.getException().getMessage(),
+            is("foreach object [ctx.payload.my_path] was an empty list, could not run any action")
+        );
     }
 
     public void testPartialFailure() throws Exception {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path", null);
+        ActionWrapper wrapper = new ActionWrapper(
+            "_action",
+            null,
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            executableAction,
+            "ctx.payload.my_path",
+            null
+        );
         WatchExecutionContext ctx = mockExecutionContent(watch);
 
         List<Map<String, String>> payloads = new ArrayList<>();
@@ -154,7 +190,8 @@ public class ActionWrapperTests extends ESTestCase {
         when(ctx.payload()).thenReturn(payload);
         when(executableAction.logger()).thenReturn(logger);
 
-        final Action.Result firstResult = new LoggingAction.Result.Success("log_message");;
+        final Action.Result firstResult = new LoggingAction.Result.Success("log_message");
+        ;
         final Payload firstPayload = new Payload.Simple(Collections.singletonMap("key", "first"));
         when(executableAction.execute(eq("_action"), eq(ctx), eq(firstPayload))).thenReturn(firstResult);
 
@@ -167,12 +204,20 @@ public class ActionWrapperTests extends ESTestCase {
     }
 
     public void testDefaultLimitOfNumberOfActionsExecuted() throws Exception {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path", null);
+        ActionWrapper wrapper = new ActionWrapper(
+            "_action",
+            null,
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            executableAction,
+            "ctx.payload.my_path",
+            null
+        );
         WatchExecutionContext ctx = mockExecutionContent(watch);
         List<Map<String, String>> itemsPayload = new ArrayList<>();
         for (int i = 0; i < 101; i++) {
-            final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);;
+            final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);
+            ;
             final Payload singleItemPayload = new Payload.Simple(Collections.singletonMap("key", String.valueOf(i)));
             itemsPayload.add(Collections.singletonMap("key", String.valueOf(i)));
             when(executableAction.execute(eq("_action"), eq(ctx), eq(singleItemPayload))).thenReturn(actionResult);
@@ -192,7 +237,8 @@ public class ActionWrapperTests extends ESTestCase {
             final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
             assertThat(map, hasKey("foreach"));
             assertThat(map.get("foreach"), instanceOf(List.class));
-            List<Map<String, Object>> actions = (List) map.get("foreach");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> actions = (List<Map<String, Object>>) map.get("foreach");
             assertThat(actions, hasSize(100));
             assertThat(map, hasKey("max_iterations"));
             assertThat(map.get("max_iterations"), is(100));
@@ -203,12 +249,20 @@ public class ActionWrapperTests extends ESTestCase {
 
     public void testConfiguredLimitOfNumberOfActionsExecuted() throws Exception {
         int randomMaxIterations = randomIntBetween(1, 1000);
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path", randomMaxIterations);
+        ActionWrapper wrapper = new ActionWrapper(
+            "_action",
+            null,
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            executableAction,
+            "ctx.payload.my_path",
+            randomMaxIterations
+        );
         WatchExecutionContext ctx = mockExecutionContent(watch);
         List<Map<String, String>> itemsPayload = new ArrayList<>();
         for (int i = 0; i < randomMaxIterations + 1; i++) {
-            final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);;
+            final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);
+            ;
             final Payload singleItemPayload = new Payload.Simple(Collections.singletonMap("key", String.valueOf(i)));
             itemsPayload.add(Collections.singletonMap("key", String.valueOf(i)));
             when(executableAction.execute(eq("_action"), eq(ctx), eq(singleItemPayload))).thenReturn(actionResult);
@@ -228,7 +282,8 @@ public class ActionWrapperTests extends ESTestCase {
             final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
             assertThat(map, hasKey("foreach"));
             assertThat(map.get("foreach"), instanceOf(List.class));
-            List<Map<String, Object>> actions = (List) map.get("foreach");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> actions = (List<Map<String, Object>>) map.get("foreach");
             assertThat(actions, hasSize(randomMaxIterations));
             assertThat(map, hasKey("max_iterations"));
             assertThat(map.get("max_iterations"), is(randomMaxIterations));

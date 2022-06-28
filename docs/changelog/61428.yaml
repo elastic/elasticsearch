@@ -1,9 +1,0 @@
-pr: 61428
-issues:
-  - 59764
-  - 59779
-area: EQL
-type: UNKNOWN
-summary: Replace `SearchHit` in response with Event
-versions:
-  - v8.0.0

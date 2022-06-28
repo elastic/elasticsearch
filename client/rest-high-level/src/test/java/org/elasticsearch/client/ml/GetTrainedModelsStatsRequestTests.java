@@ -22,7 +22,9 @@ public class GetTrainedModelsStatsRequestTests extends ESTestCase {
     }
 
     public void testValidate_Failure() {
-        assertThat(new GetTrainedModelsStatsRequest(new String[0]).validate().get().getMessage(),
-            containsString("trained model id must not be null"));
+        assertThat(
+            new GetTrainedModelsStatsRequest(new String[0]).validate().get().getMessage(),
+            containsString("trained model id must not be null")
+        );
     }
 }

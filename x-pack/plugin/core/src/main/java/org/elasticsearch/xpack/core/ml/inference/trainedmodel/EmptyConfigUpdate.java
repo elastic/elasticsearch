@@ -21,11 +21,9 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
         return Version.V_7_9_0;
     }
 
-    public EmptyConfigUpdate() {
-    }
+    public EmptyConfigUpdate() {}
 
-    public EmptyConfigUpdate(StreamInput in) {
-    }
+    public EmptyConfigUpdate(StreamInput in) {}
 
     @Override
     public String getResultsField() {

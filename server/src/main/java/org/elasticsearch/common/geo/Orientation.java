@@ -23,11 +23,11 @@ public enum Orientation {
     public static final Orientation CW = Orientation.LEFT;
     public static final Orientation CCW = Orientation.RIGHT;
 
-    public void writeTo (StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(this == Orientation.RIGHT);
     }
 
-    public static Orientation readFrom (StreamInput in) throws IOException {
+    public static Orientation readFrom(StreamInput in) throws IOException {
         return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
     }
 

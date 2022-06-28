@@ -71,7 +71,6 @@ public class DeleteCalendarJobRequest extends ActionRequest {
         }
 
         DeleteCalendarJobRequest that = (DeleteCalendarJobRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(calendarId, that.calendarId);
+        return Objects.equals(jobIds, that.jobIds) && Objects.equals(calendarId, that.calendarId);
     }
 }

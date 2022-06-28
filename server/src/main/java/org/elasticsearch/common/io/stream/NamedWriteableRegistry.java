@@ -62,7 +62,7 @@ public class NamedWriteableRegistry {
 
         Map<Class<?>, Map<String, Writeable.Reader<?>>> registry = new HashMap<>();
         Map<String, Writeable.Reader<?>> readers = null;
-        Class currentCategory = null;
+        Class<?> currentCategory = null;
         for (Entry entry : entries) {
             if (currentCategory != entry.categoryClass) {
                 if (currentCategory != null) {
@@ -75,9 +75,19 @@ public class NamedWriteableRegistry {
 
             Writeable.Reader<?> oldReader = readers.put(entry.name, entry.reader);
             if (oldReader != null) {
-                throw new IllegalArgumentException("NamedWriteable [" + currentCategory.getName() + "][" + entry.name + "]" +
-                    " is already registered for [" + oldReader.getClass().getName() + "]," +
-                    " cannot register [" + entry.reader.getClass().getName() + "]");
+                throw new IllegalArgumentException(
+                    "NamedWriteable ["
+                        + currentCategory.getName()
+                        + "]["
+                        + entry.name
+                        + "]"
+                        + " is already registered for ["
+                        + oldReader.getClass().getName()
+                        + "],"
+                        + " cannot register ["
+                        + entry.reader.getClass().getName()
+                        + "]"
+                );
             }
         }
         // handle the last category
@@ -96,7 +106,7 @@ public class NamedWriteableRegistry {
             throw new IllegalArgumentException("Unknown NamedWriteable category [" + categoryClass.getName() + "]");
         }
         @SuppressWarnings("unchecked")
-        Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>)readers.get(name);
+        Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>) readers.get(name);
         if (reader == null) {
             throw new IllegalArgumentException("Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]");
         }

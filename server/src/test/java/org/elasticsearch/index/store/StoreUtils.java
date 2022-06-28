@@ -22,8 +22,7 @@ public final class StoreUtils {
      * can be successfully opened. This includes reading the segment infos and possible
      * corruption markers.
      */
-    public static boolean canOpenIndex(Logger logger, Path indexLocation,
-                                            ShardId shardId, NodeEnvironment.ShardLocker shardLocker) {
+    public static boolean canOpenIndex(Logger logger, Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker) {
         try {
             Store.tryOpenIndex(indexLocation, shardId, shardLocker, logger);
         } catch (Exception ex) {

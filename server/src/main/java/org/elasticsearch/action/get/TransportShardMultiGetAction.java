@@ -38,11 +38,25 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private final ExecutorSelector executorSelector;
 
     @Inject
-    public TransportShardMultiGetAction(ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver, ExecutorSelector executorSelector) {
-        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                MultiGetShardRequest::new, ThreadPool.Names.GET);
+    public TransportShardMultiGetAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ExecutorSelector executorSelector
+    ) {
+        super(
+            ACTION_NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            MultiGetShardRequest::new,
+            ThreadPool.Names.GET
+        );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
     }
@@ -65,12 +79,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+            .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
     }
 
     @Override
-    protected void asyncShardOperation(
-        MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener) throws IOException {
+    protected void asyncShardOperation(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
+        throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
@@ -99,15 +113,25 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         for (int i = 0; i < request.locations.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
             try {
-                GetResult getResult = indexShard.getService().get(item.type(), item.id(), item.storedFields(), request.realtime(),
-                    item.version(), item.versionType(), item.fetchSourceContext());
+                GetResult getResult = indexShard.getService()
+                    .get(
+                        item.type(),
+                        item.id(),
+                        item.storedFields(),
+                        request.realtime(),
+                        item.version(),
+                        item.versionType(),
+                        item.fetchSourceContext()
+                    );
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (RuntimeException e) {
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]/[{}]", shardId,
-                        item.type(), item.id()), e);
+                    logger.debug(
+                        () -> new ParameterizedMessage("{} failed to execute multi_get for [{}]/[{}]", shardId, item.type(), item.id()),
+                        e
+                    );
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), e));
                 }
             }

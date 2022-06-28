@@ -15,9 +15,11 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.test.ESTestCase;
-
 import org.elasticsearch.core.List;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+
+import java.util.Collection;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
@@ -58,6 +60,14 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(findPrivilegesThatGrant(IndicesStatsAction.NAME), equalTo(List.of("monitor", "manage", "all")));
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
         assertThat(findPrivilegesThatGrant(ShrinkAction.NAME), equalTo(List.of("manage", "all")));
+    }
+
+    public void testPrivilegesForRollupFieldCapsAction() {
+        final Collection<String> privileges = findPrivilegesThatGrant(GetRollupIndexCapsAction.NAME);
+        assertThat(
+            org.elasticsearch.core.Set.copyOf(privileges),
+            equalTo(org.elasticsearch.core.Set.of("read", "view_index_metadata", "manage", "all"))
+        );
     }
 
 }

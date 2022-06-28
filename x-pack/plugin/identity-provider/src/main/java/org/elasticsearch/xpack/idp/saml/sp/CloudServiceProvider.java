@@ -16,7 +16,6 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.Set;
 
-
 public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityId;
@@ -31,9 +30,19 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
-    public CloudServiceProvider(String entityId, String name, boolean enabled, URL assertionConsumerService, String allowedNameIdFormat,
-                                ReadableDuration authnExpiry, ServiceProviderPrivileges privileges, AttributeNames attributeNames,
-                                Set<X509Credential> spSigningCredentials, boolean signAuthnRequests, boolean signLogoutRequests) {
+    public CloudServiceProvider(
+        String entityId,
+        String name,
+        boolean enabled,
+        URL assertionConsumerService,
+        String allowedNameIdFormat,
+        ReadableDuration authnExpiry,
+        ServiceProviderPrivileges privileges,
+        AttributeNames attributeNames,
+        Set<X509Credential> spSigningCredentials,
+        boolean signAuthnRequests,
+        boolean signLogoutRequests
+    ) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
@@ -45,8 +54,9 @@ public class CloudServiceProvider implements SamlServiceProvider {
         this.authnExpiry = authnExpiry;
         this.privileges = privileges;
         this.attributeNames = attributeNames;
-        this.spSigningCredentials = spSigningCredentials == null ? Collections.emptySet() :
-            Collections.unmodifiableSet(spSigningCredentials);
+        this.spSigningCredentials = spSigningCredentials == null
+            ? Collections.emptySet()
+            : Collections.unmodifiableSet(spSigningCredentials);
         this.signLogoutRequests = signLogoutRequests;
         this.signAuthnRequests = signAuthnRequests;
     }
@@ -110,10 +120,17 @@ public class CloudServiceProvider implements SamlServiceProvider {
     public String toString() {
         return getClass().getSimpleName()
             + "{"
-            + "entityId=[" + entityId + ']'
-            + " name=[" + name + ']'
-            + " enabled=" + enabled
-            + " acs=[" + assertionConsumerService + "]"
+            + "entityId=["
+            + entityId
+            + ']'
+            + " name=["
+            + name
+            + ']'
+            + " enabled="
+            + enabled
+            + " acs=["
+            + assertionConsumerService
+            + "]"
             + "}";
     }
 }

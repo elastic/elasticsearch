@@ -1,9 +1,0 @@
-pr: 63384
-issues:
-  - 63307
-  - 60707
-area: Infra/Core
-type: UNKNOWN
-summary: Removes `week_year` date format
-versions:
-  - v8.0.0

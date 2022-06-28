@@ -8,21 +8,21 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.common;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class AucRocResult implements EvaluationMetric.Result {
 
@@ -36,9 +36,11 @@ public class AucRocResult implements EvaluationMetric.Result {
     private static final ParseField CURVE = new ParseField("curve");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<AucRocResult, Void> PARSER =
-        new ConstructingObjectParser<>(
-            NAME, true, args -> new AucRocResult((double) args[0], (List<AucRocPoint>) args[1]));
+    private static final ConstructingObjectParser<AucRocResult, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new AucRocResult((double) args[0], (List<AucRocPoint>) args[1])
+    );
 
     static {
         PARSER.declareDouble(constructorArg(), VALUE);
@@ -82,8 +84,7 @@ public class AucRocResult implements EvaluationMetric.Result {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AucRocResult that = (AucRocResult) o;
-        return value == that.value
-            && Objects.equals(curve, that.curve);
+        return value == that.value && Objects.equals(curve, that.curve);
     }
 
     @Override

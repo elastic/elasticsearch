@@ -9,7 +9,6 @@ package org.elasticsearch.client.ml.inference.trainedmodel;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObject;
 
-
 public interface InferenceConfig extends NamedXContentObject {
 
 }

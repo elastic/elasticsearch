@@ -1,7 +1,0 @@
-pr: 49079
-issues: []
-area: Packaging
-type: UNKNOWN
-summary: Migrate some of the Docker tests from old repository
-versions:
-  - v8.0.0

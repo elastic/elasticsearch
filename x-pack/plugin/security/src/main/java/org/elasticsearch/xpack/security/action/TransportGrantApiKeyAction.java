@@ -13,11 +13,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
@@ -40,17 +40,35 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
     private final TokenService tokenService;
 
     @Inject
-    public TransportGrantApiKeyAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
-                                      ApiKeyService apiKeyService, AuthenticationService authenticationService, TokenService tokenService,
-                                      CompositeRolesStore rolesStore, NamedXContentRegistry xContentRegistry) {
-        this(transportService, actionFilters, threadPool.getThreadContext(),
-            new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry), authenticationService, tokenService
+    public TransportGrantApiKeyAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        ApiKeyService apiKeyService,
+        AuthenticationService authenticationService,
+        TokenService tokenService,
+        CompositeRolesStore rolesStore,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        this(
+            transportService,
+            actionFilters,
+            threadPool.getThreadContext(),
+            new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry),
+            authenticationService,
+            tokenService
         );
     }
 
     // Constructor for testing
-    TransportGrantApiKeyAction(TransportService transportService, ActionFilters actionFilters, ThreadContext threadContext,
-                                      ApiKeyGenerator generator, AuthenticationService authenticationService, TokenService tokenService) {
+    TransportGrantApiKeyAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadContext threadContext,
+        ApiKeyGenerator generator,
+        AuthenticationService authenticationService,
+        TokenService tokenService
+    ) {
         super(GrantApiKeyAction.NAME, transportService, actionFilters, GrantApiKeyRequest::new);
         this.threadContext = threadContext;
         this.generator = generator;
@@ -61,17 +79,24 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
     @Override
     protected void doExecute(Task task, GrantApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            resolveAuthentication(request.getGrant(), request, ActionListener.wrap(
-                authentication -> generator.generateApiKey(authentication, request.getApiKeyRequest(), listener),
-                listener::onFailure
-            ));
+            resolveAuthentication(
+                request.getGrant(),
+                request,
+                ActionListener.wrap(
+                    authentication -> generator.generateApiKey(authentication, request.getApiKeyRequest(), listener),
+                    listener::onFailure
+                )
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private void resolveAuthentication(GrantApiKeyRequest.Grant grant, TransportRequest transportRequest,
-                                       ActionListener<Authentication> listener) {
+    private void resolveAuthentication(
+        GrantApiKeyRequest.Grant grant,
+        TransportRequest transportRequest,
+        ActionListener<Authentication> listener
+    ) {
         switch (grant.getType()) {
             case GrantApiKeyRequest.PASSWORD_GRANT_TYPE:
                 final UsernamePasswordToken token = new UsernamePasswordToken(grant.getUsername(), grant.getPassword());
@@ -85,6 +110,5 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
                 return;
         }
     }
-
 
 }

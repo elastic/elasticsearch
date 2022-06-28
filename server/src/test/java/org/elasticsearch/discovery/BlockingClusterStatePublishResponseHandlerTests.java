@@ -10,8 +10,8 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -36,8 +36,13 @@ public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase 
         final Logger logger;
         final BlockingClusterStatePublishResponseHandler handler;
 
-        PublishResponder(boolean fail, DiscoveryNode node, CyclicBarrier barrier, Logger logger,
-                         BlockingClusterStatePublishResponseHandler handler) {
+        PublishResponder(
+            boolean fail,
+            DiscoveryNode node,
+            CyclicBarrier barrier,
+            Logger logger,
+            BlockingClusterStatePublishResponseHandler handler
+        ) {
             this.fail = fail;
 
             this.node = node;
@@ -70,8 +75,9 @@ public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase 
             allNodes[i] = node;
         }
 
-        BlockingClusterStatePublishResponseHandler handler =
-            new BlockingClusterStatePublishResponseHandler(new HashSet<>(Arrays.asList(allNodes)));
+        BlockingClusterStatePublishResponseHandler handler = new BlockingClusterStatePublishResponseHandler(
+            new HashSet<>(Arrays.asList(allNodes))
+        );
 
         int firstRound = randomIntBetween(5, nodeCount - 1);
         Thread[] threads = new Thread[firstRound];

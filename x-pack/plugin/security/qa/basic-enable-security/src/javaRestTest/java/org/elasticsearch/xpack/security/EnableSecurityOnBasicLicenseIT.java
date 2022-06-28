@@ -14,10 +14,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
@@ -50,17 +50,13 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("security_test_user", new SecureString("security-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
@@ -81,7 +77,6 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         }
         return builder.build();
     }
-
 
     public void testSecuritySetup() throws Exception {
         logger.info("Security status: {}", securityEnabled);
@@ -114,13 +109,20 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         Response response = client().performRequest(request);
         List<String> warningHeaders = response.getWarnings();
         if (securityExplicitlySet) {
-            assertThat (warningHeaders, Matchers.empty());
+            assertThat(warningHeaders, Matchers.empty());
         } else {
-            assertThat (warningHeaders, Matchers.hasSize(1));
-            assertThat (warningHeaders.get(0),
-                containsString("Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be " +
-                    "accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                    Version.CURRENT.minor + "/security-minimal-setup.html to enable security."));
+            assertThat(warningHeaders, Matchers.hasSize(1));
+            assertThat(
+                warningHeaders.get(0),
+                containsString(
+                    "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be "
+                        + "accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                        + Version.CURRENT.major
+                        + "."
+                        + Version.CURRENT.minor
+                        + "/security-minimal-setup.html to enable security."
+                )
+            );
         }
     }
 

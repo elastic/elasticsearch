@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -14,16 +14,15 @@ import java.security.KeyPairGenerator
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
 final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
-  testImplementation repositoryPlugin
+  javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
+  javaRestTestImplementation repositoryPlugin
 }
 
 restResources {
@@ -50,7 +49,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
@@ -88,7 +87,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 if (useFixture) {
@@ -96,7 +95,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-repositories-metering')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   dependsOn ":plugins:repository-gcs:bundlePlugin"
   if (useFixture) {
     dependsOn "createServiceAccountFile"
@@ -105,7 +104,7 @@ tasks.named("integTest").configure {
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_metering" + BuildParams.testSeed
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.bundlePlugin.archiveFile
 
@@ -120,5 +119,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.register("gcsThirdPartyTest").configure {
-  dependsOn integTest
+  dependsOn "javaRestTest"
 }

@@ -71,8 +71,22 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             int thisNoops = thisTotal - thisCreated - thisUpdated - thisDeleted;
             int thisVersionConflicts = between(0, 1000);
             int thisBatches = between(1, 100);
-            BulkByScrollTask.Status sliceStatus = new BulkByScrollTask.Status(slice, thisTotal, thisUpdated, thisCreated, thisDeleted,
-                    thisBatches, thisVersionConflicts, thisNoops, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
+            BulkByScrollTask.Status sliceStatus = new BulkByScrollTask.Status(
+                slice,
+                thisTotal,
+                thisUpdated,
+                thisCreated,
+                thisDeleted,
+                thisBatches,
+                thisVersionConflicts,
+                thisNoops,
+                0,
+                0,
+                timeValueMillis(0),
+                0,
+                null,
+                timeValueMillis(0)
+            );
             total += thisTotal;
             created += thisCreated;
             updated += thisUpdated;
@@ -84,8 +98,11 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
-            taskState.onSliceResponse(listener, slice,
-                    new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false));
+            taskState.onSliceResponse(
+                listener,
+                slice,
+                new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false)
+            );
 
             status = task.getStatus();
             assertEquals(total, status.getTotal());
@@ -125,7 +142,6 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             }
         };
     }
-
 
     private <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {
         ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);

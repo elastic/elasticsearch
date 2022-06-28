@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -21,8 +21,11 @@ public final class DeleteUserResponse extends AcknowledgedResponse {
 
     private static final String PARSE_FIELD_NAME = "found";
 
-    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("delete_user_response", DeleteUserResponse::new, PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = AcknowledgedResponse.generateParser(
+        "delete_user_response",
+        DeleteUserResponse::new,
+        PARSE_FIELD_NAME
+    );
 
     public DeleteUserResponse(boolean acknowledged) {
         super(acknowledged);

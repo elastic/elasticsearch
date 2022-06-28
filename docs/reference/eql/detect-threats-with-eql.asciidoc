@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[eql-ex-threat-detection]]
 == Example: Detect threats with EQL
 

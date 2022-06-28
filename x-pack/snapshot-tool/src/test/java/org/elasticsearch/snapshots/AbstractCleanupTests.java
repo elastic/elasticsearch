@@ -44,18 +44,16 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
     private void cleanupRepository(BlobStoreRepository repository) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(ActionRunnable.run(future,
-                () -> repository.blobStore().blobContainer(repository.basePath()).delete()));
+        repository.threadPool()
+            .generic()
+            .execute(ActionRunnable.run(future, () -> repository.blobStore().blobContainer(repository.basePath()).delete()));
         future.actionGet();
         BlobStoreTestUtil.assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap());
     }
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder()
-                .put(super.nodeSettings())
-                .setSecureSettings(credentials())
-                .build();
+        return Settings.builder().put(super.nodeSettings()).setSecureSettings(credentials()).build();
     }
 
     protected abstract SecureSettings credentials();
@@ -103,27 +101,28 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
     }
 
     public void testNoBucket() {
-        expectThrows(() ->
-                        executeCommand(false, Collections.singletonMap("bucket", "")),
-                "bucket option is required for cleaning up repository");
+        expectThrows(
+            () -> executeCommand(false, Collections.singletonMap("bucket", "")),
+            "bucket option is required for cleaning up repository"
+        );
     }
 
     public void testNegativeSafetyGap() {
-        expectThrows(() ->
-                        executeCommand(false, Collections.singletonMap("safety_gap_millis", "-10")),
-                "safety_gap_millis should be non-negative");
+        expectThrows(
+            () -> executeCommand(false, Collections.singletonMap("safety_gap_millis", "-10")),
+            "safety_gap_millis should be non-negative"
+        );
     }
 
     public void testInvalidParallelism() {
-        expectThrows(() ->
-                        executeCommand(false, Collections.singletonMap("parallelism", "0")),
-                "parallelism should be at least 1");
+        expectThrows(() -> executeCommand(false, Collections.singletonMap("parallelism", "0")), "parallelism should be at least 1");
     }
 
     public void testBasePathTrailingSlash() {
-        expectThrows(() ->
-                        executeCommand(false, Collections.singletonMap("base_path", "test/")),
-                "there should be no trailing slash in the base path");
+        expectThrows(
+            () -> executeCommand(false, Collections.singletonMap("base_path", "test/")),
+            "there should be no trailing slash in the base path"
+        );
     }
 
     public void testCleanup() throws Throwable {
@@ -149,25 +148,21 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
             logger.info("Iteration number {}", i);
             logger.info("--> create first snapshot");
             CreateSnapshotResponse createSnapshotResponse = client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot("test-repo", "snap1")
-                    .setWaitForCompletion(true)
-                    .setIndices("test-idx-*", "-test-idx-3")
-                    .get();
+                .cluster()
+                .prepareCreateSnapshot("test-repo", "snap1")
+                .setWaitForCompletion(true)
+                .setIndices("test-idx-*", "-test-idx-3")
+                .get();
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                    equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+            assertThat(
+                createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+            );
 
-            assertThat(client().admin()
-                            .cluster()
-                            .prepareGetSnapshots("test-repo")
-                            .setSnapshots("snap1")
-                            .get()
-                            .getSnapshots()
-                            .get(0)
-                            .state(),
-                    equalTo(SnapshotState.SUCCESS));
-
+            assertThat(
+                client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("snap1").get().getSnapshots().get(0).state(),
+                equalTo(SnapshotState.SUCCESS)
+            );
 
             logger.info("--> execute cleanup tool, there is nothing to cleanup");
             terminal = executeCommand(false);
@@ -202,21 +197,27 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
             logger.info("--> create second snapshot");
             createSnapshotResponse = client().admin()
-                    .cluster()
-                    .prepareCreateSnapshot("test-repo", "snap2")
-                    .setWaitForCompletion(true)
-                    .setIndices("test-idx-*", "-test-idx-3")
-                    .get();
+                .cluster()
+                .prepareCreateSnapshot("test-repo", "snap2")
+                .setWaitForCompletion(true)
+                .setIndices("test-idx-*", "-test-idx-3")
+                .get();
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                    equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+            assertThat(
+                createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+            );
 
             logger.info("--> execute cleanup tool again and abort");
             terminal = executeCommand(true);
-            assertThat(terminal.getOutput(),
-                    containsString("Set of deletion candidates has " + danglingIndices.size() + " elements: " + danglingIndices));
-            assertThat(terminal.getOutput(),
-                    containsString("Set of orphaned indices has " + danglingIndices.size() + " elements: " + danglingIndices));
+            assertThat(
+                terminal.getOutput(),
+                containsString("Set of deletion candidates has " + danglingIndices.size() + " elements: " + danglingIndices)
+            );
+            assertThat(
+                terminal.getOutput(),
+                containsString("Set of orphaned indices has " + danglingIndices.size() + " elements: " + danglingIndices)
+            );
             assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
             for (String index : indexToFiles.keySet()) {
                 assertThat(terminal.getOutput(), not(containsString("Removing orphaned index " + index)));
@@ -224,10 +225,14 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
             logger.info("--> execute cleanup tool again and confirm, dangling indices should go");
             terminal = executeCommand(false);
-            assertThat(terminal.getOutput(),
-                    containsString("Set of deletion candidates has " + danglingIndices.size() + " elements: " + danglingIndices));
-            assertThat(terminal.getOutput(),
-                    containsString("Set of orphaned indices has " + danglingIndices.size() + " elements: " + danglingIndices));
+            assertThat(
+                terminal.getOutput(),
+                containsString("Set of deletion candidates has " + danglingIndices.size() + " elements: " + danglingIndices)
+            );
+            assertThat(
+                terminal.getOutput(),
+                containsString("Set of orphaned indices has " + danglingIndices.size() + " elements: " + danglingIndices)
+            );
             assertThat(terminal.getOutput(), containsString("This action is NOT REVERSIBLE"));
             for (String index : indexToFiles.keySet()) {
                 assertThat(terminal.getOutput(), containsString("Removing orphaned index " + index));
@@ -235,24 +240,14 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
                     assertThat(terminal.getOutput(), containsString(index + "/" + file));
                 }
             }
-            assertThat(terminal.getOutput(),
-                    containsString("Total files removed: " + numOfFiles));
-            assertThat(terminal.getOutput(),
-                    containsString("Total bytes freed: " + size));
+            assertThat(terminal.getOutput(), containsString("Total files removed: " + numOfFiles));
+            assertThat(terminal.getOutput(), containsString("Total bytes freed: " + size));
 
             logger.info("--> verify that there is no inconsistencies");
             BlobStoreTestUtil.assertConsistency(repository);
             logger.info("--> perform cleanup by removing snapshots");
-            assertTrue(client().admin()
-                    .cluster()
-                    .prepareDeleteSnapshot("test-repo", "snap1")
-                    .get()
-                    .isAcknowledged());
-            assertTrue(client().admin()
-                    .cluster()
-                    .prepareDeleteSnapshot("test-repo", "snap2")
-                    .get()
-                    .isAcknowledged());
+            assertTrue(client().admin().cluster().prepareDeleteSnapshot("test-repo", "snap1").get().isAcknowledged());
+            assertTrue(client().admin().cluster().prepareDeleteSnapshot("test-repo", "snap2").get().isAcknowledged());
         }
     }
 }

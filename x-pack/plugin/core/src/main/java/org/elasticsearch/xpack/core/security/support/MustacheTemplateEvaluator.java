@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,8 +35,13 @@ public final class MustacheTemplateEvaluator {
         }
         extraParams.forEach(params::put);
         // Always enforce mustache script lang:
-        script = new Script(script.getType(), script.getType() == ScriptType.STORED ? null : "mustache", script.getIdOrCode(),
-                script.getOptions(), params);
+        script = new Script(
+            script.getType(),
+            script.getType() == ScriptType.STORED ? null : "mustache",
+            script.getIdOrCode(),
+            script.getOptions(),
+            params
+        );
         return script;
     }
 

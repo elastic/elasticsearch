@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -36,17 +38,16 @@ import static java.util.Collections.singletonList;
 public class Graph extends Plugin implements ActionPlugin {
 
     public static final String NAME = "graph";
-    protected final boolean enabled;
+    public static final LicensedFeature.Momentary GRAPH_FEATURE = LicensedFeature.momentary(null, "graph", License.OperationMode.PLATINUM);
 
+    protected final boolean enabled;
 
     public Graph(Settings settings) {
         this.enabled = XPackSettings.GRAPH_ENABLED.get(settings);
     }
 
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(b -> {
-            XPackPlugin.bindFeatureSet(b, GraphFeatureSet.class);
-        });
+        return Collections.singletonList(b -> { XPackPlugin.bindFeatureSet(b, GraphFeatureSet.class); });
     }
 
     @Override
@@ -58,10 +59,15 @@ public class Graph extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (false == enabled) {
             return emptyList();
         }

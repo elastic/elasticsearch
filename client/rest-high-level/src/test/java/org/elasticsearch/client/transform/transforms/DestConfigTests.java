@@ -8,16 +8,15 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class DestConfigTests extends AbstractXContentTestCase<DestConfig> {
 
     public static DestConfig randomDestConfig() {
-        return new DestConfig(randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+        return new DestConfig(randomAlphaOfLength(10), randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     @Override

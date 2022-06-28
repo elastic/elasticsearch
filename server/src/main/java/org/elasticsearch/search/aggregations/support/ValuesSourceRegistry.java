@@ -45,7 +45,7 @@ public class ValuesSourceRegistry {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            RegistryKey that = (RegistryKey) o;
+            RegistryKey<?> that = (RegistryKey<?>) o;
             return name.equals(that.name) && supplierType.equals(that.supplierType);
         }
 
@@ -55,7 +55,8 @@ public class ValuesSourceRegistry {
         }
     }
 
-    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey("unregistered", RegistryKey.class);
+    @SuppressWarnings("rawtypes")
+    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey<>("unregistered", RegistryKey.class);
 
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
@@ -64,7 +65,6 @@ public class ValuesSourceRegistry {
         public Builder() {
             this.usageServiceBuilder = new AggregationUsageService.Builder();
         }
-
 
         /**
          * Register a ValuesSource to Aggregator mapping. This method registers mappings that only apply to a
@@ -81,7 +81,8 @@ public class ValuesSourceRegistry {
             RegistryKey<T> registryKey,
             ValuesSourceType valuesSourceType,
             T aggregatorSupplier,
-            boolean registerUsage) {
+            boolean registerUsage
+        ) {
             if (aggregatorRegistry.containsKey(registryKey) == false) {
                 aggregatorRegistry.put(registryKey, new ArrayList<>());
             }
@@ -106,7 +107,8 @@ public class ValuesSourceRegistry {
             RegistryKey<T> registryKey,
             List<ValuesSourceType> valuesSourceTypes,
             T aggregatorSupplier,
-            boolean registerUsage) {
+            boolean registerUsage
+        ) {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
                 register(registryKey, valuesSourceType, aggregatorSupplier, registerUsage);
             }
@@ -129,12 +131,11 @@ public class ValuesSourceRegistry {
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> mutableMap
     ) {
         /*
-         Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
+         Make an immutable copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
          */
         Map<RegistryKey<?>, Map<ValuesSourceType, ?>> tmp = new HashMap<>();
-        mutableMap.forEach((key, value) -> tmp.put(key, value.stream().collect(
-            Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+        mutableMap.forEach((key, value) -> tmp.put(key, value.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
         return Collections.unmodifiableMap(tmp);
     }
 

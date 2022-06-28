@@ -1,9 +1,0 @@
-pr: 44133
-issues:
-  - 43045
-  - 44132
-area: Machine Learning
-type: bug
-summary: Relax the test assertion so that the test always passes
-versions:
-  - v8.0.0

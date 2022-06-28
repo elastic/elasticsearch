@@ -1,8 +1,0 @@
-pr: 59949
-issues:
-  - 59555
-area: Infra/Core
-type: UNKNOWN
-summary: Remove unused deprecate method in `FormatNames`
-versions:
-  - v8.0.0

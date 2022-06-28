@@ -26,10 +26,14 @@ public class TasksRequestConvertersTests extends ESTestCase {
 
     public void testCancelTasks() {
         Map<String, String> expectedParams = new HashMap<>();
-        org.elasticsearch.client.tasks.TaskId taskId =
-            new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        org.elasticsearch.client.tasks.TaskId parentTaskId =
-            new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        org.elasticsearch.client.tasks.TaskId taskId = new org.elasticsearch.client.tasks.TaskId(
+            randomAlphaOfLength(5),
+            randomNonNegativeLong()
+        );
+        org.elasticsearch.client.tasks.TaskId parentTaskId = new org.elasticsearch.client.tasks.TaskId(
+            randomAlphaOfLength(5),
+            randomNonNegativeLong()
+        );
         CancelTasksRequest.Builder builder = new CancelTasksRequest.Builder().withTaskId(taskId).withParentTaskId(parentTaskId);
         expectedParams.put("task_id", taskId.toString());
         expectedParams.put("parent_task_id", parentTaskId.toString());
@@ -99,8 +103,10 @@ public class TasksRequestConvertersTests extends ESTestCase {
         {
             ListTasksRequest request = new ListTasksRequest();
             request.setTaskId(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, ()
-                -> TasksRequestConverters.listTasks(request));
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> TasksRequestConverters.listTasks(request)
+            );
             assertEquals("TaskId cannot be used for list tasks request", exception.getMessage());
         }
     }

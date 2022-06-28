@@ -9,8 +9,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,7 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
         }
         if (randomBoolean()) {
             List<BucketOrder> order = randomOrder();
-            if(order.size() == 1 && randomBoolean()) {
+            if (order.size() == 1 && randomBoolean()) {
                 factory.order(order.get(0));
             } else {
                 factory.order(order);

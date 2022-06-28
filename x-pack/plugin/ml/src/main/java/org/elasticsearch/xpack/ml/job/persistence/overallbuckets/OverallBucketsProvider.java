@@ -58,8 +58,15 @@ public class OverallBucketsProvider {
             Max interimAgg = histogramBucketAggs.get(Result.IS_INTERIM.getPreferredName());
             boolean isInterim = interimAgg.getValue() > 0;
 
-            overallBuckets.add(new OverallBucket(getHistogramBucketTimestamp(histogramBucket),
-                    maxJobBucketSpanSeconds, overallScore, new ArrayList<>(jobs), isInterim));
+            overallBuckets.add(
+                new OverallBucket(
+                    getHistogramBucketTimestamp(histogramBucket),
+                    maxJobBucketSpanSeconds,
+                    overallScore,
+                    new ArrayList<>(jobs),
+                    isInterim
+                )
+            );
         }
         return overallBuckets;
     }

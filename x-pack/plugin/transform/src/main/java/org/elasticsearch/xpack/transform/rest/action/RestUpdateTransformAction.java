@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 
@@ -20,6 +23,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction.MAX_REQUEST_SIZE;
 
 public class RestUpdateTransformAction extends BaseRestHandler {
 
@@ -35,10 +39,20 @@ public class RestUpdateTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (restRequest.contentLength() > MAX_REQUEST_SIZE.getBytes()) {
+            throw ExceptionsHelper.badRequestException(
+                "Request is too large: was [{}b], expected at most [{}]",
+                restRequest.contentLength(),
+                MAX_REQUEST_SIZE
+            );
+        }
+
         String id = restRequest.param(TransformField.ID.getPreferredName());
         boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+
         XContentParser parser = restRequest.contentParser();
-        UpdateTransformAction.Request request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation);
+        UpdateTransformAction.Request request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation, timeout);
 
         return channel -> client.execute(UpdateTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

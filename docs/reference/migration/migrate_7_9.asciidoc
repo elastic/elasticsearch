@@ -20,8 +20,8 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [discrete]
 [[breaking_79_indices_changes]]
 === Indices changes
-.{es} includes built-in index templates for `logs-*-*` and `metrics-*-*`.
 
+.{es} includes built-in index templates for `logs-*-*` and `metrics-*-*`.
 [%collapsible]
 ====
 *Details* +
@@ -41,6 +41,12 @@ non-overlapping index pattern or assign templates with an overlapping pattern a
 For example, if you don't use {agent} and want to use a template for the
 `logs-*` index pattern, assign your template a priority of `200`. This ensures
 your template is applied instead of the built-in template for `logs-*-*`.
+
+To disable all built-in index and component templates, set
+{ref}/index-management-settings.html#stack-templates-enabled[`stack.templates.enabled`]
+to `false` in {ref}/settings.html#config-files-location[`elasticsearch.yml`]
+before start up. If the templates already exist, this setting ensures {es} does
+not recreate the built-in templates after deletion.
 ====
 //end::notable-breaking-changes[]
 
@@ -139,7 +145,6 @@ you dynamically update the index mapping based on the template's mapping configu
 
 [[deprecate_auto_import_dangling_indices]]
 .Automatically importing dangling indices is disabled by default.
-
 [%collapsible]
 ====
 *Details* +
@@ -155,6 +160,30 @@ Alternatively you can enable automatic imports of dangling indices, recovering
 the unsafe behaviour of earlier versions, by setting
 `gateway.auto_import_dangling_indices` to `true`. This setting is deprecated
 and will be removed in {es} 8.0.0. We do not recommend using this setting.
+====
 
+[[deprecate_legacy_node_role_settings]]
+.Several node role settings are deprecated.
+[%collapsible]
+====
+*Details* +
+The following node role settings are now deprecated:
+
+* `node.data`
+* `node.ingest`
+* `node.master`
+* `node.ml`
+* `node.remote_cluster_client`
+* `node.transform`
+* `node.voting_only`
+
+Use the {ref}/modules-node.html#node-roles[`node.roles` setting] instead.
+
+If you used the deprecated node role settings on a 7.13 or later cluster, you
+will have a {ref}/logging.html#deprecation-logging[deprecation log message] on
+each of your nodes indicating the exact replacement value for `node.roles`.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 //end::notable-breaking-changes[]

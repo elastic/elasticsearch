@@ -58,8 +58,7 @@ public class PEMKeyConfigTests extends ESTestCase {
     }
 
     private String getPath(String fileName) {
-        return getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/" + fileName)
-            .toAbsolutePath().toString();
+        return getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/" + fileName).toAbsolutePath().toString();
     }
 
 }

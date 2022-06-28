@@ -9,6 +9,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -52,8 +53,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService);
+    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
@@ -65,14 +65,20 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     public static void stubValidateQueryAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(ValidateQueryAction.NAME,
-            new ActionFilters(Collections.emptySet()), mock(Transport.Connection.class), taskManager) {
+        final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<
+            ActionRequest,
+            ActionResponse>(
+                ValidateQueryAction.NAME,
+                new ActionFilters(Collections.emptySet()),
+                mock(Transport.Connection.class),
+                taskManager
+            ) {
             @Override
-            protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
-            }
+            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType, TransportAction> actions = new HashMap<>();
+        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+            new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         client.initialize(actions, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
@@ -146,16 +152,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     private RestRequest createRestRequest(String content) {
-        return new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("index1/type1/_validate/query")
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/type1/_validate/query")
             .withParams(emptyMap())
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/_validate/query")
             .build();
 
@@ -166,8 +170,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     public void testTypeParameter() {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("_validate/query")
             .withParams(params)
             .build();

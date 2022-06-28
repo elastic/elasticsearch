@@ -969,7 +969,6 @@ teardown:
 ---
 "Test simulate with provided pipeline that does not exist":
   - do:
-      catch: bad_request
       ingest.simulate:
         verbose: true
         body: >
@@ -990,5 +989,6 @@ teardown:
               }
             ]
           }
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [____pipeline_doesnot_exist___]" }
+  - match: { docs.0.processor_results.0.status: "error" }
+  - match: { docs.0.processor_results.0.error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.0.error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [____pipeline_doesnot_exist___]" }

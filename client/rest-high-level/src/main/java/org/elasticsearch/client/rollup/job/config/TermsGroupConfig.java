@@ -9,18 +9,18 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -41,7 +41,8 @@ public class TermsGroupConfig implements Validatable, ToXContentObject {
     private static final ConstructingObjectParser<TermsGroupConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            @SuppressWarnings("unchecked") List<String> fields = (List<String>) args[0];
+            @SuppressWarnings("unchecked")
+            List<String> fields = (List<String>) args[0];
             return new TermsGroupConfig(fields != null ? fields.toArray(new String[fields.size()]) : null);
         });
         PARSER.declareStringArray(constructorArg(), new ParseField(FIELDS));

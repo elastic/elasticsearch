@@ -8,6 +8,7 @@ package org.elasticsearch.snapshots;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
@@ -25,13 +26,10 @@ public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
     public CleanupGCSRepositoryCommand() {
         super("Command to cleanup orphaned segment files from the GCS repository");
 
-        base64CredentialsOption = parser
-                .accepts("base64_credentials", "Base64 encoded content of google service account credentials file")
-                .withRequiredArg();
-        endpointOption = parser.accepts("endpoint", "GCS endpoint")
-                .withRequiredArg();
-        tokenURIOption = parser.accepts("token_uri", "GCS URI to use for OAuth tokens")
-                .withRequiredArg();
+        base64CredentialsOption = parser.accepts("base64_credentials", "Base64 encoded content of google service account credentials file")
+            .withRequiredArg();
+        endpointOption = parser.accepts("endpoint", "GCS endpoint").withRequiredArg();
+        tokenURIOption = parser.accepts("token_uri", "GCS URI to use for OAuth tokens").withRequiredArg();
     }
 
     @Override
@@ -45,17 +43,18 @@ public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
     }
 
     @Override
-    protected AbstractRepository newRepository(Terminal terminal, OptionSet options)
-            throws IOException, GeneralSecurityException, URISyntaxException {
+    protected AbstractRepository newRepository(Terminal terminal, OptionSet options) throws IOException, GeneralSecurityException,
+        URISyntaxException {
         return new GCSRepository(
-                terminal,
-                safetyGapMillisOption.value(options),
-                parallelismOption.value(options),
-                bucketOption.value(options),
-                basePathOption.value(options),
-                base64CredentialsOption.value(options),
-                endpointOption.value(options),
-                tokenURIOption.value(options));
+            terminal,
+            safetyGapMillisOption.value(options),
+            parallelismOption.value(options),
+            bucketOption.value(options),
+            basePathOption.value(options),
+            base64CredentialsOption.value(options),
+            endpointOption.value(options),
+            tokenURIOption.value(options)
+        );
     }
 
 }

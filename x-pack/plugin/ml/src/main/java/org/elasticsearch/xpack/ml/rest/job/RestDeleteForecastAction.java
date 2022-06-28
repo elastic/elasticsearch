@@ -30,8 +30,12 @@ public class RestDeleteForecastAction extends BaseRestHandler {
         return org.elasticsearch.core.List.of(
             new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/"),
             Route.builder(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}",
-                    RestApiVersion.V_7).build()
+                .replaces(
+                    DELETE,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 

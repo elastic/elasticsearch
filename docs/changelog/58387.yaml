@@ -1,7 +1,0 @@
-pr: 58387
-issues: []
-area: Features/Data streams
-type: UNKNOWN
-summary: "Adjust version after backporting #57675"
-versions:
-  - v8.0.0

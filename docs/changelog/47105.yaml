@@ -1,8 +1,0 @@
-pr: 47105
-issues:
-  - 46119
-area: Infra/Logging
-type: UNKNOWN
-summary: Make Elasticsearch JSON logs ECS compliant
-versions:
-  - v8.0.0

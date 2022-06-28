@@ -58,8 +58,14 @@ public class TranslogDeletionPolicy {
 
     public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
         if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException("local checkpoint of the safe commit can't go backwards: " +
-                "current [" + this.localCheckpointOfSafeCommit + "] new [" + newCheckpoint + "]");
+            throw new IllegalArgumentException(
+                "local checkpoint of the safe commit can't go backwards: "
+                    + "current ["
+                    + this.localCheckpointOfSafeCommit
+                    + "] new ["
+                    + newCheckpoint
+                    + "]"
+            );
         }
         this.localCheckpointOfSafeCommit = newCheckpoint;
     }
@@ -162,7 +168,7 @@ public class TranslogDeletionPolicy {
     static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
         throws IOException {
         if (maxRetentionAgeInMillis >= 0) {
-            for (TranslogReader reader: readers) {
+            for (TranslogReader reader : readers) {
                 if (now - reader.getLastModifiedTime() <= maxRetentionAgeInMillis) {
                     return reader.getGeneration();
                 }

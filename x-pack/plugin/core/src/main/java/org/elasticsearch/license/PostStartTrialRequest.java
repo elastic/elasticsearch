@@ -64,13 +64,26 @@ public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialReque
             out.writeBoolean(acknowledge);
         } else {
             if ("trial".equals(type) == false) {
-                throw new IllegalArgumentException("All nodes in cluster must be version [" + version
-                        + "] or newer to start trial with a different type than 'trial'. Attempting to write to " +
-                        "a node with version [" + out.getVersion() + "] with trial type [" + type + "].");
+                throw new IllegalArgumentException(
+                    "All nodes in cluster must be version ["
+                        + version
+                        + "] or newer to start trial with a different type than 'trial'. Attempting to write to "
+                        + "a node with version ["
+                        + out.getVersion()
+                        + "] with trial type ["
+                        + type
+                        + "]."
+                );
             } else if (acknowledge == false) {
-                throw new IllegalArgumentException("Request must be acknowledged to send to a node with a version " +
-                        "prior to [" + version + "]. Attempting to send request to node with version [" + out.getVersion() + "] " +
-                        "without acknowledgement.");
+                throw new IllegalArgumentException(
+                    "Request must be acknowledged to send to a node with a version "
+                        + "prior to ["
+                        + version
+                        + "]. Attempting to send request to node with version ["
+                        + out.getVersion()
+                        + "] "
+                        + "without acknowledgement."
+                );
             } else {
                 super.writeTo(out);
             }

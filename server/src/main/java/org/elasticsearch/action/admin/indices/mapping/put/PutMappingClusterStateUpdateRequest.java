@@ -9,6 +9,9 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.elasticsearch.common.compress.CompressedXContent;
+
+import java.io.IOException;
 
 /**
  * Cluster state update request that allows to put a mapping
@@ -17,7 +20,7 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
 
     private String type;
 
-    private String source;
+    private CompressedXContent source;
 
     public PutMappingClusterStateUpdateRequest() {
 
@@ -32,12 +35,16 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
         return this;
     }
 
-    public String source() {
+    public PutMappingClusterStateUpdateRequest(String source) throws IOException {
+        this.source = new CompressedXContent(source);
+    }
+
+    public CompressedXContent source() {
         return source;
     }
 
-    public PutMappingClusterStateUpdateRequest source(String source) {
-        this.source = source;
+    public PutMappingClusterStateUpdateRequest source(String source) throws IOException {
+        this.source = new CompressedXContent(source);
         return this;
     }
 }

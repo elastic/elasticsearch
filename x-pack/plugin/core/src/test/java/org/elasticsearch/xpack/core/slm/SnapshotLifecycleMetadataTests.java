@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.IOException;
@@ -30,8 +30,11 @@ public class SnapshotLifecycleMetadataTests extends AbstractSerializingTestCase<
             String id = "policy-" + randomAlphaOfLength(3);
             policies.put(id, SnapshotLifecyclePolicyMetadataTests.createRandomPolicyMetadata(id));
         }
-        return new SnapshotLifecycleMetadata(policies, randomFrom(OperationMode.values()),
-            SnapshotLifecycleStatsTests.randomLifecycleStats());
+        return new SnapshotLifecycleMetadata(
+            policies,
+            randomFrom(OperationMode.values()),
+            SnapshotLifecycleStatsTests.randomLifecycleStats()
+        );
     }
 
     @Override

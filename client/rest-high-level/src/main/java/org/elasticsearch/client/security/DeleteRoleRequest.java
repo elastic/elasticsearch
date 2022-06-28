@@ -21,7 +21,7 @@ public final class DeleteRoleRequest implements Validatable {
     private final RefreshPolicy refreshPolicy;
 
     public DeleteRoleRequest(String name) {
-        this(name,  RefreshPolicy.IMMEDIATE);
+        this(name, RefreshPolicy.IMMEDIATE);
     }
 
     public DeleteRoleRequest(String name, RefreshPolicy refreshPolicy) {

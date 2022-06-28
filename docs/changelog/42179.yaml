@@ -1,8 +1,0 @@
-pr: 42179
-issues:
-  - 42154
-area: Aggregations
-type: bug
-summary: Fix `TopHitsAggregationBuilder` adding duplicate `_score` sort clauses
-versions:
-  - v8.0.0

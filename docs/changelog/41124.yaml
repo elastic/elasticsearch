@@ -1,9 +1,0 @@
-pr: 41124
-issues:
-  - 41090
-  - 41091
-area: Machine Learning
-type: bug
-summary: Checking if p-tasks metadata is null before updating state
-versions:
-  - v8.0.0

@@ -19,8 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -36,6 +34,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -70,20 +70,36 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Boolean>> coerce;
 
-        private final Parameter<Double> scalingFactor = new Parameter<>("scaling_factor", false, () -> null,
-            (n, c, o) -> XContentMapValues.nodeDoubleValue(o), m -> toType(m).scalingFactor)
-            .setValidator(v -> {
-                if (v == null) {
-                    throw new IllegalArgumentException("Field [scaling_factor] is required");
-                }
-                if (Double.isFinite(v) == false || v <= 0) {
-                    throw new IllegalArgumentException("[scaling_factor] must be a positive number, got [" + v + "]");
-                }
-            });
-        private final Parameter<Double> nullValue = new Parameter<>("null_value", false, () -> null,
-            (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o), m -> toType(m).nullValue).acceptsNull();
+        private final Parameter<Double> scalingFactor = new Parameter<>(
+            "scaling_factor",
+            false,
+            () -> null,
+            (n, c, o) -> XContentMapValues.nodeDoubleValue(o),
+            m -> toType(m).scalingFactor
+        ).addValidator(v -> {
+            if (v == null) {
+                throw new IllegalArgumentException("Field [scaling_factor] is required");
+            }
+            if (Double.isFinite(v) == false || v <= 0) {
+                throw new IllegalArgumentException("[scaling_factor] must be a positive number, got [" + v + "]");
+            }
+        });
+        private final Parameter<Double> nullValue = new Parameter<>(
+            "null_value",
+            false,
+            () -> null,
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
+            m -> toType(m).nullValue
+        ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * For the numeric fields gauge and counter metric types are
+         * supported
+         */
+        private final Parameter<TimeSeriesParams.MetricType> metric;
 
         public Builder(String name, Settings settings) {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
@@ -91,10 +107,25 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
-            this.ignoreMalformed
-                = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
-            this.coerce
-                = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            this.ignoreMalformed = Parameter.explicitBoolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                ignoreMalformedByDefault
+            );
+            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+
+            this.metric = TimeSeriesParams.metricParam(
+                m -> toType(m).metricType,
+                TimeSeriesParams.MetricType.gauge,
+                TimeSeriesParams.MetricType.counter
+            ).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            });
         }
 
         Builder scalingFactor(double scalingFactor) {
@@ -107,16 +138,29 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return this;
         }
 
-        @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue);
+        public Builder metric(TimeSeriesParams.MetricType metric) {
+            this.metric.setValue(metric);
+            return this;
         }
 
         @Override
-        public ScaledFloatFieldMapper build(ContentPath contentPath) {
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
-                hasDocValues.getValue(), meta.getValue(), scalingFactor.getValue(), nullValue.getValue());
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric);
+        }
+
+        @Override
+        public ScaledFloatFieldMapper build(MapperBuilderContext context) {
+            ScaledFloatFieldType type = new ScaledFloatFieldType(
+                context.buildFullName(name),
+                indexed.getValue(),
+                stored.getValue(),
+                hasDocValues.getValue(),
+                meta.getValue(),
+                scalingFactor.getValue(),
+                nullValue.getValue(),
+                metric.getValue()
+            );
+            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -126,16 +170,26 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final double scalingFactor;
         private final Double nullValue;
+        private final TimeSeriesParams.MetricType metricType;
 
-        public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                    Map<String, String> meta, double scalingFactor, Double nullValue) {
+        public ScaledFloatFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            boolean hasDocValues,
+            Map<String, String> meta,
+            double scalingFactor,
+            Double nullValue,
+            TimeSeriesParams.MetricType metricType
+        ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
+            this.metricType = metricType;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, false, true, Collections.emptyMap(), scalingFactor, null);
+            this(name, true, false, true, Collections.emptyMap(), scalingFactor, null, null);
         }
 
         public double getScalingFactor() {
@@ -174,9 +228,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm,
-                                boolean includeLower, boolean includeUpper,
-                                SearchExecutionContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
@@ -247,15 +305,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoTimeZone(timeZone);
             if (format == null) {
                 return DocValueFormat.RAW;
-            } else {
-                return new DocValueFormat.Decimal(format);
             }
+            return new DocValueFormat.Decimal(format);
         }
 
         /**
@@ -270,6 +324,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private double scale(Object input) {
             return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
         }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;
@@ -282,13 +344,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final TimeSeriesParams.MetricType metricType;
 
     private ScaledFloatFieldMapper(
-            String simpleName,
-            ScaledFloatFieldType mappedFieldType,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            Builder builder) {
+        String simpleName,
+        ScaledFloatFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -299,6 +363,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         this.coerce = builder.coerce.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.metricType = builder.metric.getValue();
     }
 
     boolean coerce() {
@@ -321,20 +386,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault, coerceByDefault).metric(metricType).init(this);
     }
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
         if (parser.currentToken() == Token.VALUE_NULL) {
             value = null;
-        } else if (coerce.value()
-                && parser.currentToken() == Token.VALUE_STRING
-                && parser.textLength() == 0) {
+        } else if (coerce.value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
             value = null;
         } else {
             try {
@@ -372,8 +434,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        List<Field> fields
-            = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (indexed || stored)) {
@@ -503,6 +564,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     public boolean advanceExact(int doc) throws IOException {
                         return singleValues.advanceExact(doc);
                     }
+
                     @Override
                     public double doubleValue() throws IOException {
                         return singleValues.longValue() * scalingFactorInverse;

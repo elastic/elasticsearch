@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
 
@@ -51,8 +51,7 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
 
     public void testEquals_GivenDifferentTimestamp() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated().setTimestamp(
-                new Date(modelSnapshot1.getTimestamp().getTime() + 1)).build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setTimestamp(new Date(modelSnapshot1.getTimestamp().getTime() + 1)).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -60,8 +59,7 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
 
     public void testEquals_GivenDifferentDescription() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setDescription(modelSnapshot1.getDescription() + " blah").build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setDescription(modelSnapshot1.getDescription() + " blah").build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -69,8 +67,7 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
 
     public void testEquals_GivenDifferentId() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setSnapshotId(modelSnapshot1.getSnapshotId() + "_2").build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setSnapshotId(modelSnapshot1.getSnapshotId() + "_2").build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -78,8 +75,7 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
 
     public void testEquals_GivenDifferentDocCount() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setSnapshotDocCount(modelSnapshot1.getSnapshotDocCount() + 1).build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setSnapshotDocCount(modelSnapshot1.getSnapshotDocCount() + 1).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -97,9 +93,9 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
 
     public void testEquals_GivenDifferentQuantiles() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setQuantiles(new Quantiles("foo", modelSnapshot1.getQuantiles().getTimestamp(),
-                        "different state")).build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setQuantiles(
+            new Quantiles("foo", modelSnapshot1.getQuantiles().getTimestamp(), "different state")
+        ).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -108,7 +104,8 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
     public void testEquals_GivenDifferentLatestResultTimestamp() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
         ModelSnapshot modelSnapshot2 = createFullyPopulated().setLatestResultTimeStamp(
-                new Date(modelSnapshot1.getLatestResultTimeStamp().getTime() + 1)).build();
+            new Date(modelSnapshot1.getLatestResultTimeStamp().getTime() + 1)
+        ).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -117,7 +114,8 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
     public void testEquals_GivenDifferentLatestRecordTimestamp() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
         ModelSnapshot modelSnapshot2 = createFullyPopulated().setLatestRecordTimeStamp(
-                new Date(modelSnapshot1.getLatestRecordTimeStamp().getTime() + 1)).build();
+            new Date(modelSnapshot1.getLatestRecordTimeStamp().getTime() + 1)
+        ).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -158,17 +156,15 @@ public class ModelSnapshotTests extends AbstractXContentTestCase<ModelSnapshot> 
         modelSnapshot.setSnapshotId(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotDocCount(randomInt());
         modelSnapshot.setModelSizeStats(ModelSizeStatsTests.createRandomized());
-        modelSnapshot.setLatestResultTimeStamp(
-                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
-        modelSnapshot.setLatestRecordTimeStamp(
-                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setLatestResultTimeStamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setLatestRecordTimeStamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setQuantiles(QuantilesTests.createRandomized());
         modelSnapshot.setRetain(randomBoolean());
         return modelSnapshot;
     }
 
     @Override
-    protected ModelSnapshot doParseInstance(XContentParser parser){
+    protected ModelSnapshot doParseInstance(XContentParser parser) {
         return ModelSnapshot.PARSER.apply(parser, null).build();
     }
 

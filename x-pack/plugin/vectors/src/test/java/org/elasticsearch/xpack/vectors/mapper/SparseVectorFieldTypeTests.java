@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.elasticsearch.Version;
@@ -23,9 +22,7 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFielddataBuilder() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Version.CURRENT, Collections.emptyMap());
-        assertNotNull(fieldType.fielddataBuilder("index", () -> {
-            throw new UnsupportedOperationException();
-        }));
+        assertNotNull(fieldType.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); }));
     }
 
     public void testIsNotAggregatable() {

@@ -10,12 +10,12 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,13 +33,14 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final String ALL = "_all";
 
-    public static final ConstructingObjectParser<DeleteForecastRequest, Void> PARSER =
-        new ConstructingObjectParser<>("delete_forecast_request", (a) -> new DeleteForecastRequest((String) a[0]));
+    public static final ConstructingObjectParser<DeleteForecastRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "delete_forecast_request",
+        (a) -> new DeleteForecastRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareStringOrNull(
-            (c, p) -> c.setForecastIds(Strings.commaDelimitedListToStringArray(p)), FORECAST_ID);
+        PARSER.declareStringOrNull((c, p) -> c.setForecastIds(Strings.commaDelimitedListToStringArray(p)), FORECAST_ID);
         PARSER.declareBoolean(DeleteForecastRequest::setAllowNoForecasts, ALLOW_NO_FORECASTS);
         PARSER.declareString(DeleteForecastRequest::timeout, TIMEOUT);
     }
@@ -137,10 +138,10 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
         }
 
         DeleteForecastRequest that = (DeleteForecastRequest) other;
-        return Objects.equals(jobId, that.jobId) &&
-            Objects.equals(forecastIds, that.forecastIds) &&
-            Objects.equals(allowNoForecasts, that.allowNoForecasts) &&
-            Objects.equals(timeout, that.timeout);
+        return Objects.equals(jobId, that.jobId)
+            && Objects.equals(forecastIds, that.forecastIds)
+            && Objects.equals(allowNoForecasts, that.allowNoForecasts)
+            && Objects.equals(timeout, that.timeout);
     }
 
     @Override

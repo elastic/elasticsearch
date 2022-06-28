@@ -72,13 +72,19 @@ import java.util.concurrent.atomic.AtomicReference;
 final class TranslogDirectoryReader extends DirectoryReader {
     private final TranslogLeafReader leafReader;
 
-    TranslogDirectoryReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
-                            Analyzer analyzer, Runnable onSegmentCreated) throws IOException {
+    TranslogDirectoryReader(
+        ShardId shardId,
+        Translog.Index operation,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Analyzer analyzer,
+        Runnable onSegmentCreated
+    ) throws IOException {
         this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, analyzer, onSegmentCreated));
     }
 
     private TranslogDirectoryReader(TranslogLeafReader leafReader) throws IOException {
-        super(leafReader.directory, new LeafReader[]{leafReader}, null);
+        super(leafReader.directory, new LeafReader[] { leafReader }, null);
         this.leafReader = leafReader;
     }
 
@@ -133,18 +139,56 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
     private static class TranslogLeafReader extends LeafReader {
 
-        private static final FieldInfo FAKE_SOURCE_FIELD
-            = new FieldInfo(SourceFieldMapper.NAME, 1, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-        private static final FieldInfo FAKE_ROUTING_FIELD
-            = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-        private static final FieldInfo FAKE_ID_FIELD
-            = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.DOCS,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-        private static Set<String> TRANSLOG_FIELD_NAMES =
-            Sets.newHashSet(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
-
+        private static final FieldInfo FAKE_SOURCE_FIELD = new FieldInfo(
+            SourceFieldMapper.NAME,
+            1,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            false
+        );
+        private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
+            RoutingFieldMapper.NAME,
+            2,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            false
+        );
+        private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
+            IdFieldMapper.NAME,
+            3,
+            false,
+            false,
+            false,
+            IndexOptions.DOCS,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            false
+        );
+        private static Set<String> TRANSLOG_FIELD_NAMES = Sets.newHashSet(
+            SourceFieldMapper.NAME,
+            RoutingFieldMapper.NAME,
+            IdFieldMapper.NAME
+        );
 
         private final ShardId shardId;
         private final Translog.Index operation;
@@ -157,8 +201,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private final AtomicReference<LeafReader> delegate = new AtomicReference<>();
         private final BytesRef uid;
 
-        TranslogLeafReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
-                           Analyzer analyzer, Runnable onSegmentCreated) {
+        TranslogLeafReader(
+            ShardId shardId,
+            Translog.Index operation,
+            MappingLookup mappingLookup,
+            DocumentParser documentParser,
+            Analyzer analyzer,
+            Runnable onSegmentCreated
+        ) {
             this.shardId = shardId;
             this.operation = operation;
             this.mappingLookup = mappingLookup;
@@ -189,9 +239,18 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = documentParser.parseDocument(new SourceToParse(shardId.getIndexName(), operation.type(),
-                operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(),
-                Collections.emptyMap()), mappingLookup);
+            final ParsedDocument parsedDocs = documentParser.parseDocument(
+                new SourceToParse(
+                    shardId.getIndexName(),
+                    operation.type(),
+                    operation.id(),
+                    operation.source(),
+                    XContentHelper.xContentType(operation.source()),
+                    operation.routing(),
+                    Collections.emptyMap()
+                ),
+                mappingLookup
+            );
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
@@ -201,8 +260,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 final DirectoryReader reader = open(writer);
                 if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != 1) {
                     reader.close();
-                    throw new IllegalStateException("Expected a single document segment; " +
-                        "but [" + reader.leaves().size() + " segments with " + reader.leaves().get(0).reader().numDocs() + " documents");
+                    throw new IllegalStateException(
+                        "Expected a single document segment; "
+                            + "but ["
+                            + reader.leaves().size()
+                            + " segments with "
+                            + reader.leaves().get(0).reader().numDocs()
+                            + " documents"
+                    );
                 }
                 return reader.leaves().get(0).reader();
             } catch (IOException e) {
@@ -289,8 +354,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void checkIntegrity() throws IOException {
-        }
+        public void checkIntegrity() throws IOException {}
 
         @Override
         public LeafMetaData getMetaData() {

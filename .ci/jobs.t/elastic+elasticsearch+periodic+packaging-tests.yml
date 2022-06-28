@@ -21,8 +21,7 @@
               kill-phase-on: NEVER
               current-parameters: true
               git-revision: true
-            # Disable upgrade tests for now  
-            # - name: elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-upgrade
-            #   kill-phase-on: NEVER
-            #   current-parameters: true
-            #   git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-upgrade
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true

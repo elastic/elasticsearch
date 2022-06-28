@@ -1,9 +1,0 @@
-pr: 67677
-issues:
-  - 66986
-area: Infra/Scripting
-type: UNKNOWN
-summary: Make scripted search templates work with new `mediaType` from
-  `XContentType.JSON`
-versions:
-  - v8.0.0

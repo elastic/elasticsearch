@@ -1,8 +1,0 @@
-pr: 61259
-issues:
-  - 60889
-area: Features/Java High Level REST Client, Infra/Logging
-type: UNKNOWN
-summary: Avoid `StackOverflowError` due to regex alternate paths
-versions:
-  - v8.0.0

@@ -18,13 +18,10 @@ import org.apache.lucene.util.LuceneTestCase;
 public class PlainHighlighterTests extends LuceneTestCase {
 
     public void testHighlightPhrase() throws Exception {
-        Query query = new PhraseQuery.Builder()
-                .add(new Term("field", "foo"))
-                .add(new Term("field", "bar"))
-                .build();
+        Query query = new PhraseQuery.Builder().add(new Term("field", "foo")).add(new Term("field", "bar")).build();
         QueryScorer queryScorer = new CustomQueryScorer(query);
         org.apache.lucene.search.highlight.Highlighter highlighter = new org.apache.lucene.search.highlight.Highlighter(queryScorer);
         String[] frags = highlighter.getBestFragments(new MockAnalyzer(random()), "field", "bar foo bar foo", 10);
-        assertArrayEquals(new String[] {"bar <B>foo</B> <B>bar</B> foo"}, frags);
+        assertArrayEquals(new String[] { "bar <B>foo</B> <B>bar</B> foo" }, frags);
     }
 }

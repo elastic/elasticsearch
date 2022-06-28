@@ -1,0 +1,6 @@
+pr: 84242
+summary: Allow autoscaling to work when vertical scaling is possible
+area: Machine Learning
+type: bug
+issues:
+ - 84198

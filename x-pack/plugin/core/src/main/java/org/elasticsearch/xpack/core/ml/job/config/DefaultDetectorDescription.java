@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
-
 public final class DefaultDetectorDescription {
     private static final String BY_TOKEN = " by ";
     private static final String OVER_TOKEN = " over ";
@@ -45,8 +44,7 @@ public final class DefaultDetectorDescription {
         if (isNotNullOrEmpty(detector.getFunction().getFullName())) {
             sb.append(detector.getFunction());
             if (isNotNullOrEmpty(detector.getFieldName())) {
-                sb.append('(').append(quoteField(detector.getFieldName()))
-                .append(')');
+                sb.append('(').append(quoteField(detector.getFieldName())).append(')');
             }
         } else if (isNotNullOrEmpty(detector.getFieldName())) {
             sb.append(quoteField(detector.getFieldName()));

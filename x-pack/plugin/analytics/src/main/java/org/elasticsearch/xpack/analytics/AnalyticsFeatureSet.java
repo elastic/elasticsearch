@@ -47,9 +47,11 @@ public class AnalyticsFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-       AnalyticsStatsAction.Request request = new AnalyticsStatsAction.Request();
-       client.execute(AnalyticsStatsAction.INSTANCE, request,
-           ActionListener.wrap(r -> listener.onResponse(new AnalyticsFeatureSetUsage(r)),
-               listener::onFailure));
+        AnalyticsStatsAction.Request request = new AnalyticsStatsAction.Request();
+        client.execute(
+            AnalyticsStatsAction.INSTANCE,
+            request,
+            ActionListener.wrap(r -> listener.onResponse(new AnalyticsFeatureSetUsage(r)), listener::onFailure)
+        );
     }
 }

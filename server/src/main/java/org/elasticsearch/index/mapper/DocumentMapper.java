@@ -87,8 +87,14 @@ public class DocumentMapper {
         this.mapping().validate(this.mappingLookup);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             if (routingFieldMapper().required() == false) {
-                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
-                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+                throw new IllegalArgumentException(
+                    "mapping type ["
+                        + type()
+                        + "] must have routing "
+                        + "required for partitioned index ["
+                        + settings.getIndex().getName()
+                        + "]"
+                );
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {
@@ -101,12 +107,18 @@ public class DocumentMapper {
 
     @Override
     public String toString() {
-        return "DocumentMapper{" +
-            "type='" + type + '\'' +
-            ", mappingSource=" + mappingSource +
-            ", mappingLookup=" + mappingLookup +
-            ", objectMappers=" + mappers().objectMappers() +
-            ", hasNestedObjects=" + mappingLookup.hasNested() +
-            '}';
+        return "DocumentMapper{"
+            + "type='"
+            + type
+            + '\''
+            + ", mappingSource="
+            + mappingSource
+            + ", mappingLookup="
+            + mappingLookup
+            + ", objectMappers="
+            + mappers().objectMappers()
+            + ", hasNestedObjects="
+            + mappingLookup.hasNested()
+            + '}';
     }
 }

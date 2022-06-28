@@ -1,7 +1,0 @@
-pr: 44642
-issues: []
-area: Infra/Logging
-type: UNKNOWN
-summary: Fix stats in slow logs to be a escaped JSON
-versions:
-  - v8.0.0

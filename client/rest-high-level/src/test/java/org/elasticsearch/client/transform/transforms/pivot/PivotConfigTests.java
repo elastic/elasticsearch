@@ -9,10 +9,10 @@
 package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -21,9 +21,11 @@ import java.util.function.Predicate;
 public class PivotConfigTests extends AbstractXContentTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfig() {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(),
+        return new PivotConfig(
+            GroupConfigTests.randomGroupConfig(),
             AggregationConfigTests.randomAggregationConfig(),
-            randomBoolean() ? null : randomIntBetween(10, 10_000));
+            randomBoolean() ? null : randomIntBetween(10, 10_000)
+        );
     }
 
     @Override

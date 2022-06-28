@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,7 +35,7 @@ public class DeleteSnapshotLifecycleAction extends ActionType<DeleteSnapshotLife
             lifecycleId = in.readString();
         }
 
-        public Request() { }
+        public Request() {}
 
         public Request(String lifecycleId) {
             this.lifecycleId = Objects.requireNonNull(lifecycleId, "id may not be null");

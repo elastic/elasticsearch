@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
@@ -40,6 +42,10 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
     private final SnapshotsInfoService snapshotsInfoService;
     private final AutoscalingMemoryInfoService memoryInfoService;
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
+    private final CapacityResponseCache<GetAutoscalingCapacityAction.Response> responseCache = new CapacityResponseCache<>(
+        run -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(run),
+        this::computeCapacity
+    );
 
     @Inject
     public TransportGetAutoscalingCapacityAction(
@@ -76,6 +82,17 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
 
     @Override
     protected void masterOperation(
+        GetAutoscalingCapacityAction.Request request,
+        ClusterState state,
+        ActionListener<GetAutoscalingCapacityAction.Response> listener
+    ) throws Exception {
+        assert false : "task is required";
+        throw new UnsupportedOperationException("task is required");
+    }
+
+    @Override
+    protected void masterOperation(
+        final Task task,
         final GetAutoscalingCapacityAction.Request request,
         final ClusterState state,
         final ActionListener<GetAutoscalingCapacityAction.Response> listener
@@ -85,16 +102,24 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             return;
         }
 
+        assert task instanceof CancellableTask;
+        final CancellableTask cancellableTask = (CancellableTask) task;
+
+        responseCache.get(cancellableTask::isCancelled, listener);
+    }
+
+    private GetAutoscalingCapacityAction.Response computeCapacity(Runnable ensureNotCancelled) {
         GetAutoscalingCapacityAction.Response response = new GetAutoscalingCapacityAction.Response(
             capacityService.calculate(
-                state,
+                clusterService.state(),
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
-                memoryInfoService.snapshot()
+                memoryInfoService.snapshot(),
+                ensureNotCancelled
             )
         );
         logger.debug("autoscaling capacity response [{}]", response);
-        listener.onResponse(response);
+        return response;
     }
 
     @Override
@@ -102,4 +127,8 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         return null;
     }
 
+    // for tests
+    int responseCacheQueueSize() {
+        return responseCache.jobQueueSize();
+    }
 }

@@ -56,7 +56,7 @@ public class CloseIndexRequestTests extends ESTestCase {
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         request.setTimeout(timeout);
 
-        final TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0,1000));
+        final TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         request.setMasterTimeout(masterTimeout);
 
         assertEquals(request.timeout(), timeout);

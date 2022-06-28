@@ -12,18 +12,18 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.StringFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,16 +31,12 @@ import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
-        IncludeExclude inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
-                null);
+        IncludeExclude inexcl = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
 
-        inexcl = new IncludeExclude(
-                null,
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
+        inexcl = new IncludeExclude(null, new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
@@ -91,8 +87,8 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testTermAccept() throws IOException {
-        String[] fooSet = {"foo"};
-        String[] barSet = {"bar"};
+        String[] fooSet = { "foo" };
+        String[] barSet = { "bar" };
         String fooRgx = "f.*";
         String barRgx = "b.*";
 
@@ -242,8 +238,7 @@ public class IncludeExcludeTests extends ESTestCase {
             } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
                 return IncludeExclude.parseExclude(parser);
             } else {
-                throw new IllegalArgumentException(
-                    "Unexpected field name serialized in test: " + field.getPreferredName());
+                throw new IllegalArgumentException("Unexpected field name serialized in test: " + field.getPreferredName());
             }
         }
     }
@@ -348,7 +343,7 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testInvalidIncludeExcludeCombination() {
-        String[] values = {"foo"};
+        String[] values = { "foo" };
         String regex = "foo";
 
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude((String) null, null, null, null));

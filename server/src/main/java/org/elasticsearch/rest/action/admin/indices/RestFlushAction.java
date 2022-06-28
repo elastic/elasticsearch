@@ -28,11 +28,14 @@ public class RestFlushAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_flush"),
-            new Route(POST, "/_flush"),
-            new Route(GET, "/{index}/_flush"),
-            new Route(POST, "/{index}/_flush")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_flush"),
+                new Route(POST, "/_flush"),
+                new Route(GET, "/{index}/_flush"),
+                new Route(POST, "/{index}/_flush")
+            )
+        );
     }
 
     @Override

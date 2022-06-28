@@ -20,13 +20,22 @@ import java.util.Objects;
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
 public class DeprecatedMessage extends ESLogMessage {
+    public static final String ELASTIC_ORIGIN_FIELD_NAME = "elasticsearch.elastic_product_origin";
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    public static final String KEY_FIELD_NAME = "key";
 
-    public DeprecatedMessage(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object... args) {
-        super(fieldMap(category, key, xOpaqueId), messagePattern, args);
+    public DeprecatedMessage(
+        DeprecationCategory category,
+        String key,
+        String xOpaqueId,
+        String productOrigin,
+        String messagePattern,
+        Object... args
+    ) {
+        super(fieldMap(category, key, xOpaqueId, productOrigin), messagePattern, args);
     }
 
-    private static Map<String, Object> fieldMap(DeprecationCategory category, String key, String xOpaqueId) {
+    private static Map<String, Object> fieldMap(DeprecationCategory category, String key, String xOpaqueId, String productOrigin) {
         final MapBuilder<String, Object> builder = MapBuilder.newMapBuilder();
 
         // The fields below are emitted using ECS keys in `EcsJsonLayout`
@@ -35,10 +44,13 @@ public class DeprecatedMessage extends ESLogMessage {
         builder.put("category", category.name().toLowerCase(Locale.ROOT));
 
         if (Strings.isNullOrEmpty(key) == false) {
-            builder.put("key", key);
+            builder.put(KEY_FIELD_NAME, key);
         }
         if (Strings.isNullOrEmpty(xOpaqueId) == false) {
             builder.put(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
+        }
+        if (Strings.isNullOrEmpty(productOrigin) == false) {
+            builder.put(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
         }
         return builder.immutableMap();
     }

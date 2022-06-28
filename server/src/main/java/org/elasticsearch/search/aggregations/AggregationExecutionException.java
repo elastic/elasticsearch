@@ -25,7 +25,7 @@ public class AggregationExecutionException extends ElasticsearchException {
         super(msg, cause);
     }
 
-    public AggregationExecutionException(StreamInput in) throws IOException{
+    public AggregationExecutionException(StreamInput in) throws IOException {
         super(in);
     }
 }

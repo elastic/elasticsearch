@@ -9,8 +9,8 @@
 package org.apache.lucene.analysis.miscellaneous;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.util.Attribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.util.Attribute;
 
 /**
  * This attribute can be used to indicate that the {@link PositionLengthAttribute}

@@ -37,10 +37,11 @@ public class DateScriptMocksPlugin extends MockScriptPlugin {
             String fieldname = (String) params.get("fieldname");
             return docLookup.get(fieldname);
         });
-        scripts.put(DOUBLE_PLUS_ONE_MONTH, params ->
-            new DateTime(Double.valueOf((double) params.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis());
-        scripts.put(LONG_PLUS_ONE_MONTH, params ->
-            new DateTime((long) params.get("_value"), DateTimeZone.UTC).plusMonths(1).getMillis());
+        scripts.put(
+            DOUBLE_PLUS_ONE_MONTH,
+            params -> new DateTime(Double.valueOf((double) params.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()
+        );
+        scripts.put(LONG_PLUS_ONE_MONTH, params -> new DateTime((long) params.get("_value"), DateTimeZone.UTC).plusMonths(1).getMillis());
         return scripts;
     }
 

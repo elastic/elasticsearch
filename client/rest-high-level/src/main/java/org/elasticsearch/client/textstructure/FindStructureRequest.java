@@ -10,12 +10,12 @@ package org.elasticsearch.client.textstructure;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.textstructure.structurefinder.TextStructure;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -57,8 +57,7 @@ public class FindStructureRequest implements Validatable, ToXContentFragment {
     private Boolean explain;
     private BytesReference sample;
 
-    public FindStructureRequest() {
-    }
+    public FindStructureRequest() {}
 
     public Integer getLinesToSample() {
         return linesToSample;
@@ -272,8 +271,21 @@ public class FindStructureRequest implements Validatable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(linesToSample, lineMergeSizeLimit, timeout, charset, format, columnNames, hasHeaderRow, delimiter, grokPattern,
-            timestampFormat, timestampField, explain, sample);
+        return Objects.hash(
+            linesToSample,
+            lineMergeSizeLimit,
+            timeout,
+            charset,
+            format,
+            columnNames,
+            hasHeaderRow,
+            delimiter,
+            grokPattern,
+            timestampFormat,
+            timestampField,
+            explain,
+            sample
+        );
     }
 
     @Override
@@ -288,18 +300,18 @@ public class FindStructureRequest implements Validatable, ToXContentFragment {
         }
 
         FindStructureRequest that = (FindStructureRequest) other;
-        return Objects.equals(this.linesToSample, that.linesToSample) &&
-            Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit) &&
-            Objects.equals(this.timeout, that.timeout) &&
-            Objects.equals(this.charset, that.charset) &&
-            Objects.equals(this.format, that.format) &&
-            Objects.equals(this.columnNames, that.columnNames) &&
-            Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
-            Objects.equals(this.delimiter, that.delimiter) &&
-            Objects.equals(this.grokPattern, that.grokPattern) &&
-            Objects.equals(this.timestampFormat, that.timestampFormat) &&
-            Objects.equals(this.timestampField, that.timestampField) &&
-            Objects.equals(this.explain, that.explain) &&
-            Objects.equals(this.sample, that.sample);
+        return Objects.equals(this.linesToSample, that.linesToSample)
+            && Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit)
+            && Objects.equals(this.timeout, that.timeout)
+            && Objects.equals(this.charset, that.charset)
+            && Objects.equals(this.format, that.format)
+            && Objects.equals(this.columnNames, that.columnNames)
+            && Objects.equals(this.hasHeaderRow, that.hasHeaderRow)
+            && Objects.equals(this.delimiter, that.delimiter)
+            && Objects.equals(this.grokPattern, that.grokPattern)
+            && Objects.equals(this.timestampFormat, that.timestampFormat)
+            && Objects.equals(this.timestampField, that.timestampField)
+            && Objects.equals(this.explain, that.explain)
+            && Objects.equals(this.sample, that.sample);
     }
 }

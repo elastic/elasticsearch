@@ -1,7 +1,0 @@
-pr: 50415
-issues: []
-area: Engine
-type: enhancement
-summary: Always use soft-deletes in `InternalEngine`
-versions:
-  - v8.0.0

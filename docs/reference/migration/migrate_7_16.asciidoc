@@ -1,0 +1,488 @@
+[[migrating-7.16]]
+== Migrating to 7.16
+++++
+<titleabbrev>7.16</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.16.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+* <<breaking_716_settings_changes>>
+* <<breaking_716_tls_changes>>
+* <<breaking_716_ilm_changes>>
+* <<breaking_716_monitoring_changes>>
+* <<breaking_716_api_deprecations>>
+* <<breaking_716_settings_deprecations>>
+* <<breaking_716_indices_deprecations>>
+* <<breaking_716_cluster_deprecations>>
+* <<breaking_716_packaging_deprecations>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+[discrete]
+[[breaking-changes-7.16]]
+=== Breaking changes
+
+The following changes in {es} 7.16 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.16, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking_716_settings_changes]]
+==== Settings changes
+
+[[breaking_716_disk_threshold_enabled_operator_only]]
+.The `cluster.routing.allocation.disk.threshold_enabled` cluster setting is now operator only.
+[%collapsible]
+====
+*Details* +
+Orchestrated environments such as {ess} and Elastic Cloud Enterprise rely on
+the {ref}/modules-cluster.html#cluster-routing-disk-threshold[disk thresholds]
+in {es} to operate the cluster correctly. For example the disk thresholds help
+determine how large an auto-scaled cluster should be. Disabling these disk
+thresholds prevents the orchestration system from working correctly, so starting
+in 7.16.0 the `cluster.routing.allocation.disk.threshold_enabled` setting is an
+{ref}/operator-only-functionality.html#operator-only-dynamic-cluster-settings[operator only]
+setting which cannot be changed by end-users.
+
+*Impact* +
+Discontinue use of this setting in orchestrated environments such as {ess} and
+Elastic Cloud Enterprise. Contact the environment administrator for help with
+disk space management if needed.
+
+This change has no impact on users outside of orchestrated environments.
+====
+
+
+[discrete]
+[[breaking_716_hlrc_changes]]
+==== High Level REST Client changes
+
+[[breaking_716_xcontent_migration]]
+.The `XContent` API is renamed and breaks imports when upgrading.
+[%collapsible]
+====
+*Details* +
+The `XContent` library exported package is renamed from
+`org.elasticsearch.common.xcontent` to `org.elasticsearch.xcontent`. This change
+breaks imports when migrating to {es} 7.16.
+
+*Impact* +
+If you're maintaining a Java client application that uses the Java High Level
+Rest Client (HLRC), update any `import` statements in your Java source code that
+match:
+
+[source,java]
+----
+import org.elasticsearch.common.xcontent.<class>
+----
+
+to instead use:
+
+[source,java]
+----
+import org.elasticsearch.xcontent.<class> 
+----
+
+This is the minimum required change. You must then recompile your source code to
+work with {es} 7.17.
+
+A more permanent solution is to 
+{java-api-client}/migrate-hlrc.html[migrate from the (HLRC)] entirely.
+====
+// end::notable-breaking-changes[]
+
+[discrete]
+[[deprecated-7.16]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.16 and will be removed
+in 8.0. While this won't have an immediate impact on your applications, we
+strongly encourage you take the described steps to update your code after
+upgrading to 7.16.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and the
+old behavior is supported until the next major release. To find out if you are
+using any deprecated functionality, enable <<deprecation-logging, deprecation
+logging>>.
+
+// tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_716_tls_changes]]
+==== Security changes
+
+[[saml-realm-nameid-changes]]
+.The `nameid_format` SAML realm setting no longer has a default value.
+[%collapsible]
+====
+*Details* +
+In SAML, Identity Providers (IdPs) can either be explicitly configured to
+release a `NameID` with a specific format, or configured to attempt to conform
+with the requirements of a Service Provider (SP). The SP declares its
+requirements in the `NameIDPolicy` element of a SAML Authentication Request.
+In {es}, the `nameid_format` SAML realm setting controls the `NameIDPolicy`
+value.
+Previously, the default value for `nameid_format` was
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`. This setting created
+authentication requests that required the IdP to release `NameID` with a
+`transient` format.
+The default value has been removed, which means that {es} will create SAML Authentication Requests by default that don't put this requirement on the
+IdP. If you want to retain the previous behavior, set `nameid_format` to
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
+
+*Impact* +
+If you currently don't configure `nameid_format` explicitly, it's possible
+that your IdP will reject authentication requests from {es} because the requests
+do not specify a `NameID` format (and your IdP is configured to expect one).
+This mismatch can result in a broken SAML configuration. If you're unsure whether
+your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
+, try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
+====
+
+[[tls-ssl-transport-enabled-required]]
+.The `xpack.security.transport.ssl.enabled` setting will be required to configure `xpack.security.transport.ssl` settings.
+[%collapsible]
+====
+*Details* +
+Configuring any SSL settings for
+`xpack.security.transport.ssl` without also configuring
+`xpack.security.transport.ssl.enabled` generates warnings in the deprecation
+log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+To avoid deprecation warnings, either:
+
+* Explicitly set `xpack.security.transport.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.transport.ssl` settings
+
+If you want to enable SSL, follow the instructions to
+{ref}/security-basic-setup.html#encrypt-internode-communication[encrypt internode communications with TLS]. As part of this configuration, explicitly set
+`xpack.security.transport.ssl.enabled` as `true`.
+
+For example:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true <1>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+<1> or `false`.
+====
+
+[[tls-ssl-http-enabled-required]]
+.The `xpack.security.http.ssl.enabled` setting will be required to configure `xpack.security.http.ssl` settings.
+[%collapsible]
+====
+*Details* +
+Configuring any SSL settings for `xpack.security.http.ssl` without also
+configuring `xpack.security.http.ssl.enabled` generates warnings in the
+deprecation log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+To avoid deprecation warnings, either:
+
+* Explicitly set `xpack.security.http.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.http.ssl` settings
+
+If you want to enable SSL, follow the instructions to
+{ref}/security-basic-setup-https.html#encrypt-http-communication[encrypt HTTP client communications for {es}]. As part
+of this configuration, explicitly set `xpack.security.http.ssl.enabled`
+as `true`.
+
+For example:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true <1>
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+<1> or `false`.
+====
+
+[[tls-ssl-transport-cert-required]]
+.A `xpack.security.transport.ssl` certificate and key will be required to enable SSL for the transport interface.
+[%collapsible]
+====
+*Details* +
+Enabling SSL for the transport interface without also configuring a certificate
+and key through use of the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings generates warnings in the
+deprecation log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+If `xpack.security.transport.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings. If a certificate and key is not
+provided, {es} will generate warnings in the deprecation log.
+====
+
+[[tls-ssl-http-cert-required]]
+.A `xpack.security.http.ssl` certificate and key will be required to enable SSL for the HTTP layer.
+[%collapsible]
+====
+*Details* +
+Enabling SSL for the HTTP layer without also configuring a certificate and key
+through use of the `xpack.security.http.ssl.keystore.path` setting or
+the `xpack.security.http.ssl.certificate` and `xpack.security.http.ssl.key`
+settings generates warnings in the deprecation log. In 8.0, this configuration
+will result in errors.
+
+*Impact* +
+If `xpack.security.http.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings. If a certificate and key is not
+provided, {es} will generate warnings in the deprecation log.
+====
+
+[discrete]
+[[breaking_716_ilm_changes]]
+==== {ilm-cap} ({ilm-init}) changes
+
+[[ilm-freeze-noop]]
+.The ILM `freeze` action has been deprecated and will be a no-op in a future release.
+[%collapsible]
+====
+*Details* +
+The ILM freeze action is now deprecated. This is because frozen indices provide no benefit given improvements in heap memory
+utilization. In 8.0 the freeze action will be a no-op and perform no action on the index, as the freeze API endpoint
+has been removed in 8.0.
+
+*Impact* +
+Update your ILM policies to remove the `freeze` action from the `cold` phase.
+====
+
+[discrete]
+[[breaking_716_monitoring_changes]]
+==== Monitoring deprecations
+
+[[monitoring-deprecation-settings]]
+.Collecting and shipping monitoring data with the Monitoring plugin has been deprecated
+[%collapsible]
+====
+*Details* +
+Using the Monitoring plugin to collect and ship monitoring data is deprecated. {metricbeat} is
+the recommended method for collecting and shipping monitoring data to a monitoring cluster.
+
+*Impact* +
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection. Learn more about {ref}/configuring-metricbeat.html[Collecting {es} monitoring data with {metricbeat}].
+
+The following settings are now deprecated:
+
+** xpack.monitoring.elasticsearch.collection.enabled
+** xpack.monitoring.collection.enabled
+** xpack.monitoring.collection.interval
+** xpack.monitoring.collection.indices
+** xpack.monitoring.collection.index.recovery.active_only
+** xpack.monitoring.collection.ccr.stats.timeout
+** xpack.monitoring.collection.enrich.stats.timeout
+** xpack.monitoring.collection.index.recovery.timeout
+** xpack.monitoring.collection.index.stats.timeout
+** xpack.monitoring.collection.ml.job.stats.timeout
+** xpack.monitoring.collection.node.stats.timeout
+** xpack.monitoring.collection.cluster.stats.timeout
+** xpack.monitoring.history.duration
+** xpack.monitoring.exporters.*.enabled
+** xpack.monitoring.exporters.*.type
+** xpack.monitoring.exporters.*.index.name.time_format
+** xpack.monitoring.exporters.*.index.template.master_timeout
+** xpack.monitoring.exporters.*.cluster_alerts.management.enabled
+** xpack.monitoring.exporters.*.cluster_alerts.management.blacklist
+** xpack.monitoring.exporters.*.host
+** xpack.monitoring.exporters.*.auth.username
+** xpack.monitoring.exporters.*.auth.secure_password
+** xpack.monitoring.exporters.*.bulk.timeout
+** xpack.monitoring.exporters.*.connection.timeout
+** xpack.monitoring.exporters.*.connection.read_timeout
+** xpack.monitoring.exporters.\*.headers.*
+** xpack.monitoring.exporters.*.proxy.base_path
+** xpack.monitoring.exporters.*.sniff.enabled
+** xpack.monitoring.exporters.\*.ssl.*
+** xpack.monitoring.exporters.*.wait_master.timeout
+** xpack.monitoring.migration.decommission_alerts
+====
+
+[[monitoring-deprecation-alerts]]
+.The default alerts from the Monitoring plugin have been deprecated
+[%collapsible]
+====
+*Details* +
+The default alerts from Monitoring plugin will no longer be installed by default in 8.0.0.
+The recommended method for alerting based on monitoring data is {kib} alerts.
+
+*Impact* +
+If you have previously configured alerts from the Monitoring plugin, you should
+migrate to using {kib} alerts instead. Alerts installed from previous versions will continue to
+function until uninstalled. Learn more about {kibana-ref}/kibana-alerts.html[{kib} alerts].
+====
+
+[[monitoring-use-ingest-setting-deprecation]]
+.The `use_ingest` setting on Monitoring exporter configurations is deprecated.
+[%collapsible]
+====
+*Details* +
+The `xpack.monitoring.exporters.*.use_ingest` property has been deprecated in 7.16.0 and
+will be removed in a release after 8.0.0. This parameter controls the creation of pipelines for monitoring
+indices. These pipelines currently have no function.
+
+*Impact* +
+Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting
+as it will have no functionality in 8.0.0 and will eventually be removed.
+====
+
+[[monitoring-pipeline-master-timeout-setting-deprecation]]
+.The `index.pipeline.master_timeout` setting on Monitoring HTTP exporter configurations is deprecated.
+[%collapsible]
+====
+*Details* +
+The `xpack.monitoring.exporters.*.index.pipeline.master_timeout` property has been
+deprecated in 7.16.0. This parameter sets the timeout when waiting for the remote
+Monitoring cluster to create pipelines. These pipelines for monitoring indices currently
+have no function and will be removed in a release after 8.0.0.
+
+*Impact* +
+Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting
+as it will have no functionality in 8.0.0 and will eventually be removed.
+====
+
+[[monitoring-template-create-legacy-setting-deprecation]]
+.The `index.template.create_legacy_templates` setting on Monitoring HTTP exporter configurations is deprecated.
+[%collapsible]
+====
+*Details* +
+The `xpack.monitoring.exporters.*.index.template.create_legacy_templates` property has been
+deprecated in 7.16.0. This parameter instructs the exporter to install the previous version
+of monitoring templates on the monitoring cluster. These older templates were meant to assist
+in transitioning to the current monitoring data format. They are currently empty and are no
+longer of any use.
+
+*Impact* +
+Discontinue the use of the `xpack.monitoring.exporters.*.index.template.create_legacy_templates` setting
+as it will have no functionality in 8.0.0 and will eventually be removed.
+====
+
+[discrete]
+[[breaking_716_api_deprecations]]
+==== REST API deprecations
+
+.The `estimated_heap_memory_usage_bytes` property in the create trained models API is deprecated
+[%collapsible]
+====
+*Details* +
+The `estimated_heap_memory_usage_bytes` property in the
+{ref}/put-trained-models.html[create trained models API] is deprecated in 7.16.
+
+*Impact* +
+Use `model_size_bytes` instead.
+====
+
+[discrete]
+[[breaking_716_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-transient-cluster-settings]]
+.We no longer recommend using transient cluster settings.
+[%collapsible]
+====
+*Details* +
+We no longer recommend using transient cluster settings. Use persistent cluster
+settings instead. If a cluster becomes unstable, transient settings can clear
+unexpectedly, resulting in an undesired cluster configuration.
+
+*Impact* +
+Transient cluster settings are not yet deprecated, but we plan to deprecate them
+in a future release. For migration steps, see the
+{ref}/transient-settings-migration-guide.html[Transient settings migration
+guide].
+====
+
+[discrete]
+[[breaking_716_indices_deprecations]]
+==== Indices deprecations
+
+[[deprecation-system-indices]]
+.Direct access to system indices is deprecated.
+[%collapsible]
+====
+*Details* +
+Directly accessing system indices is deprecated. In {es} 8.0, you must add the
+`allow_restricted_indices` permission set to `true` on a user role to access
+system indices. Refer to
+{ref}/defining-roles.html#roles-indices-priv[indices privileges] for
+information on adding this permission to an index privilege.
+
+*Impact* +
+Accessing system indices directly results in warnings in the header of API
+responses and in the deprecation logs. Use {kib} or the associated feature's
+{es} APIs to manage the data that you want to access. While it's still possible
+to access system indices in {es} 7.16, they are reserved only for internal use
+by Elastic products and should not be accessed directly.
+====
+
+[discrete]
+[[breaking_716_cluster_deprecations]]
+==== Cluster deprecations
+
+[[script-context-cache-deprecated]]
+.The script context cache is deprecated.
+[%collapsible]
+====
+*Details* +
+Setting `script.max_compilations_rate` to `use-context` and
+configuring context-specific caches is deprecated.
+
+Context-specific caches are no longer needed to prevent system scripts
+from triggering rate limits.
+
+Configure the general cache to control the max compilation rate, cache size, and
+cache expiration for your scripts.
+
+*Impact* +
+Remove `script.max_compilations_rate: use-context` and the context-specific cache
+settings: `script.context.$CONTEXT.cache_max_size`,
+`script.context.$CONTEXT.max_compilations_rate`, `script.context.$CONTEXT.cache_expire`.
+
+The general cache defaults to a max size of 3000 with a rate limit of 150/5m,
+which allows 150 compilations per 5 minute period.  By default, the entries in the
+cache do not expire.
+
+To override the defaults, configure the `script.cache.max_size`,
+`script.max_compilations_rate`, and `script.cache.expire` settings.
+====
+
+[discrete]
+[[breaking_716_packaging_deprecations]]
+==== Packaging deprecations
+
+.After 7.16.2, we'll no longer release a Windows MSI installer package.
+[%collapsible]
+====
+*Details* +
+After 7.16.2, we'll no longer release Windows MSI installer packages for {es}.
+These packages were previously released in beta and didn't receive widespread
+adoption.
+
+*Impact* +
+To install {es} on Windows, use the {ref}/zip-windows.html[`.zip` archive
+package] instead.
+====
+// end::notable-breaking-changes[]
+
+include::transient-settings-migration-guide.asciidoc[]

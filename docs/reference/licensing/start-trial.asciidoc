@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[start-trial]]
 === Start trial API
 ++++

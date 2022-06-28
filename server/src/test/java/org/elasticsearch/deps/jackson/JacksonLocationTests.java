@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,10 +23,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class JacksonLocationTests extends ESTestCase {
     public void testLocationExtraction() throws IOException {
         // {
-        //    "index" : "test",
-        //    "source" : {
-        //         value : "something"
-        //    }
+        // "index" : "test",
+        // "source" : {
+        // value : "something"
+        // }
         // }
         BytesStreamOutput os = new BytesStreamOutput();
         JsonGenerator gen = new JsonFactory().createGenerator(os);
@@ -48,17 +49,17 @@ public class JacksonLocationTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "index"
         assertThat(parser.nextToken(), equalTo(JsonToken.VALUE_STRING));
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "source"
-//        JsonLocation location1 = parser.getCurrentLocation();
-//        parser.skipChildren();
-//        JsonLocation location2 = parser.getCurrentLocation();
-//
-//        byte[] sourceData = new byte[(int) (location2.getByteOffset() - location1.getByteOffset())];
-//        System.arraycopy(data, (int) location1.getByteOffset(), sourceData, 0, sourceData.length);
-//
-//        JsonParser sourceParser = new JsonFactory().createJsonParser(new FastByteArrayInputStream(sourceData));
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.START_OBJECT));
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "value"
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.VALUE_STRING));
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.END_OBJECT));
+        // JsonLocation location1 = parser.getCurrentLocation();
+        // parser.skipChildren();
+        // JsonLocation location2 = parser.getCurrentLocation();
+        //
+        // byte[] sourceData = new byte[(int) (location2.getByteOffset() - location1.getByteOffset())];
+        // System.arraycopy(data, (int) location1.getByteOffset(), sourceData, 0, sourceData.length);
+        //
+        // JsonParser sourceParser = new JsonFactory().createJsonParser(new FastByteArrayInputStream(sourceData));
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.START_OBJECT));
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "value"
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.VALUE_STRING));
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.END_OBJECT));
     }
 }

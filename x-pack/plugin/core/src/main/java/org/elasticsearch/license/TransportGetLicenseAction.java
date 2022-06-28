@@ -25,11 +25,25 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     private final LicenseService licenseService;
 
     @Inject
-    public TransportGetLicenseAction(TransportService transportService, ClusterService clusterService,
-                                     LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetLicenseRequest::new, indexNameExpressionResolver, GetLicenseResponse::new, ThreadPool.Names.MANAGEMENT);
+    public TransportGetLicenseAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        LicenseService licenseService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetLicenseAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetLicenseRequest::new,
+            indexNameExpressionResolver,
+            GetLicenseResponse::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.licenseService = licenseService;
     }
 
@@ -39,8 +53,8 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(final GetLicenseRequest request, ClusterState state,
-                                   final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final GetLicenseRequest request, ClusterState state, final ActionListener<GetLicenseResponse> listener)
+        throws ElasticsearchException {
         listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
     }
 }

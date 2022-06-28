@@ -11,13 +11,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,7 +32,8 @@ public class PreviewDatafeedRequest extends ActionRequest implements ToXContentO
 
     public static final ConstructingObjectParser<PreviewDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
         "preview_datafeed_request",
-        a -> new PreviewDatafeedRequest((String) a[0], (DatafeedConfig.Builder) a[1], (Job.Builder) a[2]));
+        a -> new PreviewDatafeedRequest((String) a[0], (DatafeedConfig.Builder) a[1], (Job.Builder) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DatafeedConfig.ID);
@@ -48,9 +49,11 @@ public class PreviewDatafeedRequest extends ActionRequest implements ToXContentO
     private final DatafeedConfig datafeedConfig;
     private final Job jobConfig;
 
-    private PreviewDatafeedRequest(@Nullable String datafeedId,
-                                   @Nullable DatafeedConfig.Builder datafeedConfig,
-                                   @Nullable Job.Builder jobConfig) {
+    private PreviewDatafeedRequest(
+        @Nullable String datafeedId,
+        @Nullable DatafeedConfig.Builder datafeedConfig,
+        @Nullable Job.Builder jobConfig
+    ) {
         this.datafeedId = datafeedId;
         this.datafeedConfig = datafeedConfig == null ? null : datafeedConfig.build();
         this.jobConfig = jobConfig == null ? null : jobConfig.build();

@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,9 +25,11 @@ public class GetModelSnapshotsResponse extends AbstractResultResponse<ModelSnaps
     public static final ParseField SNAPSHOTS = new ParseField("model_snapshots");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetModelSnapshotsResponse, Void> PARSER =
-            new ConstructingObjectParser<>("get_model_snapshots_response", true,
-                    a -> new GetModelSnapshotsResponse((List<ModelSnapshot.Builder>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetModelSnapshotsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_model_snapshots_response",
+        true,
+        a -> new GetModelSnapshotsResponse((List<ModelSnapshot.Builder>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ModelSnapshot.PARSER, SNAPSHOTS);

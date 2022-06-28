@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.spatial.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
@@ -41,16 +42,30 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        if (randomBoolean()) {
-            XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                .startObject("test").field("type", "geo_shape").endObject().endObject().endObject().endObject();
-            mapperService.merge("_doc",
-                new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+
+        if (mapperService.parserContext().indexVersionCreated().before(Version.V_6_6_0) || randomBoolean()) {
+            XContentBuilder mapping = jsonBuilder().startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("test")
+                .field("type", "geo_shape")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
         } else {
-            XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                .startObject("test").field("type", "geo_shape").field("doc_values", false).endObject().endObject().endObject().endObject();
-            mapperService.merge("_doc",
-                new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+            XContentBuilder mapping = jsonBuilder().startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("test")
+                .field("type", "geo_shape")
+                .field("doc_values", false)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 
@@ -59,7 +74,8 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
         Geometry geometry = randomFrom(
             GeometryTestUtils.randomPoint(false),
             GeometryTestUtils.randomLine(false),
-            GeometryTestUtils.randomPolygon(false));
+            GeometryTestUtils.randomPolygon(false)
+        );
         return new GeoShapeQueryBuilder("test", geometry);
     }
 

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -46,7 +46,8 @@ final class TransportSearchHelper {
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
                     out.writeString(
-                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId()));
+                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
+                    );
                 } else {
                     out.writeString(searchShardTarget.getNodeId());
                 }
@@ -62,7 +63,7 @@ final class TransportSearchHelper {
     static ParsedScrollId parseScrollId(String scrollId) {
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(scrollId);
-            ByteArrayDataInput in = new ByteArrayDataInput(bytes);
+            ByteArrayStreamInput in = new ByteArrayStreamInput(bytes);
             final boolean includeContextUUID;
             final String type;
             final String firstChunk = in.readString();
@@ -84,7 +85,7 @@ final class TransportSearchHelper {
                     clusterAlias = null;
                 } else {
                     clusterAlias = target.substring(0, index);
-                    target = target.substring(index+1);
+                    target = target.substring(index + 1);
                 }
                 context[i] = new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
             }

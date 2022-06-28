@@ -1,9 +1,0 @@
-pr: 68214
-issues:
-  - 68198
-  - 67666
-area: SQL
-type: UNKNOWN
-summary: Update supported version for `date_nanos`
-versions:
-  - v8.0.0

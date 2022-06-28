@@ -25,8 +25,7 @@ public class RestPostStartBasicLicense extends XPackRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(POST, "/_license/start_basic")
-                .replaces(POST, URI_BASE + "/license/start_basic", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_license/start_basic").replaces(POST, URI_BASE + "/license/start_basic", RestApiVersion.V_7).build()
         );
     }
 

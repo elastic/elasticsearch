@@ -13,6 +13,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_711_rest_changes>>
 * <<breaking_711_search_changes>>
 * <<breaking_711_transform_changes>>
+* <<breaking_711_transport_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -120,7 +121,6 @@ settings of the transform.
 ====
 //end::notable-breaking-changes[]
 
-////
 [discrete]
 [[deprecated-7.11]]
 === Deprecations
@@ -136,4 +136,26 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-////
+[discrete]
+[[breaking_711_transport_deprecations]]
+==== Transport deprecations
+
+//tag::notable-breaking-changes[]
+[[deprecate-unsafely_permit_handshake_from_incompatible_builds]]
+.The `es.unsafely_permit_handshake_from_incompatible_builds` system property is deprecated.
+[%collapsible]
+====
+*Details* +
+The `es.unsafely_permit_handshake_from_incompatible_builds` system property is
+now deprecated.
+
+{es} verifies that communicating pairs of nodes of the same version are running
+the same build and using the same wire format. You can bypass this check by
+setting `es.unsafely_permit_handshake_from_incompatible_builds` to `true`.
+Skipping this check is unsafe and not recommended.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the system property. Instead
+ensure that all nodes of the same version are running the same build.
+====
+//end::notable-breaking-changes[]

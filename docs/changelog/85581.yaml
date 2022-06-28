@@ -1,0 +1,5 @@
+pr: 85581
+summary: Bump commons-compress to 1.21
+area: Ingest
+type: upgrade
+issues: []

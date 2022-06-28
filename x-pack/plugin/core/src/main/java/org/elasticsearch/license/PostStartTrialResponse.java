@@ -24,15 +24,17 @@ public class PostStartTrialResponse extends ActionResponse {
         UPGRADED_TO_TRIAL,
         TRIAL_ALREADY_ACTIVATED;
     }
+
     public enum Status {
         UPGRADED_TO_TRIAL(true, null, RestStatus.OK),
         TRIAL_ALREADY_ACTIVATED(false, "Operation failed: Trial was already activated.", RestStatus.FORBIDDEN),
-        NEED_ACKNOWLEDGEMENT(false,"Operation failed: Needs acknowledgement.", RestStatus.OK);
+        NEED_ACKNOWLEDGEMENT(false, "Operation failed: Needs acknowledgement.", RestStatus.OK);
 
         private final boolean isTrialStarted;
 
         private final String errorMessage;
         private final RestStatus restStatus;
+
         Status(boolean isTrialStarted, String errorMessage, RestStatus restStatus) {
             this.isTrialStarted = isTrialStarted;
             this.errorMessage = errorMessage;
@@ -113,8 +115,9 @@ public class PostStartTrialResponse extends ActionResponse {
             } else if (status == Status.TRIAL_ALREADY_ACTIVATED) {
                 out.writeEnum(Pre63Status.TRIAL_ALREADY_ACTIVATED);
             } else {
-                throw new IllegalArgumentException("Starting trial on node with version [" + Version.CURRENT + "] requires " +
-                        "acknowledgement parameter.");
+                throw new IllegalArgumentException(
+                    "Starting trial on node with version [" + Version.CURRENT + "] requires " + "acknowledgement parameter."
+                );
             }
         }
     }

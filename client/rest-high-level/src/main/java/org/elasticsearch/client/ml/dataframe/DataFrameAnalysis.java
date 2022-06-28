@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 public interface DataFrameAnalysis extends ToXContentObject {
 

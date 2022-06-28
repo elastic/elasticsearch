@@ -41,7 +41,7 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
 
     @Override
     protected boolean sortRequiresCustomComparator() {
-        return true;
+        return false;
     }
 
     @Override

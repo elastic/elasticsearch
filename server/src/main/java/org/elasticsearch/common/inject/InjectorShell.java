@@ -116,8 +116,7 @@ class InjectorShell {
          * returned if any modules contain {@link Binder#newPrivateBinder private environments}. The
          * primary injector will be first in the returned list.
          */
-        List<InjectorShell> build(Initializer initializer, BindingProcessor bindingProcessor,
-                                  Stopwatch stopwatch, Errors errors) {
+        List<InjectorShell> build(Initializer initializer, BindingProcessor bindingProcessor, Stopwatch stopwatch, Errors errors) {
             if (stage == null) {
                 throw new IllegalStateException("Stage not initialized");
             }
@@ -189,10 +188,18 @@ class InjectorShell {
     private static void bindInjector(InjectorImpl injector) {
         Key<Injector> key = Key.get(Injector.class);
         InjectorFactory injectorFactory = new InjectorFactory(injector);
-        injector.state.putBinding(key,
-                new ProviderInstanceBindingImpl<>(injector, key, SourceProvider.UNKNOWN_SOURCE,
-                        injectorFactory, Scoping.UNSCOPED, injectorFactory,
-                        emptySet()));
+        injector.state.putBinding(
+            key,
+            new ProviderInstanceBindingImpl<>(
+                injector,
+                key,
+                SourceProvider.UNKNOWN_SOURCE,
+                injectorFactory,
+                Scoping.UNSCOPED,
+                injectorFactory,
+                emptySet()
+            )
+        );
     }
 
     private static class InjectorFactory implements InternalFactory<Injector>, Provider<Injector> {
@@ -203,8 +210,7 @@ class InjectorShell {
         }
 
         @Override
-        public Injector get(Errors errors, InternalContext context, Dependency<?> dependency)
-                throws ErrorsException {
+        public Injector get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
             return injector;
         }
 
@@ -226,10 +232,18 @@ class InjectorShell {
     private static void bindLogger(InjectorImpl injector) {
         Key<Logger> key = Key.get(Logger.class);
         LoggerFactory loggerFactory = new LoggerFactory();
-        injector.state.putBinding(key,
-                new ProviderInstanceBindingImpl<>(injector, key,
-                        SourceProvider.UNKNOWN_SOURCE, loggerFactory, Scoping.UNSCOPED,
-                        loggerFactory, emptySet()));
+        injector.state.putBinding(
+            key,
+            new ProviderInstanceBindingImpl<>(
+                injector,
+                key,
+                SourceProvider.UNKNOWN_SOURCE,
+                loggerFactory,
+                Scoping.UNSCOPED,
+                loggerFactory,
+                emptySet()
+            )
+        );
     }
 
     private static class LoggerFactory implements InternalFactory<Logger>, Provider<Logger> {
@@ -237,8 +251,8 @@ class InjectorShell {
         public Logger get(Errors errors, InternalContext context, Dependency<?> dependency) {
             InjectionPoint injectionPoint = dependency.getInjectionPoint();
             return injectionPoint == null
-                    ? Logger.getAnonymousLogger()
-                    : Logger.getLogger(injectionPoint.getMember().getDeclaringClass().getName());
+                ? Logger.getAnonymousLogger()
+                : Logger.getLogger(injectionPoint.getMember().getDeclaringClass().getName());
         }
 
         @Override

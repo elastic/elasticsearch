@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -32,8 +33,7 @@ public class TarInputStreamTests extends ESTestCase {
     }
 
     public void test() throws IOException {
-        try (InputStream is = TarInputStreamTests.class.getResourceAsStream(path);
-             TarInputStream tis = new TarInputStream(is)) {
+        try (InputStream is = TarInputStreamTests.class.getResourceAsStream(path); TarInputStream tis = new TarInputStream(is)) {
             assertNotNull(is);
             for (Entry entry : entries) {
                 TarInputStream.TarEntry tarEntry = tis.getNextEntry();
@@ -57,25 +57,25 @@ public class TarInputStreamTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        Object[][] entries = new Object[][]{
-            createTest("tar1.tar",
-                new Entry("a.txt", "aaa\n", false)),
-            createTest("tar2.tar",
-                new Entry("a.txt", "aaa\n", false),
-                new Entry("b.txt", "bbbbbb\n", false)),
-            createTest("tar3.tar",
+        Object[][] entries = new Object[][] {
+            createTest("tar1.tar", new Entry("a.txt", "aaa\n", false)),
+            createTest("tar2.tar", new Entry("a.txt", "aaa\n", false), new Entry("b.txt", "bbbbbb\n", false)),
+            createTest(
+                "tar3.tar",
                 new Entry("c.txt", Stream.generate(() -> "-").limit(512).collect(Collectors.joining()), false),
-                new Entry("b.txt", "bbbbbb\n", false)),
-            createTest("tar4.tar",
+                new Entry("b.txt", "bbbbbb\n", false)
+            ),
+            createTest(
+                "tar4.tar",
                 new Entry("./", null, true),
                 new Entry("./b.txt", "bbb\n", false),
-                new Entry("./a.txt", "aaa\n", false))
-        };
+                new Entry("./a.txt", "aaa\n", false)
+            ) };
         return Arrays.asList(entries);
     }
 
     private static Object[] createTest(String name, Entry... entries) {
-        return new Object[]{name, Arrays.asList(entries)};
+        return new Object[] { name, Arrays.asList(entries) };
     }
 
     private static class Entry {

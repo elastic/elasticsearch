@@ -30,8 +30,7 @@ public class DeleteUserRequest extends ActionRequest implements UserRequest, Wri
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
-    public DeleteUserRequest() {
-    }
+    public DeleteUserRequest() {}
 
     public DeleteUserRequest(String username) {
         this.username = username;

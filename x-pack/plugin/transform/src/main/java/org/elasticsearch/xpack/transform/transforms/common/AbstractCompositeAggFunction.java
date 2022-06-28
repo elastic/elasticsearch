@@ -74,21 +74,24 @@ public abstract class AbstractCompositeAggFunction implements Function {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
+            true,
             buildSearchRequest(sourceConfig, null, numberOfBuckets),
             ActionListener.wrap(r -> {
                 try {
                     final Aggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
                         listener.onFailure(
-                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST));
+                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
+                        );
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     TransformIndexerStats stats = new TransformIndexerStats();
+                    TransformProgress progress = new TransformProgress();
 
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats)
-                        .map(this::documentTransformationFunction)
-                        .collect(Collectors.toList());
+                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, progress).map(
+                        this::documentTransformationFunction
+                    ).collect(Collectors.toList());
 
                     listener.onResponse(docs);
                 } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
@@ -108,11 +111,10 @@ public abstract class AbstractCompositeAggFunction implements Function {
             }
             if (response.status() != RestStatus.OK) {
                 listener.onFailure(
-                    new ValidationException()
-                        .addValidationError(
-                            new ParameterizedMessage("Unexpected status from response of test query: {}", response.status())
-                                .getFormattedMessage()
-                        )
+                    new ValidationException().addValidationError(
+                        new ParameterizedMessage("Unexpected status from response of test query: {}", response.status())
+                            .getFormattedMessage()
+                    )
                 );
                 return;
             }
@@ -123,10 +125,9 @@ public abstract class AbstractCompositeAggFunction implements Function {
                 ? ((ElasticsearchException) unwrapped).status()
                 : RestStatus.SERVICE_UNAVAILABLE;
             listener.onFailure(
-                new ValidationException(unwrapped)
-                    .addValidationError(
-                        new ParameterizedMessage("Failed to test query, received status: {}", status).getFormattedMessage()
-                    )
+                new ValidationException(unwrapped).addValidationError(
+                    new ParameterizedMessage("Failed to test query, received status: {}", status).getFormattedMessage()
+                )
             );
         }));
     }
@@ -137,7 +138,8 @@ public abstract class AbstractCompositeAggFunction implements Function {
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     ) {
         Aggregations aggregations = searchResponse.getAggregations();
 
@@ -152,16 +154,15 @@ public abstract class AbstractCompositeAggFunction implements Function {
             return null;
         }
 
-        Stream<IndexRequest> indexRequestStream = extractResults(compositeAgg, fieldTypeMap, stats)
-            .map(doc -> {
-                String docId = (String)doc.remove(TransformField.DOCUMENT_ID_FIELD);
-                return DocumentConversionUtils.convertDocumentToIndexRequest(
-                    docId,
-                    documentTransformationFunction(doc),
-                    destinationIndex,
-                    destinationPipeline
-                );
-            });
+        Stream<IndexRequest> indexRequestStream = extractResults(compositeAgg, fieldTypeMap, stats, progress).map(doc -> {
+            String docId = (String) doc.remove(TransformField.DOCUMENT_ID_FIELD);
+            return DocumentConversionUtils.convertDocumentToIndexRequest(
+                docId,
+                documentTransformationFunction(doc),
+                destinationIndex,
+                destinationPipeline
+            );
+        });
 
         return Tuple.tuple(indexRequestStream, compositeAgg.afterKey());
     }
@@ -171,17 +172,19 @@ public abstract class AbstractCompositeAggFunction implements Function {
     protected abstract Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats transformIndexerStats
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress progress
     );
 
     private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .query(sourceConfig.getQueryConfig().getQuery())
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery())
             .runtimeMappings(sourceConfig.getRuntimeMappings());
         buildSearchQuery(sourceBuilder, null, pageSize);
-        return new SearchRequest(sourceConfig.getIndex())
+        return new SearchRequest(sourceConfig.getIndex()).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .source(sourceBuilder)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+            // This is done so that 2 consecutive queries return the same warnings in response headers.
+            // If the request is cached, the second time it is called the response headers are not preserved.
+            .requestCache(false);
     }
 
     @Override

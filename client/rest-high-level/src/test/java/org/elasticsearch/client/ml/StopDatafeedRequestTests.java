@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +30,6 @@ public class StopDatafeedRequestTests extends AbstractXContentTestCase<StopDataf
         exception = expectThrows(NullPointerException.class, () -> new StopDatafeedRequest("datafeed1", null));
         assertEquals(exception.getMessage(), "datafeedIds must not contain null values");
     }
-
 
     @Override
     protected StopDatafeedRequest createTestInstance() {

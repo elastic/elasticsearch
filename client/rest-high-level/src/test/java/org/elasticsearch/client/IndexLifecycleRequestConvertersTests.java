@@ -68,7 +68,7 @@ public class IndexLifecycleRequestConvertersTests extends ESTestCase {
     }
 
     public void testDeleteLifecycle() {
-        String lifecycleName = randomAlphaOfLengthBetween(2,20);
+        String lifecycleName = randomAlphaOfLengthBetween(2, 20);
         DeleteLifecyclePolicyRequest req = new DeleteLifecyclePolicyRequest(lifecycleName);
         Map<String, String> expectedParams = new HashMap<>();
         setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);

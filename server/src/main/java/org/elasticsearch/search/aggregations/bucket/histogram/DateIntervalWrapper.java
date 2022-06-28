@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.DateTimeUnit;
 import org.elasticsearch.common.Strings;
@@ -19,10 +18,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -44,14 +44,18 @@ import java.util.Objects;
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregationBuilder.class);
-    private static final String DEPRECATION_TEXT = "[interval] on [date_histogram] is deprecated, use [fixed_interval] or " +
-        "[calendar_interval] in the future.";
+    private static final String DEPRECATION_TEXT = "[interval] on [date_histogram] is deprecated, use [fixed_interval] or "
+        + "[calendar_interval] in the future.";
 
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
     private static final ParseField CALENDAR_INTERVAL_FIELD = new ParseField("calendar_interval");
 
     public enum IntervalTypeEnum implements Writeable {
-        NONE, FIXED, CALENDAR, LEGACY_INTERVAL, LEGACY_DATE_HISTO;
+        NONE,
+        FIXED,
+        CALENDAR,
+        LEGACY_INTERVAL,
+        LEGACY_DATE_HISTO;
 
         public static IntervalTypeEnum fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -74,7 +78,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private DateHistogramInterval dateHistogramInterval;
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
-    public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, String> parser) {
+    public static <T extends DateIntervalConsumer<T>> void declareIntervalFields(ObjectParser<T, String> parser) {
 
         // NOTE: this field is deprecated and will be removed
         parser.declareField((wrapper, interval) -> {
@@ -91,11 +95,19 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             }
         }, Histogram.INTERVAL_FIELD, ObjectParser.ValueType.LONG);
 
-        parser.declareField(DateIntervalConsumer::calendarInterval,
-            p -> new DateHistogramInterval(p.text()), CALENDAR_INTERVAL_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareField(
+            DateIntervalConsumer::calendarInterval,
+            p -> new DateHistogramInterval(p.text()),
+            CALENDAR_INTERVAL_FIELD,
+            ObjectParser.ValueType.STRING
+        );
 
-        parser.declareField(DateIntervalConsumer::fixedInterval,
-            p -> new DateHistogramInterval(p.text()), FIXED_INTERVAL_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareField(
+            DateIntervalConsumer::fixedInterval,
+            p -> new DateHistogramInterval(p.text()),
+            FIXED_INTERVAL_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     public DateIntervalWrapper() {}
@@ -125,7 +137,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     /** Get the current interval in milliseconds that is set on this builder. */
     @Deprecated
     public long interval() {
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.critical(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
             return TimeValue.parseTimeValue(dateHistogramInterval.toString(), "interval").getMillis();
         }
@@ -146,14 +158,14 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[interval] must be 1 or greater for aggregation [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_INTERVAL);
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-interval-setter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.critical(DeprecationCategory.AGGREGATIONS, "date-interval-setter", DEPRECATION_TEXT);
         this.dateHistogramInterval = new DateHistogramInterval(interval + "ms");
     }
 
     /** Get the current date interval that is set on this builder. */
     @Deprecated
     public DateHistogramInterval dateHistogramInterval() {
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-histogram-interval-getter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.critical(DeprecationCategory.AGGREGATIONS, "date-histogram-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO)) {
             return dateHistogramInterval;
         }
@@ -174,7 +186,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[dateHistogramInterval] must not be null: [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_DATE_HISTO);
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-histogram-interval-setter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.critical(DeprecationCategory.AGGREGATIONS, "date-histogram-interval-setter", DEPRECATION_TEXT);
         this.dateHistogramInterval = dateHistogramInterval;
     }
 
@@ -202,8 +214,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[interval] must not be null: [date_histogram]");
         }
         if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-            throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
-                "as a calendar interval.");
+            throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval.");
         }
         setIntervalType(IntervalTypeEnum.CALENDAR);
         this.dateHistogramInterval = interval;
@@ -275,7 +286,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             tzRoundingBuilder = Rounding.builder(tryIntervalAsCalendarUnit());
         } else {
             // We're not sure what the interval was originally (legacy) so use old behavior of assuming
-            // calendar first, then fixed.  Required because fixed/cal overlap in places ("1h")
+            // calendar first, then fixed. Required because fixed/cal overlap in places ("1h")
             DateTimeUnit calInterval = tryIntervalAsCalendarUnit();
             TimeValue fixedInterval = tryIntervalAsFixedUnit();
             if (calInterval != null) {
@@ -305,8 +316,9 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         switch (type) {
             case LEGACY_INTERVAL:
                 if (intervalType.equals(IntervalTypeEnum.CALENDAR) || intervalType.equals(IntervalTypeEnum.FIXED)) {
-                    throw new IllegalArgumentException("Cannot use [interval] with [fixed_interval] or [calendar_interval] " +
-                        "configuration options.");
+                    throw new IllegalArgumentException(
+                        "Cannot use [interval] with [fixed_interval] or [calendar_interval] " + "configuration options."
+                    );
                 }
 
                 // dateHistogramInterval() takes precedence over interval()
@@ -317,8 +329,9 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
             case LEGACY_DATE_HISTO:
                 if (intervalType.equals(IntervalTypeEnum.CALENDAR) || intervalType.equals(IntervalTypeEnum.FIXED)) {
-                    throw new IllegalArgumentException("Cannot use [interval] with [fixed_interval] or [calendar_interval] " +
-                        "configuration options.");
+                    throw new IllegalArgumentException(
+                        "Cannot use [interval] with [fixed_interval] or [calendar_interval] " + "configuration options."
+                    );
                 }
 
                 // dateHistogramInterval() takes precedence over interval()
@@ -327,24 +340,20 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
             case FIXED:
                 if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL) || intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO)) {
-                    throw new IllegalArgumentException("Cannot use [fixed_interval] with [interval] " +
-                        "configuration option.");
+                    throw new IllegalArgumentException("Cannot use [fixed_interval] with [interval] " + "configuration option.");
                 }
                 if (intervalType.equals(IntervalTypeEnum.CALENDAR)) {
-                    throw new IllegalArgumentException("Cannot use [fixed_interval] with [calendar_interval] " +
-                        "configuration option.");
+                    throw new IllegalArgumentException("Cannot use [fixed_interval] with [calendar_interval] " + "configuration option.");
                 }
                 intervalType = IntervalTypeEnum.FIXED;
                 break;
 
             case CALENDAR:
                 if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL) || intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO)) {
-                    throw new IllegalArgumentException("Cannot use [calendar_interval] with [interval] " +
-                        "configuration option.");
+                    throw new IllegalArgumentException("Cannot use [calendar_interval] with [interval] " + "configuration option.");
                 }
                 if (intervalType.equals(IntervalTypeEnum.FIXED)) {
-                    throw new IllegalArgumentException("Cannot use [calendar_interval] with [fixed_interval] " +
-                        "configuration option.");
+                    throw new IllegalArgumentException("Cannot use [calendar_interval] with [fixed_interval] " + "configuration option.");
                 }
                 intervalType = IntervalTypeEnum.CALENDAR;
                 break;
@@ -365,8 +374,10 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_7_2_0)) {
             if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
-                out.writeLong(TimeValue.parseTimeValue(dateHistogramInterval.toString(),
-                    DateHistogramAggregationBuilder.NAME + ".innerWriteTo").getMillis());
+                out.writeLong(
+                    TimeValue.parseTimeValue(dateHistogramInterval.toString(), DateHistogramAggregationBuilder.NAME + ".innerWriteTo")
+                        .getMillis()
+                );
             } else {
                 out.writeLong(0L);
             }
@@ -381,7 +392,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO) || intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
             builder.field(Histogram.INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());
-        } else if (intervalType.equals(IntervalTypeEnum.FIXED)){
+        } else if (intervalType.equals(IntervalTypeEnum.FIXED)) {
             builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());
         } else if (intervalType.equals(IntervalTypeEnum.CALENDAR)) {
             builder.field(CALENDAR_INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());

@@ -15,15 +15,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.HandshakeCompletedEvent;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedKeyManager;
-
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivateKey;
@@ -35,13 +26,22 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.ssl.HandshakeCompletedEvent;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedKeyManager;
+
 import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EllipticCurveSSLTests extends SecurityIntegTestCase {
-     private static String CURVE;
+    private static String CURVE;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -86,19 +86,22 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
         X509ExtendedKeyManager x509ExtendedKeyManager = CertParsingUtils.keyManager(certs, privateKey, new char[0]);
         SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(new X509ExtendedKeyManager[]{x509ExtendedKeyManager},
-            new TrustManager[]{CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(certPath)))},
-            new SecureRandom());
+        sslContext.init(
+            new X509ExtendedKeyManager[] { x509ExtendedKeyManager },
+            new TrustManager[] { CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(certPath))) },
+            new SecureRandom()
+        );
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().addMetric(TRANSPORT.metricName()).get();
         TransportAddress address = randomFrom(response.getNodes()).getInfo(TransportInfo.class).getAddress().publishAddress();
 
         final CountDownLatch latch = new CountDownLatch(1);
         try (SSLSocket sslSocket = AccessController.doPrivileged(new PrivilegedExceptionAction<SSLSocket>() {
-              @Override
-              public SSLSocket run() throws Exception {
-                  return (SSLSocket) socketFactory.createSocket(address.address().getAddress(), address.address().getPort());
-              }})) {
+            @Override
+            public SSLSocket run() throws Exception {
+                return (SSLSocket) socketFactory.createSocket(address.address().getAddress(), address.address().getPort());
+            }
+        })) {
             final AtomicReference<HandshakeCompletedEvent> reference = new AtomicReference<>();
             sslSocket.addHandshakeCompletedListener((event) -> {
                 reference.set(event);
@@ -113,8 +116,10 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
             Certificate[] peerChain = session.getPeerCertificates();
             assertEquals(1, peerChain.length);
             assertEquals(certs[0], peerChain[0]);
-            assertThat(session.getCipherSuite(),
-                anyOf(containsString("ECDSA"), equalTo("TLS_AES_256_GCM_SHA384"), equalTo("TLS_AES_128_GCM_SHA256")));
+            assertThat(
+                session.getCipherSuite(),
+                anyOf(containsString("ECDSA"), equalTo("TLS_AES_256_GCM_SHA384"), equalTo("TLS_AES_128_GCM_SHA256"))
+            );
         }
     }
 
@@ -124,9 +129,12 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(null, null, null);
         SSLEngine sslEngine = sslContext.createSSLEngine();
-        assumeTrue("ECDSA ciphers must be supported for this test to run. Enabled ciphers: " +
-                        Arrays.toString(sslEngine.getEnabledCipherSuites()) + ", supported ciphers: " +
-                        Arrays.toString(sslEngine.getSupportedCipherSuites()),
-                Arrays.stream(sslEngine.getEnabledCipherSuites()).anyMatch(s -> s.contains("ECDSA")));
+        assumeTrue(
+            "ECDSA ciphers must be supported for this test to run. Enabled ciphers: "
+                + Arrays.toString(sslEngine.getEnabledCipherSuites())
+                + ", supported ciphers: "
+                + Arrays.toString(sslEngine.getSupportedCipherSuites()),
+            Arrays.stream(sslEngine.getEnabledCipherSuites()).anyMatch(s -> s.contains("ECDSA"))
+        );
     }
 }

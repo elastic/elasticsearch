@@ -15,11 +15,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.example.realm.CustomRealm;
+import org.elasticsearch.example.realm.CustomRealmIT;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.example.realm.CustomRealmIT;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 
@@ -41,8 +41,10 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
     private static final RequestOptions AUTH_OPTIONS;
     static {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
+        options.addHeader(
+            UsernamePasswordToken.BASIC_AUTH_HEADER,
+            UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray()))
+        );
         AUTH_OPTIONS = options.build();
     }
 

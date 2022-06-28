@@ -26,9 +26,7 @@ public class RestXPackInfoAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_xpack"),
-            new Route(HEAD, "/_xpack")));
+        return unmodifiableList(asList(new Route(GET, "/_xpack"), new Route(HEAD, "/_xpack")));
     }
 
     @Override
@@ -45,13 +43,13 @@ public class RestXPackInfoAction extends XPackRestHandler {
         final boolean acceptEnterprise = request.paramAsBoolean("accept_enterprise", false);
         final int licenseVersion = acceptEnterprise ? License.VERSION_CURRENT : License.VERSION_CRYPTO_ALGORITHMS;
 
-        EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
-                .toSet(request.paramAsStringArray("categories", new String[] { "_all" }));
-        return channel ->
-                client.prepareInfo()
-                        .setVerbose(verbose)
-                        .setCategories(categories)
-                        .setLicenseVersion(licenseVersion)
-                        .execute(new RestToXContentListener<>(channel));
+        EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category.toSet(
+            request.paramAsStringArray("categories", new String[] { "_all" })
+        );
+        return channel -> client.prepareInfo()
+            .setVerbose(verbose)
+            .setCategories(categories)
+            .setLicenseVersion(licenseVersion)
+            .execute(new RestToXContentListener<>(channel));
     }
 }

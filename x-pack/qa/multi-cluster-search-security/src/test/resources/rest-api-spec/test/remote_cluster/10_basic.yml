@@ -81,6 +81,17 @@ setup:
 
   - do:
       security.put_role:
+        name: "terms_enum_alias_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_alias"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
         name: "terms_enum_none_role"
         body: >
           {
@@ -373,6 +384,8 @@ setup:
       indices.create:
         index: terms_enum_index
         body:
+          aliases:
+            terms_enum_alias: {}
           settings:
             index:
               number_of_shards: 1

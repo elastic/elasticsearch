@@ -10,6 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.cursors.LongCursor;
+
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 

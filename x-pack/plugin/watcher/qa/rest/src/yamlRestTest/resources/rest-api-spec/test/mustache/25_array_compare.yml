@@ -9,28 +9,28 @@
       index:
           index:  test_1
           type:   test
-          id:     1
+          id:     "1"
           body:   { level: 0 }
 
   - do:
       index:
           index:  test_1
           type:   test
-          id:     2
+          id:     "2"
           body:   { level: 0 }
 
   - do:
       index:
           index:  test_1
           type:   test
-          id:     3
+          id:     "3"
           body:   { level: 0 }
 
   - do:
       index:
           index:  test_1
           type:   test
-          id:     4
+          id:     "4"
           body:   { level: 1 }
   - do:
       indices.refresh: {}

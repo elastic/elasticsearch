@@ -13,8 +13,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class DeleteComposableIndexTemplateRequestTests
-    extends AbstractWireSerializingTestCase<DeleteComposableIndexTemplateAction.Request> {
+public class DeleteComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<
+    DeleteComposableIndexTemplateAction.Request> {
     @Override
     protected Writeable.Reader<DeleteComposableIndexTemplateAction.Request> instanceReader() {
         return DeleteComposableIndexTemplateAction.Request::new;

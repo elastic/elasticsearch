@@ -1,0 +1,428 @@
+---
+"Reindex from remote as superuser works":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      reindex:
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: test_admin
+              password: x-pack-test-password
+            index: source
+          dest:
+            index: dest
+  - match: {created: 1}
+
+---
+"Reindex from remote searching as user with minimal privileges works":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: minimal_user
+              password: x-pack-test-password
+            index: source
+          dest:
+            index: dest
+  - match: {created: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+---
+"Reindex from remote reading as readonly user works when the indexing user is allowed to index":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: readonly_user
+              password: x-pack-test-password
+            index: source
+          dest:
+            index: dest
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+---
+"Reindex from remote as user that can't read from the source is forbidden":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      catch: forbidden
+      reindex:
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: dest_only_user
+              password: x-pack-test-password
+            index: source
+          dest:
+            index: dest
+
+---
+"Using a script to write to an index to which you don't have access is forbidden even if you read as a superuser":
+  - skip:
+      features: headers
+  - do:
+      index:
+        index:        source
+        type:         tweet
+        id:           "1"
+        body:         { "user": "kimchy" }
+  - do:
+      index:
+        index:        source
+        type:         tweet
+        id:           "2"
+        body:         { "user": "another" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      catch: forbidden
+      reindex:
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: test_admin
+              password: x-pack-test-password
+            index: source
+          dest:
+            index: dest
+          script:
+            source: if (ctx._source.user == "kimchy") {ctx._index = 'other_dest'}
+
+  - do:
+      indices.refresh: {}
+
+  # The index to which the user tried the unauthorized write didn't even get created
+  - do:
+      catch: missing
+      search:
+        rest_total_hits_as_int: true
+        index: other_dest
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: dest }
+
+---
+"Reindex from remote misses hidden docs":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "2"
+        body:    { "text": "test", "hidden": true }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: can_not_see_hidden_docs_user
+              password: x-pack-test-password
+            index: source
+          dest:
+            index: dest
+  - match: {created: 1}
+
+  # We copied just one doc, presumably the one without the hidden field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+  # We didn't copy the doc with the hidden field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+        body:
+          query:
+            match:
+              hidden: true
+  - match: { hits.total: 0 }
+
+---
+"Reindex misses hidden fields":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test", "foo": "z", "bar": "z" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: can_not_see_hidden_fields_user
+              password: x-pack-test-password
+            index: source
+          dest:
+            index: dest
+  - match: {created: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+        body:
+          query:
+            match:
+              foo: z
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+        body:
+          query:
+            match:
+              bar: z
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 0 }
+
+
+---
+"Reindex from remote with bad password is unauthorized":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      catch: unauthorized
+      reindex:
+        body:
+          source:
+            remote:
+              host: https://${host}
+              username: test_admin
+              password: bad-x-pack-test-password
+            index: source
+          dest:
+            index: dest
+
+---
+"Reindex from remote with no username or password is unauthorized":
+  - skip:
+      features: catch_unauthorized
+
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      catch: unauthorized
+      reindex:
+        body:
+          source:
+            remote:
+              host: https://${host}
+            index: source
+          dest:
+            index: dest

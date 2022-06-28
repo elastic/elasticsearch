@@ -9,6 +9,7 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -18,9 +19,9 @@ import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.function.Supplier;
@@ -128,8 +129,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
     }
 
     @Override
-    public void beforeRefresh() {
-    }
+    public void beforeRefresh() {}
 
     @Override
     public void afterRefresh(boolean didRefresh) {

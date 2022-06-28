@@ -16,7 +16,7 @@ import java.security.PrivilegedAction;
 final class LinuxPreallocator implements Preallocator {
 
     @Override
-    public boolean available() {
+    public boolean useNative() {
         return Natives.NATIVES_AVAILABLE;
     }
 

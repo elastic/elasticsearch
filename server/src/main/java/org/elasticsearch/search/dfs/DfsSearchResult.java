@@ -10,6 +10,7 @@ package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
@@ -109,14 +110,14 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
-            CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics)
+        throws IOException {
         out.writeVInt(fieldStatistics.size());
 
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
             out.writeString(c.key);
             CollectionStatistics statistics = c.value;
-            assert statistics.maxDoc() >= 0;
+            assert statistics.maxDoc() > 0;
             out.writeVLong(statistics.maxDoc());
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
@@ -138,7 +139,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
+    public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
         if (termStatistic != null) {
             assert termStatistic.docFreq() > 0;
             out.writeVLong(termStatistic.docFreq());
@@ -156,8 +157,8 @@ public class DfsSearchResult extends SearchPhaseResult {
             final String field = in.readString();
             assert field != null;
             final long maxDoc = in.readVLong();
-            final long docCount;
-            final long sumTotalTermFreq;
+            long docCount;
+            long sumTotalTermFreq;
             final long sumDocFreq;
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 // stats are always positive numbers
@@ -168,6 +169,30 @@ public class DfsSearchResult extends SearchPhaseResult {
                 docCount = subOne(in.readVLong());
                 sumTotalTermFreq = subOne(in.readVLong());
                 sumDocFreq = subOne(in.readVLong());
+                if (sumTotalTermFreq == -1L) {
+                    // Lucene 7 and earlier used -1 to denote that this information wasn't stored by the codec
+                    // or that this field omitted term frequencies and positions. It used docFreq as fallback in that case
+                    // when calculating similarities. See LUCENE-8007 for more information.
+                    sumTotalTermFreq = sumDocFreq;
+                }
+                if (docCount == -1L) {
+                    // Lucene 7 and earlier used -1 to denote that this information wasn't stored by the codec
+                    // It used maxDoc as fallback in that case when calculating similarities. See LUCENE-8007 for more information.
+                    docCount = maxDoc;
+                }
+                if (docCount == 0L) {
+                    // empty stats object (LUCENE-8020)
+                    assert maxDoc == 0 && docCount == 0 && sumTotalTermFreq == 0 && sumDocFreq == 0
+                        : " maxDoc:"
+                            + maxDoc
+                            + " docCount:"
+                            + docCount
+                            + " sumTotalTermFreq:"
+                            + sumTotalTermFreq
+                            + " sumDocFreq:"
+                            + sumDocFreq;
+                    continue;
+                }
             }
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
@@ -187,9 +212,17 @@ public class DfsSearchResult extends SearchPhaseResult {
                 BytesRef term = terms[i].bytes();
                 final long docFreq = in.readVLong();
                 assert docFreq >= 0;
-                final long totalTermFreq = subOne(in.readVLong());
+                long totalTermFreq = subOne(in.readVLong());
                 if (docFreq == 0) {
                     continue;
+                }
+                if (in.getVersion().before(Version.V_7_0_0)) {
+                    if (totalTermFreq == -1L) {
+                        // Lucene 7 and earlier used -1 to denote that this information isn't stored by the codec
+                        // or that this field omits term frequencies and positions. It used docFreq as fallback in that case
+                        // when calculating similarities. See LUCENE-8007 for more information.
+                        totalTermFreq = docFreq;
+                    }
                 }
                 termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }

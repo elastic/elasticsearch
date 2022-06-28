@@ -35,13 +35,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,7 +61,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.Is.is;
 
@@ -103,6 +103,7 @@ import static org.hamcrest.core.Is.is;
  *          to check that optimizations worked
  *      - repeat
  */
+@SuppressWarnings("removal")
 public class TransformContinuousIT extends ESRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
@@ -114,7 +115,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
+            "{\"persistent\": {\"xpack.transform.num_transform_failure_retries\": \""
                 + 0
                 + "\","
                 + "\"logger.org.elasticsearch.action.bulk\": \"info\","
@@ -388,7 +389,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .startObject("script")
                     .field(
                         "source",
-                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value.minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value"
+                            + ".minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
                     )
                     .endObject()
                     .endObject()
@@ -397,7 +399,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .startObject("script")
                     .field(
                         "source",
-                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value.minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value"
+                            + ".minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
                     )
                     .endObject()
                     .endObject();
@@ -481,7 +484,6 @@ public class TransformContinuousIT extends ESRestTestCase {
                 .isAcknowledged()
         );
 
-
     }
 
     private GetTransformStatsResponse getTransformStats(String id) throws IOException {
@@ -546,7 +548,6 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().putTransform(new PutTransformRequest(config), RequestOptions.DEFAULT);
 
-
         }
     }
 
@@ -561,7 +562,6 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.ingest().deletePipeline(new DeletePipelineRequest(id), RequestOptions.DEFAULT);
 
-
         }
     }
 
@@ -574,7 +574,6 @@ public class TransformContinuousIT extends ESRestTestCase {
     private StartTransformResponse startTransform(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().startTransform(new StartTransformRequest(id), RequestOptions.DEFAULT);
-
 
         }
     }

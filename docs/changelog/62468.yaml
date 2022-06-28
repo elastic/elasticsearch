@@ -1,8 +1,0 @@
-pr: 62468
-issues:
-  - 62153
-area: Infra/REST API
-type: UNKNOWN
-summary: Adds quotes to timestamp values in runtime_fields/40_date YAML test
-versions:
-  - v8.0.0

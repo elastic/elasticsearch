@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -31,6 +31,8 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Fork(3)
 @Warmup(iterations = 10)
@@ -154,7 +156,10 @@ public class AllocationBenchmark {
         while (clusterState.getRoutingNodes().hasUnassignedShards()) {
             clusterState = strategy.applyStartedShards(
                 clusterState,
-                clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING)
+                StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
+                    .flatMap(shardRoutings -> StreamSupport.stream(shardRoutings.spliterator(), false))
+                    .filter(ShardRouting::initializing)
+                    .collect(Collectors.toList())
             );
             clusterState = strategy.reroute(clusterState, "reroute");
         }

@@ -11,14 +11,14 @@ package org.elasticsearch.client.documentation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.RankFeatureQueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.join.query.JoinQueryBuilders;
-import org.elasticsearch.index.query.RankFeatureQueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -178,16 +178,16 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testGeoShape() throws IOException {
         {
             // tag::geo_shape
+            List<Point> points = new ArrayList<>();
+            points.add(new Point(0, 0));
+            points.add(new Point(0, 10));
+            points.add(new Point(10, 10));
+            points.add(new Point(10, 0));
+            points.add(new Point(0, 0));
             GeoShapeQueryBuilder qb = geoShapeQuery(
-                    "pin.location",                                      // <1>
-                    new MultiPointBuilder(                         // <2>
-                            new CoordinatesBuilder()
-                        .coordinate(0, 0)
-                        .coordinate(0, 10)
-                        .coordinate(10, 10)
-                        .coordinate(10, 0)
-                        .coordinate(0, 0)
-                        .build()));
+                "pin.location",                                      // <1>
+                new MultiPoint(points)                         // <2>
+                );
             qb.relation(ShapeRelation.WITHIN);                           // <3>
             // end::geo_shape
         }
@@ -449,24 +449,14 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     }
 
     public void testRankFeatureSaturationPivot() {
-        RankFeatureQueryBuilders.saturation(
-            "pagerank",
-            8
-        );
+        RankFeatureQueryBuilders.saturation("pagerank", 8);
     }
 
     public void testRankFeatureLog() {
-        RankFeatureQueryBuilders.log(
-            "pagerank",
-            4f
-        );
+        RankFeatureQueryBuilders.log("pagerank", 4f);
     }
 
     public void testRankFeatureSigmoid() {
-        RankFeatureQueryBuilders.sigmoid(
-            "pagerank",
-            7,
-            0.6f
-        );
+        RankFeatureQueryBuilders.sigmoid("pagerank", 7, 0.6f);
     }
 }

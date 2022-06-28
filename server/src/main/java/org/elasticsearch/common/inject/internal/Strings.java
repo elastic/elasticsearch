@@ -22,8 +22,7 @@ package org.elasticsearch.common.inject.internal;
  * @author crazybob@google.com (Bob Lee)
  */
 public class Strings {
-    private Strings() {
-    }
+    private Strings() {}
 
     /**
      * Returns a string that is equivalent to the specified string with its
@@ -51,8 +50,6 @@ public class Strings {
         }
         char first = s.charAt(0);
         char capitalized = Character.toUpperCase(first);
-        return (first == capitalized)
-                ? s
-                : capitalized + s.substring(1);
+        return (first == capitalized) ? s : capitalized + s.substring(1);
     }
 }

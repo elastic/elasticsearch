@@ -111,9 +111,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
             .setWarningsHandler(
                 warnings -> org.elasticsearch.core.List.of(
                     "this request accesses system indices: [.fleet-artifacts-7], but "
-                        + "in a future major version, direct access to system indices will be prevented by default",
-                    "this request accesses aliases with names reserved for system indices: [.fleet-artifacts], but in a future major "
-                        + "version, direct access to system indices and their aliases will not be allowed"
+                        + "in a future major version, direct access to system indices will be prevented by default"
                 ).equals(warnings) == false
             )
             .build();

@@ -13,19 +13,16 @@ deletion during an upgrade.
 
 In production, we strongly recommend you set the `path.data` and `path.logs` in
 `elasticsearch.yml` to locations outside of `$ES_HOME`. <<docker,Docker>>,
-<<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>, and <<windows,Windows
-`.msi`>> installations write data and log to locations outside of `$ES_HOME` by
-default.
-
-IMPORTANT: To avoid errors, only {es} should open files in the `path.data`
-directory. Exclude the `path.data` directory from other services that may open
-and lock its files, such as antivirus or backup programs.
+<<deb,Debian>>, <<rpm,RPM>>, and <<brew,macOS Homebrew>> installations write
+data and log to locations outside of `$ES_HOME` by default.
 
 Supported `path.data` and `path.logs` values vary by platform:
 
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 
 include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
+
+include::{es-repo-dir}/modules/node.asciidoc[tag=modules-node-data-path-warning-tag]
 
 [discrete]
 ==== Multiple data paths
@@ -42,3 +39,18 @@ additional disk space, we recommend you add a new node rather than additional
 data paths.
 
 include::{es-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]
+
+[discrete]
+[[mdp-migrate]]
+==== Migrate from multiple data paths
+
+Support for multiple data paths was deprecated in 7.13 and will be removed
+in a future release.
+
+As an alternative to multiple data paths, you can create a filesystem which
+spans multiple disks with a hardware virtualisation layer such as RAID, or a
+software virtualisation layer such as Logical Volume Manager (LVM) on Linux or
+Storage Spaces on Windows. If you wish to use multiple data paths on a single
+machine then you must run one node for each data path.
+
+include::{es-repo-dir}/migration/migrate_7_13.asciidoc[tag=mdp-migration]

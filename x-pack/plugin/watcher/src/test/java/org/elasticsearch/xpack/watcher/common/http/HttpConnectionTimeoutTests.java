@@ -26,13 +26,14 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     @Network
     public void testDefaultTimeout() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null,
-            mockClusterService());
+        HttpClient httpClient = new HttpClient(
+            Settings.EMPTY,
+            new SSLService(environment.settings(), environment),
+            null,
+            mockClusterService()
+        );
 
-        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
-                .method(HttpMethod.POST)
-                .path("/" + randomAlphaOfLength(5))
-                .build();
+        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345).method(HttpMethod.POST).path("/" + randomAlphaOfLength(5)).build();
 
         long start = System.nanoTime();
         try {
@@ -51,14 +52,14 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     @Network
     public void testDefaultTimeoutCustom() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.builder()
-                .put("xpack.http.default_connection_timeout", "5s").build(), new SSLService(environment.settings(), environment), null,
-            mockClusterService());
+        HttpClient httpClient = new HttpClient(
+            Settings.builder().put("xpack.http.default_connection_timeout", "5s").build(),
+            new SSLService(environment.settings(), environment),
+            null,
+            mockClusterService()
+        );
 
-        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
-                .method(HttpMethod.POST)
-                .path("/" + randomAlphaOfLength(5))
-                .build();
+        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345).method(HttpMethod.POST).path("/" + randomAlphaOfLength(5)).build();
 
         long start = System.nanoTime();
         try {
@@ -77,15 +78,18 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     @Network
     public void testTimeoutCustomPerRequest() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.builder()
-                .put("xpack.http.default_connection_timeout", "10s").build(), new SSLService(environment.settings(), environment), null,
-            mockClusterService());
+        HttpClient httpClient = new HttpClient(
+            Settings.builder().put("xpack.http.default_connection_timeout", "10s").build(),
+            new SSLService(environment.settings(), environment),
+            null,
+            mockClusterService()
+        );
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
-                .connectionTimeout(TimeValue.timeValueSeconds(5))
-                .method(HttpMethod.POST)
-                .path("/" + randomAlphaOfLength(5))
-                .build();
+            .connectionTimeout(TimeValue.timeValueSeconds(5))
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5))
+            .build();
 
         long start = System.nanoTime();
         try {

@@ -5,11 +5,11 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin'
+  classname 'org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin'
 }
 
 dependencies {
@@ -25,9 +25,4 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.elasticsearch.index.analysis.PhoneticTokenFilterFactory'
 }

@@ -1,9 +1,0 @@
-pr: 70209
-issues:
-  - 69548
-  - 69548
-area: Search
-type: enhancement
-summary: Completely disallow setting negative size in search
-versions:
-  - v8.0.0

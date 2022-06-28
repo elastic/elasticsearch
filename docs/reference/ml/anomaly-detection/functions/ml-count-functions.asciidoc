@@ -282,5 +282,5 @@ PUT _ml/anomaly_detectors/example7
 
 This example detects instances of port scanning. When you use this function in a
 detector in your {anomaly-job}, it models the distinct count of ports. It also
-detects the `src_ip` values that connect to an unusually high number of different
-`dst_ports` values compared to other `src_ip` values.
+detects the `src_ip` values that connect to an unusually high number of 
+different `dst_ports` values compared to other `src_ip` values.

@@ -19,7 +19,7 @@ public class DocumentSourceMissingException extends EngineException {
         super(shardId, "[" + type + "][" + id + "]: document source missing");
     }
 
-    public DocumentSourceMissingException(StreamInput in) throws IOException{
+    public DocumentSourceMissingException(StreamInput in) throws IOException {
         super(in);
     }
 

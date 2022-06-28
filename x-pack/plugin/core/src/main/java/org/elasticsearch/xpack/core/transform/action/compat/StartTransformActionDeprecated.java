@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.transform.action.compat;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 
-public class StartTransformActionDeprecated  extends ActionType<StartTransformAction.Response> {
+public class StartTransformActionDeprecated extends ActionType<StartTransformAction.Response> {
 
     public static final StartTransformActionDeprecated INSTANCE = new StartTransformActionDeprecated();
     public static final String NAME = "cluster:admin/data_frame/start";

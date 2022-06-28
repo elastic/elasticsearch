@@ -78,28 +78,30 @@ public class GetApiKeyRequestTests extends ESTestCase {
             }
         }
 
-        String[][] inputs = new String[][]{
-            {randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false"},
-            {"realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false"},
-            {"realm", "user", "api-kid", randomNullOrEmptyString(), "false"},
-            {randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false"},
-            {"realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true"},
-            {randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true"}
-        };
-        String[][] expectedErrorMessages = new String[][]{
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified",
-                "only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when the api key id or api key name is specified"},
-            {"only one of [api key id, api key name] can be specified"},
-            {"neither username nor realm-name may be specified when retrieving owned API keys"},
-            {"neither username nor realm-name may be specified when retrieving owned API keys"}
-        };
+        String[][] inputs = new String[][] {
+            { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", "user", "api-kid", randomNullOrEmptyString(), "false" },
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true" },
+            { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true" } };
+        String[][] expectedErrorMessages = new String[][] {
+            {
+                "username or realm name must not be specified when the api key id or api key name is specified",
+                "only one of [api key id, api key name] can be specified" },
+            {
+                "username or realm name must not be specified when the api key id or api key name is specified",
+                "only one of [api key id, api key name] can be specified" },
+            { "username or realm name must not be specified when the api key id or api key name is specified" },
+            { "only one of [api key id, api key name] can be specified" },
+            { "neither username nor realm-name may be specified when retrieving owned API keys" },
+            { "neither username nor realm-name may be specified when retrieving owned API keys" } };
 
         for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
-            try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)) {
+            try (
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                OutputStreamStreamOutput osso = new OutputStreamStreamOutput(bos)
+            ) {
                 Dummy d = new Dummy(inputs[caseNo]);
                 d.writeTo(osso);
 

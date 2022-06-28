@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
@@ -19,8 +20,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregationBuilder> {
 
@@ -49,8 +48,13 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
      * The validation should verify the parent aggregation is allowed.
      */
     public void testValidate() throws IOException {
-        assertThat(validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
-                new DerivativePipelineAggregationBuilder("name", "valid")), nullValue());
+        assertThat(
+            validate(
+                PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
+                new DerivativePipelineAggregationBuilder("name", "valid")
+            ),
+            nullValue()
+        );
     }
 
     /**
@@ -61,11 +65,13 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
     public void testValidateException() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
-        AggregationBuilder parent = mock(AggregationBuilder.class);
-        when(parent.getName()).thenReturn("name");
-
-        assertThat(validate(parent, new DerivativePipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
+        AggregationBuilder parent = new TermsAggregationBuilder("name");
+        assertThat(
+            validate(parent, new DerivativePipelineAggregationBuilder("name", "invalid_agg>metric")),
+            equalTo(
                 "Validation Failed: 1: derivative aggregation [name] must have a histogram, "
-                + "date_histogram or auto_date_histogram as parent;"));
+                    + "date_histogram or auto_date_histogram as parent;"
+            )
+        );
     }
 }

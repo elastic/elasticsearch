@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.nio.BytesWriteHandler;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.Page;
-import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
@@ -23,7 +23,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
-import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -33,10 +32,12 @@ import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import javax.net.ssl.SSLException;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -55,7 +56,7 @@ public class SSLChannelContextTests extends ESTestCase {
     private NioSelector selector;
     private TaskScheduler nioTimer;
     private BiConsumer<Void, Exception> listener;
-    private Consumer exceptionHandler;
+    private Consumer<Exception> exceptionHandler;
     private SSLDriver sslDriver;
     private int messageLength;
     private Config.Socket socketConfig;
@@ -77,8 +78,18 @@ public class SSLChannelContextTests extends ESTestCase {
         outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}));
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
-        socketConfig = new Config.Socket(randomBoolean(), randomBoolean(), -1, -1, -1, randomBoolean(), -1, -1,
-            mock(InetSocketAddress.class), false);
+        socketConfig = new Config.Socket(
+            randomBoolean(),
+            randomBoolean(),
+            -1,
+            -1,
+            -1,
+            randomBoolean(),
+            -1,
+            -1,
+            mock(InetSocketAddress.class),
+            false
+        );
         context = new SSLChannelContext(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
         context.setSelectionKey(mock(SelectionKey.class));
 
@@ -139,7 +150,6 @@ public class SSLChannelContextTests extends ESTestCase {
             return bytes.length;
         });
         doAnswer(getReadAnswerForBytes(bytes)).when(sslDriver).read(any(InboundChannelBuffer.class), eq(channelBuffer));
-
 
         when(readConsumer.apply(channelBuffer)).thenReturn(0);
 
@@ -229,7 +239,7 @@ public class SSLChannelContextTests extends ESTestCase {
     }
 
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
-        ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(10) };
         FlushReadyWrite flushOperation = new FlushReadyWrite(context, buffers, listener);
         context.queueWriteOperation(flushOperation);
 
@@ -245,7 +255,7 @@ public class SSLChannelContextTests extends ESTestCase {
     }
 
     public void testPartialFlush() throws IOException {
-        ByteBuffer[] buffers = {ByteBuffer.allocate(5)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(5) };
         FlushReadyWrite flushOperation = new FlushReadyWrite(context, buffers, listener);
         context.queueWriteOperation(flushOperation);
 
@@ -262,8 +272,8 @@ public class SSLChannelContextTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testMultipleWritesPartialFlushes() throws IOException {
         BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
-        ByteBuffer[] buffers1 = {ByteBuffer.allocate(10)};
-        ByteBuffer[] buffers2 = {ByteBuffer.allocate(5)};
+        ByteBuffer[] buffers1 = { ByteBuffer.allocate(10) };
+        ByteBuffer[] buffers2 = { ByteBuffer.allocate(5) };
         FlushReadyWrite flushOperation1 = new FlushReadyWrite(context, buffers1, listener);
         FlushReadyWrite flushOperation2 = new FlushReadyWrite(context, buffers2, listener2);
         context.queueWriteOperation(flushOperation1);
@@ -281,7 +291,7 @@ public class SSLChannelContextTests extends ESTestCase {
     }
 
     public void testWhenIOExceptionThrownListenerIsCalled() throws IOException {
-        ByteBuffer[] buffers = {ByteBuffer.allocate(5)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(5) };
         FlushReadyWrite flushOperation = new FlushReadyWrite(context, buffers, listener);
         context.queueWriteOperation(flushOperation);
 
@@ -375,8 +385,7 @@ public class SSLChannelContextTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testActiveInitiatesDriver() throws IOException {
-        try (Selector realSelector = Selector.open();
-             SocketChannel realSocket = SocketChannel.open()) {
+        try (Selector realSelector = Selector.open(); SocketChannel realSocket = SocketChannel.open()) {
             realSocket.configureBlocking(false);
             when(selector.rawSelector()).thenReturn(realSelector);
             when(channel.getRawChannel()).thenReturn(realSocket);
@@ -401,7 +410,7 @@ public class SSLChannelContextTests extends ESTestCase {
         };
     }
 
-    private Answer getReadAnswerForBytes(byte[] bytes) {
+    private Answer<Integer> getReadAnswerForBytes(byte[] bytes) {
         return invocationOnMock -> {
             InboundChannelBuffer appBuffer = (InboundChannelBuffer) invocationOnMock.getArguments()[1];
             appBuffer.ensureCapacity(appBuffer.getIndex() + bytes.length);

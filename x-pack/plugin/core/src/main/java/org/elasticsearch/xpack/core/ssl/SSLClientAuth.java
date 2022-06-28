@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import javax.net.ssl.SSLParameters;
-
 import java.util.Locale;
+
+import javax.net.ssl.SSLParameters;
 
 /**
  * The client authentication mode that is used for SSL servers

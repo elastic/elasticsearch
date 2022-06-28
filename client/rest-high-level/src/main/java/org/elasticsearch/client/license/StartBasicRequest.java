@@ -24,4 +24,3 @@ public class StartBasicRequest extends TimedRequest {
         return acknowledge;
     }
 }
-

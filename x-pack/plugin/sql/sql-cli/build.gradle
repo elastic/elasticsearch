@@ -27,10 +27,9 @@ dependencies {
   api "org.jline:jline-style:${jlineVersion}"
 
   api xpackProject('plugin:sql:sql-client')
-  api xpackProject('plugin:sql:sql-action')
   api project(":libs:elasticsearch-cli")
   api project(':libs:elasticsearch-x-content')
-  runtimeOnly "org.elasticsearch:jna:${versions.jna}"
+  runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }
 
@@ -46,6 +45,7 @@ tasks.named("shadowJar").configure {
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
   }
+  exclude '/org/apache/logging/log4j/core/lookup/JndiLookup.class'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -59,10 +59,10 @@ tasks.register("runcli") {
   dependsOn "shadowJar"
   doLast {
     List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
-    if ('true'.equals(System.getProperty('debug', 'false'))) {
+    if ('true'.equals(providers.systemProperty('debug').orElse('false').get())) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }
-    command += ['-jar', shadowJar.archivePath.absolutePath]
+    command += ['-jar', shadowJar.archiveFile.get().asFile.absolutePath]
     logger.info("running the cli with: ${command}")
 
     new ProcessBuilder(command)

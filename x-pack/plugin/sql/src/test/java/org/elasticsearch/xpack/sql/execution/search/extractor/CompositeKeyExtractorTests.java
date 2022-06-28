@@ -55,13 +55,13 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
             instance.key() + "mutated",
             randomValueOtherThan(instance.property(), () -> randomFrom(Property.values())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
-            instance.isDateTimeBased() == false);
+            instance.isDateTimeBased() == false
+        );
     }
 
     public void testExtractBucketCount() {
         Bucket bucket = new TestBucket(emptyMap(), randomLong(), new Aggregations(emptyList()));
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.COUNT,
-                randomZone(), false);
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.COUNT, randomZone(), false);
         assertEquals(bucket.getDocCount(), extractor.extract(bucket));
     }
 

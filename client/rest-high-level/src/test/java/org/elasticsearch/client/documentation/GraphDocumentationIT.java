@@ -13,21 +13,21 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.client.graph.Connection;
 import org.elasticsearch.client.graph.GraphExploreRequest;
 import org.elasticsearch.client.graph.GraphExploreResponse;
 import org.elasticsearch.client.graph.Hop;
 import org.elasticsearch.client.graph.Vertex;
 import org.elasticsearch.client.graph.VertexRequest;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 
+@SuppressWarnings("removal")
 public class GraphDocumentationIT extends ESRestHighLevelClientTestCase {
-
 
     @Before
     public void indexDocuments() throws IOException {
@@ -46,8 +46,6 @@ public class GraphDocumentationIT extends ESRestHighLevelClientTestCase {
     @SuppressForbidden(reason = "system out is ok for a documentation example")
     public void testExplore() throws Exception {
         RestHighLevelClient client = highLevelClient();
-
-
 
         // tag::x-pack-graph-explore-request
         GraphExploreRequest request = new GraphExploreRequest();
@@ -68,7 +66,6 @@ public class GraphDocumentationIT extends ESRestHighLevelClientTestCase {
         GraphExploreResponse exploreResponse = client.graph().explore(request, RequestOptions.DEFAULT); // <4>
         // end::x-pack-graph-explore-request
 
-
         // tag::x-pack-graph-explore-response
         Collection<Vertex> v = exploreResponse.getVertices();
         Collection<Connection> c = exploreResponse.getConnections();
@@ -81,7 +78,6 @@ public class GraphDocumentationIT extends ESRestHighLevelClientTestCase {
                     + " evidenced by " + link.getDocCount() + " docs");
         }
         // end::x-pack-graph-explore-response
-
 
         Collection<Vertex> initialVertices = exploreResponse.getVertices();
 

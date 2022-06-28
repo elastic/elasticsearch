@@ -65,8 +65,10 @@ public class FloatOverflowTests extends ScriptTestCase {
 
     public void testSubtraction() throws Exception {
         assertEquals(Float.NEGATIVE_INFINITY, exec("float x = -3.4028234663852886E38f; float y = 3.4028234663852886E38f; return x - y;"));
-        assertEquals(Double.NEGATIVE_INFINITY,
-                exec("double x = -1.7976931348623157E308; double y = 1.7976931348623157E308; return x - y;"));
+        assertEquals(
+            Double.NEGATIVE_INFINITY,
+            exec("double x = -1.7976931348623157E308; double y = 1.7976931348623157E308; return x - y;")
+        );
     }
 
     public void testSubtractionConst() throws Exception {

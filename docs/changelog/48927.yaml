@@ -1,8 +1,0 @@
-pr: 48927
-issues:
-  - 40366
-area: Infra/Core
-type: UNKNOWN
-summary: "[#40366] Silence some lint warnings in server project"
-versions:
-  - v8.0.0

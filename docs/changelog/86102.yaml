@@ -1,0 +1,6 @@
+pr: 86102
+summary: Adjust MDP deprecation to warning instead of critical
+area: Infra/Settings
+type: bug
+issues:
+ - 85695

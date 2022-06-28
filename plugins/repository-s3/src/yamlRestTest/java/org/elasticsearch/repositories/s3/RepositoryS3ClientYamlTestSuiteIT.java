@@ -25,4 +25,3 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

@@ -1,7 +1,0 @@
-pr: 43344
-issues: []
-area: Infra/Core
-type: enhancement
-summary: Remove types exists action
-versions:
-  - v8.0.0

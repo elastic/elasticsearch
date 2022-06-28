@@ -37,6 +37,7 @@ public class TestTemplateService extends ScriptService {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         if (this.compilationException) {
             throw new RuntimeException("could not compile script");
@@ -44,7 +45,6 @@ public class TestTemplateService extends ScriptService {
             return (FactoryType) new MockTemplateScript.Factory(script.getIdOrCode());
         }
     }
-
 
     public static class MockTemplateScript extends TemplateScript {
         private final String expected;

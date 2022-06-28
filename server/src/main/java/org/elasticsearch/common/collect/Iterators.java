@@ -36,6 +36,8 @@ public class Iterators {
         };
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
         if (iterators == null) {
             throw new NullPointerException("iterators");
@@ -49,13 +51,15 @@ public class Iterators {
         private final Iterator<? extends T>[] iterators;
         private int index = 0;
 
+        @SafeVarargs
+        @SuppressWarnings("varargs")
         ConcatenatedIterator(Iterator<? extends T>... iterators) {
             if (iterators == null) {
                 throw new NullPointerException("iterators");
             }
             for (int i = 0; i < iterators.length; i++) {
                 if (iterators[i] == null) {
-                    throw new NullPointerException("iterators[" + i  + "]");
+                    throw new NullPointerException("iterators[" + i + "]");
                 }
             }
             this.iterators = iterators;

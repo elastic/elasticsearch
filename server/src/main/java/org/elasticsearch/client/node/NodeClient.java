@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    private Map<ActionType, TransportAction> actions;
+    private Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
      * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
@@ -45,8 +45,12 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
-    public void initialize(Map<ActionType, TransportAction> actions, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
+    public void initialize(
+        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions,
+        Supplier<String> localNodeId,
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         this.actions = actions;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
@@ -59,8 +63,11 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         // Discard the task because the Client interface doesn't use it.
         try {
             executeLocally(action, request, listener);
@@ -80,9 +87,11 @@ public class NodeClient extends AbstractClient {
      *
      * @throws TaskCancelledException if the request's parent task has been cancelled already
      */
-    public <    Request extends ActionRequest,
-                Response extends ActionResponse
-            > Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         return transportAction(action).execute(request, listener);
     }
 
@@ -92,9 +101,11 @@ public class NodeClient extends AbstractClient {
      *
      * @throws TaskCancelledException if the request's parent task has been cancelled already
      */
-    public <    Request extends ActionRequest,
-                Response extends ActionResponse
-            > Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        TaskListener<Response> listener
+    ) {
         return transportAction(action).execute(request, listener);
     }
 
@@ -109,14 +120,14 @@ public class NodeClient extends AbstractClient {
     /**
      * Get the {@link TransportAction} for an {@link ActionType}, throwing exceptions if the action isn't available.
      */
-    @SuppressWarnings("unchecked")
-    private <    Request extends ActionRequest,
-                Response extends ActionResponse
-            > TransportAction<Request, Response> transportAction(ActionType<Response> action) {
+    private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
+        ActionType<Response> action
+    ) {
         if (actions == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        @SuppressWarnings("unchecked")
+        TransportAction<Request, Response> transportAction = (TransportAction<Request, Response>) actions.get(action);
         if (transportAction == null) {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }
@@ -125,9 +136,8 @@ public class NodeClient extends AbstractClient {
 
     @Override
     public Client getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, true);
     }
-
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;

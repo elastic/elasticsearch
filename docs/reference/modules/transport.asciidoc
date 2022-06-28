@@ -53,15 +53,14 @@ Set to `true`, `indexing_data`, or `false` to configure transport compression
 between nodes. The option `true` will compress all data. The option
 `indexing_data` will compress only the raw index data sent between nodes during
 ingest, ccr following (excluding bootstrap), and operations based shard recovery
-(excluding transferring lucene files). The `indexing_data` option is experimental.
-Defaults to `false`.
+(excluding transferring lucene files). Defaults to `false`.
 
 `transport.compression_scheme`::
 (<<static-cluster-setting,Static>>)
 Configures the compression scheme for `transport.compress`. The options are
-`deflate` or `lz4`. The option `lz4` is experimental. If `lz4` is configured and
- the remote node has not been upgraded to a version supporting `lz4`, the traffic
- will be sent uncompressed. Defaults to `deflate`.
+`deflate` or `lz4`. If `lz4` is configured and the remote node has not been
+upgraded to a version supporting `lz4`, the traffic will be sent uncompressed.
+Defaults to `deflate`.
 
 `transport.ping_schedule`::
 (<<static-cluster-setting,Static>>)
@@ -186,7 +185,7 @@ connections between nodes.
 The `transport.compress` configuration option `indexing_data` will only
 compress requests that relate to the transport of raw indexing source data
 between nodes. This option primarily compresses data sent during ingest,
-ccr, and shard recovery. This option is experimental.
+ccr, and shard recovery.
 
 The `transport.compress` setting always configures local cluster request
 compression and is the fallback setting for remote cluster request compression.
@@ -201,4 +200,6 @@ request compression, you can set it on a per-remote cluster basis using the
 The compression settings do not configure compression for responses. {es} will
 compress a response if the inbound request was compressed--even when compression
 is not enabled. Similarly, {es} will not compress a response if the inbound
-request was uncompressed--even when compression is enabled.
+request was uncompressed--even when compression is enabled. The compression
+scheme used to compress a response will be the same scheme the remote node used
+to compress the request.

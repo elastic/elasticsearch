@@ -42,7 +42,9 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     protected static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected abstract T createRandomInstance();
+
     protected abstract T mutateInstance(T instance);
+
     protected abstract T copyInstance(T instance);
 
     public void testHashcodeAndEquals() {

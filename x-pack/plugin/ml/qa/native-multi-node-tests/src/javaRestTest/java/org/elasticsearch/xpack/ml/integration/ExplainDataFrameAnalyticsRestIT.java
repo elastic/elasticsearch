@@ -56,10 +56,16 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity("{"
-                + "  \"password\" : \"" + password + "\","
-                + "  \"roles\" : [ " + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", ")) + " ]"
-                + "}");
+        request.setJsonEntity(
+            "{"
+                + "  \"password\" : \""
+                + password
+                + "\","
+                + "  \"roles\" : [ "
+                + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))
+                + " ]"
+                + "}"
+        );
         client().performRequest(request);
     }
 
@@ -76,7 +82,8 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity("{"
+        createAirlineDataRequest.setJsonEntity(
+            "{"
                 + "  \"mappings\": {"
                 + "    \"properties\": {"
                 + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
@@ -84,9 +91,10 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
                 + "        \"type\":\"keyword\""
                 + "       },"
                 + "      \"responsetime\": { \"type\":\"float\"}"
-            + "    }"
+                + "    }"
                 + "  }"
-                + "}");
+                + "}"
+        );
         client().performRequest(createAirlineDataRequest);
 
         bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 1}}\n");
@@ -98,17 +106,16 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
     }
 
     public void testExplain_GivenSecondaryHeadersAndConfig() throws IOException {
-        String config = "{\n" +
-            "  \"source\": {\n" +
-            "    \"index\": \"airline-data\"\n" +
-            "  },\n" +
-            "  \"analysis\": {\n" +
-            "    \"regression\": {\n" +
-            "      \"dependent_variable\": \"responsetime\"\n" +
-            "    }\n" +
-            "  }\n" +
-            "}";
-
+        String config = "{\n"
+            + "  \"source\": {\n"
+            + "    \"index\": \"airline-data\"\n"
+            + "  },\n"
+            + "  \"analysis\": {\n"
+            + "    \"regression\": {\n"
+            + "      \"dependent_variable\": \"responsetime\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
         { // Request with secondary headers without perms
             Request explain = explainRequestViaConfig(config);
@@ -131,20 +138,20 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
     }
 
     public void testExplain_GivenSecondaryHeadersAndPreviouslyStoredConfig() throws IOException {
-        String config = "{\n" +
-            "  \"source\": {\n" +
-            "    \"index\": \"airline-data\"\n" +
-            "  },\n" +
-            "  \"dest\": {\n" +
-            "    \"index\": \"response_prediction\"\n" +
-            "  },\n" +
-            "  \"analysis\":\n" +
-            "    {\n" +
-            "      \"regression\": {\n" +
-            "        \"dependent_variable\": \"responsetime\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "}";
+        String config = "{\n"
+            + "  \"source\": {\n"
+            + "    \"index\": \"airline-data\"\n"
+            + "  },\n"
+            + "  \"dest\": {\n"
+            + "    \"index\": \"response_prediction\"\n"
+            + "  },\n"
+            + "  \"analysis\":\n"
+            + "    {\n"
+            + "      \"regression\": {\n"
+            + "        \"dependent_variable\": \"responsetime\"\n"
+            + "      }\n"
+            + "    }\n"
+            + "}";
 
         String configId = "explain_test";
 

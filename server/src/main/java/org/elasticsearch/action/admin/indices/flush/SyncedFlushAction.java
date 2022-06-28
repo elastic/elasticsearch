@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ActionType;
 
-
 public class SyncedFlushAction extends ActionType<SyncedFlushResponse> {
 
     public static final SyncedFlushAction INSTANCE = new SyncedFlushAction();

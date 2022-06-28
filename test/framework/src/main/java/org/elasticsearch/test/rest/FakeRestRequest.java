@@ -12,13 +12,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -29,16 +29,24 @@ import java.util.Map;
 public class FakeRestRequest extends RestRequest {
 
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(),
-            new FakeHttpChannel(null));
+        this(
+            NamedXContentRegistry.EMPTY,
+            new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
+            new HashMap<>(),
+            new FakeHttpChannel(null)
+        );
     }
 
-    private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
-                            HttpChannel httpChannel) {
+    private FakeRestRequest(
+        NamedXContentRegistry xContentRegistry,
+        HttpRequest httpRequest,
+        Map<String, String> params,
+        HttpChannel httpChannel
+    ) {
         super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
-    private static class FakeHttpRequest implements HttpRequest {
+    public static class FakeHttpRequest implements HttpRequest {
 
         private final Method method;
         private final String uri;
@@ -46,12 +54,17 @@ public class FakeRestRequest extends RestRequest {
         private final Map<String, List<String>> headers;
         private final Exception inboundException;
 
-        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
+        public FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
             this(method, uri, content, headers, null);
         }
 
-        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers,
-                                Exception inboundException) {
+        private FakeHttpRequest(
+            Method method,
+            String uri,
+            BytesReference content,
+            Map<String, List<String>> headers,
+            Exception inboundException
+        ) {
             this.method = method;
             this.uri = uri;
             this.content = content;
@@ -96,24 +109,23 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public HttpResponse createResponse(RestStatus status, BytesReference content) {
-            Map<String, String> headers = new HashMap<>();
+        public HttpResponse createResponse(RestStatus status, BytesReference unused) {
+            Map<String, String> responseHeaders = new HashMap<>();
             return new HttpResponse() {
                 @Override
                 public void addHeader(String name, String value) {
-                    headers.put(name, value);
+                    responseHeaders.put(name, value);
                 }
 
                 @Override
                 public boolean containsHeader(String name) {
-                    return headers.containsKey(name);
+                    return responseHeaders.containsKey(name);
                 }
             };
         }
 
         @Override
-        public void release() {
-        }
+        public void release() {}
 
         @Override
         public HttpRequest releaseAndCopy() {
@@ -126,12 +138,12 @@ public class FakeRestRequest extends RestRequest {
         }
     }
 
-    private static class FakeHttpChannel implements HttpChannel {
+    public static class FakeHttpChannel implements HttpChannel {
 
         private final InetSocketAddress remoteAddress;
         private final ListenableActionFuture<Void> closeFuture = new ListenableActionFuture<>();
 
-        private FakeHttpChannel(InetSocketAddress remoteAddress) {
+        public FakeHttpChannel(InetSocketAddress remoteAddress) {
             this.remoteAddress = remoteAddress;
         }
 
@@ -197,8 +209,8 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withContent(BytesReference content, XContentType xContentType) {
-            this.content = content;
+        public Builder withContent(BytesReference contentBytes, XContentType xContentType) {
+            this.content = contentBytes;
             if (xContentType != null) {
                 headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             }
@@ -215,8 +227,8 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withRemoteAddress(InetSocketAddress address) {
-            this.address = address;
+        public Builder withRemoteAddress(InetSocketAddress remoteAddress) {
+            this.address = remoteAddress;
             return this;
         }
 

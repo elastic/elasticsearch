@@ -27,7 +27,8 @@ public class RestDeleteFilterAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(DELETE, BASE_PATH + "filters/{" + Request.FILTER_ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "filters/{" + Request.FILTER_ID + "}", RestApiVersion.V_7).build()
+                .replaces(DELETE, PRE_V7_BASE_PATH + "filters/{" + Request.FILTER_ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 

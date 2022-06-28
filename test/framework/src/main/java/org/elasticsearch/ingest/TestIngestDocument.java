@@ -96,4 +96,14 @@ public class TestIngestDocument {
     public static long randomVersion() {
         return ESTestCase.randomLongBetween(Versions.MATCH_DELETED, Long.MAX_VALUE);
     }
+
+    public static Tuple<String, Object> randomMetadata() {
+        IngestDocument.Metadata metadata = ESTestCase.randomFrom(IngestDocument.Metadata.values());
+        return new Tuple<>(metadata.getFieldName(), switch (metadata) {
+            case VERSION, IF_SEQ_NO, IF_PRIMARY_TERM -> ESTestCase.randomIntBetween(0, 124);
+            case VERSION_TYPE -> VersionType.toString(ESTestCase.randomFrom(VersionType.values()));
+            case DYNAMIC_TEMPLATES -> Map.of(ESTestCase.randomAlphaOfLengthBetween(5, 10), ESTestCase.randomAlphaOfLengthBetween(5, 10));
+            default -> ESTestCase.randomAlphaOfLengthBetween(5, 10);
+        });
+    }
 }

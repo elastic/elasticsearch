@@ -122,8 +122,6 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "restResources copies Tests and API by configuration"() {
         given:
-        // CopyRestTestsTask has troubles loading correctly in cc mode
-        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.java'

@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils;
-import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.immutablestate.action.ImmutableLifecycleAction;
 
 import java.util.Map;
 
@@ -46,7 +46,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         assertFalse(TransportPutLifecycleAction.isNoopUpdate(null, policy1, headers1));
     }
 
-    public void testOperatorHandler() throws Exception {
+    public void testImmutableStateHandler() throws Exception {
         TransportPutLifecycleAction putAction = new TransportPutLifecycleAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -57,7 +57,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             mock(XPackLicenseState.class),
             mock(Client.class)
         );
-        assertEquals(OperatorLifecycleAction.NAME, putAction.operatorHandlerName().get());
+        assertEquals(ImmutableLifecycleAction.NAME, putAction.immutableStateHandlerName().get());
 
         String json = """
             {

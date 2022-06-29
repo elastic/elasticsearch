@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
+import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -131,8 +131,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     }
 
     @Override
-    protected Optional<String> operatorHandlerName() {
-        return Optional.of(OperatorClusterUpdateSettingsAction.NAME);
+    protected Optional<String> immutableStateHandlerName() {
+        return Optional.of(ImmutableClusterSettingsAction.NAME);
     }
 
     @Override
@@ -256,7 +256,9 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             this.request = request;
         }
 
-        // Used by the operator handler
+        /**
+         * Used by the immutable state handler {@link ImmutableClusterSettingsAction}
+         */
         public ClusterUpdateSettingsTask(final ClusterSettings clusterSettings, ClusterUpdateSettingsRequest request) {
             this(clusterSettings, Priority.IMMEDIATE, request, null);
         }

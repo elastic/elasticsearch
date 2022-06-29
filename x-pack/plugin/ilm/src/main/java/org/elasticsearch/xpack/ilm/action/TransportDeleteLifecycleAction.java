@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
-import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.immutablestate.action.ImmutableLifecycleAction;
 
 import java.util.List;
 import java.util.Optional;
@@ -73,7 +73,11 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
             this.request = request;
         }
 
-        // used by the operator handler
+        /**
+         * Used by the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} for ILM
+         * {@link ImmutableLifecycleAction}
+         * @param policyName
+         */
         public DeleteLifecyclePolicyTask(String policyName) {
             this(new Request(policyName), null);
         }
@@ -117,8 +121,8 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected Optional<String> operatorHandlerName() {
-        return Optional.of(OperatorLifecycleAction.NAME);
+    protected Optional<String> immutableStateHandlerName() {
+        return Optional.of(ImmutableLifecycleAction.NAME);
     }
 
     @Override

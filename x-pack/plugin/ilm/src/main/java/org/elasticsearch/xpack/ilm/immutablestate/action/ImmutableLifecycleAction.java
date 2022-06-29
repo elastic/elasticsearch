@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ilm.operator.action;
+package org.elasticsearch.xpack.ilm.immutablestate.action;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
+import org.elasticsearch.immutablestate.TransformState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.operator.OperatorHandler;
-import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -34,13 +34,13 @@ import static org.elasticsearch.common.util.Maps.asMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
 /**
- * This {@link OperatorHandler} is responsible for CRUD operations on ILM policies in
- * operator mode, e.g. file based settings.
+ * This {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} is responsible for immutable state
+ * CRUD operations on ILM policies in, e.g. file based settings.
  * <p>
  * Internally it uses {@link TransportPutLifecycleAction} and
  * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
-public class OperatorLifecycleAction implements OperatorHandler<LifecyclePolicy> {
+public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<LifecyclePolicy> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -48,7 +48,7 @@ public class OperatorLifecycleAction implements OperatorHandler<LifecyclePolicy>
 
     public static final String NAME = "ilm";
 
-    public OperatorLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
+    public ImmutableLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;

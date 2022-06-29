@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.immutablestate.action.ImmutableLifecycleAction;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -146,7 +146,10 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         /**
-         * Constructor used in operator mode. It disables verbose logging and has no filtered headers.
+         * Used by the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} for ILM
+         * {@link ImmutableLifecycleAction}
+         * <p>
+         * It disables verbose logging and has no filtered headers.
          *
          * @param request
          * @param licenseState
@@ -313,8 +316,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected Optional<String> operatorHandlerName() {
-        return Optional.of(OperatorLifecycleAction.NAME);
+    protected Optional<String> immutableStateHandlerName() {
+        return Optional.of(ImmutableLifecycleAction.NAME);
     }
 
     @Override

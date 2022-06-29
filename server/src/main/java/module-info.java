@@ -360,5 +360,5 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
     provides org.apache.logging.log4j.util.PropertySource with org.elasticsearch.common.logging.ESSystemPropertiesPropertySource;
 
-    uses org.elasticsearch.operator.OperatorHandlerProvider;
+    uses org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
 }

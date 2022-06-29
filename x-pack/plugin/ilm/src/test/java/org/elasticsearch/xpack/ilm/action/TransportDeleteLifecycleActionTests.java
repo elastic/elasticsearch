@@ -14,13 +14,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
-import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.immutablestate.action.ImmutableLifecycleAction;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 
 public class TransportDeleteLifecycleActionTests extends ESTestCase {
-    public void testOperatorHandler() {
+    public void testImmutableHandler() {
         TransportDeleteLifecycleAction putAction = new TransportDeleteLifecycleAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -28,7 +28,7 @@ public class TransportDeleteLifecycleActionTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
-        assertEquals(OperatorLifecycleAction.NAME, putAction.operatorHandlerName().get());
+        assertEquals(ImmutableLifecycleAction.NAME, putAction.immutableStateHandlerName().get());
 
         DeleteLifecycleAction.Request request = new DeleteLifecycleAction.Request("my_timeseries_lifecycle2");
         assertThat(putAction.modifiedKeys(request), containsInAnyOrder("my_timeseries_lifecycle2"));

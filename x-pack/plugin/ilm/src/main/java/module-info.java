@@ -1,3 +1,5 @@
+import org.elasticsearch.xpack.ilm.immutablestate.ILMImmutableStateHandlerProvider;
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -17,5 +19,5 @@ module org.elasticsearch.ilm {
     exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
 
-    provides org.elasticsearch.operator.OperatorHandlerProvider with org.elasticsearch.xpack.ilm.operator.ILMOperatorHandlerProvider;
+    provides org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider with ILMImmutableStateHandlerProvider;
 }

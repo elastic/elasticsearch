@@ -5,15 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ilm.action.operator;
+package org.elasticsearch.xpack.ilm.action.immutablestate;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.immutablestate.TransformState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
-import org.elasticsearch.xpack.ilm.operator.action.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.immutablestate.action.ImmutableLifecycleAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class OperatorILMControllerTests extends ESTestCase {
+public class ImmutableILMStateControllerTests extends ESTestCase {
 
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
@@ -86,7 +86,7 @@ public class OperatorILMControllerTests extends ESTestCase {
         return new NamedXContentRegistry(entries);
     }
 
-    private TransformState processJSON(OperatorLifecycleAction action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(ImmutableLifecycleAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(parser.map(), prevState);
         }
@@ -98,7 +98,7 @@ public class OperatorILMControllerTests extends ESTestCase {
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
         ClusterState state = ClusterState.builder(clusterName).build();
-        OperatorLifecycleAction action = new OperatorLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
+        ImmutableLifecycleAction action = new ImmutableLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
         TransformState prevState = new TransformState(state, Collections.emptySet());
 
         String badPolicyJSON = """
@@ -127,7 +127,7 @@ public class OperatorILMControllerTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
 
-        OperatorLifecycleAction action = new OperatorLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
+        ImmutableLifecycleAction action = new ImmutableLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
 
         String emptyJSON = "";
 

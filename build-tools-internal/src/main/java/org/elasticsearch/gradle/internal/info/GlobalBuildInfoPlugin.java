@@ -18,12 +18,18 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
 import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
 import org.gradle.internal.jvm.inspection.JvmVendor;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainSpec;
+import org.gradle.jvm.toolchain.JvmImplementation;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
@@ -54,16 +60,19 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
+    private final ObjectFactory objectFactory;
 
     @Inject
     public GlobalBuildInfoPlugin(
         JavaInstallationRegistry javaInstallationRegistry,
         JvmMetadataDetector metadataDetector,
-        ProviderFactory providers
+        ProviderFactory providers,
+        ObjectFactory objectFactory
     ) {
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
+        this.objectFactory = objectFactory;
     }
 
     @Override
@@ -85,9 +94,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File rootDir = project.getRootDir();
         GitInfo gitInfo = GitInfo.gitInfo(rootDir);
 
+        Provider<JavaToolchainSpec> toolchainSpec = resolveOptionalToolchainSpec();
         BuildParams.init(params -> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
+            params.setJavaToolChain(toolchainSpec);
             // TODO: Temporarily hard-code this to 17 until we upgrade to Gradle 7.3 and bump minimumRuntimeVersion
             params.setRuntimeJavaVersion(
                 determineJavaVersion(
@@ -120,6 +131,21 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         // Print global build info header just before task execution
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+    }
+
+    private Provider<JavaToolchainSpec> resolveOptionalToolchainSpec() {
+        return providers.environmentVariable("JAVA_TOOLCHAIN_HOME").map(toolChainEnvVariable -> {
+            System.out.println("toolChainEnvVariable = " + toolChainEnvVariable);
+            File toolChainDir = new File(toolChainEnvVariable);
+            if (toolChainDir.exists() == false) {
+                throw new GradleException("JAVA_TOOLCHAIN_HOME environment variable pointing to a non existing directory");
+            }
+            if (toolChainDir.isDirectory() == false) {
+                throw new GradleException("JAVA_TOOLCHAIN_HOME environment variable pointing not to a directory");
+            }
+            JvmInstallationMetadata metadata = metadataDetector.getMetadata(toolChainDir);
+            return new MetaDataBasedJavaToolchainSpec(objectFactory, metadata);
+        });
     }
 
     private String formatJavaVendorDetails(JvmInstallationMetadata runtimeJdkMetaData) {
@@ -334,4 +360,39 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
+    private class MetaDataBasedJavaToolchainSpec implements JavaToolchainSpec {
+
+        private final Property<JvmVendorSpec> vendor;
+        private final Property<JvmImplementation> implementation;
+        private final Property<JavaLanguageVersion> languageVersion;
+
+        private final JvmInstallationMetadata metadata;
+
+        public MetaDataBasedJavaToolchainSpec(ObjectFactory objectFactory, JvmInstallationMetadata metadata) {
+            this.metadata = metadata;
+            this.vendor = objectFactory.property(JvmVendorSpec.class).value(JvmVendorSpec.matching(metadata.getVendor().getRawVendor()));
+            this.implementation = objectFactory.property(JvmImplementation.class).value(JvmImplementation.VENDOR_SPECIFIC);
+            this.languageVersion = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(metadata.getLanguageVersion().getMajorVersion()));
+        }
+
+        @Override
+        public Property<JavaLanguageVersion> getLanguageVersion() {
+            return languageVersion;
+        }
+
+        @Override
+        public Property<JvmVendorSpec> getVendor() {
+            return vendor;
+        }
+
+        @Override
+        public Property<JvmImplementation> getImplementation() {
+            return implementation;
+        }
+
+        @Override
+        public String getDisplayName() {
+            return metadata.getDisplayName();
+        }
+    }
 }

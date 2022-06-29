@@ -302,10 +302,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * SPI convenience method that uses the {@link ServiceLoader} JDK class to load various SPI providers
      * from plugins/modules.
-     *
-     * <pre>
+     * <p>
      * For example:
      *
+     * <pre>
      * var pluginHandlers = pluginsService.loadServiceProviders(OperatorHandlerProvider.class);
      * </pre>
      * @param service A templated service class to look for providers in plugins

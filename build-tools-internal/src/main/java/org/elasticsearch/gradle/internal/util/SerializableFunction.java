@@ -14,8 +14,7 @@ import java.util.function.Function;
 /**
  * A functional interface that extends Function but also Serializable.
  *
- * Gradle configuration cache requires fields that represent a lambda must be serializable.
+ * Gradle configuration cache requires fields that represent a lambda to be serializable.
  * */
 @FunctionalInterface
-public interface SerializableFunction<T, R> extends Function<T, R>, Serializable {
-}
+public interface SerializableFunction<T, R> extends Function<T, R>, Serializable {}

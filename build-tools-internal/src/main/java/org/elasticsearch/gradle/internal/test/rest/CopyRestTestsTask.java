@@ -29,9 +29,7 @@ import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
 
 import java.io.File;
-import java.io.Serializable;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;

@@ -29,9 +29,7 @@ import org.gradle.internal.Factory;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.file.Files;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;

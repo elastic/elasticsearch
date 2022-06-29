@@ -144,8 +144,8 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.precisionThreshold = precisionThreshold;
-        // For BWC reasons, the parameter is nullable. Default to the old behavior for now.
-        this.executionMode = executionHint == null ? ExecutionMode.SAVE_MEMORY_HEURISTIC : ExecutionMode.fromString(executionHint);
+        // For BWC reasons, the parameter is nullable.
+        this.executionMode = executionHint == null ? ExecutionMode.SAVE_TIME_HEURISTIC : ExecutionMode.fromString(executionHint);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {

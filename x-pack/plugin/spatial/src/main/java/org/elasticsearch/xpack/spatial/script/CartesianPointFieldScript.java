@@ -103,4 +103,17 @@ public abstract class CartesianPointFieldScript extends AbstractPointFieldScript
         long value = yi | xi << 32;
         emit(value);
     }
+
+    // This cannot be generic and moved to parent class because it is used by painless
+    public static class Emit {
+        private final CartesianPointFieldScript script;
+
+        public Emit(CartesianPointFieldScript script) {
+            this.script = script;
+        }
+
+        public void emit(double a, double b) {
+            script.emit(a, b);
+        }
+    }
 }

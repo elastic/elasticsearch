@@ -49,6 +49,16 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
     }
 
     @Override
+    public GeoPoint topLeft() {
+        return topLeft;
+    }
+
+    @Override
+    public GeoPoint bottomRight() {
+        return bottomRight;
+    }
+
+    @Override
     public double top() {
         return topLeft.lat();
     }

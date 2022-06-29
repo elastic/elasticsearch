@@ -55,6 +55,18 @@ public class GeoPointDocValuesField extends PointDocValuesField<GeoPoint> {
     }
 
     @Override
+    public GeoPoint get(GeoPoint defaultValue) {
+        // While this method seems redundant, it is needed for painless scripting method lookups which cannot handle generics
+        return super.get(defaultValue);
+    }
+
+    @Override
+    public GeoPoint get(int index, GeoPoint defaultValue) {
+        // While this method seems redundant, it is needed for painless scripting method lookups which cannot handle generics
+        return super.get(index, defaultValue);
+    }
+
+    @Override
     public ScriptDocValues<GeoPoint> toScriptDocValues() {
         if (geoPoints == null) {
             geoPoints = new ScriptDocValues.GeoPoints(this);

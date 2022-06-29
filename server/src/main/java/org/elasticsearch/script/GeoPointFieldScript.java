@@ -105,4 +105,17 @@ public abstract class GeoPointFieldScript extends AbstractPointFieldScript<GeoPo
         int longitudeEncoded = encodeLongitude(lon);
         emit((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL));
     }
+
+    // This cannot be generic and moved to parent class because it is used by painless
+    public static class Emit {
+        private final GeoPointFieldScript script;
+
+        public Emit(GeoPointFieldScript script) {
+            this.script = script;
+        }
+
+        public void emit(double lat, double lon) {
+            script.emit(lat, lon);
+        }
+    }
 }

@@ -12,6 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.BoundingBox;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -221,9 +222,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public abstract static class Geometry<T extends ToXContentFragment, V> extends ScriptDocValues<V> {
+    public abstract static class BaseGeometry<T extends ToXContentFragment, V> extends ScriptDocValues<V> {
 
-        public Geometry(Supplier<V> supplier) {
+        public BaseGeometry(Supplier<V> supplier) {
             super(supplier);
         }
 
@@ -246,6 +247,24 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract double getMercatorHeight();
     }
 
+    public abstract static class Geometry<V> extends BaseGeometry<GeoPoint, V> {
+        public Geometry(Supplier<V> supplier) {
+            super(supplier);
+        }
+
+        /** Returns the bounding box of this geometry  */
+        @Override
+        public abstract GeoBoundingBox getBoundingBox();
+
+        /** Returns the suggested label position  */
+        @Override
+        public abstract GeoPoint getLabelPosition();
+
+        /** Returns the centroid of this geometry  */
+        @Override
+        public abstract GeoPoint getCentroid();
+    }
+
     public interface GeometrySupplier<T extends ToXContentFragment, V> extends Supplier<V> {
 
         T getInternalCentroid();
@@ -255,7 +274,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         T getInternalLabelPosition();
     }
 
-    public static class GeoPoints extends Geometry<GeoPoint, GeoPoint> {
+    public static class GeoPoints extends Geometry<GeoPoint> {
 
         private final GeometrySupplier<GeoPoint, GeoPoint> geometrySupplier;
 
@@ -366,8 +385,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public BoundingBox<GeoPoint> getBoundingBox() {
-            return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
+        public GeoBoundingBox getBoundingBox() {
+            return size() == 0 ? null : (GeoBoundingBox) geometrySupplier.getInternalBoundingBox();
         }
 
         @Override

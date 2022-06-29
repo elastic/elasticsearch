@@ -74,7 +74,7 @@ public abstract class LeafShapeFieldData<T extends ToXContentFragment> implement
         return toScriptFieldFactory.getScriptFieldFactory(getShapeValues(), name);
     }
 
-    public static class ShapeScriptValues<T extends ToXContentFragment> extends ScriptDocValues.Geometry<T, ShapeValues.ShapeValue<T>> {
+    public static class ShapeScriptValues<T extends ToXContentFragment> extends ScriptDocValues.BaseGeometry<T, ShapeValues.ShapeValue<T>> {
 
         private final GeometrySupplier<T, ShapeValues.ShapeValue<T>> gsSupplier;
 

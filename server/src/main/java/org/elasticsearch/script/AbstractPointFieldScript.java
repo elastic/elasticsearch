@@ -92,16 +92,4 @@ public abstract class AbstractPointFieldScript<T extends ToXContentFragment> ext
     protected abstract void emitPoint(Object point);
 
     protected abstract void emit(double a, double b);
-
-    public static class Emit<T extends ToXContentFragment> {
-        private final AbstractPointFieldScript<T> script;
-
-        public Emit(AbstractPointFieldScript<T> script) {
-            this.script = script;
-        }
-
-        public void emit(double a, double b) {
-            script.emit(a, b);
-        }
-    }
 }

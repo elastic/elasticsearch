@@ -1,7 +1,9 @@
-// tag::cloud[]
+// tag::ui[]
 In order to restore the indices and data streams that are missing data:
 
 **Use {kib}**
+
+If you are self-managed user, you can go straight to {kib} and start from step 3.
 
 //tag::kibana-api-ex[]
 . Log in to the {ess-console}[{ecloud} console].
@@ -64,9 +66,9 @@ For more guidance on creating and restoring snapshots see
 <<snapshot-restore, this guide>>.
 
 //end::kibana-api-ex[]
-// end::cloud[]
+// end::ui[]
 
-// tag::self-managed[]
+// tag::api[]
 In order to restore the indices that are missing shards:
 
 . View the affected indices using the <<cat-indices,cat indices API>>.
@@ -208,4 +210,4 @@ As we can see above the indices are `green` and open. The issue is resolved.
 +
 For more guidance on creating and restoring snapshots see
 <<snapshot-restore, this guide>>.
-// end::self-managed[]
+// end::api[]

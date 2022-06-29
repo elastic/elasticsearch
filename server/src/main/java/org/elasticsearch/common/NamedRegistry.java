@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.index.analysis.TokenizerFactory;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +53,12 @@ public class NamedRegistry<T> {
             for (Map.Entry<String, T> entry : map.entrySet()) {
                 register(entry.getKey(), entry.getValue());
             }
+        }
+    }
+
+    public void register(Map<String, T> collect) {
+        for (Map.Entry<String, T> entry : collect.entrySet()) {
+            register(entry.getKey(), entry.getValue());
         }
     }
 }

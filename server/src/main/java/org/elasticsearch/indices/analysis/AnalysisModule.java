@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -302,9 +303,27 @@ public final class AnalysisModule {
     private static NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
+
+        /*ServiceLoader<org.elasticsearch.sp.api.analysis.AnalysisPlugin> load =
+            ServiceLoader.load(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class);
+        for (org.elasticsearch.sp.api.analysis.AnalysisPlugin module : load) {
+            Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenizerFactory>> tokenizerFactories =
+                module.getTokenizerFactories();
+
+            *//*need to provide plugin's class loader otherwise no results??*//*
+            // Optional<ServiceLoader.Provider<TokenFilterFactoryProvider>> first = load.stream().findFirst();
+
+            Map<String,AnalysisProvider<TokenizerFactory>> collect = emptyMap(); *//*= tokenizerFactories.entrySet()
+                .stream().map(AnalysisModule::mapTokenizersToOldApi)
+                .collect(Collectors.toMap());*//*
+            tokenizers.register(collect);
+        }*/
+
+
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
         return tokenizers;
     }
+
 
     private static NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupAnalyzers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = new NamedRegistry<>("analyzer");

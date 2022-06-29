@@ -155,7 +155,7 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   bwc_tests_enabled = false
 }
 
-subprojects {
+subprojects { proj ->
   apply plugin: 'elasticsearch.base'
 }
 
@@ -227,9 +227,6 @@ allprojects {
       it.enabled = false
     }
     maybeConfigure(project.tasks, 'dependenciesInfo') {
-      it.enabled = false
-    }
-    maybeConfigure(project.tasks, 'dependenciesGraph') {
       it.enabled = false
     }
   }

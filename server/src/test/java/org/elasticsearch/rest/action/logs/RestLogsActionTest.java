@@ -104,6 +104,19 @@ public class RestLogsActionTest extends RestActionTestCase {
         dispatchRequest(req);
     }
 
+    @Test
+    public void testMergeGlobalAndEventMetadata() {
+        RestRequest req = createLogsRequest("/_logs/foo", Map.of("data_stream.namespace", "bar"));
+        setBulkRequestVerifier((actionType, request) -> {
+            assertEquals(1, request.requests().size());
+            Map<String, Object> doc = ((IndexRequest) request.requests().get(0)).sourceAsMap();
+            assertEquals("foo", getPath(doc, "data_stream.dataset"));
+            assertEquals("bar", getPath(doc, "data_stream.namespace"));
+            return Mockito.mock(BulkResponse.class);
+        });
+        dispatchRequest(req);
+    }
+
     private void assertDataStreamFields(String dataset, String namespace, DocWriteRequest<?> docWriteRequest) {
         IndexRequest indexRequest = (IndexRequest) docWriteRequest;
         assertEquals("logs-" + dataset + "-" + namespace, indexRequest.index());

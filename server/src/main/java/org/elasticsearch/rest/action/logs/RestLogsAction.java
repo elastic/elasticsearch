@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.MapUtils;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -85,6 +86,7 @@ public class RestLogsAction extends BaseRestHandler {
                 if (line.startsWith("{")) {
                     try {
                         event = parseJson(line);
+                        expandDots(event);
                     } catch (Exception e) {
                         event = new HashMap<>();
                         addPath(event, "event.original", line);
@@ -94,20 +96,18 @@ public class RestLogsAction extends BaseRestHandler {
                 } else {
                     event = Map.of("message", line);
                 }
-                if (event.containsKey("_metadata")) {
+                if (event.size() == 1 && event.containsKey("_metadata")) {
                     Map<String, Object> metadata = getMetadata(event);
                     expandDots(metadata);
                     if (i == 0) {
-                        globalMetadata.putAll(metadata);
+                        MapUtils.recursiveMerge(globalMetadata, metadata);
                     } else {
                         localMetadata = metadata;
                     }
                 } else {
                     HashMap<String, Object> doc = new HashMap<>(globalMetadata);
-                    // TODO try re-using org.elasticsearch.ingest.common.JsonProcessor.recursiveMerge
-                    doc.putAll(localMetadata);
-                    doc.putAll(event);
-                    expandDots(doc);
+                    MapUtils.recursiveMerge(doc, localMetadata);
+                    MapUtils.recursiveMerge(doc, event);
                     if (doc.containsKey("@timestamp") == false) {
                         String now = Instant.now().toString();
                         doc.put("@timestamp", now);

@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.MapUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -113,32 +114,12 @@ public final class JsonProcessor extends AbstractProcessor {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
             if (conflictStrategy == ConflictStrategy.MERGE) {
-                recursiveMerge(ctx, map);
+                MapUtils.recursiveMerge(ctx, map);
             } else {
                 ctx.putAll(map);
             }
         } else {
             throw new IllegalArgumentException("cannot add non-map fields to root of document");
-        }
-    }
-
-    public static void recursiveMerge(Map<String, Object> target, Map<String, Object> from) {
-        for (String key : from.keySet()) {
-            if (target.containsKey(key)) {
-                Object targetValue = target.get(key);
-                Object fromValue = from.get(key);
-                if (targetValue instanceof Map && fromValue instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> targetMap = (Map<String, Object>) targetValue;
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> fromMap = (Map<String, Object>) fromValue;
-                    recursiveMerge(targetMap, fromMap);
-                } else {
-                    target.put(key, fromValue);
-                }
-            } else {
-                target.put(key, from.get(key));
-            }
         }
     }
 

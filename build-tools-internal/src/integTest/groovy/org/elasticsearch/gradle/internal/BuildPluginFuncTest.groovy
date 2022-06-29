@@ -24,13 +24,9 @@ import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarHellJ
 
 class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
-    @ClassRule
-    @Shared
-    public TemporaryFolder repoFolder = new TemporaryFolder()
-
     @Shared
     @ClassRule
-    public LocalRepositoryFixture repository = new LocalRepositoryFixture(repoFolder)
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def EXAMPLE_LICENSE = """\
         Redistribution and use in source and binary forms, with or without

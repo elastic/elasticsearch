@@ -86,7 +86,9 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
 
         DependencyHandler dependencies = project.getDependencies();
         String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
-        Provider<String> conventionsDependencyProvider = project.provider(() -> "org.elasticsearch:build-conventions:" + project.getVersion());
+        Provider<String> conventionsDependencyProvider = project.provider(
+            () -> "org.elasticsearch:build-conventions:" + project.getVersion()
+        );
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
         dependencies.addProvider("checkstyle", conventionsDependencyProvider, dep -> dep.setTransitive(false));
 

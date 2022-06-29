@@ -325,6 +325,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return super.equals(obj)
             && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
             && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
+
             && Objects.equals(binaryCommunication, ((SqlQueryRequest) obj).binaryCommunication)
             && keepOnCompletion == ((SqlQueryRequest) obj).keepOnCompletion
             && allowPartialSearchResults == ((SqlQueryRequest) obj).allowPartialSearchResults

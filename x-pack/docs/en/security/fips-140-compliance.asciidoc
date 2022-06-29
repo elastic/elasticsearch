@@ -27,8 +27,8 @@ For {es}, adherence to FIPS 140-2 is ensured by
 [discrete]
 === Upgrade considerations
 
-[IMPORTANT] 
-==== 
+[IMPORTANT]
+====
 include::fips-java17.asciidoc[]
 ====
 
@@ -158,7 +158,6 @@ Due to the limitations that FIPS 140-2 compliance enforces, a small number of
 features are not available while running in FIPS 140-2 mode. The list is as follows:
 
 * Azure Classic Discovery Plugin
-* Ingest Attachment Plugin
 * The <<certutil,`elasticsearch-certutil`>> tool. However,
  `elasticsearch-certutil` can very well be used in a non FIPS 140-2
   configured JVM (pointing `ES_JAVA_HOME` environment variable to a different

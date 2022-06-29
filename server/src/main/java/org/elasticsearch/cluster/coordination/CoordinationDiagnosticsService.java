@@ -355,7 +355,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             nodeToClusterFormationStateOrExceptionMapCopy.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
-            if (hasDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)) {
+        if (hasDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)) {
             result = new CoordinationDiagnosticsResult(
                 CoordinationDiagnosticsStatus.RED,
                 String.format(

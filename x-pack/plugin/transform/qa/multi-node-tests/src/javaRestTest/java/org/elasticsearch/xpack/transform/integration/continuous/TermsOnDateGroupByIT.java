@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -33,7 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * Note: dates are currently written as long (epoch_ms) into the transform dest index.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88063")
 public class TermsOnDateGroupByIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-terms-on-date-pivot-test";

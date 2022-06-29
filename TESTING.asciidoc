@@ -771,10 +771,6 @@ as its build system. Since the switch to Gradle though, this is no longer possib
 the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
 For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
 
----------------------------------------------------------------------------
-
-Read your IDE documentation for how to attach a debugger to a JVM process.
-
 == Building with extra plugins
 Additional plugins may be built alongside elasticsearch, where their
 dependency on elasticsearch will be substituted with the local elasticsearch

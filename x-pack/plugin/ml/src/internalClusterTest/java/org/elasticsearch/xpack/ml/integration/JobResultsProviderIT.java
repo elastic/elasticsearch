@@ -600,7 +600,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Consumer<Exception> exceptionConsumer
     ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.getDataCountsModelSizeAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
+        jobProvider.getDataCountsModelSizeAndTimingStats(jobId, null, (dataCounts, modelSizeStats, timingStats) -> {
             dataCountsConsumer.accept(dataCounts);
             modelSizeStatsConsumer.accept(modelSizeStats);
             timingStatsConsumer.accept(timingStats);

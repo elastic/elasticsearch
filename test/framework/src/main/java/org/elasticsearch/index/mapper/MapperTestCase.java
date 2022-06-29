@@ -821,22 +821,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         int count = between(2, 1000);
         String[] expected = new String[count];
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(
-                random(),
-                directory,
-                LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
-            );
-            for (int i = 0; i < count; i++) {
-                if (rarely()) {
-                    expected[i] = "{}";
-                    iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
-                    continue;
+            try (
+                RandomIndexWriter iw = new RandomIndexWriter(
+                    random(),
+                    directory,
+                    LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
+                for (int i = 0; i < count; i++) {
+                    if (rarely()) {
+                        expected[i] = "{}";
+                        iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
+                        continue;
+                    }
+                    SyntheticSourceExample example = support.example(maxValues);
+                    expected[i] = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", example.result).endObject());
+                    iw.addDocument(mapper.parse(source(b -> b.field("field", example.inputValue))).rootDoc());
                 }
-                SyntheticSourceExample example = support.example(maxValues);
-                expected[i] = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", example.result).endObject());
-                iw.addDocument(mapper.parse(source(b -> b.field("field", example.inputValue))).rootDoc());
             }
-            iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());

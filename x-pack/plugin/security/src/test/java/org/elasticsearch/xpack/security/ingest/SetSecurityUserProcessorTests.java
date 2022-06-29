@@ -379,7 +379,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             .build();
         auth.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(
             IngestDocument.deepCopyMap(Map.of("_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))))
         );
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(

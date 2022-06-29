@@ -26,7 +26,6 @@ import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
-import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.util.List;
 
@@ -107,21 +106,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      */
     public static void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
-
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
-        Provider<JavaToolchainSpec> optionalJavaToolChain = BuildParams.getJavaToolChain();
-        if (optionalJavaToolChain.isPresent()) {
-            java.toolchain(spec -> {
-                JavaToolchainSpec givenToolChain = optionalJavaToolChain.get();
-                System.out.println("givenToolChain = " + givenToolChain.getDisplayName());
-                System.out.println("vendor = " + givenToolChain.getVendor().get());
-                System.out.println("language = " + givenToolChain.getLanguageVersion().get());
-                System.out.println("implementation = " + givenToolChain.getImplementation().get());
-                spec.getImplementation().set(givenToolChain.getImplementation().get());
-                spec.getLanguageVersion().set(givenToolChain.getLanguageVersion().get());
-                spec.getVendor().set(givenToolChain.getVendor().get());
-            });
-        }
+        BuildParams.getJavaToolChainSpec().map(spec -> java.toolchain(spec)).getOrNull();
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {

@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.provider.Provider;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
@@ -29,7 +30,7 @@ public class BuildParams {
     private static JavaVersion minimumRuntimeVersion;
     private static JavaVersion gradleJavaVersion;
     private static JavaVersion runtimeJavaVersion;
-    private static Provider<JavaToolchainSpec> javaToolChain;
+    private static Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
     private static String runtimeJavaDetails;
     private static Boolean inFipsJvm;
     private static String gitRevision;
@@ -121,8 +122,8 @@ public class BuildParams {
         return value(BuildParams.isSnapshotBuild);
     }
 
-    public static Provider<JavaToolchainSpec> getJavaToolChain() {
-        return javaToolChain;
+    public static Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
+        return javaToolChainSpec;
     }
 
     private static <T> T value(T object) {
@@ -234,8 +235,8 @@ public class BuildParams {
             BuildParams.bwcVersions = requireNonNull(bwcVersions);
         }
 
-        public void setJavaToolChain(Provider<JavaToolchainSpec> javaToolChain) {
-            BuildParams.javaToolChain = javaToolChain;
+        public void setJavaToolChainSpec(Provider<? extends Action<JavaToolchainSpec>> javaToolChain) {
+            BuildParams.javaToolChainSpec = javaToolChain;
         }
     }
 }

@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -2232,8 +2233,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
 
-    private List<Document> generateDocsWithNested(String id, int value, int[] nestedValues) {
-        List<Document> documents = new ArrayList<>();
+    private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
+        List<Iterable<IndexableField>> documents = new ArrayList<>();
 
         for (int nestedValue : nestedValues) {
             Document document = new Document();
@@ -2243,24 +2244,24 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             documents.add(document);
         }
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(new SortedNumericDocValuesField("value", value));
-        document.add(sequenceIDFields.primaryTerm);
+        sequenceIDFields.addFields(document);
         documents.add(document);
 
         return documents;
     }
 
-    private List<List<IndexableField>> generateAnimalDocsWithNested(
+    private List<Iterable<IndexableField>> generateAnimalDocsWithNested(
         String id,
         KeywordFieldType animalFieldType,
         String animal,
         String[] tags,
         int[] nestedValues
     ) {
-        List<List<IndexableField>> documents = new ArrayList<>();
+        List<Iterable<IndexableField>> documents = new ArrayList<>();
 
         for (int i = 0; i < tags.length; i++) {
             List<IndexableField> document = new ArrayList<>();
@@ -2272,11 +2273,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             documents.add(document);
         }
 
-        List<IndexableField> document = new ArrayList<>();
+        LuceneDocument document = new LuceneDocument();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         document.addAll(doc(animalFieldType, animal));
         document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-        document.add(sequenceIDFields.primaryTerm);
+        sequenceIDFields.addFields(document);
         documents.add(document);
 
         return documents;

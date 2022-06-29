@@ -133,7 +133,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(toolChainDir);
             if (metadata.isValidInstallation() == false) {
                 throw new GradleException(
-                    "configured JAVA_TOOLCHAIN_HOME " + toolChainEnvVariable + " does not point to a valid jdk installation"
+                    "Configured JAVA_TOOLCHAIN_HOME " + toolChainEnvVariable + " does not point to a valid jdk installation."
                 );
             }
             return new MetadataBasedToolChainMatcher(metadata);
@@ -181,6 +181,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         } else {
             LOGGER.quiet("  JDK Version           : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
+        }
+        String javaToolchainHome = System.getenv("JAVA_TOOLCHAIN_HOME");
+        if (javaToolchainHome != null) {
+            LOGGER.quiet("  JAVA TOOLCHAIN HOME   : " + javaToolchainHome);
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
         LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());

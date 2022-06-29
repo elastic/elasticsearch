@@ -248,9 +248,10 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         List<String> updateIndices = Collections.singletonList("a-different-index");
         update.setIndices(updateIndices);
 
-        BiConsumer<DatafeedConfig, ActionListener<Boolean>> validateErrorFunction = (updatedConfig, listener) -> {
-            new Thread(() -> listener.onFailure(new IllegalArgumentException("this is a bad update")), getTestName()).start();
-        };
+        BiConsumer<DatafeedConfig, ActionListener<Boolean>> validateErrorFunction = (updatedConfig, listener) -> new Thread(
+            () -> listener.onFailure(new IllegalArgumentException("this is a bad update")),
+            getTestName()
+        ).start();
 
         AtomicReference<DatafeedConfig> configHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -277,7 +278,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedIds("_all", false, null, false, actionListener),
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("_all", false, null, false, null, actionListener),
             datafeedIdsHolder,
             exceptionHolder
         );
@@ -289,7 +290,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         exceptionHolder.set(null);
         blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedIds("_all", true, null, false, actionListener),
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("_all", true, null, false, null, actionListener),
             datafeedIdsHolder,
             exceptionHolder
         );
@@ -298,7 +299,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<List<DatafeedConfig.Builder>> datafeedsHolder = new AtomicReference<>();
         blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*", false, actionListener),
+            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*", false, null, actionListener),
             datafeedsHolder,
             exceptionHolder
         );
@@ -310,7 +311,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         exceptionHolder.set(null);
         blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*", true, actionListener),
+            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*", true, null, actionListener),
             datafeedsHolder,
             exceptionHolder
         );
@@ -329,27 +330,33 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         // Test datafeed IDs only
         SortedSet<String> expandedIds = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedIds("foo*", true, null, false, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("foo*", true, null, false, null, actionListener)
         );
         assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("*-1", true, null, false, actionListener));
+        expandedIds = blockingCall(
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("*-1", true, null, false, null, actionListener)
+        );
         assertEquals(new TreeSet<>(Arrays.asList("bar-1", "foo-1")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("bar*", true, null, false, actionListener));
+        expandedIds = blockingCall(
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("bar*", true, null, false, null, actionListener)
+        );
         assertEquals(new TreeSet<>(Arrays.asList("bar-1", "bar-2")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("b*r-1", true, null, false, actionListener));
+        expandedIds = blockingCall(
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("b*r-1", true, null, false, null, actionListener)
+        );
         assertEquals(new TreeSet<>(Collections.singletonList("bar-1")), expandedIds);
 
         expandedIds = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedIds("bar-1,foo*", true, null, false, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("bar-1,foo*", true, null, false, null, actionListener)
         );
         assertEquals(new TreeSet<>(Arrays.asList("bar-1", "foo-1", "foo-2")), expandedIds);
 
         // Test full datafeed config
         List<DatafeedConfig.Builder> expandedDatafeedBuilders = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("foo*", true, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("foo*", true, null, actionListener)
         );
         List<DatafeedConfig> expandedDatafeeds = expandedDatafeedBuilders.stream()
             .map(DatafeedConfig.Builder::build)
@@ -357,25 +364,25 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(expandedDatafeeds, containsInAnyOrder(foo1, foo2));
 
         expandedDatafeedBuilders = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*-1", true, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("*-1", true, null, actionListener)
         );
         expandedDatafeeds = expandedDatafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList());
         assertThat(expandedDatafeeds, containsInAnyOrder(foo1, bar1));
 
         expandedDatafeedBuilders = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("bar*", true, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("bar*", true, null, actionListener)
         );
         expandedDatafeeds = expandedDatafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList());
         assertThat(expandedDatafeeds, containsInAnyOrder(bar1, bar2));
 
         expandedDatafeedBuilders = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("b*r-1", true, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("b*r-1", true, null, actionListener)
         );
         expandedDatafeeds = expandedDatafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList());
         assertThat(expandedDatafeeds, containsInAnyOrder(bar1));
 
         expandedDatafeedBuilders = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("bar-1,foo*", true, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedConfigs("bar-1,foo*", true, null, actionListener)
         );
         expandedDatafeeds = expandedDatafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList());
         assertThat(expandedDatafeeds, containsInAnyOrder(bar1, foo1, foo2));
@@ -398,12 +405,12 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<SortedSet<String>> datafeedIdsHolder = new AtomicReference<>();
         // Test datafeed IDs only
         SortedSet<String> expandedIds = blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedIds("foo*", false, tasks, true, actionListener)
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("foo*", false, tasks, true, null, actionListener)
         );
         assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
 
         blockingCall(
-            actionListener -> datafeedConfigProvider.expandDatafeedIds("foo-1*,foo-2*", false, tasks, false, actionListener),
+            actionListener -> datafeedConfigProvider.expandDatafeedIds("foo-1*,foo-2*", false, tasks, false, null, actionListener),
             datafeedIdsHolder,
             exceptionHolder
         );

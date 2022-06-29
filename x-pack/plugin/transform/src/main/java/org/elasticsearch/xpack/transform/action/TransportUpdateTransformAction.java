@@ -195,7 +195,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     }
 
     @Override
-    protected void taskOperation(Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
         // apply the settings
         transformTask.applyNewSettings(request.getConfig().getSettings());
         listener.onResponse(new Response(request.getConfig()));

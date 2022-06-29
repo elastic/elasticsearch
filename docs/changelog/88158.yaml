@@ -1,0 +1,6 @@
+pr: 88158
+summary: Sanitize Azure SAS tokens before configuring the SDK
+area: Snapshot/Restore
+type: bug
+issues:
+ - 88140

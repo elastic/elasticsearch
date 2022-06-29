@@ -14,8 +14,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -25,6 +27,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -196,9 +199,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testUpdateApiKey() throws IOException {
-        final String expectedApiKeyName = "my-api-key-name";
-        final Map<String, String> expectedApiKeyMetadata = Map.of("not", "returned");
-        final Map<String, Object> createApiKeyRequestBody = Map.of("name", expectedApiKeyName, "metadata", expectedApiKeyMetadata);
+        final String apiKeyName = "my-api-key-name";
+        final Map<String, String> apiKeyMetadata = Map.of("not", "returned");
+        final Map<String, Object> createApiKeyRequestBody = Map.of("name", apiKeyName, "metadata", apiKeyMetadata);
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
@@ -211,15 +214,18 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(apiKeyEncoded, not(emptyString()));
 
         final Request updateApiKeyRequest = new Request(randomFrom("POST", "PUT"), "_security/api_key/_update/" + apiKeyId);
+        final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
         final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
 
         final Response updateApiKeyResponse = adminClient().performRequest(updateApiKeyRequest);
+        assertOK(updateApiKeyResponse);
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
         assertTrue((Boolean) updateApiKeyResponseMap.get("updated"));
 
-        // validate authentication works after update
-        doTestAuthenticationWithApiKey(expectedApiKeyName, apiKeyId, apiKeyEncoded);
+        // validate authentication still works after update
+        doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+        expectMetadata(apiKeyId, expectedApiKeyMetadata);
     }
 
     private void doTestAuthenticationWithApiKey(
@@ -239,5 +245,18 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
         // If authentication type is other, authentication.api_key not present.
         assertThat(authenticate, hasEntry("api_key", Map.of("id", actualApiKeyId, "name", expectedApiKeyName)));
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private void expectMetadata(final String apiKeyId, final Map<String, Object> expectedMetadata) throws IOException {
+        final var request = new Request("GET", "_security/api_key/");
+        request.addParameter("id", apiKeyId);
+        final Response response = adminClient().performRequest(request);
+        assertOK(response);
+        try (XContentParser parser = responseAsParser(response)) {
+            final var apiKeyResponse = GetApiKeyResponse.fromXContent(parser);
+            assertThat(apiKeyResponse.getApiKeyInfos().length, equalTo(1));
+            assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata));
+        }
     }
 }

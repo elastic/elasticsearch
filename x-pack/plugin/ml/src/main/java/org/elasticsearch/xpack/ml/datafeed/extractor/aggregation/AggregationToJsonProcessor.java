@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -381,7 +380,7 @@ class AggregationToJsonProcessor {
         } else if (agg instanceof Percentiles) {
             return processPercentiles((Percentiles) agg);
         } else if (agg instanceof GeoCentroid) {
-            return processGeoCentroid((GeoCentroid<GeoPoint>) agg);
+            return processGeoCentroid((GeoCentroid) agg);
         } else {
             throw new IllegalArgumentException("Unsupported aggregation type [" + agg.getName() + "]");
         }
@@ -399,7 +398,7 @@ class AggregationToJsonProcessor {
         return false;
     }
 
-    private boolean processGeoCentroid(GeoCentroid<GeoPoint> agg) {
+    private boolean processGeoCentroid(GeoCentroid agg) {
         if (agg.count() > 0) {
             keyValuePairs.put(agg.getName(), agg.centroid().getLat() + "," + agg.centroid().getLon());
             return true;

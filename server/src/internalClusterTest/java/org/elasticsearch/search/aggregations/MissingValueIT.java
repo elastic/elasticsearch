@@ -216,7 +216,7 @@ public class MissingValueIT extends ESIntegTestCase {
             .addAggregation(geoCentroid("centroid").field("location").missing("2,1"))
             .get();
         assertSearchResponse(response);
-        GeoCentroid<GeoPoint> centroid = response.getAggregations().get("centroid");
+        GeoCentroid centroid = response.getAggregations().get("centroid");
         GeoPoint point = new GeoPoint(1.5, 1.5);
         assertThat(point.lat(), closeTo(centroid.centroid().lat(), 1E-5));
         assertThat(point.lon(), closeTo(centroid.centroid().lon(), 1E-5));

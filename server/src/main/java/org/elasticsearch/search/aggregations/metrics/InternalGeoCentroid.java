@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
-public class InternalGeoCentroid extends InternalCentroid<GeoPoint> {
+public class InternalGeoCentroid extends InternalCentroid<GeoPoint> implements GeoCentroid {
 
     private static long encodeLatLon(double lat, double lon) {
         return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) | Integer.toUnsignedLong(

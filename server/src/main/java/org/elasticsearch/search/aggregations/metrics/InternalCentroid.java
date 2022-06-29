@@ -26,7 +26,7 @@ import java.util.function.Function;
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
-public abstract class InternalCentroid<T extends ToXContentFragment> extends InternalAggregation implements GeoCentroid<T> {
+public abstract class InternalCentroid<T extends ToXContentFragment> extends InternalAggregation implements CentroidAggregation<T> {
     protected final T centroid;
     protected final long count;
     private final FieldExtractor<T> firstField;

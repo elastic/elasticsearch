@@ -21,7 +21,7 @@ import java.util.Map;
 /**
  * Serialization and merge logic for {@link CartesianCentroidAggregator}.
  */
-public class InternalCartesianCentroid extends InternalCentroid<CartesianPoint> {
+public class InternalCartesianCentroid extends InternalCentroid<CartesianPoint> implements CartesianCentroid {
 
     public InternalCartesianCentroid(String name, CartesianPoint centroid, long count, Map<String, Object> metadata) {
         super(

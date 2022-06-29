@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
-public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid<GeoPoint> {
+public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid {
     private GeoPoint centroid;
     private long count;
 

@@ -41,7 +41,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid<GeoPoint> geoCentroid = response.getAggregations().get(aggName);
+        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
@@ -56,7 +56,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid<GeoPoint> geoCentroid = response.getAggregations().get(aggName);
+        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
@@ -70,7 +70,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid<GeoPoint> geoCentroid = response.getAggregations().get(aggName);
+        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
@@ -86,7 +86,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(response);
 
-        GeoCentroid<GeoPoint> geoCentroid = response.getAggregations().get(aggName);
+        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
@@ -109,7 +109,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertThat(global.getAggregations(), notNullValue());
         assertThat(global.getAggregations().asMap().size(), equalTo(1));
 
-        GeoCentroid<GeoPoint> geoCentroid = global.getAggregations().get(aggName);
+        GeoCentroid geoCentroid = global.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         assertThat((GeoCentroid) ((InternalAggregation) global).getProperty(aggName), sameInstance(geoCentroid));
@@ -136,7 +136,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
             .get();
         assertSearchResponse(searchResponse);
 
-        GeoCentroid<GeoPoint> geoCentroid = searchResponse.getAggregations().get(aggName);
+        GeoCentroid geoCentroid = searchResponse.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();
@@ -160,7 +160,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         for (GeoGrid.Bucket cell : buckets) {
             String geohash = cell.getKeyAsString();
             GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
-            GeoCentroid<GeoPoint> centroidAgg = cell.getAggregations().get(aggName);
+            GeoCentroid centroidAgg = cell.getAggregations().get(aggName);
             assertThat(
                 "Geohash " + geohash + " has wrong centroid latitude ",
                 expectedCentroid.lat(),

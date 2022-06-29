@@ -110,8 +110,8 @@ public final class AggregationTestUtils {
         return avg;
     }
 
-    static GeoCentroid<GeoPoint> createGeoCentroid(String name, long count, double lat, double lon) {
-        GeoCentroid<GeoPoint> centroid = mock(GeoCentroid.class);
+    static GeoCentroid createGeoCentroid(String name, long count, double lat, double lon) {
+        GeoCentroid centroid = mock(GeoCentroid.class);
         when(centroid.count()).thenReturn(count);
         when(centroid.getName()).thenReturn(name);
         GeoPoint point = count > 0 ? new GeoPoint(lat, lon) : null;

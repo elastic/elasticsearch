@@ -16,6 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -86,6 +89,14 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         IndexReader reader = context.getIndexReader();
         int[] segmentStarts = findSegmentStarts(reader, docs);
         return new KnnScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (scoreDocs.length == 0) {
+            return new MatchNoneQueryBuilder();
+        }
+        return super.doRewrite(queryRewriteContext);
     }
 
     private int[] findSegmentStarts(IndexReader reader, int[] docs) {

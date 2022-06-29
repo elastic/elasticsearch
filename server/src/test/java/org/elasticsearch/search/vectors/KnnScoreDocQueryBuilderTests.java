@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -29,9 +30,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScoreDocQueryBuilder> {
 
@@ -132,6 +132,12 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         }
     }
 
+    public void testRewriteToMatchNone() throws IOException {
+        KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(new ScoreDoc[0]);
+        SearchExecutionContext context = createSearchExecutionContext();
+        assertEquals(new MatchNoneQueryBuilder(), queryBuilder.rewrite(context));
+    }
+
     @Override
     public void testUnknownObjectException() {
         // Test isn't relevant, since query is never parsed from xContent
@@ -160,29 +166,28 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
 
             try (IndexReader reader = iw.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                // This search execution context always has shardIndex = 0
                 SearchExecutionContext context = createSearchExecutionContext(searcher);
 
-                List<ScoreDoc> expectedScoreDocs = new ArrayList<>();
+                List<ScoreDoc> scoreDocsList = new ArrayList<>();
                 for (int doc = 0; doc < 50; doc += 1 + random().nextInt(5)) {
-                    int shardIndex = randomInt(3);
-                    ScoreDoc scoreDoc = new ScoreDoc(doc, randomFloat(), shardIndex);
-                    expectedScoreDocs.add(scoreDoc);
+                    ScoreDoc scoreDoc = new ScoreDoc(doc, randomFloat());
+                    scoreDocsList.add(scoreDoc);
                 }
+                ScoreDoc[] scoreDocs = scoreDocsList.toArray(new ScoreDoc[0]);
 
-                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(expectedScoreDocs.toArray(new ScoreDoc[0]));
+                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(scoreDocs);
                 Query query = queryBuilder.doToQuery(context);
 
                 TopDocs topDocs = searcher.search(query, 100);
-                assertEquals(expectedScoreDocs.size(), topDocs.totalHits.value);
+                assertEquals(scoreDocs.length, topDocs.totalHits.value);
                 assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation);
-                assertEquals(expectedScoreDocs.size(), topDocs.scoreDocs.length);
 
-                Map<Integer, Float> docAndScore = expectedScoreDocs.stream()
-                    .collect(Collectors.toMap(scoreDoc -> scoreDoc.doc, scoreDoc -> scoreDoc.score));
-                for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                    assertTrue(docAndScore.containsKey(scoreDoc.doc));
-                    assertEquals((double) docAndScore.get(scoreDoc.doc), scoreDoc.score, 0.0001f);
+                Arrays.sort(topDocs.scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+                assertEquals(scoreDocs.length, topDocs.scoreDocs.length);
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    assertEquals(scoreDocs[i].doc, topDocs.scoreDocs[i].doc);
+                    assertEquals(scoreDocs[i].score, topDocs.scoreDocs[i].score, 0.0001f);
+
                 }
             }
         }

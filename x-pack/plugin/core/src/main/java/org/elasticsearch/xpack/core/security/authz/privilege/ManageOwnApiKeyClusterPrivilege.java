@@ -98,11 +98,9 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 // Note: this returns true even for requests authenticated via API keys.
                 // An API key currently *cannot* update itself. However, that's not because it's not authorized. Rather, it's because
                 // we have not resolved how to handle role descriptors for API keys. As such, an API key as an owner of itself is authorized
-                // to update itself but the behavior is currently not supported, and prevented as a bad request.
-                if (authentication.isApiKey()) {
-                    return isCurrentAuthenticationUsingSameApiKeyIdFromRequest(authentication, ((UpdateApiKeyRequest) request).getId());
-                }
-                return true;
+                // to update itself but the behavior is currently not supported, and prevented as a bad request at the transport level.
+                return authentication.isApiKey() == false
+                    || isCurrentAuthenticationUsingSameApiKeyIdFromRequest(authentication, ((UpdateApiKeyRequest) request).getId());
             } else if (request instanceof GrantApiKeyRequest) {
                 return false;
             }

@@ -40,7 +40,7 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     public UpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
-        this.roleDescriptors = readOptionalList(in);
+        this.roleDescriptors = in.readOptionalList(RoleDescriptor::new);
         this.metadata = in.readMap();
     }
 
@@ -65,21 +65,8 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
-        writeOptionalList(out);
+        out.writeOptionalCollection(roleDescriptors);
         out.writeGenericMap(metadata);
-    }
-
-    private List<RoleDescriptor> readOptionalList(StreamInput in) throws IOException {
-        return in.readBoolean() ? in.readList(RoleDescriptor::new) : null;
-    }
-
-    private void writeOptionalList(StreamOutput out) throws IOException {
-        if (roleDescriptors == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeList(roleDescriptors);
-        }
     }
 
     public static UpdateApiKeyRequest usingApiKeyId(String id) {

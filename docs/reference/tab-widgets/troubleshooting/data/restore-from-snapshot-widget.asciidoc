@@ -5,7 +5,7 @@
             aria-selected="true"
             aria-controls="ui-tab-restore-from-snapshot"
             id="ui-restore-from-snapshot">
-      Graphical User Interface
+      UI
     </button>
     <button role="tab"
             aria-selected="false"
@@ -27,12 +27,12 @@ include::restore-from-snapshot.asciidoc[tag=ui]
   </div>
   <div tabindex="0"
        role="tabpanel"
-       id="api-tab-restore-from-snapshot"
-       aria-labelledby="api-restore-from-snapshot"
+       id="es-api-tab-restore-from-snapshot"
+       aria-labelledby="es-api-restore-from-snapshot"
        hidden="">
 ++++
 
-include::restore-from-snapshot.asciidoc[tag=api]
+include::restore-from-snapshot.asciidoc[tag=es-api]
 
 ++++
   </div>

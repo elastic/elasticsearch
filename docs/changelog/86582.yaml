@@ -1,6 +1,0 @@
-pr: 86582
-summary: Fix flaky `top_metrics` test
-area: Aggregations
-type: bug
-issues:
- - 86377

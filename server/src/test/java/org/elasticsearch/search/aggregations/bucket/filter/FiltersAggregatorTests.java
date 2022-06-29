@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -650,7 +651,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                final IndexSettings indexSettings = createIndexSettings();
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
                     @Override
                     public void onRemoval(ShardId shardId, Accountable accountable) {}
 
@@ -658,7 +660,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
                 IndexReader limitedReader = new DocumentSubsetDirectoryReader(
-                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
@@ -726,7 +728,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                final IndexSettings indexSettings = createIndexSettings();
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
                     @Override
                     public void onRemoval(ShardId shardId, Accountable accountable) {}
 
@@ -734,7 +737,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
                 IndexReader limitedReader = new DocumentSubsetDirectoryReader(
-                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
@@ -791,7 +794,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(createIndexSettings(), new BitsetFilterCache.Listener() {
+                final IndexSettings indexSettings = createIndexSettings();
+                BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
                     @Override
                     public void onRemoval(ShardId shardId, Accountable accountable) {}
 
@@ -799,7 +803,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     public void onCache(ShardId shardId, Accountable accountable) {}
                 });
                 IndexReader limitedReader = new DocumentSubsetDirectoryReader(
-                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(bitsetFilterCache.index(), 0)),
+                    ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexSettings.getIndex(), 0)),
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)
                 );

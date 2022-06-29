@@ -127,20 +127,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             }
 
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardRecoveryStates, new Comparator<RecoveryState>() {
-                @Override
-                public int compare(RecoveryState o1, RecoveryState o2) {
-                    int id1 = o1.getShardId().id();
-                    int id2 = o2.getShardId().id();
-                    if (id1 < id2) {
-                        return -1;
-                    } else if (id1 > id2) {
-                        return 1;
-                    } else {
-                        return 0;
-                    }
-                }
-            });
+            CollectionUtil.introSort(shardRecoveryStates, Comparator.comparingInt(o -> o.getShardId().id()));
 
             for (RecoveryState state : shardRecoveryStates) {
                 t.startRow();

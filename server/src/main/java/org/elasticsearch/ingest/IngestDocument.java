@@ -97,7 +97,13 @@ public final class IngestDocument {
             IngestSourceAndMetadata.getTimestamp(ingestMetadata),
             IngestSourceAndMetadata.VALIDATORS
         );
-        this.ingestMetadata = ingestMetadata;
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
+            if (v instanceof String) {
+                return this.sourceAndMetadata.getTimestamp();
+            }
+            return v;
+        });
     }
 
     /**
@@ -734,8 +740,15 @@ public final class IngestDocument {
     /**
      * Get all Metadata values in a Map
      */
-    public Map<String, Object> getMetadata() {
+    public Map<String, Object> getMetadataMap() {
         return sourceAndMetadata.getMetadata();
+    }
+
+    /**
+     * Get the strongly typed metadata
+     */
+    public org.elasticsearch.script.Metadata getMetadata() {
+        return sourceAndMetadata;
     }
 
     /**

@@ -16,6 +16,10 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * Condition for maximum shard docs. Evaluates to <code>true</code>
+ * when a primary shard in the index has at least {@link #value} docs
+ */
 public class MaxPrimaryShardDocsCondition extends Condition<Long> {
     public static final String NAME = "max_primary_shard_docs";
 

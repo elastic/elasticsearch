@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * A size-based condition for an index size.
+ * A maximum size-based condition for an index size.
  * Evaluates to <code>true</code> if the index size is at least {@link #value}.
  */
 public class MaxSizeCondition extends Condition<ByteSizeValue> {

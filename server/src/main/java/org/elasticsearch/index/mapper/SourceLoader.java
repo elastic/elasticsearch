@@ -29,7 +29,7 @@ public interface SourceLoader {
     /**
      * Build the loader for some segment.
      */
-    Leaf leaf(LeafReader reader) throws IOException;
+    Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
     /**
      * Loads {@code _source} from some segment.
@@ -64,7 +64,7 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) {
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) {
@@ -90,8 +90,8 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
-            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader);
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader, docIdsInLeaf);
             if (leaf.empty()) {
                 return Leaf.EMPTY_OBJECT;
             }
@@ -119,7 +119,7 @@ public interface SourceLoader {
         /**
          * Load no values.
          */
-        SyntheticFieldLoader NOTHING = r -> new Leaf() {
+        SyntheticFieldLoader.Leaf NOTHING_LEAF = new Leaf() {
             @Override
             public boolean empty() {
                 return true;
@@ -135,9 +135,14 @@ public interface SourceLoader {
         };
 
         /**
+         * Load no values.
+         */
+        SyntheticFieldLoader NOTHING = (r, docIds) -> NOTHING_LEAF;
+
+        /**
          * Build a loader for this field in the provided segment.
          */
-        Leaf leaf(LeafReader reader) throws IOException;
+        Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
         /**
          * Loads values for a field in a particular leaf.

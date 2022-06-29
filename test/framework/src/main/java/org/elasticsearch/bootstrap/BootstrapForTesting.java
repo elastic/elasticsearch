@@ -87,13 +87,13 @@ public class BootstrapForTesting {
                                                                                               // setting
         // some tests need the ability to disable system call filters (so they can fork other processes as part of test execution)
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
-        Bootstrap.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
+        Elasticsearch.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
 
         // init filesystem natives
         FileSystemNatives.init();
 
         // initialize probes
-        Bootstrap.initializeProbes();
+        Elasticsearch.initializeProbes();
 
         // initialize sysprops
         BootstrapInfo.getSystemProperties();
@@ -156,14 +156,14 @@ public class BootstrapForTesting {
                 // read test-framework permissions
                 Map<String, URL> codebases = getCodebases();
 
-                final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                final Policy testFramework = PolicyUtil.readPolicy(Elasticsearch.class.getResource("test-framework.policy"), codebases);
                 final Policy runnerPolicy;
                 if (System.getProperty("tests.gradle") != null) {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("gradle.policy"), codebases);
+                    runnerPolicy = PolicyUtil.readPolicy(Elasticsearch.class.getResource("gradle.policy"), codebases);
                 } else if (codebases.containsKey("junit-rt.jar")) {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
+                    runnerPolicy = PolicyUtil.readPolicy(Elasticsearch.class.getResource("intellij.policy"), codebases);
                 } else {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("eclipse.policy"), codebases);
+                    runnerPolicy = PolicyUtil.readPolicy(Elasticsearch.class.getResource("eclipse.policy"), codebases);
                 }
                 // this mimicks the recursive data path permission added in Security.java
                 Permissions fastPathPermissions = new Permissions();
@@ -260,7 +260,7 @@ public class BootstrapForTesting {
         Set<URL> excluded = new HashSet<>(
             Arrays.asList(
                 // es core
-                Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
+                Elasticsearch.class.getProtectionDomain().getCodeSource().getLocation(),
                 // es test framework
                 BootstrapForTesting.class.getProtectionDomain().getCodeSource().getLocation(),
                 // lucene test framework

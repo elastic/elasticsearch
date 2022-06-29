@@ -93,19 +93,23 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
-        this.assignedShards = new HashMap<>();
+        final int indexCount = routingTable.indicesRouting().size();
+        this.assignedShards = Maps.newMapWithExpectedSize(indexCount);
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = new HashMap<>();
 
         nodesToShards = Maps.newMapWithExpectedSize(discoveryNodes.getDataNodes().size());
         // fill in the nodeToShards with the "live" nodes
+        var dataNodes = discoveryNodes.getDataNodes().keySet();
+        // best guess for the number of shards per data node
+        final int sizeGuess = dataNodes.isEmpty() ? indexCount : 2 * indexCount / dataNodes.size();
         for (var node : discoveryNodes.getDataNodes().keySet()) {
-            nodesToShards.put(node, new RoutingNode(node, discoveryNodes.get(node)));
+            nodesToShards.put(node, new RoutingNode(node, discoveryNodes.get(node), sizeGuess));
         }
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
-        final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k));
+        final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k), sizeGuess);
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);

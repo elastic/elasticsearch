@@ -450,6 +450,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 .orElse(null);
             if (trainedModelAssignment == null) {
                 // Something weird happened, it should NEVER be null...
+                logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", modelId, waitForState));
                 return true;
             }
 

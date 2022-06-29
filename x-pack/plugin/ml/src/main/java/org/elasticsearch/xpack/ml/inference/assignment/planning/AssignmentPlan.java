@@ -125,6 +125,10 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return remainingModelAllocations.getOrDefault(m, 0) == 0;
     }
 
+    public boolean satisfiesAllModels() {
+        return models().stream().allMatch(this::satisfiesAllocations);
+    }
+
     public int getRemainingNodeCores(String nodeId) {
         return remainingNodeCores.getOrDefault(nodeId, 0);
     }

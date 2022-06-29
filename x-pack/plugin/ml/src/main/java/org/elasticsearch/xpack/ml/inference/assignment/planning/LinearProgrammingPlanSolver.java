@@ -180,7 +180,7 @@ class LinearProgrammingPlanSolver {
     private double descendingSizeAnyFitsNodeOrder(Node n, Model m, AssignmentPlan.Builder assignmentPlan) {
         return (m.currentAllocationsByNodeId().containsKey(n.id()) ? 0 : 1) + (assignmentPlan.getRemainingCores(n) >= assignmentPlan
             .getRemainingThreads(m) ? 0 : 1) + (0.01 * distance(assignmentPlan.getRemainingCores(n), assignmentPlan.getRemainingThreads(m)))
-            - (0.01 * assignmentPlan.getRemainingMemory(n));
+            - (0.01 * normalizedMemoryPerNode.get(n));
     }
 
     @SuppressForbidden(reason = "Math#abs(int) is safe here as we protect against MIN_VALUE")

@@ -25,7 +25,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88063")
 public class TermsGroupByIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-terms-pivot-test";

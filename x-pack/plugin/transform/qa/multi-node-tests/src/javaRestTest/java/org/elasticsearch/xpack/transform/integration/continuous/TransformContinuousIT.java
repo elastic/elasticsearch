@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *      - repeat
  */
 @SuppressWarnings("removal")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88063")
 public class TransformContinuousIT extends TransformRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
@@ -103,7 +102,8 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 "xpack.transform.num_transform_failure_retries": "0",
                 "logger.org.elasticsearch.action.bulk": "info",
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
-                "logger.org.elasticsearch.xpack.transform": "debug"
+                "logger.org.elasticsearch.xpack.transform": "debug",
+                "logger.org.elasticsearch.xpack.transform.transforms.scheduling": "trace"
               }
             }""");
         client().performRequest(addFailureRetrySetting);

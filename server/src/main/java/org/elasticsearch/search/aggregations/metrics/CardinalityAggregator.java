@@ -103,6 +103,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
 
             if (executionMode.useSegmentOrdinals(maxOrd, precision)) {
+                ordinalsCollectorsUsed++;
                 return new OrdinalsCollector(counts, ordinalValues, bigArrays());
             }
 

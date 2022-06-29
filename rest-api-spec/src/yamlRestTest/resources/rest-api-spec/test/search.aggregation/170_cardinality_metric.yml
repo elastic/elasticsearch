@@ -287,6 +287,50 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
 ---
+"profiler string save memory hint":
+  - skip:
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: save_memory_heuristic
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+---
+"profiler string save time hint":
+  - skip:
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            distinct_string:
+              cardinality:
+                field: string_field
+                execution_hint: save_time_heuristic
+  - match: { aggregations.distinct_string.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: "GlobalOrdCardinalityAggregator" }
+  - gt: { profile.shards.0.aggregations.0.breakdown.initialize: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
+  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
+---
 "profiler string global ords hint":
   - skip:
       version: " - 8.3.99"

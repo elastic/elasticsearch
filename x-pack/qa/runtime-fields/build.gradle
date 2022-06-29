@@ -98,6 +98,8 @@ subprojects {
           'search.aggregation/170_cardinality_metric/profiler string segment ords hint',
           'search.aggregation/170_cardinality_metric/profiler string global ords hint',
           'search.aggregation/170_cardinality_metric/profiler string direct hint',
+          'search.aggregation/170_cardinality_metric/profiler string save memory hint',
+          'search.aggregation/170_cardinality_metric/profiler string save time hint',
           'search.aggregation/235_composite_sorted/*',
           // timeseries dimensions can't be runtime fields
           'search.aggregation/450_time_series/*',

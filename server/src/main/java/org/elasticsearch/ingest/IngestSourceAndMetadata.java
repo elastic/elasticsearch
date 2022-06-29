@@ -54,7 +54,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         IngestDocument.Metadata.ROUTING.getFieldName(),
         IngestSourceAndMetadata::stringValidator,
         IngestDocument.Metadata.VERSION.getFieldName(),
-        IngestSourceAndMetadata::longValidator,
+        IngestSourceAndMetadata::versionValidator,
         IngestDocument.Metadata.VERSION_TYPE.getFieldName(),
         IngestSourceAndMetadata::versionTypeValidator,
         IngestDocument.Metadata.DYNAMIC_TEMPLATES.getFieldName(),
@@ -151,8 +151,11 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         if (ingestMetadata == null) {
             return null;
         }
-        if (ingestMetadata.get(IngestDocument.TIMESTAMP)instanceof ZonedDateTime timestamp) {
+        Object ts = ingestMetadata.get(IngestDocument.TIMESTAMP);
+        if (ts instanceof ZonedDateTime timestamp) {
             return timestamp;
+        } else if (ts instanceof String str) {
+            return ZonedDateTime.parse(str);
         }
         return null;
     }
@@ -530,6 +533,16 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
         throw new IllegalArgumentException(
             key + " may only be set to an int or a long but was [" + value + "] with type [" + value.getClass().getName() + "]"
         );
+    }
+
+    /**
+     * Version must be non-null and representable as a long without loss of precision
+     */
+    protected static void versionValidator(String key, Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException(key + " cannot be null");
+        }
+        longValidator(key, value);
     }
 
     /**

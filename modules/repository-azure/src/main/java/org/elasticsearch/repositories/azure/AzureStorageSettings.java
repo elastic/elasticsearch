@@ -193,7 +193,7 @@ final class AzureStorageSettings {
         if (hasKey) {
             connectionStringBuilder.append(";AccountKey=").append(key);
         } else {
-            connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
+            connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken.startsWith("?") ? sasToken.substring(1) : sasToken);
         }
         if (Strings.hasText(endpointSuffix)) {
             connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);

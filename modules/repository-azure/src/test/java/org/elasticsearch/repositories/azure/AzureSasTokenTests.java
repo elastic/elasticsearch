@@ -17,7 +17,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.SAS_TOKEN_SETTING;
@@ -46,11 +49,7 @@ public class AzureSasTokenTests extends AbstractAzureServerTestCase {
 
         httpServer.createContext("/account/container/sas_test", exchange -> {
             final var queryParams = exchange.getRequestURI().getRawQuery();
-            if (sasToken.startsWith("?")) {
-                assertThat(queryParams, is(equalTo(sasToken.substring(1))));
-            } else {
-                assertThat(queryParams, is(equalTo(sasToken)));
-            }
+            assertSasTokensAreEqual(queryParams, sasToken);
 
             Streams.readFully(exchange.getRequestBody());
             if ("HEAD".equals(exchange.getRequestMethod())) {
@@ -77,5 +76,25 @@ public class AzureSasTokenTests extends AbstractAzureServerTestCase {
         try (InputStream inputStream = blobContainer.readBlob("sas_test")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
+    }
+
+    private void assertSasTokensAreEqual(String actualSasToken, String expectedSasToken) {
+        final var expectedSasTokenMap = sasTokenAsMap(expectedSasToken);
+        final var actualSasTokenMap = sasTokenAsMap(actualSasToken);
+        assertThat(actualSasTokenMap, is(equalTo(expectedSasTokenMap)));
+    }
+
+    private Map<String, String> sasTokenAsMap(String sasToken) {
+        if (sasToken.startsWith("?")) {
+            sasToken = sasToken.substring(1);
+        }
+        final Map<String, String> queryParamsMap = new HashMap<>();
+        String[] queryParams = sasToken.split("&");
+        for (String queryParam : queryParams) {
+            final var keyValuePair = queryParam.split("=");
+            assertThat(keyValuePair.length, is(equalTo(2)));
+            queryParamsMap.put(keyValuePair[0], keyValuePair[1]);
+        }
+        return Collections.unmodifiableMap(queryParamsMap);
     }
 }

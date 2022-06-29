@@ -1,7 +1,0 @@
-pr: 88155
-summary: Use the provided SAS token withouth SDK sanitation that can produce invalid
-  signatures
-area: Snapshot/Restore
-type: bug
-issues:
- - 88140

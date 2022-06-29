@@ -1467,9 +1467,9 @@ public class RBACEngineTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLazinessForAuthorizedIndicesSet() {
-        final Set<String> authorizedNames = Set.of("foo", "bar", "baz");
+        final Set<String> authorizedNames = org.elasticsearch.core.Set.of("foo", "bar", "baz");
         final HashSet<String> allNames = new HashSet<>(authorizedNames);
-        allNames.addAll(Set.of("buzz", "fiz"));
+        allNames.addAll(org.elasticsearch.core.Set.of("buzz", "fiz"));
 
         final Supplier<Set<String>> supplier = mock(Supplier.class);
         when(supplier.get()).thenReturn(authorizedNames);
@@ -1485,7 +1485,10 @@ public class RBACEngineTests extends ESTestCase {
         final String name2 = randomValueOtherThan(name1, () -> randomFrom(allNames));
         final boolean containsAll = randomBoolean();
         if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
+            assertThat(
+                authorizedIndicesSet.containsAll(org.elasticsearch.core.Set.of(name1, name2)),
+                equalTo(authorizedNames.containsAll(org.elasticsearch.core.Set.of(name1, name2)))
+            );
         } else {
             assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
         }
@@ -1504,7 +1507,10 @@ public class RBACEngineTests extends ESTestCase {
         // Check with contains and containsAll again now uses the loaded set not the predicate anymore
         Mockito.clearInvocations(supplier);
         if (containsAll) {
-            assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
+            assertThat(
+                authorizedIndicesSet.containsAll(org.elasticsearch.core.Set.of(name1, name2)),
+                equalTo(authorizedNames.containsAll(org.elasticsearch.core.Set.of(name1, name2)))
+            );
         } else {
             assertThat(authorizedIndicesSet.contains(name1), equalTo(authorizedNames.contains(name1)));
         }

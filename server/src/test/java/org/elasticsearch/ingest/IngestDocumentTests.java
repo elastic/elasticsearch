@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -962,7 +963,8 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
-            sourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+            Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+            sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
@@ -970,7 +972,7 @@ public class IngestDocumentTests extends ESTestCase {
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         // this is testing equality so use the wire constructor
-        IngestDocument ingestDocument = IngestDocument.of(sourceAndMetadata, ingestMetadata);
+        IngestDocument ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
 
         boolean changed = false;
         Map<String, Object> otherSourceAndMetadata;
@@ -983,7 +985,8 @@ public class IngestDocumentTests extends ESTestCase {
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                otherSourceAndMetadata.put(randomFrom(IngestDocument.Metadata.values()).getFieldName(), randomAlphaOfLengthBetween(5, 10));
+                Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+                otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;
         }
@@ -1000,7 +1003,7 @@ public class IngestDocumentTests extends ESTestCase {
             otherIngestMetadata = Collections.unmodifiableMap(ingestMetadata);
         }
 
-        IngestDocument otherIngestDocument = IngestDocument.of(otherSourceAndMetadata, otherIngestMetadata);
+        IngestDocument otherIngestDocument = new IngestDocument(otherSourceAndMetadata, otherIngestMetadata);
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
             assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
@@ -1008,7 +1011,7 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = IngestDocument.of(
+            IngestDocument thirdIngestDocument = new IngestDocument(
                 Collections.unmodifiableMap(sourceAndMetadata),
                 Collections.unmodifiableMap(ingestMetadata)
             );
@@ -1070,8 +1073,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
-        // this is testing copy so use the wire constructor
-        IngestDocument copiedDoc = IngestDocument.of(
+        IngestDocument copiedDoc = new IngestDocument(
             IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()),
             IngestDocument.deepCopyMap(ingestDocument.getIngestMetadata())
         );

@@ -53,7 +53,10 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
         // we assume that nodes do not grow beyond 64GB here.
         int shards = countFrozenShards(context.state().metadata());
         long memory = shards * MEMORY_PER_SHARD.get(configuration).getBytes();
-        return new AutoscalingDeciderResult(AutoscalingCapacity.builder().total(null, memory).build(), new FrozenShardsReason(shards));
+        return new AutoscalingDeciderResult(
+            AutoscalingCapacity.builder().total(null, memory, null).build(),
+            new FrozenShardsReason(shards)
+        );
     }
 
     static int countFrozenShards(Metadata metadata) {

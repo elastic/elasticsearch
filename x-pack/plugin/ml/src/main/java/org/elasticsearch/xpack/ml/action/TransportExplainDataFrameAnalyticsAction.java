@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
@@ -57,7 +56,7 @@ import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSe
  * Redirects to a different node if the current node is *not* an ML node.
  */
 public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAction<
-    PutDataFrameAnalyticsAction.Request,
+    ExplainDataFrameAnalyticsAction.Request,
     ExplainDataFrameAnalyticsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportExplainDataFrameAnalyticsAction.class);
@@ -81,7 +80,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
         Settings settings,
         ThreadPool threadPool
     ) {
-        super(ExplainDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
+        super(ExplainDataFrameAnalyticsAction.NAME, transportService, actionFilters, ExplainDataFrameAnalyticsAction.Request::new);
         this.transportService = transportService;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
@@ -97,7 +96,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
     @Override
     protected void doExecute(
         Task task,
-        PutDataFrameAnalyticsAction.Request request,
+        ExplainDataFrameAnalyticsAction.Request request,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
     ) {
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
@@ -123,7 +122,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
 
     private void explain(
         Task task,
-        PutDataFrameAnalyticsAction.Request request,
+        ExplainDataFrameAnalyticsAction.Request request,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
     ) {
         TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
@@ -217,7 +216,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
      * estimation process on, and redirect the request to this node.
      */
     private void redirectToSuitableNode(
-        PutDataFrameAnalyticsAction.Request request,
+        ExplainDataFrameAnalyticsAction.Request request,
         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener
     ) {
         Optional<DiscoveryNode> node = findSuitableNode(clusterService.state());

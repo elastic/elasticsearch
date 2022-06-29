@@ -110,6 +110,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
         }
 
         boolean isHeuristicBased;
+
         ExecutionMode(boolean isHeuristicBased) {
             this.isHeuristicBased = isHeuristicBased;
         }
@@ -143,7 +144,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.precisionThreshold = precisionThreshold;
-        // For BWC reasons, the parameter is nullable.  Default to the old behavior for now.
+        // For BWC reasons, the parameter is nullable. Default to the old behavior for now.
         this.executionMode = executionHint == null ? ExecutionMode.SAVE_MEMORY_HEURISTIC : ExecutionMode.fromString(executionHint);
     }
 

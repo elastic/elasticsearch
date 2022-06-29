@@ -80,11 +80,12 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -495,6 +496,7 @@ public class JobResultsProvider {
 
     public void getDataCountsModelSizeAndTimingStats(
         String jobId,
+        @Nullable TaskId parentTaskId,
         TriConsumer<DataCounts, ModelSizeStats, TimingStats> handler,
         Consumer<Exception> errorHandler
     ) {
@@ -538,6 +540,9 @@ public class JobResultsProvider {
                     )
             )
             .request();
+        if (parentTaskId != null) {
+            request.setParentTask(parentTaskId);
+        }
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, ActionListener.<SearchResponse>wrap(response -> {
             Aggregations aggs = response.getAggregations();
             if (aggs == null) {
@@ -590,7 +595,11 @@ public class JobResultsProvider {
             .addSort(SortBuilders.fieldSort(TimingStats.BUCKET_COUNT.getPreferredName()).order(SortOrder.DESC));
     }
 
-    public void datafeedTimingStats(List<String> jobIds, ActionListener<Map<String, DatafeedTimingStats>> listener) {
+    public void datafeedTimingStats(
+        List<String> jobIds,
+        @Nullable TaskId parentTaskId,
+        ActionListener<Map<String, DatafeedTimingStats>> listener
+    ) {
         if (jobIds.isEmpty()) {
             listener.onResponse(Map.of());
             return;
@@ -601,6 +610,9 @@ public class JobResultsProvider {
             msearchRequestBuilder.add(createLatestDatafeedTimingStatsSearch(indexName, jobId));
         }
         MultiSearchRequest msearchRequest = msearchRequestBuilder.request();
+        if (parentTaskId != null) {
+            msearchRequest.setParentTask(parentTaskId);
+        }
 
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
@@ -835,7 +847,10 @@ public class JobResultsProvider {
                     try (
                         InputStream stream = source.streamInput();
                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                            .createParser(
+                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                                stream
+                            )
                     ) {
                         Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
                         results.add(bucket);
@@ -1038,7 +1053,10 @@ public class JobResultsProvider {
                     try (
                         InputStream stream = source.streamInput();
                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                            .createParser(
+                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                                stream
+                            )
                     ) {
                         CategoryDefinition categoryDefinition = CategoryDefinition.LENIENT_PARSER.apply(parser, null);
                         if (augment) {
@@ -1103,7 +1121,10 @@ public class JobResultsProvider {
                     try (
                         InputStream stream = source.streamInput();
                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                            .createParser(
+                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                                stream
+                            )
                     ) {
                         results.add(AnomalyRecord.LENIENT_PARSER.apply(parser, null));
                     } catch (IOException e) {
@@ -1171,7 +1192,10 @@ public class JobResultsProvider {
                     try (
                         InputStream stream = source.streamInput();
                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                            .createParser(
+                                XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                                stream
+                            )
                     ) {
                         influencers.add(Influencer.LENIENT_PARSER.apply(parser, null));
                     } catch (IOException e) {
@@ -1220,7 +1244,7 @@ public class JobResultsProvider {
             ModelSnapshot.TYPE.getPreferredName(),
             search,
             ModelSnapshot.LENIENT_PARSER,
-            result -> handler.accept(result.result == null ? null : new Result<ModelSnapshot>(result.index, result.result.build())),
+            result -> handler.accept(result.result == null ? null : new Result<>(result.index, result.result.build())),
             errorHandler,
             () -> null
         );
@@ -1366,7 +1390,7 @@ public class JobResultsProvider {
             try (
                 InputStream stream = source.streamInput();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                    .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
             ) {
                 ModelPlot modelPlot = ModelPlot.LENIENT_PARSER.apply(parser, null);
                 results.add(modelPlot);
@@ -1400,7 +1424,7 @@ public class JobResultsProvider {
             try (
                 InputStream stream = source.streamInput();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                    .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
             ) {
                 CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
                 results.add(categorizerStats);
@@ -1731,7 +1755,12 @@ public class JobResultsProvider {
         );
     }
 
-    public void getForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
+    public void getForecastStats(
+        String jobId,
+        @Nullable TaskId parentTaskId,
+        Consumer<ForecastStats> handler,
+        Consumer<Exception> errorHandler
+    ) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
         QueryBuilder termQuery = new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE);
@@ -1758,6 +1787,9 @@ public class JobResultsProvider {
         sourceBuilder.trackTotalHits(false);
 
         searchRequest.source(sourceBuilder);
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
@@ -1912,11 +1944,13 @@ public class JobResultsProvider {
                 try {
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
-
                         try (
                             InputStream stream = docSource.streamInput();
                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                                .createParser(
+                                    XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                                    stream
+                                )
                         ) {
                             Calendar calendar = Calendar.LENIENT_PARSER.apply(parser, null).build();
                             listener.onResponse(calendar);

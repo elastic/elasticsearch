@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -106,9 +105,11 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
+import static org.elasticsearch.test.SecuritySettingsSource.HASHER;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -1525,20 +1526,23 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
         );
 
-        // Test not found exception on API key of user with the same username but from a different realm
-        // Authentication authentication = Authentication.newRealmAuthentication(
-        // new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-        // // Use native realm; no need to actually create user since we are injecting the authentication object directly
-        // new Authentication.RealmRef(NativeRealmSettings.DEFAULT_NAME, NativeRealmSettings.TYPE, serviceWithNodeName.nodeName())
-        // );
+        // Create native realm user with same username but different password to allow us to create an API key for _that_ user
+        // instead of file realm one
+        final var passwordSecureString = new SecureString("x-pack-test-other-password".toCharArray());
         createNativeRealmUser(
             TEST_USER_NAME,
             TEST_ROLE,
+            new String(HASHER.hash(passwordSecureString)),
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
         );
-        final Tuple<CreateApiKeyResponse, Map<String, Object>> apiKeyForNativeRealmUser = createApiKey(TEST_USER_NAME, null);
+        final CreateApiKeyResponse apiKeyForNativeRealmUser = createApiKeys(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, passwordSecureString)),
+            1,
+            null,
+            "ALL"
+        ).v1().get(0);
         doTestUpdateApiKeyNotFound(
-            new UpdateApiKeyRequest(apiKeyForNativeRealmUser.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
+            new UpdateApiKeyRequest(apiKeyForNativeRealmUser.getId(), request.getRoleDescriptors(), request.getMetadata())
         );
     }
 
@@ -1962,15 +1966,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private void createUserWithRunAsRole(Map<String, String> authHeaders) throws ExecutionException, InterruptedException {
-        createNativeRealmUser("user_with_run_as_role", "run_as_role", authHeaders);
+        createNativeRealmUser("user_with_run_as_role", "run_as_role", SecuritySettingsSource.TEST_PASSWORD_HASHED, authHeaders);
     }
 
-    private void createNativeRealmUser(final String username, final String role, final Map<String, String> authHeaders)
-        throws ExecutionException, InterruptedException {
+    private void createNativeRealmUser(
+        final String username,
+        final String role,
+        final String passwordHashed,
+        final Map<String, String> authHeaders
+    ) throws ExecutionException, InterruptedException {
         final PutUserRequest putUserRequest = new PutUserRequest();
         putUserRequest.username(username);
         putUserRequest.roles(role);
-        putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
+        putUserRequest.passwordHash(passwordHashed.toCharArray());
         PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
         final Client client = client().filterWithHeader(authHeaders);
         client.execute(PutUserAction.INSTANCE, putUserRequest, listener);

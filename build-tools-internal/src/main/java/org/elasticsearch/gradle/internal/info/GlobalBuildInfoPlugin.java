@@ -80,7 +80,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
         File runtimeJavaHome = findRuntimeJavaHome();
-        boolean isRuntimeJavaHomeSet = Jvm.current().getJavaHome().equals(runtimeJavaHome) == false;
+        boolean isRuntimeJavaHomeSet = Jvm.current().getJavaHome().equals(runtimeJavaHome);
 
         File rootDir = project.getRootDir();
         GitInfo gitInfo = GitInfo.gitInfo(rootDir);

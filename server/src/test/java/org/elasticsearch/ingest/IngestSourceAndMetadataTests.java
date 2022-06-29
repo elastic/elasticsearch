@@ -17,6 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.TestIngestDocument.replaceValidator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -75,7 +76,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         });
         source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", IngestSourceAndMetadata::longValidator));
         assertNull(map.getString("missing"));
         assertNull(map.getString("no key"));
         assertEquals("myToString()", map.getString("toStr"));
@@ -207,7 +208,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestSourceAndMetadata(source, metadata, null, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", IngestSourceAndMetadata::longValidator));
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if ("foo".equals(entry.getKey())) {

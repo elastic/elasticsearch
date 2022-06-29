@@ -41,6 +41,10 @@ setup:
 
 ---
 "Name the index":
+  - skip:
+      version: " - 8.3.99"
+      reason: _seq_no's points moved in 8.4
+
   - do:
       indices.disk_usage:
         index: testindex

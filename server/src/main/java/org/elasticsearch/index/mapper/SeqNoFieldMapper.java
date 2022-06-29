@@ -112,7 +112,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
     public static final String POINTS_NAME = "_seq_no_points";
-    private static final int POINTS_SHIFT = 10;
+    private static final int POINTS_SHIFT = 8;
 
     public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
 

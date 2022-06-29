@@ -9,8 +9,8 @@
     </button>
     <button role="tab"
             aria-selected="false"
-            aria-controls="self-managed-tab-restore-from-snapshot"
-            id="self-managed-restore-from-snapshot"
+            aria-controls="api-tab-restore-from-snapshot"
+            id="api-restore-from-snapshot"
             tabindex="-1">
       API
     </button>
@@ -27,12 +27,12 @@ include::restore-from-snapshot.asciidoc[tag=ui]
   </div>
   <div tabindex="0"
        role="tabpanel"
-       id="es-api-tab-restore-from-snapshot"
-       aria-labelledby="es-api-restore-from-snapshot"
+       id="api-tab-restore-from-snapshot"
+       aria-labelledby="api-restore-from-snapshot"
        hidden="">
 ++++
 
-include::restore-from-snapshot.asciidoc[tag=es-api]
+include::restore-from-snapshot.asciidoc[tag=api]
 
 ++++
   </div>

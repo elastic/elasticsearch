@@ -68,7 +68,7 @@ For more guidance on creating and restoring snapshots see
 //end::kibana-api-ex[]
 // end::ui[]
 
-// tag::es-api[]
+// tag::api[]
 In order to restore the indices that are missing shards:
 
 . View the affected indices using the <<cat-indices,cat indices API>>.
@@ -210,4 +210,4 @@ As we can see above the indices are `green` and open. The issue is resolved.
 +
 For more guidance on creating and restoring snapshots see
 <<snapshot-restore, this guide>>.
-// end::es-api[]
+// end::api[]

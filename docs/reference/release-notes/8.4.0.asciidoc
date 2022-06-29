@@ -160,23 +160,16 @@ Snapshot/Restore::
 Transform::
 * Add authorization info to transform config listings {es-pull}87570[#87570]
 * Implement per-transform num_failure_retries setting {es-pull}87361[#87361]
-* Support `range` aggregation in transform {es-pull}86501[#86501]
 
 [[feature-8.4.0]]
 [float]
 === New features
-
-Geo::
-* New geo_grid query to be used with geogrid aggregations {es-pull}86596[#86596] (issue: {es-issue}85727[#85727])
 
 Health::
 * Master stability health indicator part 1 (when a master has been seen recently) {es-pull}86524[#86524]
 
 Infra/Logging::
 * Stable logging API - the basic use case {es-pull}86612[#86612]
-
-Search::
-* Snapshots as simple archives {es-pull}86261[#86261] (issue: {es-issue}81210[#81210])
 
 [[upgrade-8.4.0]]
 [float]

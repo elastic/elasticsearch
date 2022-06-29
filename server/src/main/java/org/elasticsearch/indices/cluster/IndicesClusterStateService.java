@@ -227,9 +227,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         updateIndices(event); // can also fail shards, but these are then guaranteed to be in failedShardsCache
 
-        createIndices(state);
-
-        createOrUpdateShards(state);
+        createIndicesAndUpdateShards(state);
     }
 
     /**
@@ -469,19 +467,26 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void createIndices(final ClusterState state) {
-        // we only create indices for shards that are allocated
-        RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+    private void createIndicesAndUpdateShards(final ClusterState state) {
+        DiscoveryNodes nodes = state.nodes();
+        RoutingNode localRoutingNode = state.getRoutingNodes().node(nodes.getLocalNodeId());
         if (localRoutingNode == null) {
             return;
         }
-        // create map of indices to create with shards to fail if index creation fails
+
+        RoutingTable routingTable = state.routingTable();
+
+        // create map of indices to create with shards to fail if index creation fails or create or update shards if an existing index
+        // service is found
         final Map<Index, List<ShardRouting>> indicesToCreate = new HashMap<>();
         for (ShardRouting shardRouting : localRoutingNode) {
             if (failedShardsCache.containsKey(shardRouting.shardId()) == false) {
                 final Index index = shardRouting.index();
-                if (indicesService.indexService(index) == null) {
+                final var indexService = indicesService.indexService(index);
+                if (indexService == null) {
                     indicesToCreate.computeIfAbsent(index, k -> new ArrayList<>()).add(shardRouting);
+                } else {
+                    createOrUpdateShard(state, nodes, routingTable, shardRouting, indexService);
                 }
             }
         }
@@ -506,7 +511,28 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 for (ShardRouting shardRouting : entry.getValue()) {
                     sendFailShard(shardRouting, failShardReason, e, state);
                 }
+                continue;
             }
+            // we succeeded in creating the index service, so now we can create the missing shards assigned to this node
+            for (ShardRouting shardRouting : entry.getValue()) {
+                createOrUpdateShard(state, nodes, routingTable, shardRouting, indexService);
+            }
+        }
+    }
+
+    private void createOrUpdateShard(
+        ClusterState state,
+        DiscoveryNodes nodes,
+        RoutingTable routingTable,
+        ShardRouting shardRouting,
+        AllocatedIndex<? extends Shard> indexService
+    ) {
+        Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
+        if (shard == null) {
+            assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
+            createShard(nodes, routingTable, shardRouting, state);
+        } else {
+            updateShard(nodes, shardRouting, shard, routingTable, state);
         }
     }
 
@@ -545,31 +571,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-
-    private void createOrUpdateShards(final ClusterState state) {
-        RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
-        if (localRoutingNode == null) {
-            return;
-        }
-
-        DiscoveryNodes nodes = state.nodes();
-        RoutingTable routingTable = state.routingTable();
-
-        for (final ShardRouting shardRouting : localRoutingNode) {
-            ShardId shardId = shardRouting.shardId();
-            if (failedShardsCache.containsKey(shardId) == false) {
-                AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardId.getIndex());
-                assert indexService != null : "index " + shardId.getIndex() + " should have been created by createIndices";
-                Shard shard = indexService.getShardOrNull(shardId.id());
-                if (shard == null) {
-                    assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
-                    createShard(nodes, routingTable, shardRouting, state);
-                } else {
-                    updateShard(nodes, shardRouting, shard, routingTable, state);
                 }
             }
         }

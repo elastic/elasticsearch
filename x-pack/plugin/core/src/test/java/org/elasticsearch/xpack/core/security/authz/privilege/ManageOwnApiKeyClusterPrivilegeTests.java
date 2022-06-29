@@ -41,9 +41,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
-
+        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
     }
 
@@ -56,9 +57,11 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, randomAlphaOfLength(20));
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
+        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
 
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
     }
 
     public void testAuthenticationWithUserAllowsAccessToApiKeyActionsWhenItIsOwner() {

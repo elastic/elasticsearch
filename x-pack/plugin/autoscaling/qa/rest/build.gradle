@@ -13,6 +13,12 @@ restResources {
   }
 }
 
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    "autoscaling/get_autoscaling_capacity/Test get fixed autoscaling capacity",
+  ].join(',')
+}
+
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'

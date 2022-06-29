@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -21,6 +22,8 @@ import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 
@@ -75,15 +78,10 @@ final class DfsQueryPhase extends SearchPhase {
             context
         );
 
-        SearchSourceBuilder source = context.getRequest().source();
-        addKnnResultsToQuery(source, knnResults);
-
         for (final DfsSearchResult dfsResult : searchResults) {
-            ShardSearchRequest shardRequest = dfsResult.getShardSearchRequest();
-            shardRequest.source(source);
-
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+            ShardSearchRequest shardRequest = rewriteShardSearchRequest(dfsResult.getShardSearchRequest());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(dfsResult.getShardIndex()),
                 dfsResult.getContextId(),
@@ -131,17 +129,29 @@ final class DfsQueryPhase extends SearchPhase {
         }
     }
 
-    private void addKnnResultsToQuery(SearchSourceBuilder source, DfsKnnResults knnResults) {
+    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+        SearchSourceBuilder source = request.source();
         if (source == null || source.knnSearch() == null) {
-            return;
+            return request;
         }
 
-        KnnScoreDocQueryBuilder knnQueryBuilder = new KnnScoreDocQueryBuilder(knnResults.scoreDocs());
-        if (source.query() == null) {
-            source.query(knnQueryBuilder);
-        } else {
-            source.query(new BoolQueryBuilder().should(knnQueryBuilder).should(source.query()));
+        List<ScoreDoc> scoreDocs = new ArrayList<>();
+        for (ScoreDoc scoreDoc : knnResults.scoreDocs()) {
+            if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                scoreDocs.add(scoreDoc);
+            }
         }
-        source.knnSearch(null);
+        scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+
+        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(null);
+        if (source.query() == null) {
+            newSource.query(knnQuery);
+        } else {
+            newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
+        }
+
+        request.source(newSource);
+        return request;
     }
 }

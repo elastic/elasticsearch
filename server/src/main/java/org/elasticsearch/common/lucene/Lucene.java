@@ -384,10 +384,6 @@ public class Lucene {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
 
-    public static ScoreDoc readScoreDocWithShardIndex(StreamInput in) throws IOException {
-        return new ScoreDoc(in.readVInt(), in.readFloat(), in.readInt());
-    }
-
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
@@ -502,15 +498,6 @@ public class Lucene {
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
-    }
-
-    public static void writeScoreDocWithShardIndex(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
-        if (scoreDoc.getClass().equals(ScoreDoc.class) == false) {
-            throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
-        }
-        out.writeVInt(scoreDoc.doc);
-        out.writeFloat(scoreDoc.score);
-        out.writeInt(scoreDoc.shardIndex);
     }
 
     // LUCENE 4 UPGRADE: We might want to maintain our own ordinal, instead of Lucene's ordinal

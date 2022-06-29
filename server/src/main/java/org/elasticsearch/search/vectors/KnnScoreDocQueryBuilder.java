@@ -20,10 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -38,8 +35,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     /**
      * Creates a query builder.
      *
-     * @param scoreDocs the docs and scores this query should match. Each {@link ScoreDoc}
-     *                  is expected to have its {@link ScoreDoc#shardIndex} set.
+     * @param scoreDocs the docs and scores this query should match. The array must be
+     *                  sorted in order of ascending doc IDs.
      */
     public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs) {
         this.scoreDocs = scoreDocs;
@@ -47,7 +44,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
 
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.scoreDocs = in.readArray(Lucene::readScoreDocWithShardIndex, ScoreDoc[]::new);
+        this.scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
     }
 
     @Override
@@ -61,7 +58,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeArray(Lucene::writeScoreDocWithShardIndex, scoreDocs);
+        out.writeArray(Lucene::writeScoreDoc, scoreDocs);
     }
 
     @Override
@@ -78,28 +75,17 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        int shardIndex = context.getShardRequestIndex();
-
-        List<ScoreDoc> shardScoreDocs = new ArrayList<>();
-        for (ScoreDoc scoreDoc : scoreDocs) {
-            assert scoreDoc.shardIndex >= 0;
-            if (scoreDoc.shardIndex == shardIndex) {
-                shardScoreDocs.add(scoreDoc);
-            }
-        }
-
-        int numDocs = shardScoreDocs.size();
-        shardScoreDocs.sort(Comparator.comparingInt(a -> a.doc));
+        int numDocs = scoreDocs.length;
         int[] docs = new int[numDocs];
         float[] scores = new float[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = shardScoreDocs.get(i).doc;
-            scores[i] = shardScoreDocs.get(i).score;
+            docs[i] = scoreDocs[i].doc;
+            scores[i] = scoreDocs[i].score;
         }
 
         IndexReader reader = context.getIndexReader();
         int[] segmentStarts = findSegmentStarts(reader, docs);
-        return new ScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());
+        return new KnnScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());
     }
 
     private int[] findSegmentStarts(IndexReader reader, int[] docs) {

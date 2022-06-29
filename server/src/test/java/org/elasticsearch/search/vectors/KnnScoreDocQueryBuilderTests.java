@@ -43,12 +43,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
     @Override
     protected KnnScoreDocQueryBuilder doCreateTestQueryBuilder() {
         List<ScoreDoc> scoreDocs = new ArrayList<>();
-        int numShards = randomInt(5);
-        for (int shard = 0; shard < numShards; shard++) {
-            int numDocs = randomInt(10);
-            for (int doc = 0; doc < numDocs; doc++) {
-                scoreDocs.add(new ScoreDoc(doc, randomFloat(), shard));
-            }
+        int numDocs = randomInt(10);
+        for (int doc = 0; doc < numDocs; doc++) {
+            scoreDocs.add(new ScoreDoc(doc, randomFloat()));
         }
         return new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
     }
@@ -92,16 +89,10 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 Query query = queryBuilder.doToQuery(context);
 
-                assertTrue(query instanceof ScoreDocQuery);
-                ScoreDocQuery scoreDocQuery = (ScoreDocQuery) query;
+                assertTrue(query instanceof KnnScoreDocQuery);
+                KnnScoreDocQuery scoreDocQuery = (KnnScoreDocQuery) query;
 
-                // This search execution context always has shardIndex = 0
-                int expectedDocs = 0;
-                for (ScoreDoc scoreDoc : queryBuilder.scoreDocs()) {
-                    if (scoreDoc.shardIndex == 0) {
-                        expectedDocs++;
-                    }
-                }
+                int expectedDocs = queryBuilder.scoreDocs().length;
                 assertEquals(expectedDocs, scoreDocQuery.docs().length);
                 assertEquals(expectedDocs, scoreDocQuery.scores().length);
             }
@@ -172,18 +163,14 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 // This search execution context always has shardIndex = 0
                 SearchExecutionContext context = createSearchExecutionContext(searcher);
 
-                List<ScoreDoc> allScoreDocs = new ArrayList<>();
                 List<ScoreDoc> expectedScoreDocs = new ArrayList<>();
                 for (int doc = 0; doc < 50; doc += 1 + random().nextInt(5)) {
                     int shardIndex = randomInt(3);
                     ScoreDoc scoreDoc = new ScoreDoc(doc, randomFloat(), shardIndex);
-                    allScoreDocs.add(scoreDoc);
-                    if (shardIndex == 0) {
-                        expectedScoreDocs.add(scoreDoc);
-                    }
+                    expectedScoreDocs.add(scoreDoc);
                 }
 
-                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(allScoreDocs.toArray(new ScoreDoc[0]));
+                KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(expectedScoreDocs.toArray(new ScoreDoc[0]));
                 Query query = queryBuilder.doToQuery(context);
 
                 TopDocs topDocs = searcher.search(query, 100);

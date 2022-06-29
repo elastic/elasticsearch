@@ -29,10 +29,11 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * A query that matches the provided docs with their scores.
  *
- * Note: this query was adapted from Lucene's DocAndScoreQuery from the
- * class {@link org.apache.lucene.search.KnnVectorQuery}.
+ * Note: this query was adapted from Lucene's DocAndScoreQuery from the class
+ * {@link org.apache.lucene.search.KnnVectorQuery}, which is package-private.
+ * There are no changes to the behavior, just some renames.
  */
-class ScoreDocQuery extends Query {
+class KnnScoreDocQuery extends Query {
     private final int[] docs;
     private final float[] scores;
     private final int[] segmentStarts;
@@ -50,7 +51,7 @@ class ScoreDocQuery extends Query {
      * @param contextIdentity an object identifying the reader context that was used to build this
      *     query
      */
-    ScoreDocQuery(int[] docs, float[] scores, int[] segmentStarts, Object contextIdentity) {
+    KnnScoreDocQuery(int[] docs, float[] scores, int[] segmentStarts, Object contextIdentity) {
         this.docs = docs;
         this.scores = scores;
         this.segmentStarts = segmentStarts;
@@ -68,7 +69,7 @@ class ScoreDocQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         if (searcher.getIndexReader().getContext().id() != contextIdentity) {
-            throw new IllegalStateException("This DocAndScore query was created by a different reader");
+            throw new IllegalStateException("This KnnScoreDocQuery was created by a different reader");
         }
         return new Weight(this) {
             @Override
@@ -196,10 +197,10 @@ class ScoreDocQuery extends Query {
         if (sameClassAs(obj) == false) {
             return false;
         }
-        return Arrays.equals(docs, ((ScoreDocQuery) obj).docs)
-            && Arrays.equals(scores, ((ScoreDocQuery) obj).scores)
-            && Arrays.equals(segmentStarts, ((ScoreDocQuery) obj).segmentStarts)
-            && contextIdentity == ((ScoreDocQuery) obj).contextIdentity;
+        return Arrays.equals(docs, ((KnnScoreDocQuery) obj).docs)
+            && Arrays.equals(scores, ((KnnScoreDocQuery) obj).scores)
+            && Arrays.equals(segmentStarts, ((KnnScoreDocQuery) obj).segmentStarts)
+            && contextIdentity == ((KnnScoreDocQuery) obj).contextIdentity;
     }
 
     @Override

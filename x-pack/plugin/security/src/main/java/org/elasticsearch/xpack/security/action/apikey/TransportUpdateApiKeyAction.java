@@ -61,7 +61,7 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
         }
 
         // Don't resolve and validate owner roles if the service is not enabled; this avoids a costly operation and also provides
-        // a clearer error message (service disabled error is prioritized over role descriptor validation errors)
+        // a clearer error message (a service disabled error is prioritized over role descriptor validation errors)
         apiKeyService.ensureEnabled();
         rolesStore.getRoleDescriptorsList(authentication.getEffectiveSubject(), ActionListener.wrap(roleDescriptorsList -> {
             assert roleDescriptorsList.size() == 1;

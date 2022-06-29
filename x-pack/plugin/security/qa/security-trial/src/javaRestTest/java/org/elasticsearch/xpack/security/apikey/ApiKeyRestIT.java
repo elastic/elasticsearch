@@ -85,18 +85,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(actualApiKeyName, equalTo(expectedApiKeyName));
         assertThat(actualApiKeyEncoded, not(emptyString()));
 
-        final Request authenticateRequest = new Request("GET", "_security/_authenticate");
-        authenticateRequest.setOptions(
-            authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + actualApiKeyEncoded)
-        );
-
-        final Response authenticateResponse = client().performRequest(authenticateRequest);
-        assertOK(authenticateResponse);
-        final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
-
-        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
-        // If authentication type is other, authentication.api_key not present.
-        assertThat(authenticate, hasEntry("api_key", Map.of("id", actualApiKeyId, "name", expectedApiKeyName)));
+        doTestAuthenticationWithApiKey(expectedApiKeyName, actualApiKeyId, actualApiKeyEncoded);
     }
 
     public void testGrantApiKeyForOtherUserWithPassword() throws IOException {
@@ -204,5 +193,51 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(e.getMessage(), containsString("action [" + GrantApiKeyAction.NAME + "] is unauthorized for user"));
         deleteUser(manageOwnApiKeyUser);
         deleteRole(manageOwnApiKeyRole);
+    }
+
+    public void testUpdateApiKey() throws IOException {
+        final String expectedApiKeyName = "my-api-key-name";
+        final Map<String, String> expectedApiKeyMetadata = Map.of("not", "returned");
+        final Map<String, Object> createApiKeyRequestBody = Map.of("name", expectedApiKeyName, "metadata", expectedApiKeyMetadata);
+
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
+
+        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(createApiKeyResponse); // keys: id, name, api_key, encoded
+        final String apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final String apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        assertThat(apiKeyId, not(emptyString()));
+        assertThat(apiKeyEncoded, not(emptyString()));
+
+        final Request updateApiKeyRequest = new Request(randomFrom("POST", "PUT"), "_security/api_key/_update/" + apiKeyId);
+        final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
+        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
+
+        final Response updateApiKeyResponse = adminClient().performRequest(updateApiKeyRequest);
+        final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
+        assertTrue((Boolean) updateApiKeyResponseMap.get("updated"));
+
+        // validate authentication works after update
+        doTestAuthenticationWithApiKey(expectedApiKeyName, apiKeyId, apiKeyEncoded);
+    }
+
+    private void doTestAuthenticationWithApiKey(
+        final String expectedApiKeyName,
+        final String actualApiKeyId,
+        final String actualApiKeyEncoded
+    ) throws IOException {
+        final Request authenticateRequest = new Request("GET", "_security/_authenticate");
+        authenticateRequest.setOptions(
+            authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + actualApiKeyEncoded)
+        );
+
+        final Response authenticateResponse = client().performRequest(authenticateRequest);
+        assertOK(authenticateResponse);
+        final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
+
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
+        // If authentication type is other, authentication.api_key not present.
+        assertThat(authenticate, hasEntry("api_key", Map.of("id", actualApiKeyId, "name", expectedApiKeyName)));
     }
 }

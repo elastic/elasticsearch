@@ -1236,14 +1236,13 @@ public class ApiKeyService {
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles
     ) throws IOException {
-        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
-        final var bulkRequestBuilder = client.prepareBulk();
         logger.trace(
             "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
             request.getId(),
             apiKeyDoc.seqNo(),
             apiKeyDoc.primaryTerm()
         );
+        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
         final var currentDocVersion = Version.fromId(apiKeyDoc.doc().version);
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
@@ -1254,6 +1253,7 @@ public class ApiKeyService {
                 targetDocVersion
             );
         }
+        final var bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(
             client.prepareIndex(SECURITY_MAIN_ALIAS)
                 .setId(request.getId())

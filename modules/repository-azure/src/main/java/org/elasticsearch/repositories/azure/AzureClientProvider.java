@@ -33,10 +33,7 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
-import com.azure.storage.common.StorageSharedKeyCredential;
-import com.azure.storage.common.implementation.connectionstring.StorageAuthenticationSettings;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
-import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
@@ -194,7 +191,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         if (locationMode.isSecondary()) {
             // TODO: maybe extract this logic so we don't need to have a client logger around?
-            final StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
+            StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
             String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
             if (secondaryUri == null) {
                 throw new IllegalArgumentException(

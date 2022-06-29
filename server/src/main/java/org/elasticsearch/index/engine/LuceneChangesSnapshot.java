@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -273,7 +272,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private static Query rangeQuery(long fromSeqNo, long toSeqNo) {
-        return new BooleanQuery.Builder().add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
+        return new BooleanQuery.Builder().add(
+            SeqNoFieldMapper.INSTANCE.fieldType().rangeQuery(fromSeqNo, toSeqNo),
+            BooleanClause.Occur.MUST
+        )
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
     }

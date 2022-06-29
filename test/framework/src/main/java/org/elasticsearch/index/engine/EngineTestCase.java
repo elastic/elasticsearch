@@ -1398,7 +1398,9 @@ public abstract class EngineTestCase extends ESTestCase {
                 if (primaryTermDocValues.advanceExact(docId)) {
                     if (seqNos.add(seqNo) == false) {
                         IdStoredFieldLoader idLoader = new IdStoredFieldLoader(leaf.reader());
-                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idLoader.id(docId));
+                        throw new AssertionError(
+                            "found multiple documents for seq=" + seqNo + " id=" + idLoader.id(docId) + " docId=" + docId
+                        );
                     }
                 }
             }

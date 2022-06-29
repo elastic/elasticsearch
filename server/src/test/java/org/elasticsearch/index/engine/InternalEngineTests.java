@@ -18,7 +18,6 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
@@ -37,7 +36,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
@@ -2842,40 +2840,29 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint));
                 assertThat(maxSeqNo, greaterThanOrEqualTo(prevMaxSeqNo));
                 try (IndexReader reader = DirectoryReader.open(commit)) {
-                    Long highest = getHighestSeqNo(reader);
-                    final long highestSeqNo;
-                    if (highest != null) {
-                        highestSeqNo = highest.longValue();
-                    } else {
-                        highestSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                    // make sure all sequence numbers up to and including the local checkpoint are in the index
+                    FixedBitSet seqNosBitSet = getSeqNosSet(reader, maxSeqNo);
+                    for (int i = 0; i <= localCheckpoint; i++) {
+                        assertTrue(
+                            "local checkpoint [" + localCheckpoint + "], _seq_no [" + i + "] should have doc values",
+                            seqNosBitSet.get(i)
+                        );
+                    }
+                    long highestSeqNo = localCheckpoint;
+                    for (int i = Math.toIntExact(highestSeqNo); i < seqNosBitSet.length(); i++) {
+                        if (seqNosBitSet.get(i)) {
+                            highestSeqNo = i;
+                        }
                     }
                     // make sure localCheckpoint <= highest seq no found <= maxSeqNo
                     assertThat(highestSeqNo, greaterThanOrEqualTo(localCheckpoint));
                     assertThat(highestSeqNo, lessThanOrEqualTo(maxSeqNo));
-                    // make sure all sequence numbers up to and including the local checkpoint are in the index
-                    FixedBitSet seqNosBitSet = getSeqNosSet(reader, highestSeqNo);
-                    for (int i = 0; i <= localCheckpoint; i++) {
-                        assertTrue(
-                            "local checkpoint [" + localCheckpoint + "], _seq_no [" + i + "] should be indexed",
-                            seqNosBitSet.get(i)
-                        );
-                    }
                 }
                 prevLocalCheckpoint = localCheckpoint;
                 prevMaxSeqNo = maxSeqNo;
             }
             IOUtils.close(commits);
         }
-    }
-
-    private static Long getHighestSeqNo(final IndexReader reader) throws IOException {
-        final String fieldName = SeqNoFieldMapper.NAME;
-        long size = PointValues.size(reader, fieldName);
-        if (size == 0) {
-            return null;
-        }
-        byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-        return LongPoint.decodeDimension(max, 0);
     }
 
     private static FixedBitSet getSeqNosSet(final IndexReader reader, final long highestSeqNo) throws IOException {
@@ -4631,7 +4618,7 @@ public class InternalEngineTests extends EngineTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
-            EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(LongPoint.newExactQuery("_seq_no", 2), 1)
+            EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(SeqNoFieldMapper.INSTANCE.fieldType().rangeQuery(2, 2), 1)
         );
         searchResult.close();
     }

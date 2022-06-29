@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -45,30 +47,29 @@ import java.util.function.Supplier;
  */
 public class SeqNoFieldMapper extends MetadataFieldMapper {
 
-
     /**
      * A sequence ID, which is made up of a sequence number (both the searchable
      * and doc_value version of the field) and the primary term.
      */
     public static class SequenceIDFields {
 
-        private final Field seqNo;
+        private final Field seqNoPoint;
         private final Field seqNoDocValue;
         private final Field primaryTerm;
         private final Field tombstoneField;
 
-        private SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
-            Objects.requireNonNull(seqNo, "sequence number field cannot be null");
+        private SequenceIDFields(Field seqNoPoint, Field seqNoDocValue, Field primaryTerm, @Nullable Field tombstoneField) {
+            Objects.requireNonNull(seqNoPoint, "sequence number field cannot be null");
             Objects.requireNonNull(seqNoDocValue, "sequence number dv field cannot be null");
             Objects.requireNonNull(primaryTerm, "primary term field cannot be null");
-            this.seqNo = seqNo;
+            this.seqNoPoint = seqNoPoint;
             this.seqNoDocValue = seqNoDocValue;
             this.primaryTerm = primaryTerm;
             this.tombstoneField = tombstoneField;
         }
 
         public void addFields(LuceneDocument document) {
-            document.add(seqNo);
+            document.add(seqNoPoint);
             document.add(seqNoDocValue);
             document.add(primaryTerm);
             if (tombstoneField != null) {
@@ -81,15 +82,16 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
          * to the specified value. Called in the engine long after parsing.
          */
         public void set(long seqNo, long primaryTerm) {
-            this.seqNo.setLongValue(seqNo >> 12);
+            // TODO negative values no shift?
+            this.seqNoPoint.setLongValue(seqNo >> POINTS_SHIFT);
             this.seqNoDocValue.setLongValue(seqNo);
             this.primaryTerm.setLongValue(primaryTerm);
         }
 
         public static SequenceIDFields emptySeqID() {
             return new SequenceIDFields(
-                new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(DOC_VALUE_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                new LongPoint(POINTS_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO >> POINTS_SHIFT),
+                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
                 null
             );
@@ -97,8 +99,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         public static SequenceIDFields tombstone() {
             return new SequenceIDFields(
-                new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(DOC_VALUE_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                new LongPoint(POINTS_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO >> POINTS_SHIFT),
+                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                 new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
                 new NumericDocValuesField(TOMBSTONE_NAME, 1)
             );
@@ -109,13 +111,14 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_seq_no";
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
-    private static final String DOC_VALUE_NAME = "_seq_no_dv";
+    public static final String POINTS_NAME = "_seq_no_points";
+    private static final int POINTS_SHIFT = 10;
 
     public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
-    static final class SeqNoFieldType extends SimpleMappedFieldType {
+    public static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();
 
@@ -159,14 +162,16 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
             // NOCOMMIT recheck the doc values
-            return LongPoint.newExactQuery(name(), v);
+            throw new UnsupportedOperationException();
+            //            return LongPoint.newExactQuery(name(), v);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
             // NOCOMMIT recheck the doc values
-            return LongPoint.newSetQuery(name(), v);
+            throw new UnsupportedOperationException();
+//            return LongPoint.newSetQuery(name(), v);
         }
 
         @Override
@@ -197,14 +202,22 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                     --u;
                 }
             }
-            // NOCOMMIT recheck the doc values
-            return LongPoint.newRangeQuery(name(), l, u);
+            return rangeQuery(l, u);
+        }
+
+        public Query rangeQuery(long from, long to) {
+            // TODO hand rolled query that only scans on the lower and upper end and only if from and to aren't on the rounding boundary
+            // TODO negative values no shift?
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(LongPoint.newRangeQuery(POINTS_NAME, from >> POINTS_SHIFT, to >> POINTS_SHIFT), BooleanClause.Occur.MUST);
+            builder.add(NumericDocValuesField.newSlowRangeQuery(NAME, from, to), BooleanClause.Occur.MUST);
+            return builder.build();
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(DOC_VALUE_NAME, NumericType.LONG, SeqNoDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(NAME, NumericType.LONG, SeqNoDocValuesField::new);
         }
     }
 
@@ -231,7 +244,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         SequenceIDFields seqID = context.seqID();
         assert seqID != null;
         for (LuceneDocument doc : context.nonRootDocuments()) {
-            doc.add(seqID.seqNo);
+            doc.add(seqID.seqNoPoint);
             doc.add(seqID.seqNoDocValue);
         }
     }
@@ -241,4 +254,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SeqNoFieldType fieldType() {
+        return (SeqNoFieldType) mappedFieldType;
+    }
 }

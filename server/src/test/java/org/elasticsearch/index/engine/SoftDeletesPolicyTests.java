@@ -8,14 +8,24 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,6 +36,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SoftDeletesPolicyTests extends ESTestCase {
@@ -33,7 +44,7 @@ public class SoftDeletesPolicyTests extends ESTestCase {
     /**
      * Makes sure we won't advance the retained seq# if the retention lock is held
      */
-    public void testSoftDeletesRetentionLock() {
+    public void testSoftDeletesRetentionLock() throws IOException {
         long retainedOps = between(0, 10000);
         AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
         final AtomicLong[] retainingSequenceNumbers = new AtomicLong[randomIntBetween(0, 8)];
@@ -52,46 +63,77 @@ public class SoftDeletesPolicyTests extends ESTestCase {
         long minRetainedSeqNo = policy.getMinRetainedSeqNo();
         List<Releasable> locks = new ArrayList<>();
         int iters = scaledRandomIntBetween(10, 1000);
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                locks.add(policy.acquireRetentionLock());
-            }
-            // Advances the global checkpoint and the local checkpoint of a safe commit
-            globalCheckpoint.addAndGet(between(0, 1000));
-            for (final AtomicLong retainingSequenceNumber : retainingSequenceNumbers) {
-                retainingSequenceNumber.set(randomLongBetween(retainingSequenceNumber.get(), Math.max(globalCheckpoint.get(), 0L)));
-            }
-            safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
-            policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
-            if (rarely()) {
-                retainedOps = between(0, 10000);
-                policy.setRetentionOperations(retainedOps);
-            }
-            // Release some locks
-            List<Releasable> releasingLocks = randomSubsetOf(locks);
-            locks.removeAll(releasingLocks);
-            releasingLocks.forEach(Releasable::close);
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            long seqNo = 0;
+            for (int i = 0; i < iters; i++) {
+                if (randomBoolean()) {
+                    locks.add(policy.acquireRetentionLock());
+                }
+                // Advances the global checkpoint and the local checkpoint of a safe commit
+                globalCheckpoint.addAndGet(between(0, 1000));
+                for (final AtomicLong retainingSequenceNumber : retainingSequenceNumbers) {
+                    retainingSequenceNumber.set(randomLongBetween(retainingSequenceNumber.get(), Math.max(globalCheckpoint.get(), 0L)));
+                }
+                safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
+                policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
+                if (rarely()) {
+                    retainedOps = between(0, 10000);
+                    policy.setRetentionOperations(retainedOps);
+                }
+                // Release some locks
+                List<Releasable> releasingLocks = randomSubsetOf(locks);
+                locks.removeAll(releasingLocks);
+                releasingLocks.forEach(Releasable::close);
 
-            // getting the query has side effects, updating the internal state of the policy
-            final Query query = policy.getRetentionQuery();
-            assertThat(query, instanceOf(PointRangeQuery.class));
-            final PointRangeQuery retentionQuery = (PointRangeQuery) query;
+                // getting the query has side effects, updating the internal state of the policy
+                final Query retentionQuery = policy.getRetentionQuery();
+                assertThat(retentionQuery, instanceOf(BooleanQuery.class));
 
-            // we only expose the minimum sequence number to the merge policy if the retention lock is not held
-            if (locks.isEmpty()) {
-                final long minimumRetainingSequenceNumber = Arrays.stream(retainingSequenceNumbers)
-                    .mapToLong(AtomicLong::get)
-                    .min()
-                    .orElse(Long.MAX_VALUE);
-                long retainedSeqNo = Math.min(
-                    1 + safeCommitCheckpoint,
-                    Math.min(minimumRetainingSequenceNumber, 1 + globalCheckpoint.get() - retainedOps)
-                );
-                minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
+                // we only expose the minimum sequence number to the merge policy if the retention lock is not held
+                if (locks.isEmpty()) {
+                    final long minimumRetainingSequenceNumber = Arrays.stream(retainingSequenceNumbers)
+                        .mapToLong(AtomicLong::get)
+                        .min()
+                        .orElse(Long.MAX_VALUE);
+                    long retainedSeqNo = Math.min(
+                        1 + safeCommitCheckpoint,
+                        Math.min(minimumRetainingSequenceNumber, 1 + globalCheckpoint.get() - retainedOps)
+                    );
+                    minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
+                }
+
+                long end = globalCheckpoint.get();
+                while (seqNo < end) {
+                    LuceneDocument d = new LuceneDocument();
+                    SeqNoFieldMapper.SequenceIDFields fields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+                    fields.set(seqNo++, 0);
+                    fields.addFields(d);
+                    indexWriter.addDocument(d);
+                }
+                try (IndexReader reader = indexWriter.getReader()) {
+                    long finalMinRetainedSeqNo = minRetainedSeqNo;
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    searcher.search(retentionQuery, new SimpleCollector() {
+                        NumericDocValues seqNo;
+
+                        @Override
+                        protected void doSetNextReader(LeafReaderContext context) throws IOException {
+                            seqNo = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                        }
+
+                        @Override
+                        public void collect(int doc) throws IOException {
+                            assertTrue(seqNo.advanceExact(doc));
+                            assertThat(seqNo.longValue(), greaterThanOrEqualTo(finalMinRetainedSeqNo));
+                        }
+
+                        @Override
+                        public ScoreMode scoreMode() {
+                            return ScoreMode.COMPLETE_NO_SCORES;
+                        }
+                    });
+                }
             }
-            assertThat(retentionQuery.getNumDims(), equalTo(1));
-            assertThat(LongPoint.decodeDimension(retentionQuery.getLowerPoint(), 0), equalTo(minRetainedSeqNo));
-            assertThat(LongPoint.decodeDimension(retentionQuery.getUpperPoint(), 0), equalTo(Long.MAX_VALUE));
             assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
         }
 

@@ -127,11 +127,13 @@ public class RolloverAction implements LifecycleAction {
         if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxPrimaryShardDocs == null) {
             throw new IllegalArgumentException("At least one max_* rollover condition must be set.");
         }
+
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
         this.maxPrimaryShardDocs = maxPrimaryShardDocs;
+
         this.minPrimaryShardSize = minPrimaryShardSize;
         this.minAge = minAge;
         this.minDocs = minDocs;
@@ -152,6 +154,10 @@ public class RolloverAction implements LifecycleAction {
         maxDocs = in.readOptionalVLong();
         if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
             maxPrimaryShardDocs = in.readOptionalVLong();
+        } else {
+            maxPrimaryShardDocs = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             if (in.readBoolean()) {
                 minPrimaryShardSize = new ByteSizeValue(in);
             } else {
@@ -160,10 +166,9 @@ public class RolloverAction implements LifecycleAction {
             minAge = in.readOptionalTimeValue();
             minDocs = in.readOptionalVLong();
         } else {
-            maxPrimaryShardDocs = null;
+            minPrimaryShardSize = null;
             minAge = null;
             minDocs = null;
-            minPrimaryShardSize = null;
         }
     }
 
@@ -183,6 +188,8 @@ public class RolloverAction implements LifecycleAction {
         out.writeOptionalVLong(maxDocs);
         if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
             out.writeOptionalVLong(maxPrimaryShardDocs);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeBoolean(minPrimaryShardSize != null);
             if (minPrimaryShardSize != null) {
                 minPrimaryShardSize.writeTo(out);

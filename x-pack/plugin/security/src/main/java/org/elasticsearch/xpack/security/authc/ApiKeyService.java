@@ -1242,8 +1242,8 @@ public class ApiKeyService {
             apiKeyDoc.seqNo(),
             apiKeyDoc.primaryTerm()
         );
-        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
         final var currentDocVersion = Version.fromId(apiKeyDoc.doc().version);
+        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
             logger.debug(

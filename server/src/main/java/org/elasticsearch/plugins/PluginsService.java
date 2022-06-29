@@ -47,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -294,11 +293,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    // package private for testing
-    <T> Iterator<T> providersIterator(Class<T> service, ClassLoader classLoader) {
-        return ServiceLoader.load(service, classLoader).iterator();
-    }
-
     /**
      * SPI convenience method that uses the {@link ServiceLoader} JDK class to load various SPI providers
      * from plugins/modules.
@@ -315,7 +309,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<T> result = new ArrayList<>();
 
         for (LoadedPlugin pluginTuple : plugins()) {
-            providersIterator(service, pluginTuple.loader()).forEachRemaining(c -> result.add(c));
+            ServiceLoader.load(service, pluginTuple.loader()).iterator().forEachRemaining(c -> result.add(c));
         }
 
         return Collections.unmodifiableList(result);

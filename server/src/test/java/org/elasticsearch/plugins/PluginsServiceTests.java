@@ -623,24 +623,28 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     private ClassLoader buildTestProviderPlugin(String name) throws Exception {
-        String pluginClass = Strings.format("""
+        Map<String, CharSequence> sources = Map.of("r.FooPlugin", """
             package r;
-            import org.elasticsearch.plugins.spi.TestService;
             import org.elasticsearch.plugins.ActionPlugin;
             import org.elasticsearch.plugins.Plugin;
-            public final class FooPlugin extends Plugin implements ActionPlugin, TestService {
+            public final class FooPlugin extends Plugin implements ActionPlugin { }
+            """, "r.FooTestService", Strings.format("""
+            package r;
+            import org.elasticsearch.plugins.spi.TestService;
+            public final class FooTestService implements TestService {
                 @Override
                 public String name() {
                     return "%s";
                 }
             }
-            """, name);
+            """, name));
 
-        var classToBytes = InMemoryJavaCompiler.compile("r.FooPlugin", pluginClass);
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
-        jarEntries.put("r/FooPlugin.class", classToBytes);
-        jarEntries.put("META-INF/services/org.elasticsearch.plugins.spi.TestService", "r.FooPlugin".getBytes(StandardCharsets.UTF_8));
+        jarEntries.put("r/FooPlugin.class", classToBytes.get("r.FooPlugin"));
+        jarEntries.put("r/FooTestService.class", classToBytes.get("r.FooTestService"));
+        jarEntries.put("META-INF/services/org.elasticsearch.plugins.spi.TestService", "r.FooTestService".getBytes(StandardCharsets.UTF_8));
 
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve(Strings.format("custom_plugin_%s.jar", name));

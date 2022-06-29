@@ -1096,10 +1096,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport().example();
+        SyntheticSourceSupport supportDelegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport();
         return new SyntheticSourceSupport() {
             @Override
-            public SyntheticSourceExample example() throws IOException {
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                SyntheticSourceExample delegate = supportDelegate.example(maxValues);
                 return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");

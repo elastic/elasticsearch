@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -83,6 +83,7 @@ public class TransformTaskTests extends ESTestCase {
 
     // see https://github.com/elastic/elasticsearch/issues/48957
     public void testStopOnFailedTaskWithStoppedIndexer() {
+        Clock clock = Clock.systemUTC();
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
@@ -90,7 +91,7 @@ public class TransformTaskTests extends ESTestCase {
         TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
+            clock,
             Settings.EMPTY,
             new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
             transformsConfigManager,
@@ -100,7 +101,7 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             transformsCheckpointService,
             auditor,
-            mock(SchedulerEngine.class)
+            new TransformScheduler(clock, threadPool, Settings.EMPTY)
         );
 
         TransformState transformState = new TransformState(
@@ -122,7 +123,7 @@ public class TransformTaskTests extends ESTestCase {
             client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(SchedulerEngine.class),
+            new TransformScheduler(clock, threadPool, Settings.EMPTY),
             auditor,
             threadPool,
             Collections.emptyMap()
@@ -200,7 +201,7 @@ public class TransformTaskTests extends ESTestCase {
             client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(SchedulerEngine.class),
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY),
             auditor,
             threadPool,
             Collections.emptyMap()

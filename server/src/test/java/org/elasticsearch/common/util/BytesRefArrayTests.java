@@ -57,6 +57,19 @@ public class BytesRefArrayTests extends ESTestCase {
         array.close();
     }
 
+    public void testTakeOwnership() {
+        BytesRefArray array = randomArray();
+        long size = array.size();
+        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
+
+        assertNotEquals(array, newOwnerOfArray);
+        assertEquals(0, array.size());
+        assertEquals(size, newOwnerOfArray.size());
+
+        array.close();
+        newOwnerOfArray.close();
+    }
+
     private static BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }

@@ -405,7 +405,7 @@ public abstract class IndexRouting {
         }
     }
 
-    private static record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
+    private record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
         @Override
         public int compareTo(NameAndHash o) {
             return name.compareTo(o.name);

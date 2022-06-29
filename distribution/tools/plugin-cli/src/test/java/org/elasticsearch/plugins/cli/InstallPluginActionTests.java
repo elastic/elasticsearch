@@ -1503,7 +1503,7 @@ public class InstallPluginActionTests extends ESTestCase {
      * instead simply print a message to the terminal.
      */
     public void testInstallMigratedPlugins() throws Exception {
-        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3", "ingest-attachment")) {
             installPlugin(id);
             assertThat(terminal.getErrorOutput(), containsString("[" + id + "] is no longer a plugin"));
         }

@@ -163,7 +163,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             long v = parse(value);
             // TODO recheck the doc values
             throw new UnsupportedOperationException();
-            //            return LongPoint.newExactQuery(name(), v);
+            // return LongPoint.newExactQuery(name(), v);
         }
 
         @Override
@@ -171,7 +171,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
             // TODO recheck the doc values
             throw new UnsupportedOperationException();
-//            return LongPoint.newSetQuery(name(), v);
+            // return LongPoint.newSetQuery(name(), v);
         }
 
         @Override

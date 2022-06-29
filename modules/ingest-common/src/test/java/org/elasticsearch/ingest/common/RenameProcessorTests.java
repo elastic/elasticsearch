@@ -137,18 +137,14 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     public void testRenameAtomicOperationSetFails() throws Exception {
-        Map<String, Object> source = new HashMap<String, Object>() {
-            @Override
-            public Object put(String key, Object value) {
-                if (key.equals("new_field")) {
-                    throw new UnsupportedOperationException();
-                }
-                return super.put(key, value);
-            }
-        };
-        source.put("list", Collections.singletonList("item"));
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("new_field", (k, v) -> {
+            if (v != null) {
+                throw new UnsupportedOperationException();
+            }
+        }, "list", (k, v) -> {}));
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -161,18 +157,14 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     public void testRenameAtomicOperationRemoveFails() throws Exception {
-        Map<String, Object> source = new HashMap<String, Object>() {
-            @Override
-            public Object remove(Object key) {
-                if (key.equals("list")) {
-                    throw new UnsupportedOperationException();
-                }
-                return super.remove(key);
-            }
-        };
-        source.put("list", Collections.singletonList("item"));
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("list", (k, v) -> {
+            if (v == null) {
+                throw new UnsupportedOperationException();
+            }
+        }));
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -187,7 +179,7 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameLeafIntoBranch() throws Exception {
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
-        IngestDocument ingestDocument = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
         Processor processor1 = createRenameProcessor("foo", "foo.bar", false);
         processor1.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar", "bar")));

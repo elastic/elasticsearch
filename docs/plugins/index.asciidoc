@@ -44,8 +44,6 @@ include::analysis.asciidoc[]
 
 include::discovery.asciidoc[]
 
-include::ingest.asciidoc[]
-
 include::mapper.asciidoc[]
 
 include::repository.asciidoc[]

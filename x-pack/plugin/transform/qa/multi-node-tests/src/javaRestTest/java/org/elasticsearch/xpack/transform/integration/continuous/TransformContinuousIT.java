@@ -101,7 +101,8 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 "xpack.transform.num_transform_failure_retries": "0",
                 "logger.org.elasticsearch.action.bulk": "info",
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
-                "logger.org.elasticsearch.xpack.transform": "debug"
+                "logger.org.elasticsearch.xpack.transform": "debug",
+                "logger.org.elasticsearch.xpack.transform.transforms.scheduling": "trace"
               }
             }""");
         client().performRequest(addFailureRetrySetting);

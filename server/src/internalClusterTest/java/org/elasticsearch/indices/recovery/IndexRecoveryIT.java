@@ -1470,7 +1470,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
             return singletonMap(
                 "test_token_filter",
-                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(indexSettings, name, settings) {
+                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name, settings) {
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
                         if (throwParsingError.get()) {

@@ -212,7 +212,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 +
-.Properties of `analysis_config`
+.Properties of `time`
 [%collapsible%open]
 =====
 

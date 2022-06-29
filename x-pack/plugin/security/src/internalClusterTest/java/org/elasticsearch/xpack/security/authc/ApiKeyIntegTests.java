@@ -109,7 +109,6 @@ import static org.elasticsearch.test.SecuritySettingsSource.HASHER;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
-import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -1455,6 +1454,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
         final var response = listener.get();
+
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -1547,8 +1547,25 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testInvalidUpdateApiKeyScenarios() throws ExecutionException, InterruptedException {
-        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
-        final var apiKeyId = createdApiKey.v1().getId();
+        final CreateApiKeyResponse createdApiKey = createApiKeys(TEST_USER_NAME, 1, null, "all").v1().get(0);
+        final var apiKeyId = createdApiKey.getId();
+
+        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
+        PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
+        client().filterWithHeader(
+            Collections.singletonMap(
+                "Authorization",
+                "ApiKey " + getBase64EncodedApiKeyValue(createdApiKey.getId(), createdApiKey.getKey())
+            )
+        ).execute(UpdateApiKeyAction.INSTANCE, request, updateListener);
+
+        final var apiKeysNotAllowedEx = expectThrows(ExecutionException.class, updateListener::get);
+        assertThat(apiKeysNotAllowedEx.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(
+            apiKeysNotAllowedEx.getMessage(),
+            containsString("authentication via an API key is not supported for updating API keys")
+        );
 
         final boolean invalidated = randomBoolean();
         if (invalidated) {
@@ -1568,18 +1585,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
         }
 
-        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
-        final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
-
-        final var serviceWithNodeName = getServiceWithNodeName();
-        PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(
-                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                request,
-                Set.of(roleDescriptor),
-                updateListener
-            );
+        updateListener = new PlainActionFuture<>();
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        client.execute(UpdateApiKeyAction.INSTANCE, request, updateListener);
         final var ex = expectThrows(ExecutionException.class, updateListener::get);
 
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
@@ -1588,17 +1598,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         } else {
             assertThat(ex.getMessage(), containsString("cannot update expired API key [" + apiKeyId + "]"));
         }
-
-        updateListener = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(AuthenticationTestHelper.builder().apiKey().build(false), request, Set.of(roleDescriptor), updateListener);
-        final var apiKeysNotAllowedEx = expectThrows(ExecutionException.class, updateListener::get);
-
-        assertThat(apiKeysNotAllowedEx.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(
-            apiKeysNotAllowedEx.getMessage(),
-            containsString("authentication via an API key is not supported for updating API keys")
-        );
     }
 
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {

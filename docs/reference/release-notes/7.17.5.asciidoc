@@ -82,7 +82,7 @@ Stats::
 * Run `TransportClusterInfoActions` on MANAGEMENT pool {es-pull}87679[#87679]
 
 Transform::
-* Execute `_refresh` separately from DBQ, with system permissions {es-pull}88005[#88005] (issue: {es-issue}88001[#88001])
+* Execute `_refresh` (with system permissions) separately from `delete by query` (with user permissions) {es-pull}88005[#88005] (issue: {es-issue}88001[#88001])
 
 [[enhancement-7.17.5]]
 [float]

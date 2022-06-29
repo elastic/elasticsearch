@@ -280,9 +280,9 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 if (inferenceStatsMap == null) {
                     inferenceStatsMap = Maps.newHashMapWithExpectedSize(assignmentStatsMap.size());
                 }
-                assignmentStatsMap.forEach((modelId, assignmentStats) -> {
-                    inferenceStatsMap.put(modelId, assignmentStats.getOverallInferenceStats());
-                });
+                assignmentStatsMap.forEach(
+                    (modelId, assignmentStats) -> inferenceStatsMap.put(modelId, assignmentStats.getOverallInferenceStats())
+                );
                 return this;
             }
 

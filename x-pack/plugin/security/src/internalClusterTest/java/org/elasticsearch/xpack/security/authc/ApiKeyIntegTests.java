@@ -1453,14 +1453,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
         final var response = listener.get();
-
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
-        // Correct data returned from GET API
         final PlainActionFuture<GetApiKeyResponse> getListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(apiKeyId, false), getListener);
-        final GetApiKeyResponse getResponse = getListener.get();
+        GetApiKeyResponse getResponse = getListener.get();
         assertEquals(1, getResponse.getApiKeyInfos().length);
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         final var expectedMetadata = request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2();

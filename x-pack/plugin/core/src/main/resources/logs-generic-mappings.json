@@ -3,11 +3,21 @@
     "mappings": {
       "dynamic": "runtime",
       "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
         "data_stream": {
           "properties": {
             "type": {
               "type": "constant_keyword",
               "value": "logs"
+            },
+            "dataset": {
+              "type": "constant_keyword",
+              "value": "generic"
+            },
+            "namespace": {
+              "type": "constant_keyword"
             }
           }
         }
@@ -15,7 +25,7 @@
     }
   },
   "_meta": {
-    "description": "default mappings for the logs index template installed by x-pack",
+    "description": "default mappings for the logs-generic-* index template installed by x-pack",
     "managed": true
   },
   "version": ${xpack.stack.template.version}

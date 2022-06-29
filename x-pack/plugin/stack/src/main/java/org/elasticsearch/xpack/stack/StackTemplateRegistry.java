@@ -66,9 +66,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // Logs components (for matching logs-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-mappings";
+    public static final String LOGS_GENERIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-generic-mappings";
     public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs-settings";
     public static final String LOGS_ILM_POLICY_NAME = "logs";
     public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
+    public static final String LOGS_GENERIC_INDEX_TEMPLATE_NAME = "logs-generic";
 
     //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
@@ -155,6 +157,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
+                LOGS_GENERIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs-generic-mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
                 LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs-settings.json",
                 REGISTRY_VERSION,
@@ -208,6 +216,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(LOGS_GENERIC_INDEX_TEMPLATE_NAME, "/logs-generic-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
     );

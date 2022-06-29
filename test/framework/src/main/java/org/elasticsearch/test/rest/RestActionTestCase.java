@@ -102,7 +102,7 @@ public abstract class RestActionTestCase extends ESTestCase {
          * function should return a subclass of {@link ActionResponse} that is appropriate for the action.
          * @param verifier A function which is called in place of {@link #doExecute(ActionType, ActionRequest, ActionListener)}
          */
-        public <R extends ActionResponse> void setExecuteVerifier(BiFunction<ActionType<R>, ActionRequest, R> verifier) {
+        public <R extends ActionResponse> void setExecuteVerifier(BiFunction<ActionType<R>, ? extends ActionRequest, R> verifier) {
             /*
              * Perform a little generics dance to force the callers to mock
              * a return type appropriate for the action even though we can't

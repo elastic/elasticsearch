@@ -1,0 +1,15 @@
+{
+  "index_patterns": ["logs-generic-*"],
+  "priority": 200,
+  "data_stream": {},
+  "composed_of": [
+    "logs-generic-mappings",
+    "logs-settings"
+  ],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "default logs-generic-* template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version}
+}

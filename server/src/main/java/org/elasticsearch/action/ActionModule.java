@@ -402,6 +402,7 @@ import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
+import org.elasticsearch.rest.action.logs.RestLogsAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
@@ -869,6 +870,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDesiredNodesAction());
         registerHandler.accept(new RestUpdateDesiredNodesAction());
         registerHandler.accept(new RestDeleteDesiredNodesAction());
+
+        // Logs API
+        registerHandler.accept(new RestLogsAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

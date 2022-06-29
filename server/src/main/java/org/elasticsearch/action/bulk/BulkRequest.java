@@ -129,7 +129,7 @@ public class BulkRequest extends ActionRequest
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(Iterable<DocWriteRequest<?>> requests) {
+    public BulkRequest add(Iterable<? extends DocWriteRequest<?>> requests) {
         for (DocWriteRequest<?> request : requests) {
             add(request);
         }

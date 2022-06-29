@@ -281,7 +281,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                     inferenceStatsMap = Maps.newHashMapWithExpectedSize(assignmentStatsMap.size());
                 }
                 assignmentStatsMap.forEach((modelId, assignmentStats) -> {
-                    assert inferenceStatsMap.containsKey(modelId) == false : format("model already in inference stats map [%s]", modelId);
                     inferenceStatsMap.put(modelId, assignmentStats.getOverallInferenceStats());
                 });
                 return this;

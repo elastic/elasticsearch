@@ -186,7 +186,7 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> source = new HashMap<>();
         source.put(field, "http://www.google.com");
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
@@ -202,7 +202,7 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> source = new HashMap<>();
         source.put("field", uri);
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(input));
         assertThat(e.getMessage(), containsString("unable to parse URI [" + uri + "]"));
@@ -218,7 +218,7 @@ public class UriPartsProcessorTests extends ESTestCase {
 
         Map<String, Object> source = new HashMap<>();
         source.put("field", uri);
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         Map<String, Object> expectedSourceAndMetadata = new HashMap<>();

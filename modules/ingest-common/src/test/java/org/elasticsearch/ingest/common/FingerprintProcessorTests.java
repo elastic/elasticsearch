@@ -227,7 +227,7 @@ public class FingerprintProcessorTests extends ESTestCase {
         MessageDigest md = MessageDigest.getInstance(FingerprintProcessor.Factory.DEFAULT_METHOD);
         expectedBytes = md.digest(expectedBytes);
 
-        var input = TestIngestDocument.ofSourceAndMetadata(inputMap);
+        var input = TestIngestDocument.withDefaultVersion(inputMap);
         var output = fp.execute(input);
         assertTrue(output.hasField("fingerprint"));
         String fingerprint = output.getFieldValue("fingerprint", String.class);
@@ -257,7 +257,7 @@ public class FingerprintProcessorTests extends ESTestCase {
             config.put("method", FingerprintProcessor.Factory.SUPPORTED_DIGESTS[k]);
 
             FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config);
-            var input = TestIngestDocument.ofSourceAndMetadata(inputMap);
+            var input = TestIngestDocument.withDefaultVersion(inputMap);
             var output = fp.execute(input);
             assertTrue(output.hasField("fingerprint"));
             String fingerprint = output.getFieldValue("fingerprint", String.class);
@@ -394,7 +394,7 @@ public class FingerprintProcessorTests extends ESTestCase {
             expectedBytes = concatBytes(expectedBytes, toBytes(value));
         }
 
-        var input = TestIngestDocument.ofSourceAndMetadata(inputMap);
+        var input = TestIngestDocument.withDefaultVersion(inputMap);
         var output = fp.execute(input);
         var hasher = (TestHasher) threadLocalHasher.get();
         assertThat(hasher.getBytesSeen(), equalTo(expectedBytes));

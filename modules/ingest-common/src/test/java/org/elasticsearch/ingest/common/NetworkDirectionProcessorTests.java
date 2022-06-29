@@ -150,7 +150,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             config
         );
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class);
         assertThat(hash, equalTo("external"));
@@ -196,7 +196,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             config
         );
 
-        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

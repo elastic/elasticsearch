@@ -28,9 +28,70 @@ import java.util.Map;
 public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public enum ExecutionMode {
-        GLOBAL_ORDINALS,
-        SEGMENT_ORDINALS,
-        DIRECT;
+        GLOBAL_ORDINALS(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return true;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return false;
+            }
+        },
+        SEGMENT_ORDINALS(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return false;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return true;
+            }
+        },
+        DIRECT(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return false;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return false;
+            }
+        },
+        SAVE_MEMORY_HEURISTIC(true) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+                throws IOException {
+                return useGlobalOrds(context, source, precision);
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                final long ordinalsMemoryUsage = CardinalityAggregator.OrdinalsCollector.memoryOverhead(maxOrd);
+                final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                // only use ordinals if they don't increase memory usage by more than 25%
+                if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                    return true;
+                }
+                return false;
+            }
+        },
+        SAVE_TIME_HEURISTIC(true) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+                throws IOException {
+                return useGlobalOrds(context, source, precision);
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                // Using segment ordinals is much faster than using the direct collector, even when it uses more memory
+                return true;
+            }
+        };
 
         public static ExecutionMode fromString(String value) {
             if (value == null) {
@@ -47,6 +108,20 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
                 );
             }
         }
+
+        boolean isHeuristicBased;
+        ExecutionMode(boolean isHeuristicBased) {
+            this.isHeuristicBased = isHeuristicBased;
+        }
+
+        public boolean isHeuristicBased() {
+            return isHeuristicBased;
+        }
+
+        public abstract boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+            throws IOException;
+
+        public abstract boolean useSegmentOrdinals(long maxOrd, int precision);
     }
 
     private final Long precisionThreshold;
@@ -68,7 +143,8 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.precisionThreshold = precisionThreshold;
-        this.executionMode = ExecutionMode.fromString(executionHint);
+        // For BWC reasons, the parameter is nullable.  Default to the old behavior for now.
+        this.executionMode = executionHint == null ? ExecutionMode.SAVE_MEMORY_HEURISTIC : ExecutionMode.fromString(executionHint);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -79,7 +155,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
                     if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
-                        if (useGlobalOrds(context, source, precision, executionMode)) {
+                        if (executionMode.useGlobalOrdinals(context, source, precision)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
                             return new GlobalOrdCardinalityAggregator(
                                 name,
@@ -100,17 +176,8 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
         );
     }
 
-    private static boolean useGlobalOrds(
-        AggregationContext context,
-        ValuesSource.Bytes.WithOrdinals source,
-        int precision,
-        ExecutionMode executionMode
-    ) throws IOException {
-        // Respect the execution hint, if we got one
-        if (executionMode != null) {
-            return executionMode.equals(ExecutionMode.GLOBAL_ORDINALS);
-        }
-
+    private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+        throws IOException {
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         // we compute the total number of terms across all segments
         long total = 0;

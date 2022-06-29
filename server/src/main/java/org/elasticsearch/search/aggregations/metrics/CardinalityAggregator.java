@@ -102,19 +102,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 return new EmptyCollector();
             }
 
-            // this is ugly, but hopefully gets cleaned up when I refactor all of this soon
-            if (executionMode == null) {
-                final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-                final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-                // only use ordinals if they don't increase memory usage by more than 25%
-                if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                    ordinalsCollectorsUsed++;
-                    return new OrdinalsCollector(counts, ordinalValues, bigArrays());
-                }
-                ordinalsCollectorsOverheadTooHigh++;
-            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.SEGMENT_ORDINALS) {
-                ordinalsCollectorsUsed++;
+            if (executionMode.useSegmentOrdinals(maxOrd, precision)) {
                 return new OrdinalsCollector(counts, ordinalValues, bigArrays());
+            }
+
+            if (executionMode.isHeuristicBased()) {
+                // if we could have used segment ordinals, and it was our heuristic that made the choice not to, increment the counter
+                ordinalsCollectorsOverheadTooHigh++;
             }
         }
 
@@ -238,7 +232,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
-    private static class OrdinalsCollector extends Collector {
+    static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 

@@ -29,8 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
-
 public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
@@ -40,7 +38,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int numResponse = randomIntBetween(0, 10);
 
         for (int i = 0; i < numResponse; i++) {
-            responses.add(createRandomIndexResponse());
+            responses.add(FieldCapabilitiesIndexResponseTests.randomIndexResponse());
         }
         randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyList());
         return randomResponse;
@@ -49,22 +47,6 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
     @Override
     protected Writeable.Reader<FieldCapabilitiesResponse> instanceReader() {
         return FieldCapabilitiesResponse::new;
-    }
-
-    public static FieldCapabilitiesIndexResponse createRandomIndexResponse() {
-        return randomIndexResponse(randomAsciiLettersOfLength(10), randomBoolean());
-    }
-
-    public static FieldCapabilitiesIndexResponse randomIndexResponse(String index, boolean canMatch) {
-        Map<String, IndexFieldCapabilities> responses = new HashMap<>();
-
-        String[] fields = generateRandomStringArray(5, 10, false, true);
-        assertNotNull(fields);
-
-        for (String field : fields) {
-            responses.put(field, randomFieldCaps(field));
-        }
-        return new FieldCapabilitiesIndexResponse(index, responses, canMatch);
     }
 
     public static IndexFieldCapabilities randomFieldCaps(String fieldName) {

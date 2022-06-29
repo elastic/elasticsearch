@@ -18,6 +18,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomIndexResponse;
+
 public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesNodeResponse> {
 
     @Override
@@ -25,7 +27,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
-            responses.add(FieldCapabilitiesResponseTests.createRandomIndexResponse());
+            responses.add(randomIndexResponse());
         }
         int numUnmatched = randomIntBetween(0, 3);
         Set<ShardId> shardIds = new HashSet<>();
@@ -46,7 +48,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int mutation = response.getIndexResponses().isEmpty() ? 0 : randomIntBetween(0, 2);
         switch (mutation) {
             case 0:
-                newResponses.add(FieldCapabilitiesResponseTests.createRandomIndexResponse());
+                newResponses.add(randomIndexResponse());
                 break;
             case 1:
                 int toRemove = randomInt(newResponses.size() - 1);
@@ -54,7 +56,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                 break;
             case 2:
                 int toReplace = randomInt(newResponses.size() - 1);
-                newResponses.set(toReplace, FieldCapabilitiesResponseTests.createRandomIndexResponse());
+                newResponses.set(toReplace, randomIndexResponse());
                 break;
         }
         return new FieldCapabilitiesNodeResponse(newResponses, Collections.emptyMap(), response.getUnmatchedShardIds());

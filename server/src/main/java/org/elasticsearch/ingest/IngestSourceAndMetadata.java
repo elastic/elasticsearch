@@ -41,13 +41,13 @@ import java.util.stream.Collectors;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-class IngestSourceAndMetadata extends AbstractMap<String, Object> implements Metadata {
+public class IngestSourceAndMetadata extends AbstractMap<String, Object> implements Metadata {
     protected final ZonedDateTime timestamp;
 
     /**
      * map of key to validating function. Should throw {@link IllegalArgumentException} on invalid value
      */
-    static final Map<String, BiConsumer<String, Object>> VALIDATORS = Map.of(
+    protected static final Map<String, BiConsumer<String, Object>> VALIDATORS = Map.of(
         IngestDocument.Metadata.INDEX.getFieldName(),
         IngestSourceAndMetadata::stringValidator,
         IngestDocument.Metadata.ID.getFieldName(),
@@ -97,7 +97,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> implements Met
      * @param validators validators to run on metadata map, if a key is in this map, the value is stored in metadata.
      *                   if null, use the default validators from {@link #VALIDATORS}
      */
-    IngestSourceAndMetadata(
+    protected IngestSourceAndMetadata(
         Map<String, Object> source,
         Map<String, Object> metadata,
         ZonedDateTime timestamp,

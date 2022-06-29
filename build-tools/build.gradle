@@ -94,6 +94,7 @@ publishing.publications.named("elastic").configure {
 
 configurations {
     integTestImplementation.extendsFrom(testFixturesApi)
+    integTestImplementation.extendsFrom(testImplementation)
     integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
     register("reaper")
 }
@@ -129,23 +130,26 @@ dependencies {
         exclude module: "groovy"
     }
 
-    integTestImplementation(buildLibs.spock.junit4) {
+    testImplementation(buildLibs.spock.junit4) {
         because 'required as we rely on junit4 rules'
     }
 
-    integTestImplementation(platform(buildLibs.junit5.platform))
-    integTestImplementation(buildLibs.junit5.jupiter) {
+    testImplementation(platform(buildLibs.junit5.platform))
+    testImplementation(buildLibs.junit5.jupiter) {
         because 'allows to write and run Jupiter tests'
     }
-    integTestRuntimeOnly(buildLibs.junit5.vintage) {
+    testRuntimeOnly(buildLibs.junit5.vintage) {
         because 'allows JUnit 3 and JUnit 4 tests to run'
     }
 
-    integTestRuntimeOnly(buildLibs.junit5.platform.launcher) {
+    testRuntimeOnly(buildLibs.junit5.platform.launcher) {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
 }
 
+tasks.named('test').configure {
+    useJUnitPlatform()
+}
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

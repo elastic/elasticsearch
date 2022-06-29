@@ -21,6 +21,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -758,23 +760,23 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         // Without after
         testCase(builder, new MatchAllDocsQuery(), iw -> {
             // Sub-Docs
-            List<Document> documents = new ArrayList<>();
+            List<Iterable<IndexableField>> documents = new ArrayList<>();
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price", 9L));
             documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price", 5L));
             documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price", 7L));
             // Root docs
-            Document root;
-            root = new Document();
+            LuceneDocument root;
+            root = new LuceneDocument();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-            root.add(sequenceIDFields.primaryTerm);
+            sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
-            root = new Document();
+            root = new LuceneDocument();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
-            root.add(sequenceIDFields.primaryTerm);
+            sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
         }, (InternalSingleBucketAggregation parent) -> {
@@ -812,23 +814,23 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
         testCase(builder, new MatchAllDocsQuery(), iw -> {
             // Sub-Docs
-            List<Document> documents = new ArrayList<>();
+            List<Iterable<IndexableField>> documents = new ArrayList<>();
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price", 9L));
             documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price", 5L));
             documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price", 7L));
             // Root docs
-            Document root;
-            root = new Document();
+            LuceneDocument root;
+            root = new LuceneDocument();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-            root.add(sequenceIDFields.primaryTerm);
+            sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
-            root = new Document();
+            root = new LuceneDocument();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
-            root.add(sequenceIDFields.primaryTerm);
+            sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
         }, (InternalSingleBucketAggregation parent) -> {

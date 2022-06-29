@@ -166,6 +166,15 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             // return LongPoint.newExactQuery(name(), v);
         }
 
+        public Query exactQuery(long seqNo) {
+            // TODO hand rolled query?
+            // TODO negative values no shift?
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(LongPoint.newExactQuery(POINTS_NAME, seqNo >> POINTS_SHIFT), BooleanClause.Occur.MUST);
+            builder.add(NumericDocValuesField.newSlowExactQuery(NAME, seqNo), BooleanClause.Occur.MUST);
+            return builder.build();
+        }
+
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();

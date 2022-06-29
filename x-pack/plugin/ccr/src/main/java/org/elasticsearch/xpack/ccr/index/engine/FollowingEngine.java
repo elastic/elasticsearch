@@ -6,20 +6,19 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -188,12 +187,9 @@ public class FollowingEngine extends InternalEngine {
             final IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
             final Query query = new BooleanQuery.Builder().add(
-                LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo),
+                SeqNoFieldMapper.INSTANCE.fieldType().exactQuery(seqNo),
                 BooleanClause.Occur.FILTER
-            )
-                // excludes the non-root nested documents which don't have primary_term.
-                .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
-                .build();
+            ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.FILTER).build();
             final TopDocs topDocs = searcher.search(query, 1);
             if (topDocs.scoreDocs.length == 1) {
                 final int docId = topDocs.scoreDocs[0].doc;

@@ -215,8 +215,8 @@ public class DiskThresholdSettings {
     }
 
     private static void doValidate(String low, String high, String flood) {
-        if (DiskThresholdSettingParser.definitelyNotPercentage(low) == false) { // only try to validate as percentage if it isn't obviously
-                                                                                // a byte size value
+        // only try to validate as percentage if it isn't obviously a byte size value
+        if (DiskThresholdSettingParser.definitelyNotPercentage(low) == false) {
             try {
                 doValidateAsPercentage(low, high, flood);
                 return; // early return so that we do not try to parse as bytes

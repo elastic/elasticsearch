@@ -1755,7 +1755,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
-            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled() && indexMode != null
+            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
+                && indexMode != null
                 && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
             return new IndexMetadata(
                 new Index(index, uuid),

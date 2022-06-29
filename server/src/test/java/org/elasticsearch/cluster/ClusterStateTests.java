@@ -287,7 +287,7 @@ public class ClusterStateTests extends ESTestCase {
                 "index-graveyard": {
                   "tombstones": []
                 },
-                "operator" : { }
+                "immutable_state" : { }
               },
               "routing_table": {
                 "indices": {
@@ -491,7 +491,7 @@ public class ClusterStateTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               },
               "routing_table" : {
                 "indices" : {
@@ -702,7 +702,7 @@ public class ClusterStateTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               },
               "routing_table" : {
                 "indices" : {
@@ -844,7 +844,7 @@ public class ClusterStateTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               },
               "routing_table" : {
                 "indices" : { }

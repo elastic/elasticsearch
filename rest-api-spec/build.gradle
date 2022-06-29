@@ -68,6 +68,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("indices.stats/20_translog/Translog retention settings are deprecated", "translog settings removal is not supported under compatible api")
   task.skipTest("indices.stats/20_translog/Translog retention without soft_deletes", "translog settings removal is not supported under compatible api")
   task.skipTest("indices.stats/20_translog/Translog stats on closed indices without soft-deletes", "translog settings removal is not supported under compatible api")
+  task.skipTest("indices.stats/50_disk_usage/Disk usage stats", "_seq_no's points moved")
   task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
   task.skipTest("indices.create/10_basic/Create index without soft deletes", "Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility")
   task.skipTest("field_caps/30_filter/Field caps with index filter", "behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year")

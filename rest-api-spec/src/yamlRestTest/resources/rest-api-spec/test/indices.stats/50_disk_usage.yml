@@ -100,12 +100,20 @@ setup:
   - match: { testindex.fields._id.term_vectors_in_bytes: 0 }
 
   # _seq_no
-  - gt: { testindex.fields._seq_no.total_in_bytes: 0 }
+  - gt:    { testindex.fields._seq_no.total_in_bytes: 0 }
   - match: { testindex.fields._seq_no.inverted_index.total_in_bytes: 0 }
   - match: { testindex.fields._seq_no.stored_fields_in_bytes: 0 }
-  - gt: { testindex.fields._seq_no.points_in_bytes: 0 }
+  - match: { testindex.fields._seq_no.points_in_bytes: 0 }
   - match: { testindex.fields._seq_no.norms_in_bytes: 0 }
   - match: { testindex.fields._seq_no.term_vectors_in_bytes: 0 }
+  - gt:    { testindex.fields._seq_no.doc_values_in_bytes: 0 }
+  - gt:    { testindex.fields._seq_no_points.total_in_bytes: 0 }
+  - match: { testindex.fields._seq_no_points.inverted_index.total_in_bytes: 0 }
+  - match: { testindex.fields._seq_no_points.stored_fields_in_bytes: 0 }
+  - gt:    { testindex.fields._seq_no_points.points_in_bytes: 0 }
+  - match: { testindex.fields._seq_no_points.norms_in_bytes: 0 }
+  - match: { testindex.fields._seq_no_points.term_vectors_in_bytes: 0 }
+  - match: { testindex.fields._seq_no_points.doc_values_in_bytes: 0 }
 
 ---
 "Star":

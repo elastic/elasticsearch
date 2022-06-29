@@ -123,6 +123,7 @@ The API returns:
             },
             "_primary_term": {...},
             "_seq_no": {...},
+            "_seq_no_points": {...},
             "_version": {...},
             "_source": {
                 "total": "603.9mb",

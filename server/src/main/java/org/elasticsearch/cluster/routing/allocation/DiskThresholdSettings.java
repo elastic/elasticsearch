@@ -105,7 +105,7 @@ public class DiskThresholdSettings {
     private volatile RelativeByteSizeValue frozenFloodStage;
     private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
 
-    private final Collection<ChangedThresholdListener> changedThresholdListeners = new CopyOnWriteArrayList<>();
+    private final Collection<Listener> listeners = new CopyOnWriteArrayList<>();
 
     static {
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
@@ -443,20 +443,20 @@ public class DiskThresholdSettings {
         return watermark;
     }
 
-    public boolean addListener(ChangedThresholdListener changedThresholdListener) {
-        return this.changedThresholdListeners.add(changedThresholdListener);
+    public boolean addListener(Listener listener) {
+        return this.listeners.add(listener);
     }
 
-    public boolean removeListener(ChangedThresholdListener changedThresholdListener) {
-        return this.changedThresholdListeners.remove(changedThresholdListener);
+    public boolean removeListener(Listener listener) {
+        return this.listeners.remove(listener);
     }
 
     void notifyListeners() {
-        changedThresholdListeners.forEach(listener -> {
+        listeners.forEach(listener -> {
             try {
                 listener.onChange();
             } catch (Exception error) {
-                logger.error("error occured while notifying listener about disk threshold setting change", error);
+                logger.error("error occurred while notifying listener about disk threshold setting change", error);
             }
         });
     }
@@ -464,7 +464,7 @@ public class DiskThresholdSettings {
     /**
      * Listening to changes on the raw values of the watermarks.
      */
-    public interface ChangedThresholdListener {
+    public interface Listener {
         void onChange();
     }
 }

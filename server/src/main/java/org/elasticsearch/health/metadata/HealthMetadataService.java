@@ -43,7 +43,7 @@ public class HealthMetadataService {
     private final DiskThresholdSettings diskThresholdSettings;
 
     private final ClusterStateListener clusterStateListener;
-    private final DiskThresholdSettings.ChangedThresholdListener diskThresholdListener;
+    private final DiskThresholdSettings.Listener diskThresholdListener;
 
     private volatile boolean enabled;
 

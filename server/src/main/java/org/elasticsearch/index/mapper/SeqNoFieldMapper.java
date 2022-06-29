@@ -113,7 +113,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
     public static final String POINTS_NAME = "_seq_no_points";
-    private static final int POINTS_SHIFT = 8;
+    private static final int POINTS_SHIFT = 32;
 
     public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
 
@@ -161,12 +161,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
-            long v = parse(value);
-            // TODO recheck the doc values
-            throw new UnsupportedOperationException();
-            // return LongPoint.newExactQuery(name(), v);
+            return exactQuery(parse(value));
         }
 
+        /**
+         * Query for a precise sequence number.
+         */
         public Query exactQuery(long seqNo) {
             // TODO hand rolled query?
             // TODO negative values no shift?
@@ -215,6 +215,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             return rangeQuery(l, u);
         }
 
+        /**
+         * Query for a range of sequence numbers.
+         */
         public Query rangeQuery(long from, long to) {
             // TODO hand rolled query that only scans on the lower and upper end and only if from and to aren't on the rounding boundary
             // TODO negative values no shift?

@@ -341,7 +341,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
             assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
 
-            assertThat((Integer)XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(2));
+            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(2));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(2));
         }

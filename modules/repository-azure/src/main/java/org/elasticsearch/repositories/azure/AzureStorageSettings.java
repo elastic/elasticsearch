@@ -108,7 +108,6 @@ final class AzureStorageSettings {
     );
 
     private final String account;
-
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;

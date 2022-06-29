@@ -1,6 +1,0 @@
-pr: 85512
-summary: Authorize painless execute as index action when an index is specified
-area: Authorization
-type: enhancement
-issues:
- - 86428

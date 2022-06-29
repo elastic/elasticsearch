@@ -49,8 +49,7 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        final var path = "/_security/api_key/_update/{id}";
-        return List.of(new Route(POST, path), new Route(PUT, path));
+        return List.of(new Route(POST, "/_security/api_key/_update/{id}"));
     }
 
     @Override

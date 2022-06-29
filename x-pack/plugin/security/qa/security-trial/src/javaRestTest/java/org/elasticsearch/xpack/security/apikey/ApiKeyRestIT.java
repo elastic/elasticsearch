@@ -212,7 +212,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(apiKeyId, not(emptyString()));
         assertThat(apiKeyEncoded, not(emptyString()));
 
-        final Request updateApiKeyRequest = new Request(randomFrom("POST", "PUT"), "_security/api_key/_update/" + apiKeyId);
+        final Request updateApiKeyRequest = new Request("POST", "_security/api_key/_update/" + apiKeyId);
         final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
         final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());

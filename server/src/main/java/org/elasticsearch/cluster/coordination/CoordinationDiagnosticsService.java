@@ -326,9 +326,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         final CoordinationDiagnosticsResult result;
         /*
-         * We want to make sure that the same elements are in this set every time we loop through it. TODO make this threadsafe
+         * We want to make sure that the same elements are in this set every time we loop through it. We don't care if values are added
+         * while we're copying it, which is why this is not synchronized. We only care that once we have a copy it is not changed.
          */
-        Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateOrExceptionMapCopy = Map.copyOf(
+        final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateOrExceptionMapCopy = Map.copyOf(
             nodeToClusterFormationStateOrExceptionMap
         );
         for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateOrExceptionMapCopy.entrySet()) {

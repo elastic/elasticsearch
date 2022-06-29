@@ -22,6 +22,7 @@ public class ESSloppyMathTests extends ESTestCase {
     static double SINH_DELTA = 1E-15; // for small x
     // accuracy for log(x)
     static double LOG_DELTA = 1E-12;
+    static double LOG_DELTA_1 = 1E-14; // near 1.0 we can be more accurate
 
     public void testAtan() {
         assertTrue(Double.isNaN(atan(Double.NaN)));
@@ -53,6 +54,9 @@ public class ESSloppyMathTests extends ESTestCase {
         for (int i = 0; i < 10000; i++) {
             double d = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
             assertEquals(StrictMath.log(d), log(d), LOG_DELTA);
+            // Do extra testing around 1.0 due to the special cases near 0, 0.95 and 1.14
+            d = randomDoubleBetween(0, 2, true);
+            assertEquals(StrictMath.log(d), log(d), LOG_DELTA_1);
         }
     }
 }

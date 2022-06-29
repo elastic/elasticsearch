@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -26,32 +27,32 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Metadata class that contains information about cluster settings/entities set
- * in an operator mode.
+ * Metadata class that contains information about immutable cluster state set
+ * through file based settings or by modules/plugins.
  *
  * <p>
- * These types of settings are read only through the REST API,
- * and cannot be modified by the end user.
+ * These types of cluster settings/entities can be read through the REST API,
+ * but can only be modified through a versioned 'operator mode' update, e.g.
+ * file based settings or module/plugin upgrade.
  */
-public record OperatorMetadata(
+public record ImmutableStateMetadata(
     String namespace,
     Long version,
-    Map<String, OperatorHandlerMetadata> handlers,
-    OperatorErrorMetadata errorMetadata
-) implements SimpleDiffable<OperatorMetadata>, ToXContentFragment {
+    Map<String, ImmutableStateHandlerMetadata> handlers,
+    ImmutableStateErrorMetadata errorMetadata
+) implements SimpleDiffable<ImmutableStateMetadata>, ToXContentFragment {
 
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField HANDLERS = new ParseField("handlers");
     private static final ParseField ERRORS_METADATA = new ParseField("errors");
 
     /**
-     * OperatorMetadata contains information about settings set in operator mode.
+     * ImmutableStateMetadata contains information about immutable cluster settings.
      *
      * <p>
      * These settings cannot be updated by the end user and are set outside of the
@@ -62,20 +63,21 @@ public record OperatorMetadata(
      * @param handlers      Per state update handler information on key set in by this update. These keys are validated at REST time.
      * @param errorMetadata If the update failed for some reason, this is where we store the error information metadata.
      */
-    public OperatorMetadata {}
+    public ImmutableStateMetadata {}
 
     /**
-     * Creates a set intersection between cluster state keys set by a given operator handler and the input set.
+     * Creates a set intersection between cluster state keys set by a given {@link ImmutableClusterStateHandler}
+     * and the input set.
      *
      * <p>
      * This method is to be used to check if a REST action handler is allowed to modify certain cluster state.
      *
-     * @param handlerName the name of the operator handler we need to check for keys
+     * @param handlerName the name of the immutable state handler we need to check for keys
      * @param modified a set of keys we want to see if we can modify.
      * @return
      */
     public Set<String> conflicts(String handlerName, Set<String> modified) {
-        OperatorHandlerMetadata handlerMetadata = handlers.get(handlerName);
+        ImmutableStateHandlerMetadata handlerMetadata = handlers.get(handlerName);
         if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
             return Collections.emptySet();
         }
@@ -86,22 +88,22 @@ public record OperatorMetadata(
     }
 
     /**
-     * Reads an {@link OperatorMetadata} from a {@link StreamInput}
+     * Reads an {@link ImmutableStateMetadata} from a {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read from
-     * @return {@link OperatorMetadata}
+     * @return {@link ImmutableStateMetadata}
      * @throws IOException
      */
-    public static OperatorMetadata readFrom(StreamInput in) throws IOException {
+    public static ImmutableStateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString()).version(in.readLong());
 
         int handlersSize = in.readVInt();
         for (int i = 0; i < handlersSize; i++) {
-            OperatorHandlerMetadata handler = OperatorHandlerMetadata.readFrom(in);
+            ImmutableStateHandlerMetadata handler = ImmutableStateHandlerMetadata.readFrom(in);
             builder.putHandler(handler);
         }
 
-        builder.errorMetadata(in.readOptionalWriteable(OperatorErrorMetadata::readFrom));
+        builder.errorMetadata(in.readOptionalWriteable(ImmutableStateErrorMetadata::readFrom));
         return builder.build();
     }
 
@@ -114,31 +116,31 @@ public record OperatorMetadata(
     }
 
     /**
-     * Reads an {@link OperatorMetadata} {@link Diff} from {@link StreamInput}
+     * Reads an {@link ImmutableStateMetadata} {@link Diff} from {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read the diff from
-     * @return a {@link Diff} of {@link OperatorMetadata}
+     * @return a {@link Diff} of {@link ImmutableStateMetadata}
      * @throws IOException
      */
-    public static Diff<OperatorMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(OperatorMetadata::readFrom, in);
+    public static Diff<ImmutableStateMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(ImmutableStateMetadata::readFrom, in);
     }
 
     /**
      * Empty {@link org.elasticsearch.cluster.DiffableUtils.MapDiff} helper for metadata backwards compatibility.
      */
-    public static final DiffableUtils.MapDiff<String, OperatorMetadata, Map<String, OperatorMetadata>> EMPTY_DIFF =
+    public static final DiffableUtils.MapDiff<String, ImmutableStateMetadata, Map<String, ImmutableStateMetadata>> EMPTY_DIFF =
         new DiffableUtils.MapDiff<>(null, null, List.of(), List.of(), List.of()) {
             @Override
-            public Map<String, OperatorMetadata> apply(Map<String, OperatorMetadata> part) {
+            public Map<String, ImmutableStateMetadata> apply(Map<String, ImmutableStateMetadata> part) {
                 return part;
             }
         };
 
     /**
-     * Convenience method for creating a {@link Builder} for {@link OperatorMetadata}
+     * Convenience method for creating a {@link Builder} for {@link ImmutableStateMetadata}
      *
-     * @param namespace the namespace under which we'll store the {@link OperatorMetadata}
+     * @param namespace the namespace under which we'll store the {@link ImmutableStateMetadata}
      * @return {@link Builder}
      */
     public static Builder builder(String namespace) {
@@ -146,13 +148,13 @@ public record OperatorMetadata(
     }
 
     /**
-     * Convenience method for creating a {@link Builder} for {@link OperatorMetadata}
+     * Convenience method for creating a {@link Builder} for {@link ImmutableStateMetadata}
      *
-     * @param namespace the namespace under which we'll store the {@link OperatorMetadata}
-     * @param metadata an existing {@link OperatorMetadata}
+     * @param namespace the namespace under which we'll store the {@link ImmutableStateMetadata}
+     * @param metadata an existing {@link ImmutableStateMetadata}
      * @return {@link Builder}
      */
-    public static Builder builder(String namespace, OperatorMetadata metadata) {
+    public static Builder builder(String namespace, ImmutableStateMetadata metadata) {
         return new Builder(namespace, metadata);
     }
 
@@ -161,9 +163,8 @@ public record OperatorMetadata(
         builder.startObject(namespace());
         builder.field(VERSION.getPreferredName(), version);
         builder.startObject(HANDLERS.getPreferredName());
-        var sortedKeys = new TreeSet<>(handlers.keySet());
-        for (var key : sortedKeys) {
-            handlers.get(key).toXContent(builder, params);
+        for (var i = handlers.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(); i.hasNext();) {
+            i.next().getValue().toXContent(builder, params);
         }
         builder.endObject();
         builder.field(ERRORS_METADATA.getPreferredName(), errorMetadata);
@@ -171,50 +172,52 @@ public record OperatorMetadata(
         return builder;
     }
 
-    private static final ConstructingObjectParser<OperatorMetadata, String> PARSER = new ConstructingObjectParser<>(
-        "operator_metadata",
+    private static final ConstructingObjectParser<ImmutableStateMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "immutable_state_metadata",
         false,
         (a, namespace) -> {
-            Map<String, OperatorHandlerMetadata> handlers = new HashMap<>();
+            Map<String, ImmutableStateHandlerMetadata> handlers = new HashMap<>();
             @SuppressWarnings("unchecked")
-            List<OperatorHandlerMetadata> handlersList = (List<OperatorHandlerMetadata>) a[1];
+            List<ImmutableStateHandlerMetadata> handlersList = (List<ImmutableStateHandlerMetadata>) a[1];
             handlersList.forEach(h -> handlers.put(h.name(), h));
 
-            return new OperatorMetadata(namespace, (Long) a[0], Map.copyOf(handlers), (OperatorErrorMetadata) a[2]);
+            return new ImmutableStateMetadata(namespace, (Long) a[0], Map.copyOf(handlers), (ImmutableStateErrorMetadata) a[2]);
         }
     );
 
     static {
         PARSER.declareLong(constructorArg(), VERSION);
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, name) -> OperatorHandlerMetadata.fromXContent(p, name), HANDLERS);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> OperatorErrorMetadata.fromXContent(p), null, ERRORS_METADATA);
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, name) -> ImmutableStateHandlerMetadata.fromXContent(p, name), HANDLERS);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> ImmutableStateErrorMetadata.fromXContent(p), null, ERRORS_METADATA);
     }
 
     /**
-     * Reads {@link OperatorMetadata} from {@link XContentParser}
+     * Reads {@link ImmutableStateMetadata} from {@link XContentParser}
      *
      * @param parser {@link XContentParser}
-     * @return {@link OperatorMetadata}
+     * @return {@link ImmutableStateMetadata}
      * @throws IOException
      */
-    public static OperatorMetadata fromXContent(final XContentParser parser) throws IOException {
+    public static ImmutableStateMetadata fromXContent(final XContentParser parser) throws IOException {
         parser.nextToken();
         return PARSER.apply(parser, parser.currentName());
     }
 
     /**
-     * Builder class for {@link OperatorMetadata}
+     * Builder class for {@link ImmutableStateMetadata}
      */
     public static class Builder {
         private final String namespace;
         private Long version;
-        private Map<String, OperatorHandlerMetadata> handlers;
-        OperatorErrorMetadata errorMetadata;
+        private Map<String, ImmutableStateHandlerMetadata> handlers;
+        ImmutableStateErrorMetadata errorMetadata;
 
         /**
-         * Empty builder for OperatorMetadata. The operator metadata namespace is a required parameter
+         * Empty builder for ImmutableStateMetadata.
+         * <p>
+         * The immutable metadata namespace is a required parameter
          *
-         * @param namespace The namespace for this metadata
+         * @param namespace The namespace for this immutable metadata
          */
         public Builder(String namespace) {
             this.namespace = namespace;
@@ -224,12 +227,12 @@ public record OperatorMetadata(
         }
 
         /**
-         * Creates an operator metadata builder
+         * Creates an immutable state metadata builder
          *
          * @param namespace the namespace for which we are storing metadata, e.g. file_settings
          * @param metadata  the previous metadata
          */
-        public Builder(String namespace, OperatorMetadata metadata) {
+        public Builder(String namespace, ImmutableStateMetadata metadata) {
             this(namespace);
             if (metadata != null) {
                 this.version = metadata.version;
@@ -239,13 +242,13 @@ public record OperatorMetadata(
         }
 
         /**
-         * Stores the version for the operator metadata.
+         * Stores the version for the immutable state metadata.
          *
          * <p>
-         * Each new cluster state update in operator
-         * mode requires a version bump. The version increase doesn't have to be monotonic.
+         * Each new immutable cluster state update mode requires a version bump.
+         * The version increase doesn't have to be monotonic.
          *
-         * @param version the new operator metadata version
+         * @param version the new immutable state metadata version
          * @return {@link Builder}
          */
         public Builder version(Long version) {
@@ -254,39 +257,39 @@ public record OperatorMetadata(
         }
 
         /**
-         * Adds {@link OperatorErrorMetadata} if we need to store error information about certain
-         * operator state processing.
+         * Adds {@link ImmutableStateErrorMetadata} if we need to store error information about certain
+         * immutable state processing.
          *
-         * @param errorMetadata {@link OperatorErrorMetadata}
+         * @param errorMetadata {@link ImmutableStateErrorMetadata}
          * @return {@link Builder}
          */
-        public Builder errorMetadata(OperatorErrorMetadata errorMetadata) {
+        public Builder errorMetadata(ImmutableStateErrorMetadata errorMetadata) {
             this.errorMetadata = errorMetadata;
             return this;
         }
 
         /**
-         * Adds an {@link OperatorHandlerMetadata} for this {@link OperatorMetadata}.
+         * Adds an {@link ImmutableStateHandlerMetadata} for this {@link ImmutableStateMetadata}.
          *
          * <p>
-         * The handler metadata is stored in a map, keyed off the {@link OperatorHandlerMetadata} name. Previously
-         * stored {@link OperatorHandlerMetadata} for a given name is overwritten.
+         * The handler metadata is stored in a map, keyed off the {@link ImmutableStateHandlerMetadata} name. Previously
+         * stored {@link ImmutableStateHandlerMetadata} for a given name is overwritten.
          *
-         * @param handler {@link OperatorHandlerMetadata}
+         * @param handler {@link ImmutableStateHandlerMetadata}
          * @return {@link Builder}
          */
-        public Builder putHandler(OperatorHandlerMetadata handler) {
+        public Builder putHandler(ImmutableStateHandlerMetadata handler) {
             this.handlers.put(handler.name(), handler);
             return this;
         }
 
         /**
-         * Builds an {@link OperatorMetadata} from this builder.
+         * Builds an {@link ImmutableStateMetadata} from this builder.
          *
-         * @return {@link OperatorMetadata}
+         * @return {@link ImmutableStateMetadata}
          */
-        public OperatorMetadata build() {
-            return new OperatorMetadata(namespace, version, Collections.unmodifiableMap(handlers), errorMetadata);
+        public ImmutableStateMetadata build() {
+            return new ImmutableStateMetadata(namespace, version, Collections.unmodifiableMap(handlers), errorMetadata);
         }
     }
 }

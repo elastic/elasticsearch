@@ -46,22 +46,22 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();
         IndexMetadata idx2 = createFirstBackingIndex("data-stream2").build();
 
-        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata("one", Set.of("a", "b"));
-        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata("two", Set.of("c", "d"));
+        ImmutableStateHandlerMetadata hmOne = new ImmutableStateHandlerMetadata("one", Set.of("a", "b"));
+        ImmutableStateHandlerMetadata hmTwo = new ImmutableStateHandlerMetadata("two", Set.of("c", "d"));
 
-        OperatorErrorMetadata emOne = new OperatorErrorMetadata(
+        ImmutableStateErrorMetadata emOne = new ImmutableStateErrorMetadata(
             1L,
-            OperatorErrorMetadata.ErrorKind.VALIDATION,
+            ImmutableStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
 
-        OperatorMetadata operatorMetadata = OperatorMetadata.builder("namespace_one")
+        ImmutableStateMetadata immutableStateMetadata = ImmutableStateMetadata.builder("namespace_one")
             .errorMetadata(emOne)
             .putHandler(hmOne)
             .putHandler(hmTwo)
             .build();
 
-        OperatorMetadata operatorMetadata1 = OperatorMetadata.builder("namespace_two").putHandler(hmTwo).build();
+        ImmutableStateMetadata immutableStateMetadata1 = ImmutableStateMetadata.builder("namespace_two").putHandler(hmTwo).build();
 
         Metadata metadata = Metadata.builder()
             .put(
@@ -126,8 +126,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(idx2, false)
             .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
             .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
-            .put(operatorMetadata)
-            .put(operatorMetadata1)
+            .put(immutableStateMetadata)
+            .put(immutableStateMetadata1)
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -202,9 +202,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
-        // operator metadata
-        assertEquals(operatorMetadata, parsedMetadata.operatorMetadata().get(operatorMetadata.namespace()));
-        assertEquals(operatorMetadata1, parsedMetadata.operatorMetadata().get(operatorMetadata1.namespace()));
+        // immutable 'operator' metadata
+        assertEquals(immutableStateMetadata, parsedMetadata.immutableStateMetadata().get(immutableStateMetadata.namespace()));
+        assertEquals(immutableStateMetadata1, parsedMetadata.immutableStateMetadata().get(immutableStateMetadata1.namespace()));
     }
 
     private static final String MAPPING_SOURCE1 = """
@@ -272,7 +272,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -368,7 +368,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               }
             }""".formatted(Version.CURRENT.id), Strings.toString(builder));
     }
@@ -433,7 +433,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -536,7 +536,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
@@ -645,12 +645,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : { }
+                "immutable_state" : { }
               }
             }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
-    public void testToXContentAPIOperatorMetadata() throws IOException {
+    public void testToXContentAPIImmutableMetadata() throws IOException {
         Map<String, String> mapParams = new HashMap<>() {
             {
                 put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
@@ -661,25 +661,29 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         Metadata metadata = buildMetadata();
 
-        OperatorHandlerMetadata hmOne = new OperatorHandlerMetadata("one", Set.of("a", "b"));
-        OperatorHandlerMetadata hmTwo = new OperatorHandlerMetadata("two", Set.of("c", "d"));
-        OperatorHandlerMetadata hmThree = new OperatorHandlerMetadata("three", Set.of("e", "f"));
+        ImmutableStateHandlerMetadata hmOne = new ImmutableStateHandlerMetadata("one", Set.of("a", "b"));
+        ImmutableStateHandlerMetadata hmTwo = new ImmutableStateHandlerMetadata("two", Set.of("c", "d"));
+        ImmutableStateHandlerMetadata hmThree = new ImmutableStateHandlerMetadata("three", Set.of("e", "f"));
 
-        OperatorErrorMetadata emOne = new OperatorErrorMetadata(
+        ImmutableStateErrorMetadata emOne = new ImmutableStateErrorMetadata(
             1L,
-            OperatorErrorMetadata.ErrorKind.VALIDATION,
+            ImmutableStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
 
-        OperatorErrorMetadata emTwo = new OperatorErrorMetadata(
+        ImmutableStateErrorMetadata emTwo = new ImmutableStateErrorMetadata(
             2L,
-            OperatorErrorMetadata.ErrorKind.TRANSIENT,
+            ImmutableStateErrorMetadata.ErrorKind.TRANSIENT,
             List.of("Test error 3", "Test error 4")
         );
 
-        OperatorMetadata omOne = OperatorMetadata.builder("namespace_one").errorMetadata(emOne).putHandler(hmOne).putHandler(hmTwo).build();
+        ImmutableStateMetadata omOne = ImmutableStateMetadata.builder("namespace_one")
+            .errorMetadata(emOne)
+            .putHandler(hmOne)
+            .putHandler(hmTwo)
+            .build();
 
-        OperatorMetadata omTwo = OperatorMetadata.builder("namespace_two").errorMetadata(emTwo).putHandler(hmThree).build();
+        ImmutableStateMetadata omTwo = ImmutableStateMetadata.builder("namespace_two").errorMetadata(emTwo).putHandler(hmThree).build();
 
         metadata = Metadata.builder(metadata).put(omOne).put(omTwo).build();
 
@@ -776,7 +780,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "operator" : {
+                "immutable_state" : {
                   "namespace_one" : {
                     "version" : 0,
                     "handlers" : {

@@ -24,15 +24,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Tests for the {@link OperatorMetadata}, {@link OperatorErrorMetadata}, {@link OperatorHandlerMetadata} classes
+ * Tests for the {@link ImmutableStateMetadata}, {@link ImmutableStateErrorMetadata}, {@link ImmutableStateHandlerMetadata} classes
  */
-public class OperatorMetadataTests extends ESTestCase {
+public class ImmutableStateMetadataTests extends ESTestCase {
 
     private void equalsTest(boolean addHandlers, boolean addErrors) {
-        final OperatorMetadata meta = createRandom(addHandlers, addErrors);
-        assertThat(meta, equalTo(OperatorMetadata.builder(meta.namespace(), meta).build()));
-        final OperatorMetadata.Builder newMeta = OperatorMetadata.builder(meta.namespace(), meta);
-        newMeta.putHandler(new OperatorHandlerMetadata("1", Collections.emptySet()));
+        final ImmutableStateMetadata meta = createRandom(addHandlers, addErrors);
+        assertThat(meta, equalTo(ImmutableStateMetadata.builder(meta.namespace(), meta).build()));
+        final ImmutableStateMetadata.Builder newMeta = ImmutableStateMetadata.builder(meta.namespace(), meta);
+        newMeta.putHandler(new ImmutableStateHandlerMetadata("1", Collections.emptySet()));
         assertThat(newMeta.build(), not(meta));
     }
 
@@ -44,10 +44,10 @@ public class OperatorMetadataTests extends ESTestCase {
     }
 
     private void serializationTest(boolean addHandlers, boolean addErrors) throws IOException {
-        final OperatorMetadata meta = createRandom(addHandlers, addErrors);
+        final ImmutableStateMetadata meta = createRandom(addHandlers, addErrors);
         final BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
-        assertThat(OperatorMetadata.readFrom(out.bytes().streamInput()), equalTo(meta));
+        assertThat(ImmutableStateMetadata.readFrom(out.bytes().streamInput()), equalTo(meta));
     }
 
     public void testSerialization() throws IOException {
@@ -58,14 +58,14 @@ public class OperatorMetadataTests extends ESTestCase {
     }
 
     private void xContentTest(boolean addHandlers, boolean addErrors) throws IOException {
-        final OperatorMetadata meta = createRandom(addHandlers, addErrors);
+        final ImmutableStateMetadata meta = createRandom(addHandlers, addErrors);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         meta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken(); // the beginning of the object
-        assertThat(OperatorMetadata.fromXContent(parser), equalTo(meta));
+        assertThat(ImmutableStateMetadata.fromXContent(parser), equalTo(meta));
     }
 
     public void testXContent() throws IOException {
@@ -75,24 +75,24 @@ public class OperatorMetadataTests extends ESTestCase {
         xContentTest(false, false);
     }
 
-    private static OperatorMetadata createRandom(boolean addHandlers, boolean addErrors) {
-        List<OperatorHandlerMetadata> handlers = randomList(
+    private static ImmutableStateMetadata createRandom(boolean addHandlers, boolean addErrors) {
+        List<ImmutableStateHandlerMetadata> handlers = randomList(
             0,
             10,
-            () -> new OperatorHandlerMetadata(randomAlphaOfLength(5), randomSet(1, 5, () -> randomAlphaOfLength(6)))
+            () -> new ImmutableStateHandlerMetadata(randomAlphaOfLength(5), randomSet(1, 5, () -> randomAlphaOfLength(6)))
         );
 
-        List<OperatorErrorMetadata> errors = randomList(
+        List<ImmutableStateErrorMetadata> errors = randomList(
             0,
             10,
-            () -> new OperatorErrorMetadata(
+            () -> new ImmutableStateErrorMetadata(
                 1L,
-                randomFrom(OperatorErrorMetadata.ErrorKind.values()),
+                randomFrom(ImmutableStateErrorMetadata.ErrorKind.values()),
                 randomList(1, 5, () -> randomAlphaOfLength(10))
             )
         );
 
-        OperatorMetadata.Builder builder = OperatorMetadata.builder(randomAlphaOfLength(7));
+        ImmutableStateMetadata.Builder builder = ImmutableStateMetadata.builder(randomAlphaOfLength(7));
         if (addHandlers) {
             for (var handlerMeta : handlers) {
                 builder.putHandler(handlerMeta);

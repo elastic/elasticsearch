@@ -27,11 +27,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * A metadata class to hold error information about errors encountered
  * while applying a cluster state update for a given namespace.
  * <p>
- * This information is held by the {@link OperatorMetadata} class.
+ * This information is held by the {@link ImmutableStateMetadata} class.
  */
-public record OperatorErrorMetadata(Long version, ErrorKind errorKind, List<String> errors)
+public record ImmutableStateErrorMetadata(Long version, ErrorKind errorKind, List<String> errors)
     implements
-        SimpleDiffable<OperatorErrorMetadata>,
+        SimpleDiffable<ImmutableStateErrorMetadata>,
         ToXContentFragment {
 
     static final ParseField ERRORS = new ParseField("errors");
@@ -39,13 +39,13 @@ public record OperatorErrorMetadata(Long version, ErrorKind errorKind, List<Stri
     static final ParseField ERROR_KIND = new ParseField("error_kind");
 
     /**
-     * Constructs an operator error metadata
+     * Constructs an immutable state error metadata
      *
      * @param version   the metadata version of the content which failed to apply
      * @param errorKind the kind of error we encountered while processing
-     * @param errors    the list of errors encountered during parsing and validation of the operator content
+     * @param errors    the list of errors encountered during parsing and validation of the immutable state content
      */
-    public OperatorErrorMetadata {}
+    public ImmutableStateErrorMetadata {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -55,14 +55,14 @@ public record OperatorErrorMetadata(Long version, ErrorKind errorKind, List<Stri
     }
 
     /**
-     * Reads an {@link OperatorErrorMetadata} from a {@link StreamInput}
+     * Reads an {@link ImmutableStateErrorMetadata} from a {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read from
-     * @return {@link OperatorErrorMetadata}
+     * @return {@link ImmutableStateErrorMetadata}
      * @throws IOException
      */
-    public static OperatorErrorMetadata readFrom(StreamInput in) throws IOException {
-        return new OperatorErrorMetadata(in.readLong(), ErrorKind.of(in.readString()), in.readList(StreamInput::readString));
+    public static ImmutableStateErrorMetadata readFrom(StreamInput in) throws IOException {
+        return new ImmutableStateErrorMetadata(in.readLong(), ErrorKind.of(in.readString()), in.readList(StreamInput::readString));
     }
 
     @Override
@@ -76,9 +76,9 @@ public record OperatorErrorMetadata(Long version, ErrorKind errorKind, List<Stri
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<OperatorErrorMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "operator_error_metadata",
-        (a) -> new OperatorErrorMetadata((Long) a[0], ErrorKind.of((String) a[1]), (List<String>) a[2])
+    private static final ConstructingObjectParser<ImmutableStateErrorMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        "immutable_state_error_metadata",
+        (a) -> new ImmutableStateErrorMetadata((Long) a[0], ErrorKind.of((String) a[1]), (List<String>) a[2])
     );
 
     static {
@@ -88,28 +88,28 @@ public record OperatorErrorMetadata(Long version, ErrorKind errorKind, List<Stri
     }
 
     /**
-     * Reads an {@link OperatorErrorMetadata} from xContent
+     * Reads an {@link ImmutableStateErrorMetadata} from xContent
      *
      * @param parser {@link XContentParser}
-     * @return {@link OperatorErrorMetadata}
+     * @return {@link ImmutableStateErrorMetadata}
      */
-    public static OperatorErrorMetadata fromXContent(final XContentParser parser) {
+    public static ImmutableStateErrorMetadata fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     /**
-     * Reads an {@link OperatorErrorMetadata} {@link Diff} from {@link StreamInput}
+     * Reads an {@link ImmutableStateErrorMetadata} {@link Diff} from {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read the diff from
-     * @return a {@link Diff} of {@link OperatorErrorMetadata}
+     * @return a {@link Diff} of {@link ImmutableStateErrorMetadata}
      * @throws IOException
      */
-    public static Diff<OperatorErrorMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(OperatorErrorMetadata::readFrom, in);
+    public static Diff<ImmutableStateErrorMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(ImmutableStateErrorMetadata::readFrom, in);
     }
 
     /**
-     * Enum for kinds of errors we might encounter while processing operator cluster state updates.
+     * Enum for kinds of errors we might encounter while processing immutable cluster state updates.
      */
     public enum ErrorKind {
         PARSING("parsing"),

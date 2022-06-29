@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -21,20 +22,19 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Metadata class to hold the keys set in operator mode for each operator handler.
+ * Metadata class to hold a set of immutable keys in the cluster state, set by each {@link ImmutableClusterStateHandler}.
  *
  * <p>
- * Since we hold operator metadata state for multiple namespaces, the same handler can appear in
- * multiple namespaces. See {@link OperatorMetadata} and {@link Metadata}.
+ * Since we hold immutable metadata state for multiple namespaces, the same handler can appear in
+ * multiple namespaces. See {@link ImmutableStateMetadata} and {@link Metadata}.
  */
-public record OperatorHandlerMetadata(String name, Set<String> keys)
+public record ImmutableStateHandlerMetadata(String name, Set<String> keys)
     implements
-        SimpleDiffable<OperatorHandlerMetadata>,
+        SimpleDiffable<ImmutableStateHandlerMetadata>,
         ToXContentFragment {
 
     static final ParseField KEYS = new ParseField("keys");
@@ -46,29 +46,29 @@ public record OperatorHandlerMetadata(String name, Set<String> keys)
     }
 
     /**
-     * Reads an {@link OperatorHandlerMetadata} from a {@link StreamInput}
+     * Reads an {@link ImmutableStateHandlerMetadata} from a {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read from
-     * @return {@link OperatorHandlerMetadata}
+     * @return {@link ImmutableStateHandlerMetadata}
      * @throws IOException
      */
-    public static OperatorHandlerMetadata readFrom(StreamInput in) throws IOException {
-        return new OperatorHandlerMetadata(in.readString(), in.readSet(StreamInput::readString));
+    public static ImmutableStateHandlerMetadata readFrom(StreamInput in) throws IOException {
+        return new ImmutableStateHandlerMetadata(in.readString(), in.readSet(StreamInput::readString));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name());
-        builder.stringListField(KEYS.getPreferredName(), new TreeSet<>(keys())); // ordered set here to ensure output consistency
+        builder.stringListField(KEYS.getPreferredName(), keys().stream().sorted().toList()); // ordered keys for output consistency
         builder.endObject();
         return builder;
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<OperatorHandlerMetadata, String> PARSER = new ConstructingObjectParser<>(
-        "operator_handler_metadata",
+    private static final ConstructingObjectParser<ImmutableStateHandlerMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "immutable_state_handler_metadata",
         false,
-        (a, name) -> new OperatorHandlerMetadata(name, Set.copyOf((List<String>) a[0]))
+        (a, name) -> new ImmutableStateHandlerMetadata(name, Set.copyOf((List<String>) a[0]))
     );
 
     static {
@@ -76,24 +76,24 @@ public record OperatorHandlerMetadata(String name, Set<String> keys)
     }
 
     /**
-     * Reads an {@link OperatorHandlerMetadata} from xContent
+     * Reads an {@link ImmutableStateHandlerMetadata} from xContent
      *
      * @param parser {@link XContentParser}
-     * @return {@link OperatorHandlerMetadata}
+     * @return {@link ImmutableStateHandlerMetadata}
      * @throws IOException
      */
-    public static OperatorHandlerMetadata fromXContent(XContentParser parser, String name) throws IOException {
+    public static ImmutableStateHandlerMetadata fromXContent(XContentParser parser, String name) throws IOException {
         return PARSER.apply(parser, name);
     }
 
     /**
-     * Reads an {@link OperatorHandlerMetadata} {@link Diff} from {@link StreamInput}
+     * Reads an {@link ImmutableStateHandlerMetadata} {@link Diff} from {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read the diff from
-     * @return a {@link Diff} of {@link OperatorHandlerMetadata}
+     * @return a {@link Diff} of {@link ImmutableStateHandlerMetadata}
      * @throws IOException
      */
-    public static Diff<OperatorHandlerMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(OperatorHandlerMetadata::readFrom, in);
+    public static Diff<ImmutableStateHandlerMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(ImmutableStateHandlerMetadata::readFrom, in);
     }
 }

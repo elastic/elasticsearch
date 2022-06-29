@@ -70,16 +70,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
 
         TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "joe");
         TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "joe");
-        TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingId("id");
+        TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(10));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
-        assertTrue(
-            clusterPermission.check(
-                "cluster:admin/xpack/security/api_key/update",
-                updateApiKeyRequest,
-                authentication
-            )
-        );
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
 
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
 

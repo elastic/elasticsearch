@@ -207,7 +207,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         if (locationMode.isSecondary()) {
-            // TODO: maybe extract this logic so we don't need to have a client logger around?
             String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
             if (secondaryUri == null) {
                 throw new IllegalArgumentException(

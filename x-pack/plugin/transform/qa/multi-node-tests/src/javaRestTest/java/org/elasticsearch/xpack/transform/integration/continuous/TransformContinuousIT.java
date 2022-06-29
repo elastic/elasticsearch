@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;

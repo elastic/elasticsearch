@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;

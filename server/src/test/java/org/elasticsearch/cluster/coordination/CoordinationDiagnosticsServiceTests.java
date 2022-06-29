@@ -695,7 +695,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             }
             case 2 -> {
                 return new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
-                    getRandomStatus(),
+                    getRandomStatusOtherThan(originalResult.status()),
                     originalResult.summary(),
                     originalResult.details()
                 );
@@ -713,6 +713,16 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
 
     private CoordinationDiagnosticsService.CoordinationDiagnosticsStatus getRandomStatus() {
         return randomFrom(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.values());
+    }
+
+    private CoordinationDiagnosticsService.CoordinationDiagnosticsStatus getRandomStatusOtherThan(
+        CoordinationDiagnosticsService.CoordinationDiagnosticsStatus otherThanThis
+    ) {
+        return randomFrom(
+            Arrays.stream(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.values())
+                .filter(status -> status.equals(otherThanThis) == false)
+                .toList()
+        );
     }
 
     private CoordinationDiagnosticsService.CoordinationDiagnosticsDetails getRandomDetails() {

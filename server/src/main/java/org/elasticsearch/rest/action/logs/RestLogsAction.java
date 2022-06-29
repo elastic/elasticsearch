@@ -83,9 +83,15 @@ public class RestLogsAction extends BaseRestHandler {
                 }
                 Map<String, Object> event = null;
                 if (line.startsWith("{")) {
-                    event = parseJson(line);
-                }
-                if (event == null) {
+                    try {
+                        event = parseJson(line);
+                    } catch (Exception e) {
+                        event = new HashMap<>();
+                        addPath(event, "event.original", line);
+                        addPath(event, "_logs.error.type", ElasticsearchException.getExceptionName(e));
+                        addPath(event, "_logs.error.message", e.getMessage());
+                    }
+                } else {
                     event = Map.of("message", line);
                 }
                 if (event.containsKey("_metadata")) {
@@ -138,8 +144,8 @@ public class RestLogsAction extends BaseRestHandler {
                             .map(failedRequest -> {
                                 Map<String, Object> doc = indexRequests.get(failedRequest.getItemId()).sourceAsMap();
                                 Exception cause = failedRequest.getFailure().getCause();
-                                addPath(doc, "error.type", ElasticsearchException.getExceptionName(cause));
-                                addPath(doc, "error.message", cause.getMessage());
+                                addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
+                                addPath(doc, "_logs.error.message", cause.getMessage());
                                 addPath(doc, "data_stream.dataset", "generic");
                                 addPath(doc, "data_stream.namespace", "default");
                                 return doc;
@@ -180,12 +186,10 @@ public class RestLogsAction extends BaseRestHandler {
 
     }
 
-    private Map<String, Object> parseJson(String json) {
+    private Map<String, Object> parseJson(String json) throws IOException {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             parser.allowDuplicateKeys(true);
             return parser.map();
-        } catch (Exception e) {
-            return null;
         }
     }
 

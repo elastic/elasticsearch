@@ -67,6 +67,21 @@ public class RestLogsActionTest extends RestActionTestCase {
     }
 
     @Test
+    public void testInvalidJson() {
+        RestRequest req = createLogsRequest("/_logs/foo", "{\"message\": \"missing end quote}");
+        setBulkRequestVerifier((actionType, request) -> {
+            assertEquals(1, request.requests().size());
+            IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
+            assertDataStreamFields("foo", "default", indexRequest);
+            Map<String, Object> doc = ((IndexRequest) request.requests().get(0)).sourceAsMap();
+            assertEquals("{\"message\": \"missing end quote}", getPath(doc, "event.original"));
+            assertEquals("json_e_o_f_exception", getPath(doc, "_logs.error.type"));
+            return Mockito.mock(BulkResponse.class);
+        });
+        dispatchRequest(req);
+    }
+
+    @Test
     public void testMetadata() {
         RestRequest req = createLogsRequest(
             "/_logs",
@@ -129,7 +144,9 @@ public class RestLogsActionTest extends RestActionTestCase {
                 assertEquals(1, request.requests().size());
                 IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
                 assertDataStreamFields("generic", "default", indexRequest);
-                assertEquals(Map.of("type", "mapper_parsing_exception", "message", "bad foo"), indexRequest.sourceAsMap().get("error"));
+                Map<String, Object> doc = indexRequest.sourceAsMap();
+                assertEquals("mapper_parsing_exception", getPath(doc, "_logs.error.type"));
+                assertEquals("bad foo", getPath(doc, "_logs.error.message"));
                 return Mockito.mock(BulkResponse.class);
             }
         });
@@ -199,6 +216,22 @@ public class RestLogsActionTest extends RestActionTestCase {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return parser.map();
         }
+    }
+
+    private static <T> T getPath(Map<String, Object> doc, String path) {
+        Map<String, Object> parent = doc;
+        String[] pathElements = path.split("\\.");
+        for (int i = 0; i < pathElements.length; i++) {
+            if (parent == null) {
+                return null;
+            }
+            if (i < pathElements.length - 1) {
+                parent = (Map<String, Object>) parent.get(pathElements[i]);
+            } else {
+                return (T) parent.get(pathElements[i]);
+            }
+        }
+        return null;
     }
 
     private void setBulkRequestVerifier(BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse> verifier) {

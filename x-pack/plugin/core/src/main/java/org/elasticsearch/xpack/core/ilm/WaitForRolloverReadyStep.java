@@ -243,7 +243,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         return maxDocs;
     }
 
-    public Long getMaxPrimaryShardDocs() {
+    Long getMaxPrimaryShardDocs() {
         return maxPrimaryShardDocs;
     }
 

@@ -314,3 +314,45 @@ teardown:
             }
           }
   - match: { error.root_cause.0.reason: "Failed to generate the source document for ingest pipeline [my_pipeline]" }
+
+---
+"Test metadata":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "metadata",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "Metadata m = metadata(); m.index += '2'; m.id += 'extra'; m.routing = 'myRouting'; m.versionType = 'external'; m.version = 5"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test2
+        id: "1extra"
+        version: 4
+        version_type: "external"
+        body: {source_field: "foobar"}
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {source_field: "bazqux"}
+
+  - do:
+      get:
+        index: test2
+        id: "1extra"
+  - match: { _source.source_field: "bazqux" }
+  - match: { _version: 5 }
+  - match: { _routing: "myRouting" }

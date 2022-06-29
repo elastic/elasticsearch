@@ -123,7 +123,7 @@ public final class QueryRescorer implements Rescorer {
 
     /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
      *  topN. */
-    private TopDocs topN(TopDocs in, int topN) {
+    private static TopDocs topN(TopDocs in, int topN) {
         if (in.scoreDocs.length < topN) {
             return in;
         }
@@ -135,7 +135,7 @@ public final class QueryRescorer implements Rescorer {
     }
 
     /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
-    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+    private static TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
 
         System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
         if (in.scoreDocs.length > resorted.scoreDocs.length) {

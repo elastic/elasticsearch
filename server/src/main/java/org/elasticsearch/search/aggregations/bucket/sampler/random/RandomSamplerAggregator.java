@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -84,11 +85,26 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
      *
      * @param ctx reader context
      * @param sub collector
-     * @return this always returns {@link LeafBucketCollector#NO_OP_COLLECTOR}
+     * @return returns {@link LeafBucketCollector#NO_OP_COLLECTOR} if sampling was done. Otherwise, it is a simple pass through collector
      * @throws IOException when building the query or extracting docs fails
      */
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        // Certain leaf collectors can aggregate values without seeing any documents, even when sampled
+        // To handle this, exit early if the sub collector is a no-op
+        if (sub.isNoop()) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        // No sampling is being done, collect all docs
+        if (probability >= 1.0) {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    collectBucket(sub, doc, 0);
+                }
+            };
+        }
+        // TODO know when sampling would be much slower and skip sampling: https://github.com/elastic/elasticsearch/issues/84353
         Scorer scorer = weightSupplier.get().scorer(ctx);
         // This means there are no docs to iterate, possibly due to the fields not existing
         if (scorer == null) {
@@ -96,12 +112,18 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         }
         final DocIdSetIterator docIt = scorer.iterator();
         final Bits liveDocs = ctx.reader().getLiveDocs();
-        // Iterate every document provided by the scorer iterator
-        for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
-            // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
-            if (liveDocs == null || liveDocs.get(docIt.docID())) {
-                collectBucket(sub, docIt.docID(), 0);
+        try {
+            // Iterate every document provided by the scorer iterator
+            for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
+                // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
+                if (liveDocs == null || liveDocs.get(docIt.docID())) {
+                    collectBucket(sub, docIt.docID(), 0);
+                }
             }
+            // This collector could throw `CollectionTerminatedException` if the last leaf collector has stopped collecting
+            // So, catch here and indicate no-op
+        } catch (CollectionTerminatedException e) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         // Since we have done our own collection, there is nothing for the leaf collector to do
         return LeafBucketCollector.NO_OP_COLLECTOR;

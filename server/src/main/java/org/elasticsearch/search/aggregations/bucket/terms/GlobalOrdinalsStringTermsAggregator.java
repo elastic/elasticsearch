@@ -387,7 +387,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * that it hits and then calling {@link CollectionStrategy#forEach}
      * once to iterate on the results.
      */
-    abstract class CollectionStrategy implements Releasable {
+    abstract static class CollectionStrategy implements Releasable {
         /**
          * Short description of the collection mechanism added to the profile
          * output to help with debugging.
@@ -947,7 +947,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * oversizing the destination bytes helps to keep from allocating
          * a bunch of little arrays over and over and over again.
          */
-        private void oversizedCopy(BytesRef from, BytesRef to) {
+        private static void oversizedCopy(BytesRef from, BytesRef to) {
             if (to.bytes.length < from.length) {
                 to.bytes = new byte[ArrayUtil.oversize(from.length, 1)];
             }

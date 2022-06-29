@@ -13,13 +13,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -62,54 +63,53 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteSnapshotLifecycleAction.Response> listener
     ) throws Exception {
-        clusterService.submitStateUpdateTask(
-            "delete-snapshot-lifecycle-" + request.getLifecycleId(),
-            new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
-                    return new DeleteSnapshotLifecycleAction.Response(acknowledged);
+        submitUnbatchedTask("delete-snapshot-lifecycle-" + request.getLifecycleId(), new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
+                return new DeleteSnapshotLifecycleAction.Response(acknowledged);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+                if (snapMeta == null) {
+                    throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
                 }
+                // Check that the policy exists in the first place
+                snapMeta.getSnapshotConfigurations()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().getPolicy().getId().equals(request.getLifecycleId()))
+                    .findAny()
+                    .orElseThrow(() -> new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId()));
 
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-                    if (snapMeta == null) {
-                        throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
-                    }
-                    // Check that the policy exists in the first place
-                    snapMeta.getSnapshotConfigurations()
-                        .entrySet()
-                        .stream()
-                        .filter(e -> e.getValue().getPolicy().getId().equals(request.getLifecycleId()))
-                        .findAny()
-                        .orElseThrow(
-                            () -> new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId())
-                        );
+                Map<String, SnapshotLifecyclePolicyMetadata> newConfigs = snapMeta.getSnapshotConfigurations()
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getKey().equals(request.getLifecycleId()) == false)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-                    Map<String, SnapshotLifecyclePolicyMetadata> newConfigs = snapMeta.getSnapshotConfigurations()
-                        .entrySet()
-                        .stream()
-                        .filter(e -> e.getKey().equals(request.getLifecycleId()) == false)
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-                    Metadata metadata = currentState.metadata();
-                    return ClusterState.builder(currentState)
-                        .metadata(
-                            Metadata.builder(metadata)
-                                .putCustom(
-                                    SnapshotLifecycleMetadata.TYPE,
-                                    new SnapshotLifecycleMetadata(
-                                        newConfigs,
-                                        snapMeta.getOperationMode(),
-                                        snapMeta.getStats().removePolicy(request.getLifecycleId())
-                                    )
+                Metadata metadata = currentState.metadata();
+                return ClusterState.builder(currentState)
+                    .metadata(
+                        Metadata.builder(metadata)
+                            .putCustom(
+                                SnapshotLifecycleMetadata.TYPE,
+                                new SnapshotLifecycleMetadata(
+                                    newConfigs,
+                                    snapMeta.getOperationMode(),
+                                    snapMeta.getStats().removePolicy(request.getLifecycleId())
                                 )
-                        )
-                        .build();
-                }
-            },
-            ClusterStateTaskExecutor.unbatched()
-        );
+                            )
+                    )
+                    .build();
+            }
+        });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

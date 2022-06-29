@@ -11,11 +11,13 @@ See also <<release-highlights>> and <<es-release-notes>>.
 <% if (isElasticsearchSnapshot) { %>
 coming::[${version}]
 <% } %>
-<% if (breakingByNotabilityByArea.isEmpty() == false) { %>
+
 [discrete]
 [[breaking-changes-${majorDotMinor}]]
 === Breaking changes
-
+<% if (breakingByNotabilityByArea.isEmpty()) { %>
+There are no breaking changes in {es} ${majorDotMinor}.
+<% } else { %>
 The following changes in {es} ${majorDotMinor} might affect your applications
 and prevent them from operating normally.
 Before upgrading to ${majorDotMinor}, review these changes and take the described steps

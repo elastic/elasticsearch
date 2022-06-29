@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
@@ -82,8 +81,8 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
 
     @Override
     protected void assertSampled(InternalStats sampled, InternalStats reduced, SamplingContext samplingContext) {
-        assertEquals(sampled.getCount(), samplingContext.inverseScale(reduced.getCount()));
-        assertEquals(sampled.getSum(), samplingContext.inverseScale(reduced.getSum()), 1e-7);
+        assertEquals(sampled.getCount(), samplingContext.scaleUp(reduced.getCount()));
+        assertEquals(sampled.getSum(), samplingContext.scaleUp(reduced.getSum()), 1e-7);
         assertEquals(sampled.getMin(), reduced.getMin(), 0d);
         assertEquals(sampled.getMax(), reduced.getMax(), 0d);
     }
@@ -283,7 +282,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
 
     public void testIterator() {
         InternalStats aggregation = createTestInstance("test", emptyMap());
-        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).collect(Collectors.toList());
+        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).toList();
 
         assertEquals(5, names.size());
         assertTrue(names.contains("min"));

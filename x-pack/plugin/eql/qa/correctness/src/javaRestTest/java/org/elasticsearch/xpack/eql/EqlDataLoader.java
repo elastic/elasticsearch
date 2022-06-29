@@ -15,20 +15,17 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Properties;
 
 import static org.elasticsearch.test.ESTestCase.assertEquals;
@@ -60,8 +57,7 @@ public class EqlDataLoader {
                 .build()
         ) {
             Properties configuration = loadConfiguration();
-            restoreSnapshot(new RestHighLevelClient(client, ignore -> {}, List.of()) {
-            }, configuration);
+            restoreSnapshot(client, configuration);
         }
     }
 
@@ -73,44 +69,40 @@ public class EqlDataLoader {
         }
     }
 
-    static void restoreSnapshot(RestHighLevelClient restHighLevelClient, Properties cfg) throws IOException {
-        if (restHighLevelClient.getLowLevelClient()
-            .performRequest(new Request("HEAD", "/" + cfg.getProperty("index_name")))
-            .getStatusLine()
-            .getStatusCode() == 404) {
-            restHighLevelClient.snapshot()
-                .createRepository(
-                    new PutRepositoryRequest(cfg.getProperty("gcs_repo_name")).type("gcs")
+    static void restoreSnapshot(RestClient client, Properties cfg) throws IOException {
+        int status = client.performRequest(new Request("HEAD", "/" + cfg.getProperty("index_name"))).getStatusLine().getStatusCode();
+        if (status == 404) {
+            Request createRepo = new Request("PUT", "/_snapshot/" + cfg.getProperty("gcs_repo_name"));
+            createRepo.setJsonEntity(
+                Strings.toString(
+                    new PutRepositoryRequest().type("gcs")
                         .settings(
                             Settings.builder()
                                 .put("bucket", cfg.getProperty("gcs_bucket_name"))
                                 .put("base_path", cfg.getProperty("gcs_base_path"))
                                 .put("client", cfg.getProperty("gcs_client_name"))
                                 .build()
-                        ),
-                    RequestOptions.DEFAULT
-                );
-            RestoreSnapshotResponse resp = restHighLevelClient.snapshot()
-                .restore(
-                    new RestoreSnapshotRequest(cfg.getProperty("gcs_repo_name"), cfg.getProperty("gcs_snapshot_name")).waitForCompletion(
-                        true
-                    ),
-                    RequestOptions.DEFAULT
-                );
+                        )
+                )
+            );
+            client.performRequest(createRepo);
 
+            Request restoreRequest = new Request(
+                "POST",
+                "/_snapshot/" + cfg.getProperty("gcs_repo_name") + "/" + cfg.getProperty("gcs_snapshot_name") + "/_restore"
+            );
+            restoreRequest.addParameter("wait_for_completion", "true");
+            ObjectPath restore = ObjectPath.createFromResponse(client.performRequest(restoreRequest));
             assertEquals(
                 "Unable to restore snapshot: "
-                    + resp.getRestoreInfo().toString()
+                    + restore
                     + System.lineSeparator()
                     + "Please check server logs to find the underlying issue.",
                 1,
-                resp.getRestoreInfo().successfulShards()
+                (int) restore.evaluate("snapshot.shards.successful")
             );
 
-            assertEquals(
-                Long.parseLong(cfg.getProperty("index_doc_count")),
-                restHighLevelClient.count(new CountRequest(cfg.getProperty("index_name")), RequestOptions.DEFAULT).getCount()
-            );
+            ESRestTestCase.assertDocCount(client, cfg.getProperty("index_name"), Long.parseLong(cfg.getProperty("index_doc_count")));
         }
     }
 }

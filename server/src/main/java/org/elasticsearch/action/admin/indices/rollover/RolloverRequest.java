@@ -20,6 +20,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +31,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -188,7 +190,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).collect(Collectors.toList()),
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).toList(),
             StreamOutput::writeNamedWriteable
         );
         createIndexRequest.writeTo(out);
@@ -364,5 +366,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     // param isTypeIncluded decides how mappings should be parsed from XContent
     public void fromXContent(boolean isTypeIncluded, XContentParser parser) throws IOException {
         PARSER.parse(parser, this, isTypeIncluded);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 }

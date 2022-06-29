@@ -352,6 +352,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public Set<String> sourcePath(String fullName) {
+            return Set.of(fullName);
+        }
+
+        @Override
         public void close() {
             List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
             releaseMe.add(preallocated);

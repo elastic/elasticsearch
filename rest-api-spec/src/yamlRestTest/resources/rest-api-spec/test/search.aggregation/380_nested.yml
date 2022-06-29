@@ -124,6 +124,7 @@ setup:
   - match: { aggregations.courses.sessions.names.buckets.0.doc_count: 4}
   - match: { aggregations.courses.sessions.names.buckets.1.key: "spr2021" }
   - match: { aggregations.courses.sessions.names.buckets.1.doc_count: 4}
+
 ---
 "Nested then filter then nested then terms":
   - do:
@@ -160,3 +161,36 @@ setup:
   - match: { aggregations.courses.highpass_filter.sessions.names.buckets.0.doc_count: 3}
   - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.key: "spr2021" }
   - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.doc_count: 3}
+
+---
+"Nested then filter then nested then reverse nested":
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            courses:
+              nested:
+                path: courses
+              aggregations:
+                highpass_filter:
+                  filter:
+                    range:
+                      courses.credits:
+                        gt: 1
+                  aggregations:
+                    unnest:
+                      reverse_nested: {}
+                      aggregations:
+                        department:
+                          terms:
+                            field: department
+  - match: {hits.total.value: 2}
+  - match: {aggregations.courses.doc_count: 4}
+  - match: {aggregations.courses.highpass_filter.doc_count: 3}
+  - match: {aggregations.courses.highpass_filter.unnest.doc_count: 2}
+  - length: { aggregations.courses.highpass_filter.unnest.department.buckets: 2 }
+  - match: { aggregations.courses.highpass_filter.unnest.department.buckets.0.key: compsci }
+  - match: { aggregations.courses.highpass_filter.unnest.department.buckets.0.doc_count: 1 }
+  - match: { aggregations.courses.highpass_filter.unnest.department.buckets.1.key: math }
+  - match: { aggregations.courses.highpass_filter.unnest.department.buckets.1.doc_count: 1 }

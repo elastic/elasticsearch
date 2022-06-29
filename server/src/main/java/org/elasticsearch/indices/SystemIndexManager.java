@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -39,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 
@@ -48,6 +46,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
  * those indices can be automatically managed. Only some system indices are managed
  * internally to Elasticsearch - others are created and managed externally, e.g.
  * Kibana indices.
+ *
+ * Other metadata updates are handled by {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}.
  */
 public class SystemIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);
@@ -140,7 +140,7 @@ public class SystemIndexManager implements ClusterStateListener {
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     enum UpgradeStatus {
@@ -159,7 +159,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor information about the system index to check
      * @return a value that indicates the index's state.
      */
-    UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
+    static UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
         final State indexState = calculateIndexState(clusterState, descriptor);
 
         final String indexDescription = "[" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
@@ -236,7 +236,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor the system index to check
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
-    State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
+    static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
         final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
 
         if (indexMetadata == null) {
@@ -270,7 +270,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * Checks whether an index's mappings are up-to-date. If an index is encountered that has
      * a version higher than Version.CURRENT, it is still considered up-to-date.
      */
-    private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
+    private static boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
             return false;
@@ -282,7 +282,7 @@ public class SystemIndexManager implements ClusterStateListener {
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    private Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
+    private static Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
             @SuppressWarnings("unchecked")
@@ -311,12 +311,9 @@ public class SystemIndexManager implements ClusterStateListener {
                 return Version.V_EMPTY;
             }
             return Version.fromString(versionString);
-        } catch (ElasticsearchParseException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
-            throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
-        } catch (IllegalArgumentException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
-            throw e;
+        } catch (ElasticsearchParseException | IllegalArgumentException e) {
+            logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
+            return Version.V_EMPTY;
         }
     }
 

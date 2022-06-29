@@ -8,10 +8,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -29,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -43,6 +48,8 @@ import java.util.function.LongPredicate;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
+
+    private static final Logger logger = LogManager.getLogger(TermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -127,6 +134,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
+                logger.debug("Creating bytes terms aggregator with execution mode [{}]", execution);
                 return execution.create(
                     name,
                     factories,
@@ -290,6 +298,20 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
+        // This is because we cannot be sure about their relative scale when sampled
+        if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
+            if (bucketCountThresholds.getMinDocCount() > 1 || bucketCountThresholds.getShardMinDocCount() > 1) {
+                throw new ElasticsearchStatusException(
+                    "aggregation [{}] is within a sampling context; "
+                        + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
+                    RestStatus.BAD_REQUEST,
+                    name(),
+                    bucketCountThresholds.getMinDocCount(),
+                    bucketCountThresholds.getShardMinDocCount()
+                );
+            }
+        }
         bucketCountThresholds.ensureValidity();
 
         return aggregatorSupplier.build(
@@ -444,6 +466,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                          * any more times doing filter-by-filter then we would
                          * doing regular collection.
                          */
+                        logger.debug("Using adapted fiter-by-filter implementation");
                         return adapted;
                     }
                 }
@@ -465,6 +488,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
                      *  which directly linked to maxOrd, so we need to limit).
                      */
+                    logger.debug("Using low cardinality global ordinals implementation");
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
                         name,
                         factories,
@@ -508,6 +532,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         remapGlobalOrds = false;
                     }
                 }
+                logger.debug("Using standard global ordinals implementation.  remap is [{}]", remapGlobalOrds);
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,

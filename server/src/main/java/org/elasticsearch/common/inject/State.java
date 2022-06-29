@@ -19,11 +19,8 @@ package org.elasticsearch.common.inject;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.annotation.Annotation;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
@@ -83,16 +80,6 @@ interface State {
         }
 
         @Override
-        public void addTypeListener(TypeListenerBinding typeListenerBinding) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<TypeListenerBinding> getTypeListenerBindings() {
-            return Collections.emptyList();
-        }
-
-        @Override
         public void blacklist(Key<?> key) {}
 
         @Override
@@ -144,10 +131,6 @@ interface State {
      * Returns all converters at this level only.
      */
     Iterable<MatcherAndConverter> getConvertersThisLevel();
-
-    void addTypeListener(TypeListenerBinding typeListenerBinding);
-
-    List<TypeListenerBinding> getTypeListenerBindings();
 
     /**
      * Forbids the corresponding injector from creating a binding to {@code key}. Child injectors

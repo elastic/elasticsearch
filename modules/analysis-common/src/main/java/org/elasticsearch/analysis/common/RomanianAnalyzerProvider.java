@@ -21,7 +21,7 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Roma
     private final RomanianAnalyzer analyzer;
 
     RomanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new RomanianAnalyzer(
             Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
@@ -140,10 +139,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                         exists = true;
                         return storeFilesMetadata;
                     } catch (org.apache.lucene.index.IndexNotFoundException e) {
-                        logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
+                        logger.trace(() -> "[" + shardId + "] node is missing index, responding with empty", e);
                         return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
-                        logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
+                        logger.warn(() -> "[" + shardId + "] can't read metadata from store, responding with empty", e);
                         return StoreFilesMetadata.EMPTY;
                     }
                 }
@@ -192,17 +191,13 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public static class StoreFilesMetadata implements Iterable<StoreFileMetadata>, Writeable {
-        private final Store.MetadataSnapshot metadataSnapshot;
-        private final List<RetentionLease> peerRecoveryRetentionLeases;
+    public record StoreFilesMetadata(Store.MetadataSnapshot metadataSnapshot, List<RetentionLease> peerRecoveryRetentionLeases)
+        implements
+            Iterable<StoreFileMetadata>,
+            Writeable {
 
         private static final ShardId FAKE_SHARD_ID = new ShardId("_na_", "_na_", 0);
         public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
-
-        public StoreFilesMetadata(Store.MetadataSnapshot metadataSnapshot, List<RetentionLease> peerRecoveryRetentionLeases) {
-            this.metadataSnapshot = metadataSnapshot;
-            this.peerRecoveryRetentionLeases = peerRecoveryRetentionLeases;
-        }
 
         public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
             if (in.getVersion().before(Version.V_8_2_0)) {
@@ -240,11 +235,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
 
         public boolean fileExists(String name) {
-            return metadataSnapshot.asMap().containsKey(name);
+            return metadataSnapshot.fileMetadataMap().containsKey(name);
         }
 
         public StoreFileMetadata file(String name) {
-            return metadataSnapshot.asMap().get(name);
+            return metadataSnapshot.fileMetadataMap().get(name);
         }
 
         /**
@@ -258,10 +253,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 .mapToLong(RetentionLease::retainingSequenceNumber)
                 .findFirst()
                 .orElse(-1L);
-        }
-
-        public List<RetentionLease> peerRecoveryRetentionLeases() {
-            return peerRecoveryRetentionLeases;
         }
 
         /**

@@ -42,6 +42,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
@@ -1210,11 +1211,10 @@ public class ExecutionServiceTests extends ESTestCase {
         context.ensureWatchExists(() -> watch);
         assertNull(context.getUser());
 
-        Authentication authentication = new Authentication(
-            new User("joe", "admin"),
-            new Authentication.RealmRef("native_realm", "native", "node1"),
-            null
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe", "admin"))
+            .realmRef(new Authentication.RealmRef("native_realm", "native", "node1"))
+            .build(false);
 
         // Should no longer be null now that the proper header is set
         when(status.getHeaders()).thenReturn(Collections.singletonMap(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));

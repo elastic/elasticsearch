@@ -29,7 +29,8 @@ public class MPNetTokenization extends Tokenization {
                 (Boolean) a[0],
                 (Boolean) a[1],
                 (Integer) a[2],
-                a[3] == null ? null : Truncate.fromString((String) a[3])
+                a[3] == null ? null : Truncate.fromString((String) a[3]),
+                (Integer) a[4]
             )
         );
         Tokenization.declareCommonFields(parser);
@@ -47,9 +48,10 @@ public class MPNetTokenization extends Tokenization {
         @Nullable Boolean doLowerCase,
         @Nullable Boolean withSpecialTokens,
         @Nullable Integer maxSequenceLength,
-        @Nullable Truncate truncate
+        @Nullable Truncate truncate,
+        @Nullable Integer span
     ) {
-        super(doLowerCase, withSpecialTokens, maxSequenceLength, truncate);
+        super(doLowerCase, withSpecialTokens, maxSequenceLength, truncate, span);
     }
 
     public MPNetTokenization(StreamInput in) throws IOException {

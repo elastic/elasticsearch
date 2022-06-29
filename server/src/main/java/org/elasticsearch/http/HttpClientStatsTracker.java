@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.LongPredicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.http.HttpStats.ClientStats.NOT_CLOSED;
@@ -35,7 +34,7 @@ import static org.elasticsearch.http.HttpStats.ClientStats.NOT_CLOSED;
  */
 public class HttpClientStatsTracker {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(HttpClientStatsTracker.class);
 
     private final ThreadPool threadPool;
 
@@ -148,7 +147,7 @@ public class HttpClientStatsTracker {
             return Stream.concat(
                 closedChannelStats.stream().filter(c -> keepTimePredicate.test(c.closedTimeMillis)),
                 httpChannelStats.values().stream().map(c -> c.build(NOT_CLOSED))
-            ).collect(Collectors.toList());
+            ).toList();
         } else {
             // prune even if disabled since we don't prevent concurrently adding entries while being disabled
             httpChannelStats.clear();

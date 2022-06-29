@@ -10,7 +10,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.Version;
@@ -27,7 +26,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -37,9 +35,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.parseInt;
+import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
@@ -56,17 +55,6 @@ public class RecoverySettings {
     static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
         "recovery_settings.total_physical_memory_override",
         settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
-        Property.NodeScope
-    );
-
-    /**
-     * Undocumented setting, used to override the current JVM version in tests
-     **/
-    // package private for tests
-    static final Setting<JavaVersion> JAVA_VERSION_OVERRIDING_TEST_SETTING = new Setting<>(
-        "recovery_settings.java_version_override",
-        settings -> JavaVersion.current().toString(),
-        JavaVersion::parse,
         Property.NodeScope
     );
 
@@ -140,7 +128,7 @@ public class RecoverySettings {
      * Bandwidth settings have a default value of -1 (meaning that they are undefined) or a value in (0, Long.MAX_VALUE).
      */
     private static Setting<ByteSizeValue> bandwidthSetting(String key) {
-        return new Setting<>(key, s -> ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
+        return new Setting<>(key, ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
             final ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
             if (ByteSizeValue.MINUS_ONE.equals(value)) {
                 return value;
@@ -225,11 +213,6 @@ public class RecoverySettings {
              * an assumption here that the size of the instance is correlated with I/O resources. That is we are assuming that the
              * larger the instance, the more disk and networking capacity it has available.
              */
-            final JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.get(s);
-            if (javaVersion.compareTo(JavaVersion.parse("14")) < 0) {
-                // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
-                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
-            }
             final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s);
             final ByteSizeValue maxBytesPerSec;
             if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
@@ -538,13 +521,13 @@ public class RecoverySettings {
             finalMaxBytesPerSec = ByteSizeValue.ofBytes(maxBytesPerSec);
         }
         logger.info(
-            () -> new ParameterizedMessage(
-                "using rate limit [{}] with [default={}, read={}, write={}, max={}]",
+            () -> format(
+                "using rate limit [%s] with [default=%s, read=%s, write=%s, max=%s]",
                 finalMaxBytesPerSec,
-                ByteSizeValue.ofBytes(defaultBytesPerSec),
-                ByteSizeValue.ofBytes(readBytesPerSec),
-                ByteSizeValue.ofBytes(writeBytesPerSec),
-                ByteSizeValue.ofBytes(maxAllowedBytesPerSec)
+                ofBytes(defaultBytesPerSec),
+                ofBytes(readBytesPerSec),
+                ofBytes(writeBytesPerSec),
+                ofBytes(maxAllowedBytesPerSec)
             )
         );
         setMaxBytesPerSec(finalMaxBytesPerSec);
@@ -667,21 +650,23 @@ public class RecoverySettings {
 
     @Nullable
     Releasable tryAcquireSnapshotDownloadPermits() {
+        if (getUseSnapshotsDuringRecovery() == false) {
+            return null;
+        }
+
         final int maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads();
         final boolean permitAcquired = maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads);
-        if (getUseSnapshotsDuringRecovery() == false || permitAcquired == false) {
-            if (permitAcquired == false) {
-                logger.warn(
-                    String.format(
-                        Locale.ROOT,
-                        "Unable to acquire permit to use snapshot files during recovery, "
-                            + "this recovery will recover index files from the source node. "
-                            + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
-                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
-                        this.maxConcurrentSnapshotFileDownloadsPerNode
-                    )
-                );
-            }
+        if (permitAcquired == false) {
+            logger.warn(
+                String.format(
+                    Locale.ROOT,
+                    "Unable to acquire permit to use snapshot files during recovery, "
+                        + "this recovery will recover index files from the source node. "
+                        + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
+                    INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+                    this.maxConcurrentSnapshotFileDownloadsPerNode
+                )
+            );
             return null;
         }
 
@@ -692,11 +677,11 @@ public class RecoverySettings {
         final List<String> nonDefaults = NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .map(Setting::getKey)
-            .collect(Collectors.toList());
+            .toList();
         if (nonDefaults.isEmpty() == false && nonDefaults.size() != NODE_BANDWIDTH_RECOVERY_SETTINGS.size()) {
             throw new IllegalArgumentException(
                 "Settings "
-                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
+                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).toList()
                     + " must all be defined or all be undefined; but only settings "
                     + nonDefaults
                     + " are configured."

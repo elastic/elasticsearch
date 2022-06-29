@@ -171,7 +171,7 @@ POST /my_source_index/_shrink/my_target_index
 
 <1> The number of shards in the target index. This must be a factor of the
     number of shards in the source index.
-<2> Best compression will only take affect when new writes are made to the
+<2> Best compression will only take effect when new writes are made to the
     index, such as when <<indices-forcemerge,force-merging>> the shard to a single
     segment.
 

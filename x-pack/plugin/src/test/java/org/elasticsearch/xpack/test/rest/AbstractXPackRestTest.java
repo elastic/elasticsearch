@@ -42,7 +42,7 @@ import static java.util.Collections.singletonMap;
 /** Runs rest tests against external cluster */
 // TODO: Remove this timeout increase once this test suite is broken up
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
-public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
+public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING

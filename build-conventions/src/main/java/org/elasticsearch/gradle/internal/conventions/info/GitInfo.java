@@ -168,7 +168,6 @@ public class GitInfo {
 
     /** Find the reponame. */
     public String urlFromOrigin() {
-        String oritin = getOrigin();
         if (origin == null) {
             return null; // best effort, the url doesnt really matter, it is just required by maven central
         }

@@ -16,7 +16,6 @@ import org.elasticsearch.repositories.IndexId;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -68,11 +67,11 @@ public class ShardRecoveryPlan {
     }
 
     public List<String> getFilesPresentInTargetNames() {
-        return filesPresentInTarget.stream().map(StoreFileMetadata::name).collect(Collectors.toList());
+        return filesPresentInTarget.stream().map(StoreFileMetadata::name).toList();
     }
 
     public List<Long> getFilesPresentInTargetSizes() {
-        return filesPresentInTarget.stream().map(StoreFileMetadata::length).collect(Collectors.toList());
+        return filesPresentInTarget.stream().map(StoreFileMetadata::length).toList();
     }
 
     public List<StoreFileMetadata> getSourceFilesToRecover() {
@@ -80,11 +79,11 @@ public class ShardRecoveryPlan {
     }
 
     public List<String> getFilesToRecoverNames() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::name).collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::name).toList();
     }
 
     public List<Long> getFilesToRecoverSizes() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::length).collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::length).toList();
     }
 
     public SnapshotFilesToRecover getSnapshotFilesToRecover() {

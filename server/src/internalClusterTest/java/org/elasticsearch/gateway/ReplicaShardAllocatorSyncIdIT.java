@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -171,9 +170,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(100, 500))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(100, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             client().admin().indices().prepareFlush(indexName).get();
@@ -239,9 +236,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                .collect(Collectors.toList())
+            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             client().admin().indices().prepareFlush(indexName).get();
@@ -296,9 +291,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                IntStream.range(0, between(200, 500))
-                    .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v"))
-                    .collect(Collectors.toList())
+                IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         if (randomBoolean()) {

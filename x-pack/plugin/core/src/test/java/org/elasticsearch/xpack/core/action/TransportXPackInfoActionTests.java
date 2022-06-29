@@ -15,7 +15,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -75,8 +74,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         License license = mock(License.class);
         long expiryDate = randomLong();
         when(license.expiryDate()).thenReturn(expiryDate);
-        LicenseStatus status = randomFrom(LicenseStatus.values());
-        when(license.status()).thenReturn(status);
         String type = randomAlphaOfLength(10);
         when(license.type()).thenReturn(type);
         License.OperationMode mode = randomFrom(License.OperationMode.values());
@@ -129,7 +126,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
             assertThat(response.get().getLicenseInfo(), notNullValue());
             assertThat(response.get().getLicenseInfo().getExpiryDate(), is(expiryDate));
-            assertThat(response.get().getLicenseInfo().getStatus(), is(status));
             assertThat(response.get().getLicenseInfo().getType(), is(type));
             assertThat(response.get().getLicenseInfo().getMode(), is(mode.name().toLowerCase(Locale.ROOT)));
             assertThat(response.get().getLicenseInfo().getUid(), is(uid));

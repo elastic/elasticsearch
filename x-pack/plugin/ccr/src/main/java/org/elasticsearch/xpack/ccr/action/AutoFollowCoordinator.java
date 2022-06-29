@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -19,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -64,6 +63,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 
 /**
@@ -207,8 +207,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 );
                 numberOfFailedRemoteClusterStateRequests++;
                 LOGGER.warn(
-                    new ParameterizedMessage(
-                        "failure occurred while fetching cluster state for auto follow pattern [{}]",
+                    () -> format(
+                        "failure occurred while fetching cluster state for auto follow pattern [%s]",
                         result.autoFollowPatternName
                     ),
                     result.clusterStateFetchException
@@ -224,8 +224,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue()))
                         );
                         LOGGER.warn(
-                            new ParameterizedMessage(
-                                "failure occurred while auto following index [{}] for auto follow pattern [{}]",
+                            () -> format(
+                                "failure occurred while auto following index [%s] for auto follow pattern [%s]",
                                 entry.getKey(),
                                 result.autoFollowPatternName
                             ),
@@ -288,7 +288,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     request.waitForMetadataVersion(metadataVersion);
                     request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
-                    ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+                    CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
                         request,
@@ -314,7 +314,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
                 @Override
                 void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
-                    clusterService.submitStateUpdateTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
+                    submitUnbatchedTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
 
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
@@ -330,7 +330,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    });
                 }
 
             };
@@ -368,6 +368,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         updatedFollowers.putAll(newAutoFollowers);
         removedRemoteClusters.forEach(updatedFollowers.keySet()::remove);
         this.autoFollowers = Collections.unmodifiableMap(updatedFollowers);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {

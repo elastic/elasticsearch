@@ -14,6 +14,9 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -36,9 +39,13 @@ public interface TestClusterConfiguration {
 
     void plugin(Provider<RegularFile> plugin);
 
+    void plugin(TaskProvider<Zip> plugin);
+
     void plugin(String pluginProjectPath);
 
     void module(Provider<RegularFile> module);
+
+    void module(TaskProvider<Sync> module);
 
     void module(String moduleProjectPath);
 
@@ -106,9 +113,13 @@ public interface TestClusterConfiguration {
 
     String getTransportPortURI();
 
+    String getReadinessPortURI();
+
     List<String> getAllHttpSocketURI();
 
     List<String> getAllTransportPortURI();
+
+    List<String> getAllReadinessPortURI();
 
     void stop(boolean tailLogs);
 

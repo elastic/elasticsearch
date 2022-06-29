@@ -109,7 +109,50 @@ public class NodeDeprecationChecks {
         final String details = additionalDetailMessage == null
             ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
             : String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
-        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
+        boolean canAutoRemoveSetting = removedSetting.exists(clusterSettings) && removedSetting.exists(nodeSettings) == false;
+        Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, removedSettingKey);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
+    }
+
+    static DeprecationIssue checkMultipleDataPaths(
+        Settings nodeSettings,
+        PluginsAndModules plugins,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
+        if (dataPaths.size() > 1) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Specifying multiple data paths is deprecated",
+                "https://ela.st/es-deprecation-7-multiple-paths",
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkDataPathsList(
+        Settings nodeSettings,
+        PluginsAndModules plugins,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        if (Environment.dataPathUsesList(nodeSettings)) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Multiple data paths are not supported",
+                "https://ela.st/es-deprecation-7-multiple-paths",
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                false,
+                null
+            );
+        }
+        return null;
     }
 
     static DeprecationIssue checkSharedDataPathSetting(
@@ -127,7 +170,7 @@ public class NodeDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/"
                 + "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
         return null;
     }

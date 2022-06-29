@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAction<
@@ -197,9 +196,10 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                List<String> indices = dataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList());
-                stats.backingIndices.addAll(indices);
-                allBackingIndices.addAll(indices);
+                dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
             }
         }
 

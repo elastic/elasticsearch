@@ -23,6 +23,14 @@ categories:
 == Configuration limitations
 
 [discrete]
+[[transforms-underscore-limitation]]
+=== Field names prefixed with underscores are omitted from latest {transforms}
+
+If you use the `latest` type of {transform} and the source index has field names
+that start with an underscore (_) character, they are assumed to be internal
+fields. Those fields are omitted from the documents in the destination index.
+
+[discrete]
 [[transforms-ccs-limitation]]
 === {transforms-cap} support {ccs} if the remote cluster is configured properly
 
@@ -49,7 +57,18 @@ in {transforms}:
 * {transforms-cap} cannot optimize queries when you use scripts for all the 
   groupings defined in `group_by`, you will receive a warning message when you 
   use scripts this way.
-  
+
+[discrete]
+[[transform-painless-warning-limitation]]
+=== Deprecation warnings for Painless scripts in {transforms}
+
+If a {transform} contains Painless scripts that use deprecated syntax, 
+deprecation warnings are displayed when the {transform} is previewed or started. 
+However, it is not possible to check for deprecation warnings across all 
+{transforms} as a bulk action because running the required queries might be a 
+resource intensive process. Therefore any deprecation warnings due to deprecated 
+Painless syntax are not available in the Upgrade Assistant.
+
 [discrete]
 [[transform-runtime-field-limitation]]
 === {transforms-cap} perform better on indexed fields
@@ -269,8 +288,11 @@ documents if your {transform} contains a `group_by` based on `date_histogram`.
 
 {kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
 destination indices and other saved objects in {kib} and to see only the objects 
-that belong to your space. However, this limited scope does not apply to 
-{transforms}; they are visible in all spaces.
+that belong to your space. However, a {transform} is a long running task which 
+is managed on cluster level and therefore not limited in scope to certain 
+spaces. Space awareness can be implemented for a {data-source} under 
+**Stack Management > Kibana** which allows privileges to the {transform} 
+destination index.
 
 [discrete]
 [[transform-kibana-limitations]]

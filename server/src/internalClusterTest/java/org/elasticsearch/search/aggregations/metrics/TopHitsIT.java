@@ -561,7 +561,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
             assertThat(hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
             Max max = bucket.getAggregations().get("max_sort");
-            assertThat(max.getValue(), equalTo(((Long) higestSortValue).doubleValue()));
+            assertThat(max.value(), equalTo(((Long) higestSortValue).doubleValue()));
             higestSortValue -= 10;
         }
     }

@@ -28,7 +28,6 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -83,7 +82,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
             .stream()
             .filter(DiscoveryNode::canContainData)
             .map(DiscoveryNode::getName)
-            .collect(Collectors.toList());
+            .toList();
         assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(minRemotes));
         List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
         disconnectFromRemoteClusters();

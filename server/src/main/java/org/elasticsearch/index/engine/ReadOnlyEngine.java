@@ -11,7 +11,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -25,8 +24,8 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -540,7 +539,7 @@ public class ReadOnlyEngine extends Engine {
         return false;
     }
 
-    private Translog.Snapshot newEmptySnapshot() {
+    private static Translog.Snapshot newEmptySnapshot() {
         return new Translog.Snapshot() {
             @Override
             public void close() {}

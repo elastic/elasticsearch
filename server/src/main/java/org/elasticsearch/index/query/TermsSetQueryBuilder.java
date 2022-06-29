@@ -39,7 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
@@ -63,7 +62,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.fieldName = Objects.requireNonNull(fieldName);
         Objects.requireNonNull(values);
         if (convert) {
-            this.values = values.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+            this.values = values.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).toList();
         } else {
             this.values = values;
         }

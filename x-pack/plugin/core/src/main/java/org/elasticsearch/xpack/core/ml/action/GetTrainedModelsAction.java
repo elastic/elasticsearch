@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Response> {
 
     public static final GetTrainedModelsAction INSTANCE = new GetTrainedModelsAction();
@@ -118,7 +120,6 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     public static class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField INCLUDE = new ParseField("include");
-        public static final String DEFINITION = "definition";
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ParseField TAGS = new ParseField("tags");
 
@@ -177,6 +178,11 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             }
             Request other = (Request) obj;
             return super.equals(obj) && this.includes.equals(other.includes) && Objects.equals(tags, other.tags);
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_trained_models[%s]", getResourceId());
         }
     }
 

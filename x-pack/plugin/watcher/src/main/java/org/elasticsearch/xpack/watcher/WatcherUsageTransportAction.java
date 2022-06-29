@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
@@ -89,7 +88,7 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
                         .stream()
                         .map(WatcherStatsResponse.Node::getStats)
                         .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
+                        .toList();
                     Counters mergedCounters = Counters.merge(countersPerNode);
                     WatcherFeatureSetUsage usage = new WatcherFeatureSetUsage(
                         WatcherField.WATCHER_FEATURE.checkWithoutTracking(licenseState),

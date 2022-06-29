@@ -103,7 +103,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
             indices.put("rollup_" + indexName, meta);
         }
 
-        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Arrays.asList(indices.keys().toArray(String.class)), indices.build());
+        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Arrays.asList(indices.keys().toArray(new String[0])), indices.build());
         assertThat(caps.size(), equalTo(5));
     }
 

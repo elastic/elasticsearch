@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -63,7 +63,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         // 99% of the time, this will be a noop, so precheck that before adding a cluster state update.
         if (needsUpgrade(state)) {
             logger.info("Upgrading partial searchable snapshots to use frozen shard limit group");
-            clusterService.submitStateUpdateTask("searchable-snapshot-index-upgrader", new ClusterStateUpdateTask() {
+            submitUnbatchedTask("searchable-snapshot-index-upgrader", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return upgradeIndices(currentState);
@@ -83,10 +83,15 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                     // let us try again later.
                     upgraded.set(false);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
         } else {
             clusterService.removeListener(listener);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static boolean needsUpgrade(ClusterState state) {

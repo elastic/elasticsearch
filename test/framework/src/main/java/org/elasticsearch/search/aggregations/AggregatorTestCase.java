@@ -28,7 +28,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -69,6 +68,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
@@ -83,7 +83,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -95,6 +94,8 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -185,6 +186,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
         GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
+        DenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
+        SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
         NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
@@ -373,23 +376,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
     ) {
         SearchContext ctx = mock(SearchContext.class);
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
-        QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {}
-
-            @Override
-            public boolean shouldCache(Query query) {
-                // never cache a query
-                return false;
-            }
-        };
         try {
             when(ctx.searcher()).thenReturn(
                 new ContextIndexSearcher(
                     searchExecutionContext.searcher().getIndexReader(),
                     searchExecutionContext.searcher().getSimilarity(),
                     queryCache,
-                    queryCachingPolicy,
+                    TrivialQueryCachingPolicy.NEVER,
                     false
                 )
             );
@@ -410,7 +403,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(ctx.indexShard()).thenReturn(indexShard);
+        when(ctx.newSourceLoader()).thenAnswer(inv -> searchExecutionContext.newSourceLoader(false));
         return new SubSearchContext(ctx);
     }
 
@@ -966,7 +961,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
     public void testSupportedFieldTypes() throws IOException {
-        MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         String fieldName = "typeTestFieldName";
         List<ValuesSourceType> supportedVSTypes = getSupportedValuesSourceTypes();
         List<String> unsupportedMappedFieldTypes = unsupportedMappedFieldTypes();
@@ -976,7 +970,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return;
         }
 
-        for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
+        for (Map.Entry<String, Mapper.TypeParser> mappedType : IndicesModule.getMappers(List.of()).entrySet()) {
 
             // Some field types should not be tested, or require more work and are not ready yet
             if (TYPE_TEST_BLACKLIST.contains(mappedType.getKey())) {
@@ -991,7 +985,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 source.put("doc_values", "true");
             }
 
-            Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
+            IndexSettings indexSettings = createIndexSettings();
+            Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext(indexSettings));
             FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.ROOT);
 
             MappedFieldType fieldType = mapper.fieldType();
@@ -1174,8 +1169,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private static class MockParserContext extends MappingParserContext {
-        MockParserContext() {
-            super(null, null, null, Version.CURRENT, null, null, ScriptCompiler.NONE, null, null, null);
+        MockParserContext(IndexSettings indexSettings) {
+            super(null, null, null, Version.CURRENT, null, null, ScriptCompiler.NONE, null, indexSettings, null);
         }
 
         @Override

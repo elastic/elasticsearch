@@ -473,7 +473,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
     }
 
-    public void forceMergeActionWithCodec(String codec) throws Exception {
+    public void checkForceMergeAction(String codec) throws Exception {
         createIndexWithSettings(
             client(),
             index,
@@ -495,17 +495,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.containsKey(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(false));
         }, 30, TimeUnit.SECONDS);
-        expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+
+        // No exception should be thrown here as writes were not blocked
+        indexDocument(client(), index);
     }
 
     public void testForceMergeAction() throws Exception {
-        forceMergeActionWithCodec(null);
+        checkForceMergeAction(null);
     }
 
     public void testForceMergeActionWithCompressionCodec() throws Exception {
-        forceMergeActionWithCodec("best_compression");
+        checkForceMergeAction("best_compression");
     }
 
     public void testSetPriority() throws Exception {

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -178,7 +179,10 @@ public class TransportCreateTokenActionTests extends ESTestCase {
                 user = new User(token.principal());
                 threadPool.getThreadContext().addResponseHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate SUCCESS");
             }
-            Authentication authentication = new Authentication(user, new Authentication.RealmRef("fake", "mock", "n1"), null);
+            Authentication authentication = AuthenticationTestHelper.builder()
+                .user(user)
+                .realmRef(new Authentication.RealmRef("fake", "mock", "n1"))
+                .build(false);
             authentication.writeToContext(threadPool.getThreadContext());
             authListener.onResponse(authentication);
             return Void.TYPE;
@@ -209,7 +213,10 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
@@ -247,7 +254,10 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
@@ -287,7 +297,10 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
@@ -337,7 +350,10 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
@@ -376,11 +392,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(
-            new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
-            new Authentication.RealmRef("_service_account", "_service_account", "node"),
-            null
-        );
+        Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(

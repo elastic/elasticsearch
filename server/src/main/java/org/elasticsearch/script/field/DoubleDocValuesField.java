@@ -16,7 +16,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class DoubleDocValuesField implements DocValuesField<Double>, ScriptDocValues.Supplier<Double> {
+public class DoubleDocValuesField extends AbstractScriptFieldFactory<Double>
+    implements
+        Field<Double>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<Double> {
 
     protected final SortedNumericDoubleValues input;
     protected final String name;
@@ -56,7 +60,7 @@ public class DoubleDocValuesField implements DocValuesField<Double>, ScriptDocVa
      * through the {@code doc} variable.
      */
     @Override
-    public ScriptDocValues<Double> getScriptDocValues() {
+    public ScriptDocValues<Double> toScriptDocValues() {
         if (doubles == null) {
             doubles = new ScriptDocValues.Doubles(this);
         }

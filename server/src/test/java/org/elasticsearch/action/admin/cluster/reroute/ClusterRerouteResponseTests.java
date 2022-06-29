@@ -76,6 +76,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "name": "",
                             "ephemeral_id": "%s",
                             "transport_address": "0.0.0.0:9000",
+                            "external_id": "",
                             "attributes": {},
                             "roles": [
                               "data",

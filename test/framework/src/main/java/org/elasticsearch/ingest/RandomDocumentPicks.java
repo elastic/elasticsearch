@@ -136,7 +136,7 @@ public final class RandomDocumentPicks {
         if (random.nextBoolean()) {
             routing = randomString(random);
         }
-        return new IngestDocument(index, id, routing, version, versionType, source);
+        return new IngestDocument(index, id, version, routing, versionType, source);
     }
 
     public static Map<String, Object> randomSource(Random random) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public class MPNetTokenizationUpdate implements TokenizationUpdate {
 
@@ -25,11 +27,12 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
 
     public static ConstructingObjectParser<MPNetTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
         "mpnet_tokenization_update",
-        a -> new MPNetTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]))
+        a -> new MPNetTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]), (Integer) a[1])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Tokenization.TRUNCATE);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Tokenization.SPAN);
     }
 
     public static MPNetTokenizationUpdate fromXContent(XContentParser parser) {
@@ -37,13 +40,20 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
     }
 
     private final Tokenization.Truncate truncate;
+    private final Integer span;
 
-    public MPNetTokenizationUpdate(@Nullable Tokenization.Truncate truncate) {
+    public MPNetTokenizationUpdate(@Nullable Tokenization.Truncate truncate, @Nullable Integer span) {
         this.truncate = truncate;
+        this.span = span;
     }
 
     public MPNetTokenizationUpdate(StreamInput in) throws IOException {
         this.truncate = in.readOptionalEnum(Tokenization.Truncate.class);
+        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            this.span = in.readOptionalInt();
+        } else {
+            this.span = null;
+        }
     }
 
     @Override
@@ -64,19 +74,25 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
             originalConfig.doLowerCase(),
             originalConfig.withSpecialTokens(),
             originalConfig.maxSequenceLength(),
-            this.truncate
+            Optional.ofNullable(this.truncate).orElse(originalConfig.getTruncate()),
+            Optional.ofNullable(this.span).orElse(originalConfig.getSpan())
         );
     }
 
     @Override
     public boolean isNoop() {
-        return truncate == null;
+        return truncate == null && span == null;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Tokenization.TRUNCATE.getPreferredName(), truncate.toString());
+        if (truncate != null) {
+            builder.field(Tokenization.TRUNCATE.getPreferredName(), truncate.toString());
+        }
+        if (span != null) {
+            builder.field(Tokenization.SPAN.getPreferredName(), span);
+        }
         builder.endObject();
         return builder;
     }
@@ -89,6 +105,9 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(truncate);
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            out.writeOptionalInt(span);
+        }
     }
 
     @Override
@@ -101,11 +120,11 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MPNetTokenizationUpdate that = (MPNetTokenizationUpdate) o;
-        return truncate == that.truncate;
+        return Objects.equals(truncate, that.truncate) && Objects.equals(span, that.span);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(truncate);
+        return Objects.hash(truncate, span);
     }
 }

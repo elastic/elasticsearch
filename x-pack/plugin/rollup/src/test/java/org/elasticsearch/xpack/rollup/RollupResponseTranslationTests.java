@@ -66,7 +66,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -314,7 +314,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testMissingFilter() {
         SearchResponse protoResponse = mock(SearchResponse.class);
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalMax protoMax = mock(InternalMax.class);
+        Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
         Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
@@ -323,7 +323,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse responseWithout = mock(SearchResponse.class);
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
-        InternalMax max = mock(InternalMax.class);
+        Max max = mock(Max.class);
         when(max.getName()).thenReturn("bizzbuzz");
         aggTreeWithoutFilter.add(max);
         Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
@@ -342,7 +342,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testMatchingNameNotFilter() {
         SearchResponse protoResponse = mock(SearchResponse.class);
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalMax protoMax = mock(InternalMax.class);
+        Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
         Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
@@ -351,7 +351,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse responseWithout = mock(SearchResponse.class);
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
-        InternalMax max = new InternalMax("filter_foo", 0, DocValueFormat.RAW, null);
+        Max max = new Max("filter_foo", 0, DocValueFormat.RAW, null);
         aggTreeWithoutFilter.add(max);
         Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
@@ -363,7 +363,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             RuntimeException.class,
             () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
         );
-        assertThat(e.getMessage(), equalTo("Expected [filter_foo] to be a FilterAggregation, but was [InternalMax]"));
+        assertThat(e.getMessage(), equalTo("Expected [filter_foo] to be a FilterAggregation, but was [Max]"));
     }
 
     public void testSimpleReduction() throws Exception {

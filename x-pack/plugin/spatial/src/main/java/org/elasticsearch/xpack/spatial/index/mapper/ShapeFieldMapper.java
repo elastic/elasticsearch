@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -74,8 +73,8 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, ignoreMalformed, ignoreZValue, coerce, orientation, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
         }
 
         @Override

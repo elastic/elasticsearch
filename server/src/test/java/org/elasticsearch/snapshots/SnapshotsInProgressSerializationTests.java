@@ -72,10 +72,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         long startTime = randomLong();
         long repositoryStateId = randomLong();
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
-        final List<Index> esIndices = indices.keySet()
-            .stream()
-            .map(i -> new Index(i, randomAlphaOfLength(10)))
-            .collect(Collectors.toList());
+        final List<Index> esIndices = indices.keySet().stream().map(i -> new Index(i, randomAlphaOfLength(10))).toList();
         List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
@@ -230,8 +227,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 );
             }
             case 2 -> {
-                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10)))
-                    .collect(Collectors.toList());
+                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();
                 return new Entry(
                     entry.snapshot(),
                     entry.includeGlobalState(),
@@ -304,7 +300,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 6 -> {
                 Map<String, IndexId> indices = new HashMap<>(entry.indices());
-                ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
+                Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
                 IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
                 indices.put(indexId.getName(), indexId);
                 ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder(shards);
@@ -528,7 +524,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         }
     }
 
-    public static State randomState(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
+    public static State randomState(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
         return SnapshotsInProgress.completed(shards.values())
             ? randomFrom(State.SUCCESS, State.FAILED)
             : randomFrom(State.STARTED, State.INIT, State.ABORTED);

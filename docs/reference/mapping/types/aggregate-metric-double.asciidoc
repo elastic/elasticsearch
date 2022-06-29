@@ -38,6 +38,7 @@ PUT my-index
 }
 ----
 
+[role="child_attributes"]
 [[aggregate-metric-double-params]]
 ==== Parameters for `aggregate_metric_double` fields
 
@@ -56,21 +57,23 @@ specify at least one value.
 Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
+ifeval::["{release-state}"=="unreleased"]
 `time_series_metric`::
-+
---
-experimental:[]
-(Optional, string)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
+preview:[] (Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
-
-For `aggregate_metric_double` fields, this parameter accepts `counter`, `gauge`,
-and `summary`. You can't update this parameter for existing fields.
++
+.Valid `time_series_metric` values for `aggregate_metric_double` fields
+[%collapsible%open]
 ====
---
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-summary]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+====
+endif::[]
 
 [[aggregate-metric-double-uses]]
 ==== Uses

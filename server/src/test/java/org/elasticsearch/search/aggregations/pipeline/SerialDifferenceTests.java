@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
@@ -20,8 +21,6 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SerialDifferenceTests extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregationBuilder> {
 
@@ -58,8 +57,7 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
     public void testInvalidParent() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(createTestAggregatorFactory());
-        AggregationBuilder parent = mock(AggregationBuilder.class);
-        when(parent.getName()).thenReturn("name");
+        AggregationBuilder parent = new TermsAggregationBuilder("t");
         assertThat(
             validate(parent, new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric")),
             equalTo(

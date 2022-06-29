@@ -59,12 +59,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -469,17 +469,29 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     : snapshotMetadata.recoveryDiff(metadata);
 
                 assertThat(
-                    "List of different files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of different files should be empty but got ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.different.isEmpty(),
                     is(true)
                 );
                 assertThat(
-                    "List of missing files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of missing files should be empty but got ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.missing.isEmpty(),
                     is(true)
                 );
                 assertThat(
-                    "List of files should be identical [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of files should be identical ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.identical.size(),
                     equalTo(metadata.size())
                 );

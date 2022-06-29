@@ -1,6 +1,0 @@
-pr: 65145
-summary: Add `unsigned_long` type support
-area: Query Languages
-type: enhancement
-issues:
- - 63312

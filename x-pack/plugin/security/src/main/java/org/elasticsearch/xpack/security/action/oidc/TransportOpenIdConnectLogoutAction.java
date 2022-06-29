@@ -121,7 +121,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
         }
     }
 
-    private Object getFromMetadata(Map<String, Object> metadata, String key) {
+    private static Object getFromMetadata(Map<String, Object> metadata, String key) {
         if (metadata.containsKey(key) == false) {
             throw new ElasticsearchSecurityException("Authentication token does not have OpenID Connect metadata [{}]", key);
         }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -48,7 +49,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         String[] apiKeyIds = request.getIds();
         String apiKeyName = request.getName();
         String username = request.getUserName();
-        String realm = request.getRealmName();
+        String[] realms = Strings.hasText(request.getRealmName()) ? new String[] { request.getRealmName() } : null;
 
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
@@ -56,13 +57,13 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         }
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
-            assert realm == null;
+            assert realms == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
-            realm = ApiKeyService.getCreatorRealmName(authentication);
+            realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
 
-        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyIds, listener);
+        apiKeyService.invalidateApiKeys(realms, username, apiKeyName, apiKeyIds, listener);
     }
 
 }

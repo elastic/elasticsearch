@@ -346,7 +346,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
         assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now, """
-            {"type":"illegal_argument_exception","reason":"non elasticsearch-exception","stack_trace":\"""");
+            {"type":"illegal_argument_exception","reason":"non elasticsearch-exception\"""");
     }
 
     public void testAddStepInfoToClusterState() throws IOException {

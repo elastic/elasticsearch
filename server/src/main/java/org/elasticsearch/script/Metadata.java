@@ -9,12 +9,11 @@
 package org.elasticsearch.script;
 
 import java.time.ZonedDateTime;
-import java.util.Map;
 
 /**
  * Ingest and update metadata available to write scripts
  */
-public interface Metadata extends Map<String, Object> {
+public interface Metadata {
     /**
      * The destination index
      */

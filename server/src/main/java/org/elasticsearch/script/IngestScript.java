@@ -33,11 +33,16 @@ public abstract class IngestScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
+    /** The metadata available to the script */
     private final Metadata metadata;
 
-    public IngestScript(Map<String, Object> params, Metadata metadata) {
+    /** The metadata and source available to the script */
+    private final Map<String, Object> ctx;
+
+    public IngestScript(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx) {
         this.params = params;
         this.metadata = metadata;
+        this.ctx = ctx;
     }
 
     /** Return the parameters for this script. */
@@ -47,7 +52,7 @@ public abstract class IngestScript {
 
     /** Provides backwards compatibility access to ctx */
     public Map<String, Object> getCtx() {
-        return metadata;
+        return ctx;
     }
 
     /** Return the ingest metadata object */
@@ -58,6 +63,6 @@ public abstract class IngestScript {
     public abstract void execute();
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params, Metadata metadata);
+        IngestScript newInstance(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx);
     }
 }

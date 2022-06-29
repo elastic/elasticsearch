@@ -524,6 +524,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             List<InternalDateHistogram.Bucket> originalDateHistogramBuckets = originalDateHistogram.getBuckets();
             List<InternalDateHistogram.Bucket> rollupDateHistogramBuckets = rollupDateHistogram.getBuckets();
             assertEquals(originalDateHistogramBuckets.size(), rollupDateHistogramBuckets.size());
+            assertEquals(
+                originalDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList()),
+                rollupDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList())
+            );
 
             for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
                 InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
@@ -595,32 +599,50 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         // Assert rollup metadata are set in index settings
-        assertEquals("success", indexSettingsResp.getSetting(rollupIndex, "index.rollup.status"));
+        assertEquals("success", indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_STATUS_KEY));
+
+        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_UUID));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_SOURCE_UUID_KEY));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.uuid"),
-            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid")
+            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_UUID),
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_SOURCE_UUID_KEY)
         );
-        assertEquals(sourceIndex, indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name"));
+
+        assertEquals(sourceIndex, indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY));
         assertEquals(indexSettingsResp.getSetting(sourceIndex, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
+
+        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "time_series.start_time"),
-            indexSettingsResp.getSetting(rollupIndex, "time_series.start_time")
+            indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()),
+            indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_START_TIME.getKey())
         );
+
+        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "time_series.end_time"),
-            indexSettingsResp.getSetting(rollupIndex, "time_series.end_time")
+            indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()),
+            indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_END_TIME.getKey())
         );
+        assertNotNull(indexSettingsResp.getSetting(sourceIndex, "index.routing_path"));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, "index.routing_path"));
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, "index.routing_path"),
             indexSettingsResp.getSetting(rollupIndex, "index.routing_path")
         );
+
+        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.number_of_shards"),
-            indexSettingsResp.getSetting(rollupIndex, "index.number_of_shards")
+            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS),
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)
         );
+
+        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
+        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.number_of_replicas"),
-            indexSettingsResp.getSetting(rollupIndex, "index.number_of_replicas")
+            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS),
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
         );
         assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
 

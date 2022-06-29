@@ -146,7 +146,6 @@ final class SoftDeletesPolicy {
      * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
      */
     Query getRetentionQuery() {
-        // NOCOMMIT should this be "sloppy" and retain more so it doesn't have to double check?
         return SeqNoFieldMapper.INSTANCE.fieldType().rangeQuery(getMinRetainedSeqNo(), Long.MAX_VALUE);
     }
 

@@ -161,7 +161,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
-            // NOCOMMIT recheck the doc values
+            // TODO recheck the doc values
             throw new UnsupportedOperationException();
             //            return LongPoint.newExactQuery(name(), v);
         }
@@ -169,7 +169,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
-            // NOCOMMIT recheck the doc values
+            // TODO recheck the doc values
             throw new UnsupportedOperationException();
 //            return LongPoint.newSetQuery(name(), v);
         }

@@ -92,7 +92,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         BuildParams.init(params -> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
-            params.setJavaToolChainSpec(resolveOptionalToolchainSpec());
+            params.setJavaToolChainSpec(resolveToolchainSpecFromEnv());
             // TODO: Temporarily hard-code this to 17 until we upgrade to Gradle 7.3 and bump minimumRuntimeVersion
             params.setRuntimeJavaVersion(
                 determineJavaVersion(
@@ -127,7 +127,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
     }
 
-    private Provider<MetadataBasedToolChainMatcher> resolveOptionalToolchainSpec() {
+    private Provider<MetadataBasedToolChainMatcher> resolveToolchainSpecFromEnv() {
         return providers.environmentVariable("JAVA_TOOLCHAIN_HOME").map(toolChainEnvVariable -> {
             File toolChainDir = new File(toolChainEnvVariable);
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(toolChainDir);

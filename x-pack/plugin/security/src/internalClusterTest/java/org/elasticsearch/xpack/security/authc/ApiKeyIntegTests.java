@@ -1435,6 +1435,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final var newRoleDescriptors = randomRoleDescriptors();
         final boolean nullRoleDescriptors = newRoleDescriptors == null;
+
         // TODO parse role?
         final var expectedLimitedByRoleDescriptors = Set.of(
             new RoleDescriptor(
@@ -1498,65 +1499,46 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    private List<RoleDescriptor> randomRoleDescriptors() {
-        int caseNo = randomIntBetween(0, 2);
-        return switch (caseNo) {
-            case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
-            case 1 -> List.of(
-                new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
-                RoleDescriptorTests.randomRoleDescriptor()
-            );
-            case 2 -> null;
-            default -> throw new IllegalStateException("unexpected case no");
-        };
-    }
-
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
-        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(ES_TEST_ROOT_USER, null);
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
-        final var serviceWithNodeName = getServiceWithNodeName();
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(
-                fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                request,
-                Set.of(expectedRoleDescriptor),
-                listener
-            );
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
         final var response = listener.get();
-
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // Test not found exception on non-existent API key
         final var otherApiKeyId = randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(20));
-        doTestUpdateApiKeyNotFound(
-            serviceWithNodeName,
-            fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-            new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata())
-        );
+        doTestUpdateApiKeyNotFound(new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()));
 
         // Test not found exception on other user's API key
         final Tuple<CreateApiKeyResponse, Map<String, Object>> otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
         doTestUpdateApiKeyNotFound(
-            serviceWithNodeName,
-            fileRealmAuth(serviceWithNodeName.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
             new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
         );
 
         // Test not found exception on API key of user with the same username but from a different realm
+        // Authentication authentication = Authentication.newRealmAuthentication(
+        // new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
+        // // Use native realm; no need to actually create user since we are injecting the authentication object directly
+        // new Authentication.RealmRef(NativeRealmSettings.DEFAULT_NAME, NativeRealmSettings.TYPE, serviceWithNodeName.nodeName())
+        // );
+        createNativeRealmUser(
+            TEST_USER_NAME,
+            TEST_ROLE,
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> apiKeyForNativeRealmUser = createApiKey(TEST_USER_NAME, null);
         doTestUpdateApiKeyNotFound(
-            serviceWithNodeName,
-            Authentication.newRealmAuthentication(
-                new User(ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-                // Use native realm; no need to actually create user since we are injecting the authentication object directly
-                new Authentication.RealmRef(NativeRealmSettings.DEFAULT_NAME, NativeRealmSettings.TYPE, serviceWithNodeName.nodeName())
-            ),
-            new UpdateApiKeyRequest(apiKeyId, request.getRoleDescriptors(), request.getMetadata())
+            new UpdateApiKeyRequest(apiKeyForNativeRealmUser.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
         );
     }
 
@@ -1676,13 +1658,25 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertEquals(serviceForDoc2AuthCacheCount, serviceForDoc2.getApiKeyAuthCache().count());
     }
 
-    private void doTestUpdateApiKeyNotFound(
-        ServiceWithNodeName serviceWithNodeName,
-        Authentication authentication,
-        UpdateApiKeyRequest request
-    ) {
+    private List<RoleDescriptor> randomRoleDescriptors() {
+        int caseNo = randomIntBetween(0, 2);
+        return switch (caseNo) {
+            case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
+            case 1 -> List.of(
+                new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
+                RoleDescriptorTests.randomRoleDescriptor()
+            );
+            case 2 -> null;
+            default -> throw new IllegalStateException("unexpected case no");
+        };
+    }
+
+    private void doTestUpdateApiKeyNotFound(UpdateApiKeyRequest request) {
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        serviceWithNodeName.service().updateApiKey(authentication, request, Set.of(), listener);
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
         final var ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
         assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
@@ -1968,9 +1962,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private void createUserWithRunAsRole(Map<String, String> authHeaders) throws ExecutionException, InterruptedException {
+        createNativeRealmUser("user_with_run_as_role", "run_as_role", authHeaders);
+    }
+
+    private void createNativeRealmUser(final String username, final String role, final Map<String, String> authHeaders)
+        throws ExecutionException, InterruptedException {
         final PutUserRequest putUserRequest = new PutUserRequest();
-        putUserRequest.username("user_with_run_as_role");
-        putUserRequest.roles("run_as_role");
+        putUserRequest.username(username);
+        putUserRequest.roles(role);
         putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
         PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
         final Client client = client().filterWithHeader(authHeaders);

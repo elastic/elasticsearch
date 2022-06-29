@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.field.SeqNoDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -232,6 +233,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     private SeqNoFieldMapper() {
         super(SeqNoFieldType.INSTANCE);
+        LogManager.getLogger(SeqNoFieldMapper.class).error("USING >> {}", POINTS_SHIFT);
     }
 
     @Override

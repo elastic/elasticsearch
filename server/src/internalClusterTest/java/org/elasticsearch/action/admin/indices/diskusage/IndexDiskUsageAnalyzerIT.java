@@ -377,7 +377,13 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final IndexDiskUsageStats.PerFieldDiskUsage seqNoField = stats.getFields().get("_seq_no");
         assertThat(seqNoField.getInvertedIndexBytes(), equalTo(0L));
         assertThat(seqNoField.getStoredFieldBytes(), equalTo(0L));
-        assertThat(seqNoField.getPointsBytes(), greaterThan(0L));
+        assertThat(seqNoField.getPointsBytes(), equalTo(0L));
         assertThat(seqNoField.getDocValuesBytes(), greaterThan(0L));
+
+        final IndexDiskUsageStats.PerFieldDiskUsage seqNoPointsField = stats.getFields().get("_seq_no_points");
+        assertThat(seqNoPointsField.getInvertedIndexBytes(), equalTo(0L));
+        assertThat(seqNoPointsField.getStoredFieldBytes(), equalTo(0L));
+        assertThat(seqNoPointsField.getPointsBytes(), greaterThan(0L));
+        assertThat(seqNoPointsField.getDocValuesBytes(), equalTo(0L));
     }
 }

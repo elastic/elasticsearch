@@ -82,6 +82,10 @@ public final class UpdateApiKeyRequest extends ActionRequest {
         }
     }
 
+    public static UpdateApiKeyRequest usingId(String id) {
+        return new UpdateApiKeyRequest(id, null, null);
+    }
+
     public String getId() {
         return id;
     }

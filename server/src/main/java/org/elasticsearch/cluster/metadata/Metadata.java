@@ -363,6 +363,34 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         );
     }
 
+    public Metadata withCoordinationMetadata(CoordinationMetadata coordinationMetadata) {
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            indices,
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
     public long version() {
         return this.version;
     }

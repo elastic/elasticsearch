@@ -1632,12 +1632,83 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SortedNumericDocValues leaf = dv(reader);
-            if (leaf == null) {
+            SortedNumericDocValues dv = dv(reader);
+            if (dv == null) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
-            return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private boolean hasValue;
+            if (docIdsInLeaf.length > 1) {
+                /*
+                 * The singleton optimization is mostly about looking up all
+                 * values for the field at once. If there's just a single
+                 * document then it's just extra overhead.
+                 */
+                NumericDocValues single = DocValues.unwrapSingleton(dv);
+                if (single != null) {
+                    return singletonLeaf(single, docIdsInLeaf);
+                }
+            }
+            return new ImmediateLeaf(dv);
+        }
+
+        private class ImmediateLeaf implements Leaf {
+            private final SortedNumericDocValues dv;
+            private boolean hasValue;
+
+            ImmediateLeaf(SortedNumericDocValues dv) {
+                this.dv = dv;
+            }
+
+            @Override
+            public boolean empty() {
+                return false;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                return hasValue = dv.advanceExact(docId);
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (false == hasValue) {
+                    return;
+                }
+                if (dv.docValueCount() == 1) {
+                    b.field(simpleName);
+                    writeValue(b, dv.nextValue());
+                    return;
+                }
+                b.startArray(simpleName);
+                for (int i = 0; i < dv.docValueCount(); i++) {
+                    writeValue(b, dv.nextValue());
+                }
+                b.endArray();
+            }
+        }
+
+        /**
+         * Load all values for all docs up front. This should be much more
+         * disk and cpu-friendly than {@link ImmediateLeaf} because it resolves
+         * the values all at once, always scanning forwards on the disk.
+         */
+        private Leaf singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
+            long[] values = new long[docIdsInLeaf.length];
+            boolean[] hasValue = new boolean[docIdsInLeaf.length];
+            boolean found = false;
+            for (int d = 0; d < docIdsInLeaf.length; d++) {
+                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
+                    hasValue[d] = false;
+                    continue;
+                }
+                hasValue[d] = true;
+                values[d] = singleton.longValue();
+                found = true;
+            }
+            if (found == false) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            return new Leaf() {
+                private int idx = -1;
 
                 @Override
                 public boolean empty() {
@@ -1646,29 +1717,25 @@ public class NumberFieldMapper extends FieldMapper {
 
                 @Override
                 public boolean advanceToDoc(int docId) throws IOException {
-                    return hasValue = leaf.advanceExact(docId);
+                    idx++;
+                    if (docIdsInLeaf[idx] != docId) {
+                        throw new IllegalArgumentException(
+                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                        );
+                    }
+                    return hasValue[idx];
                 }
 
                 @Override
                 public void write(XContentBuilder b) throws IOException {
-                    if (false == hasValue) {
+                    if (hasValue[idx] == false) {
                         return;
                     }
-                    if (leaf.docValueCount() == 1) {
-                        b.field(simpleName);
-                        writeValue(b, leaf.nextValue());
-                        return;
-                    }
-                    b.startArray(simpleName);
-                    for (int i = 0; i < leaf.docValueCount(); i++) {
-                        writeValue(b, leaf.nextValue());
-                    }
-                    b.endArray();
+                    b.field(simpleName);
+                    writeValue(b, values[idx]);
                 }
             };
         }
-
-        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
 
         /**
          * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
@@ -1687,5 +1754,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
             return null;
         }
+
+        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
     }
 }

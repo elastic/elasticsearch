@@ -1,5 +1,0 @@
-pr: 87711
-summary: "[Transforms] fix bug when unsetting retention policy"
-area: Transform
-type: bug
-issues: []

@@ -109,9 +109,6 @@ final class AzureStorageSettings {
 
     private final String account;
 
-    @Nullable
-    private final String sasToken;
-
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;
@@ -130,7 +127,6 @@ final class AzureStorageSettings {
         Integer proxyPort
     ) {
         this.account = account;
-        this.sasToken = sasToken;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
@@ -153,10 +149,6 @@ final class AzureStorageSettings {
                 throw new SettingsException("Azure proxy host is unknown.", e);
             }
         }
-    }
-
-    public String getSasToken() {
-        return sasToken;
     }
 
     public String getEndpointSuffix() {

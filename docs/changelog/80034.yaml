@@ -1,6 +1,0 @@
-pr: 80034
-summary: Bump bundled JDK to 17.0.1
-area: Packaging
-type: upgrade
-issues:
- - 80001

@@ -1,5 +1,0 @@
-pr: 84827
-summary: Do not send default `ignore_throttled` parameter since it is deprecated
-area: Java High Level REST Client
-type: bug
-issues: []

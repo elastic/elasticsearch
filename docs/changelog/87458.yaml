@@ -1,6 +1,0 @@
-pr: 87458
-summary: Fork to WRITE thread before failing shard in `updateCheckPoints`
-area: Engine
-type: bug
-issues:
- - 87094

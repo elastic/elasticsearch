@@ -1,6 +1,0 @@
-pr: 82507
-summary: Allow clearing blocks on managed system indices
-area: Infra/Core
-type: bug
-issues:
-  - 80814

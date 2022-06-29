@@ -1,5 +1,0 @@
-pr: 84043
-summary: Do not allow negative age in ILM explain
-area: ILM+SLM
-type: bug
-issues: []

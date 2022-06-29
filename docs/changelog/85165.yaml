@@ -1,6 +1,0 @@
-pr: 85165
-summary: Rewrite match and `match_phrase` queries to term queries on keyword fields
-area: Search
-type: bug
-issues:
- - 82515

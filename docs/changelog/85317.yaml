@@ -1,5 +1,0 @@
-pr: 85317
-summary: Revert surfacing script deprecations warnings in deprecation info API
-area: Transform
-type: bug
-issues: []

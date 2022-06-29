@@ -1,5 +1,0 @@
-pr: 87898
-summary: Remove redundant jackson dependencies from discovery-azure
-area: Discovery-Plugins
-type: enhancement
-issues: []

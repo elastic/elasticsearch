@@ -1,7 +1,0 @@
-pr: 85014
-summary: "Backport mark `GeoIpDownloaderTask` as completed after cancellation #84028"
-area: Ingest
-type: bug
-issues:
- - 84028
- - 84652

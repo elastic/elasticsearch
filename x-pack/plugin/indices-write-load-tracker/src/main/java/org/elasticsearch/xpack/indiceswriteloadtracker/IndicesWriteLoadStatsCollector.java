@@ -19,6 +19,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -51,8 +52,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         return parentDataStream != null ? parentDataStream.getName() : null;
     }
 
-    private boolean isDataStreamWriteIndex(Index index) {
-        final var indicesLookup = clusterService.state().metadata().getIndicesLookup();
+    private boolean isDataStreamWriteIndex(Index index, Map<String, IndexAbstraction> indicesLookup) {
         final var indexAbstraction = indicesLookup.get(index.getName());
         if (indexAbstraction == null) {
             return false;
@@ -97,9 +97,10 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
     }
 
     private void cleanRolledOverIndices() {
+        final var indicesLookup = clusterService.state().metadata().getIndicesLookup();
         histograms.entrySet().removeIf(entry -> {
             final var shardId = entry.getKey();
-            return isDataStreamWriteIndex(shardId.getIndex()) == false;
+            return isDataStreamWriteIndex(shardId.getIndex(), indicesLookup) == false;
         });
     }
 

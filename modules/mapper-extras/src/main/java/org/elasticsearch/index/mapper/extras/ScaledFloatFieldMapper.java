@@ -678,7 +678,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(decodeForSyntheticSource(value, scalingFactor));
             }
         };

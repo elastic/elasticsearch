@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -617,8 +618,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
-            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
-            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            Set<DiscoveryNode> disconnectedNodes = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
             while (disconnectedNodes.size() < numDisconnectedClusters) {
                 int i = randomIntBetween(0, numClusters - 1);
                 if (disconnectedNodes.add(nodes[i])) {
@@ -838,8 +839,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
-            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
-            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            Set<DiscoveryNode> disconnectedNodes = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
             while (disconnectedNodes.size() < numDisconnectedClusters) {
                 int i = randomIntBetween(0, numClusters - 1);
                 if (disconnectedNodes.add(nodes[i])) {

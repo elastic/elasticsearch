@@ -67,7 +67,7 @@ public class IncludeExcludeTests extends ESTestCase {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return 1;
             }
 

@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-public class IngestSourceAndMetadata extends AbstractMap<String, Object> implements Metadata {
+class IngestSourceAndMetadata extends AbstractMap<String, Object> implements Metadata {
     protected final ZonedDateTime timestamp;
 
     /**

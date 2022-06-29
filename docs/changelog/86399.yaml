@@ -1,5 +1,0 @@
-pr: 86399
-summary: Adjust automatic JVM heap sizing for dedicated ML nodes
-area: Machine Learning
-type: enhancement
-issues: []

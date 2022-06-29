@@ -303,7 +303,7 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(source));
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", 3);
-        document = TestIngestDocument.ofSourceAndIngest(source, ingestMetadata);
+        document = new IngestDocument(source, ingestMetadata);
 
         Map<String, Object> expected = new HashMap<>(source);
         expected.put("_ingest", ingestMetadata);
@@ -346,7 +346,7 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", "baz");
-        document = TestIngestDocument.ofSourceAndIngest(source, ingestMetadata);
+        document = new IngestDocument(source, ingestMetadata);
         expectedMap = new HashMap<>(expectedMap);
         expectedMap.put("metafield", "baz");
         expectedMap.put("_ingest", ingestMetadata);

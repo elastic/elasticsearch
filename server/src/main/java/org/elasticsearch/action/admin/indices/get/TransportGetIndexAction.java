@@ -29,6 +29,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -78,17 +80,15 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     ) {
         Map<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
         Map<String, List<AliasMetadata>> aliasesResult = Map.of();
-        ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
-            .putAllFromMap(
-                state.metadata()
-                    .findDataStreams(concreteIndices)
-                    .entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
-            )
-            .build();
+        Map<String, Settings> settings = Map.of();
+        Map<String, Settings> defaultSettings = Map.of();
+        Map<String, String> dataStreams = Map.copyOf(
+            state.metadata()
+                .findDataStreams(concreteIndices)
+                .entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getName()))
+        );
         Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;
@@ -111,8 +111,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     break;
                 case SETTINGS:
                     if (doneSettings == false) {
-                        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
-                        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
+                        Map<String, Settings> settingsMapBuilder = new HashMap<>();
+                        Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
                         for (String index : concreteIndices) {
                             checkCancellation(task);
                             Settings indexSettings = state.metadata().index(index).getSettings();
@@ -127,8 +127,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                                 defaultSettingsMapBuilder.put(index, defaultIndexSettings);
                             }
                         }
-                        settings = settingsMapBuilder.build();
-                        defaultSettings = defaultSettingsMapBuilder.build();
+                        settings = Collections.unmodifiableMap(settingsMapBuilder);
+                        defaultSettings = Collections.unmodifiableMap(defaultSettingsMapBuilder);
                         doneSettings = true;
                     }
                     break;

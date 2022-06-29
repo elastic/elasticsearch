@@ -361,12 +361,12 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             private final Double nullValue = usually() ? null : round(randomValue());
 
             @Override
-            public SyntheticSourceExample example() {
+            public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     Tuple<Double, Double> v = generateValue();
                     return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
                 }
-                List<Tuple<Double, Double>> values = randomList(1, 5, this::generateValue);
+                List<Tuple<Double, Double>> values = randomList(1, maxValues, this::generateValue);
                 List<Double> in = values.stream().map(Tuple::v1).toList();
                 List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;

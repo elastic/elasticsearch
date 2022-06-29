@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -59,8 +60,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -757,8 +756,8 @@ public abstract class StreamInput extends InputStream {
             case 21 -> readBytesRef();
             case 22 -> readGeoPoint();
             case 23 -> readZonedDateTime();
-            case 24 -> readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
-            case 25 -> readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
+            case 24 -> readCollection(StreamInput::readGenericValue, Sets::newLinkedHashSetWithExpectedSize, Collections.emptySet());
+            case 25 -> readCollection(StreamInput::readGenericValue, Sets::newHashSetWithExpectedSize, Collections.emptySet());
             case 26 -> readBigInteger();
             case 27 -> readOffsetTime();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
@@ -1207,7 +1206,7 @@ public abstract class StreamInput extends InputStream {
      * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
-        return readCollection(reader, HashSet::new, Collections.emptySet());
+        return readCollection(reader, Sets::newHashSetWithExpectedSize, Collections.emptySet());
     }
 
     /**

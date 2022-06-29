@@ -29,7 +29,7 @@ public interface SourceLoader {
     /**
      * Build the loader for some segment.
      */
-    Leaf leaf(LeafReader reader) throws IOException;
+    Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
     /**
      * Loads {@code _source} from some segment.
@@ -42,6 +42,16 @@ public interface SourceLoader {
          * @param docId the doc to load
          */
         BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
+
+        Leaf EMPTY_OBJECT = new Leaf() {
+            @Override
+            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                // TODO accept a requested xcontent type
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                    return BytesReference.bytes(b.startObject().endObject());
+                }
+            }
+        };
     }
 
     /**
@@ -54,7 +64,7 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) {
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) {
@@ -80,16 +90,18 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
-            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader);
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader, docIdsInLeaf);
+            if (leaf.empty()) {
+                return Leaf.EMPTY_OBJECT;
+            }
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
                     // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                        leaf.advanceToDoc(docId);
-                        if (leaf.hasValue()) {
-                            leaf.load(b);
+                        if (leaf.advanceToDoc(docId)) {
+                            leaf.write(b);
                         } else {
                             b.startObject().endObject();
                         }
@@ -107,42 +119,49 @@ public interface SourceLoader {
         /**
          * Load no values.
          */
-        SyntheticFieldLoader NOTHING = r -> new Leaf() {
+        SyntheticFieldLoader.Leaf NOTHING_LEAF = new Leaf() {
             @Override
-            public void advanceToDoc(int docId) throws IOException {}
+            public boolean empty() {
+                return true;
+            }
 
             @Override
-            public boolean hasValue() {
+            public boolean advanceToDoc(int docId) throws IOException {
                 return false;
             }
 
             @Override
-            public void load(XContentBuilder b) throws IOException {}
+            public void write(XContentBuilder b) throws IOException {}
         };
+
+        /**
+         * Load no values.
+         */
+        SyntheticFieldLoader NOTHING = (r, docIds) -> NOTHING_LEAF;
 
         /**
          * Build a loader for this field in the provided segment.
          */
-        Leaf leaf(LeafReader reader) throws IOException;
+        Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
         /**
          * Loads values for a field in a particular leaf.
          */
         interface Leaf {
             /**
+             * Is this entirely empty?
+             */
+            boolean empty();
+
+            /**
              * Position the loader at a document.
              */
-            void advanceToDoc(int docId) throws IOException;
+            boolean advanceToDoc(int docId) throws IOException;
 
             /**
-             * Is there a value for this field in this document?
+             * Write values for this document.
              */
-            boolean hasValue();
-
-            /**
-             * Load values for this document.
-             */
-            void load(XContentBuilder b) throws IOException;
+            void write(XContentBuilder b) throws IOException;
         }
     }
 

@@ -18,6 +18,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
@@ -58,7 +59,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -647,7 +647,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     subParser.close();
                 }
                 // If ignoreMalformed == true, clear all parsed fields
-                Set<String> ignoreFieldNames = new HashSet<>(metricFieldMappers.size());
+                Set<String> ignoreFieldNames = Sets.newHashSetWithExpectedSize(metricFieldMappers.size());
                 for (NumberFieldMapper m : metricFieldMappers.values()) {
                     context.addIgnoredField(m.fieldType().name());
                     ignoreFieldNames.add(m.fieldType().name());

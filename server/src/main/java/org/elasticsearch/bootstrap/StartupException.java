@@ -27,7 +27,7 @@ public final class StartupException extends Exception {
     /** all lines from this package are RLE-compressed */
     static final String GUICE_PACKAGE = "org.elasticsearch.common.inject";
 
-    StartupException(Throwable cause) {
+    public StartupException(Throwable cause) {
         super(Objects.requireNonNull(cause));
     }
 

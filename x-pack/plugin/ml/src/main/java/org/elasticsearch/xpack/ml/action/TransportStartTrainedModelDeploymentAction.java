@@ -50,8 +50,8 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
@@ -301,6 +301,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         Exception exception,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
+        logger.trace(() -> format("[{}] Deleting failed deployment", modelId), exception);
         trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
                 () -> format(
@@ -449,19 +450,20 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 .orElse(null);
             if (trainedModelAssignment == null) {
                 // Something weird happened, it should NEVER be null...
+                logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", modelId, waitForState));
                 return true;
             }
 
-            final Set<Map.Entry<String, RoutingStateAndReason>> nodesAndState = trainedModelAssignment.getNodeRoutingTable().entrySet();
+            final Set<Map.Entry<String, RoutingInfo>> nodeIdsAndRouting = trainedModelAssignment.getNodeRoutingTable().entrySet();
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
             Set<String> nodesStillInitializing = new LinkedHashSet<>();
-            for (Map.Entry<String, RoutingStateAndReason> nodeIdAndState : nodesAndState) {
-                if (RoutingState.FAILED.equals(nodeIdAndState.getValue().getState())) {
-                    nodeFailuresAndReasons.put(nodeIdAndState.getKey(), nodeIdAndState.getValue().getReason());
+            for (Map.Entry<String, RoutingInfo> nodeIdAndRouting : nodeIdsAndRouting) {
+                if (RoutingState.FAILED.equals(nodeIdAndRouting.getValue().getState())) {
+                    nodeFailuresAndReasons.put(nodeIdAndRouting.getKey(), nodeIdAndRouting.getValue().getReason());
                 }
-                if (RoutingState.STARTING.equals(nodeIdAndState.getValue().getState())) {
-                    nodesStillInitializing.add(nodeIdAndState.getKey());
+                if (RoutingState.STARTING.equals(nodeIdAndRouting.getValue().getState())) {
+                    nodesStillInitializing.add(nodeIdAndRouting.getKey());
                 }
             }
 
@@ -482,7 +484,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
 
             // No nodes allocated at all!
-            if (nodesAndState.isEmpty()
+            if (nodeIdsAndRouting.isEmpty()
                 // We cannot scale horizontally
                 && maxLazyMLNodes <= nodes.size()
                 // We cannot scale vertically
@@ -500,7 +502,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
 
-            AllocationStatus allocationStatus = trainedModelAssignment.calculateAllocationStatus(nodes).orElse(null);
+            AllocationStatus allocationStatus = trainedModelAssignment.calculateAllocationStatus().orElse(null);
             if (allocationStatus == null || allocationStatus.calculateState().compareTo(waitForState) >= 0) {
                 return true;
             }

@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -38,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -56,11 +56,13 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -127,7 +129,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     transformsConfigManager,
                     mock(TransformCheckpointService.class),
                     auditor,
-                    mock(SchedulerEngine.class)
+                    new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
                 ),
                 checkpointProvider,
                 initialState,
@@ -896,13 +898,13 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             context
         );
 
-        for (int i = 0; i <= expectedEffectiveNumFailureRetries; ++i) {
+        for (int i = 0; i < expectedEffectiveNumFailureRetries; ++i) {
             indexer.handleFailure(new Exception("exception no. " + (i + 1)));
             assertFalse(failIndexerCalled.get());
             assertThat(failureMessage.get(), is(nullValue()));
             assertThat(context.getFailureCount(), is(equalTo(i + 1)));
         }
-        indexer.handleFailure(new Exception("exception no. " + (expectedEffectiveNumFailureRetries + 2)));
+        indexer.handleFailure(new Exception("exception no. " + (expectedEffectiveNumFailureRetries + 1)));
         assertTrue(failIndexerCalled.get());
         assertThat(
             failureMessage.get(),
@@ -911,11 +913,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     "task encountered more than "
                         + expectedEffectiveNumFailureRetries
                         + " failures; latest failure: exception no. "
-                        + (expectedEffectiveNumFailureRetries + 2)
+                        + (expectedEffectiveNumFailureRetries + 1)
                 )
             )
         );
-        assertThat(context.getFailureCount(), is(equalTo(expectedEffectiveNumFailureRetries + 2)));
+        assertThat(context.getFailureCount(), is(equalTo(expectedEffectiveNumFailureRetries + 1)));
 
         auditor.assertAllExpectationsMatched();
     }

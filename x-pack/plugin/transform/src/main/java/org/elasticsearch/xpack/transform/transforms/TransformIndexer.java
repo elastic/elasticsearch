@@ -957,7 +957,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         int numFailureRetries = Optional.ofNullable(transformConfig.getSettings().getNumFailureRetries())
             .orElse(context.getNumFailureRetries());
-        if (numFailureRetries != -1 && context.getAndIncrementFailureCount() > numFailureRetries) {
+        if (numFailureRetries != -1 && context.incrementAndGetFailureCount() > numFailureRetries) {
             failIndexer(
                 "task encountered more than "
                     + numFailureRetries

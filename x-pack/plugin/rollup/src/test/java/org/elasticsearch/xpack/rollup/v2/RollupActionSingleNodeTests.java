@@ -165,7 +165,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                     .put("index.number_of_replicas", numOfReplicas)
                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
+                    .put(
+                        IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
+                    )
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
                     .build()
             )

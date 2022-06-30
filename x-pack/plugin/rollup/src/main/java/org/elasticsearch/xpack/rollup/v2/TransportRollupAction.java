@@ -569,8 +569,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     // Add the time series index settings
                     .put(IndexSettings.MODE.getKey(), indexMode)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), indexRoutingPath)
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime.toString())
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime.toString())
+                    .put(
+                        IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(startTime.toEpochMilli())
+                    )
+                    .put(
+                        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(endTime.toEpochMilli())
+                    )
             );
     }
 

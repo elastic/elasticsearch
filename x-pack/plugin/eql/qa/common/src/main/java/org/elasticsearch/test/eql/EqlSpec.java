@@ -10,7 +10,9 @@ package org.elasticsearch.test.eql;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class EqlSpec {
     private String name;
@@ -18,7 +20,12 @@ public class EqlSpec {
     private String note;
     private String[] tags;
     private String query;
-    private long[] expectedEventIds;
+    /**
+     * this is a set of possible valid results:
+     * - if the query is deterministic, expectedEventIds should contain one single array of IDs representing the expected result
+     * - if the query is non-deterministic, expectedEventIds can contain multiple arrays of IDs, one for each possible valid result
+     */
+    private List<long[]> expectedEventIds;
     private String[] joinKeys;
 
     private Integer size;
@@ -63,11 +70,11 @@ public class EqlSpec {
         this.query = query;
     }
 
-    public long[] expectedEventIds() {
+    public List<long[]> expectedEventIds() {
         return expectedEventIds;
     }
 
-    public void expectedEventIds(long[] expectedEventIds) {
+    public void expectedEventIds(List<long[]> expectedEventIds) {
         this.expectedEventIds = expectedEventIds;
     }
 
@@ -100,7 +107,11 @@ public class EqlSpec {
         }
 
         if (expectedEventIds != null) {
-            str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
+            str = appendWithComma(
+                str,
+                "expected_event_ids",
+                "[" + expectedEventIds.stream().map(Arrays::toString).collect(Collectors.joining(", ")) + "]"
+            );
         }
 
         if (joinKeys != null) {

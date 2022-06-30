@@ -15,11 +15,11 @@ import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE;
 
 public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
 
-    public EqlSampleTestCase(String query, String name, long[] eventIds, String[] joinKeys, Integer size) {
+    public EqlSampleTestCase(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
         this(TEST_SAMPLE, query, name, eventIds, joinKeys, size);
     }
 
-    public EqlSampleTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys, Integer size) {
+    public EqlSampleTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
         super(index, query, name, eventIds, joinKeys, size);
     }
 

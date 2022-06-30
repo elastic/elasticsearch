@@ -105,10 +105,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeVInt(shell.size());
-        for (GeoPoint point : shell) {
-            out.writeGeoPoint(point);
-        }
+        out.writeCollection(shell, StreamOutput::writeGeoPoint);
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }

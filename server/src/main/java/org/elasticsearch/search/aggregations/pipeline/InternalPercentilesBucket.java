@@ -118,6 +118,9 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public double value(String name) {
+        if (this.percents.length == 1 && this.name.equals(name)) {
+            return percentile(this.percents[0]);
+        }
         return percentile(Double.parseDouble(name));
     }
 

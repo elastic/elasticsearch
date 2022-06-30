@@ -132,14 +132,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return Tuple.tuple(bestOnDiskState.currentTerm, clusterState(env, bestOnDiskState));
     }
 
-    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
+    protected void processDataPaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
-            final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            final Path[] dataPaths = Arrays.stream(lock.getDataPaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             if (dataPaths.length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths, options, env);
+            processDataPaths(terminal, dataPaths, options, env);
         } catch (LockObtainFailedException e) {
             throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
@@ -157,7 +157,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         terminal.println(STOP_WARNING_MSG);
         if (validateBeforeLock(terminal, env)) {
-            processNodePaths(terminal, options, env);
+            processDataPaths(terminal, options, env);
         }
     }
 
@@ -178,16 +178,16 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
      * @param options the command line options
      * @param env the env of the node to process
      */
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
+    protected abstract void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
         UserException;
 
-    protected static NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
-        return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
+    protected static NodeEnvironment.DataPath[] toDataPaths(Path[] paths) {
+        return Arrays.stream(paths).map(ElasticsearchNodeCommand::createDataPath).toArray(NodeEnvironment.DataPath[]::new);
     }
 
-    private static NodeEnvironment.NodePath createNodePath(Path path) {
+    private static NodeEnvironment.DataPath createDataPath(Path path) {
         try {
-            return new NodeEnvironment.NodePath(path);
+            return new NodeEnvironment.DataPath(path);
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to investigate path [" + path + "]", e);
         }

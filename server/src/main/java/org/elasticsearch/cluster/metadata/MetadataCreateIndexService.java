@@ -531,6 +531,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(templates),
+            mappings == null ? List.of() : List.of(mappings),
             null,
             settings,
             indexScopedSettings,
@@ -597,6 +598,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(currentState.metadata(), templateName),
+            mappings,
             null,
             settings,
             indexScopedSettings,
@@ -653,6 +655,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(template, componentTemplates),
+            mappings,
             null,
             settings,
             indexScopedSettings,
@@ -747,6 +750,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             Settings.EMPTY,
+            null,
             sourceMetadata,
             settings,
             indexScopedSettings,
@@ -831,6 +835,7 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         Settings combinedTemplateSettings,
+        List<CompressedXContent> combinedTemplateMappings,
         @Nullable IndexMetadata sourceMetadata,
         Settings settings,
         IndexScopedSettings indexScopedSettings,
@@ -867,7 +872,8 @@ public class MetadataCreateIndexService {
                         timeSeriesTemplate,
                         currentState.getMetadata(),
                         resolvedAt,
-                        templateAndRequestSettings
+                        templateAndRequestSettings,
+                        combinedTemplateMappings
                     )
                 );
             }

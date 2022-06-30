@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -53,6 +52,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
@@ -307,8 +307,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage(
-                        "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                    () -> format(
+                        "[%s] Failed to cancel persistent task that could not be assigned due to [%s]",
                         persistentTask.getParams().getJobId(),
                         exception.getMessage()
                     ),

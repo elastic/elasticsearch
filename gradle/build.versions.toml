@@ -37,6 +37,6 @@ shadow-plugin = "gradle.plugin.com.github.johnrengelman:shadow:7.1.2"
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
 spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="spock" }
-spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.5.2"
+spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.7.2"
 wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"

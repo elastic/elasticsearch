@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -149,7 +150,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             config
         );
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
         IngestDocument output = processor.execute(input);
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class);
         assertThat(hash, equalTo("external"));
@@ -195,7 +196,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             config
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.ofSourceAndMetadata(source);
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

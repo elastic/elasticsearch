@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,6 +26,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTransportMasterNodeAction<SetResetModeActionRequest> {
 
@@ -78,12 +79,7 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
-                "Starting to set [reset_mode] for [{}] to [{}] from [{}]",
-                featureName(),
-                request.isEnabled(),
-                isResetModeEnabled
-            )
+            () -> format("Starting to set [reset_mode] for [%s] to [%s] from [%s]", featureName(), request.isEnabled(), isResetModeEnabled)
         );
 
         ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
@@ -106,7 +102,7 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                logger.trace(() -> new ParameterizedMessage("Cluster update response built for [{}]: {}", featureName(), acknowledged));
+                logger.trace(() -> format("Cluster update response built for [%s]: %s", featureName(), acknowledged));
                 return AcknowledgedResponse.of(acknowledged);
             }
 

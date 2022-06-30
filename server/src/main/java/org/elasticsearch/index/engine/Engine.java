@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -85,6 +84,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -864,8 +864,8 @@ public abstract class Engine implements Closeable {
             return files.build();
         } catch (IOException e) {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Error when listing files for segment reader [{}] and segment info [{}]",
+                () -> format(
+                    "Error when listing files for segment reader [%s] and segment info [%s]",
                     segmentReader,
                     segmentReader.getSegmentInfo()
                 ),
@@ -1140,10 +1140,7 @@ public abstract class Engine implements Closeable {
                             }
                         } else {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "tried to mark store as corrupted but store is already closed. [{}]",
-                                    reason
-                                ),
+                                () -> format("tried to mark store as corrupted but store is already closed. [%s]", reason),
                                 failure
                             );
                         }
@@ -1157,10 +1154,7 @@ public abstract class Engine implements Closeable {
             }
         } else {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "tried to fail engine but could not acquire lock - engine should " + "be failed by now [{}]",
-                    reason
-                ),
+                () -> format("tried to fail engine but could not acquire lock - engine should " + "be failed by now [%s]", reason),
                 failure
             );
         }

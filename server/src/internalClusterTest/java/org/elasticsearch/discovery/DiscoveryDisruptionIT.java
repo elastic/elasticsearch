@@ -213,13 +213,16 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         final var masterName = internalCluster().getMasterName();
         final var victimName = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
+        logger.info("--> master [{}], victim [{}]", masterName, victimName);
 
         // drop the victim from the cluster with a network disruption
         final var masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterName);
         masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, victimName));
+        logger.info("--> waiting for victim's departure");
         ensureStableCluster(2, masterName);
 
         // block the cluster applier thread on the victim
+        logger.info("--> blocking victim's applier service");
         final var barrier = new CyclicBarrier(2);
         internalCluster().getInstance(ClusterService.class, victimName).getClusterApplierService().onNewClusterState("block", () -> {
             try {
@@ -240,6 +243,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         // fix the network disruption
+        logger.info("--> removing network disruption");
         masterTransportService.clearAllRules();
         ensureStableCluster(2, masterName);
 
@@ -247,8 +251,10 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         victimTransportService.addSendBehavior(null);
 
         // release the cluster applier thread
+        logger.info("--> releasing block on victim's applier service");
         barrier.await(10, TimeUnit.SECONDS);
 
+        logger.info("--> waiting for cluster to heal");
         ensureStableCluster(3);
     }
 }

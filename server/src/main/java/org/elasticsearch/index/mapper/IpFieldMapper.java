@@ -35,7 +35,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -44,7 +43,6 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -152,8 +150,8 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, script, onScriptError, meta, dimension);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, nullValue, script, onScriptError, meta, dimension };
         }
 
         @Override
@@ -557,9 +555,15 @@ public class IpFieldMapper extends FieldMapper {
         }
         return new KeywordFieldMapper.BytesSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
+            protected BytesRef convert(BytesRef value) {
                 byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                b.value(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+                return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // No need to copy because convert has made a deep copy
+                return value;
             }
         };
     }

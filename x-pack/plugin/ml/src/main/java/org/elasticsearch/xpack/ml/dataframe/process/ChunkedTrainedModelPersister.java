@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -53,6 +52,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.core.Strings.format;
 
 public class ChunkedTrainedModelPersister {
 
@@ -166,8 +166,8 @@ public class ChunkedTrainedModelPersister {
         // First, store the model and refresh is necessary
         ActionListener<Void> storeListener = ActionListener.wrap(r -> {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] stored trained model definition chunk [{}] [{}]",
+                () -> format(
+                    "[%s] stored trained model definition chunk [%s] [%s]",
                     analytics.getId(),
                     trainedModelDefinitionDoc.getModelId(),
                     trainedModelDefinitionDoc.getDocNum()
@@ -183,8 +183,8 @@ public class ChunkedTrainedModelPersister {
             provider.refreshInferenceIndex(refreshListener);
         }, e -> {
             LOGGER.error(
-                new ParameterizedMessage(
-                    "[{}] error storing trained model definition chunk [{}] with id [{}]",
+                () -> format(
+                    "[%s] error storing trained model definition chunk [%s] with id [%s]",
                     analytics.getId(),
                     trainedModelDefinitionDoc.getDocNum(),
                     trainedModelDefinitionDoc.getModelId()
@@ -223,8 +223,8 @@ public class ChunkedTrainedModelPersister {
             provider.refreshInferenceIndex(refreshListener);
         }, e -> {
             LOGGER.error(
-                new ParameterizedMessage(
-                    "[{}] error storing trained model metadata with id [{}]",
+                () -> format(
+                    "[%s] error storing trained model metadata with id [%s]",
                     analytics.getId(),
                     trainedModelMetadata.getModelId()
                 ),
@@ -252,11 +252,7 @@ public class ChunkedTrainedModelPersister {
             }
         }, e -> {
             LOGGER.error(
-                new ParameterizedMessage(
-                    "[{}] error storing trained model config with id [{}]",
-                    analytics.getId(),
-                    trainedModelConfig.getModelId()
-                ),
+                () -> format("[%s] error storing trained model config with id [%s]", analytics.getId(), trainedModelConfig.getModelId()),
                 e
             );
             readyToStoreNewModel.set(true);

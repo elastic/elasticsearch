@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -54,6 +53,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<
@@ -287,8 +287,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     .prepareRefresh(startedDatafeedsJobs.stream().map(AnomalyDetectorsIndex::jobResultsAliasedName).toArray(String[]::new))
                     .execute(ActionListener.wrap(_unused -> listener.onResponse(finished), ex -> {
                         logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to refresh job [{}] results indices when stopping datafeeds [{}]",
+                            () -> format(
+                                "failed to refresh job [%s] results indices when stopping datafeeds [%s]",
                                 startedDatafeedsJobs,
                                 startedDatafeeds
                             ),

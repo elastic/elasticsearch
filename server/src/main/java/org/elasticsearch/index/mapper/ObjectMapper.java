@@ -37,6 +37,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class Defaults {
         public static final boolean ENABLED = true;
+        public static final Explicit<Boolean> SUBOBJECTS = Explicit.IMPLICIT_TRUE;
     }
 
     public enum Dynamic {
@@ -61,23 +62,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public static class Builder extends Mapper.Builder {
-
+        protected final Explicit<Boolean> subobjects;
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
-        protected Explicit<Boolean> subobjects = Explicit.IMPLICIT_TRUE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
-        public Builder(String name) {
+        public Builder(String name, Explicit<Boolean> subobjects) {
             super(name);
+            this.subobjects = subobjects;
         }
 
         public Builder enabled(boolean enabled) {
             this.enabled = Explicit.explicitBoolean(enabled);
-            return this;
-        }
-
-        public Builder subobjects(boolean subobjects) {
-            this.subobjects = Explicit.explicitBoolean(subobjects);
             return this;
         }
 
@@ -106,14 +102,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         /**
-         * Adds a dynamically created Mapper to this builder.
+         * Adds a dynamically created {@link Mapper} to this builder.
          *
          * @param name      the name of the Mapper, including object prefixes
          * @param prefix    the object prefix of this mapper
          * @param mapper    the mapper to add
          * @param context   the DocumentParserContext in which the mapper has been built
          */
-        public void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+        public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || subobjects.value() == false) {
@@ -122,29 +118,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // otherwise we strip off the first object path of the mapper name, load or create
             // the relevant object mapper, and then recurse down into it, passing the remainder
             // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
-            // call addDynamic on it with the name 'bar.baz'.
+            // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
             else {
                 int firstDotIndex = name.indexOf(".");
-                String childName = name.substring(0, firstDotIndex);
-                String fullChildName = prefix == null ? childName : prefix + "." + childName;
-                ObjectMapper.Builder childBuilder = findChild(fullChildName, context);
-                childBuilder.addDynamic(name.substring(firstDotIndex + 1), fullChildName, mapper, context);
-                add(childBuilder);
+                String immediateChild = name.substring(0, firstDotIndex);
+                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
+                add(parentBuilder);
             }
         }
 
-        private static ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
-            // does the child mapper already exist? if so, use that
-            ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
-            if (child != null) {
-                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
+            // does the object mapper already exist? if so, use that
+            ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            // has the child mapper been added as a dynamic update already?
-            child = context.getDynamicObjectMapper(fullChildName);
-            if (child != null) {
-                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+            // has the object mapper been added as a dynamic update already?
+            objectMapper = context.getDynamicObjectMapper(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
-            throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
+            throw new IllegalStateException("Missing intermediate object " + fullName);
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
@@ -152,18 +148,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                if (subobjects.value() == false && mapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException(
-                        "Object ["
-                            + context.buildFullName(name)
-                            + "] has subobjects set to false hence it does not support inner object ["
-                            + mapper.simpleName()
-                            + "]"
-                    );
-                }
+                assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
-                    mapper = existing.merge(mapper);
+                    mapper = existing.merge(mapper, mapperBuilderContext);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
@@ -186,7 +174,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            ObjectMapper.Builder builder = new Builder(name);
+            Explicit<Boolean> subobjects = parseSubobjects(node);
+            ObjectMapper.Builder builder = new Builder(name, subobjects);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -219,9 +208,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
-            } else if (fieldName.equals("subobjects")) {
-                builder.subobjects(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".subobjects"));
-                return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
@@ -240,6 +226,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             }
             return false;
+        }
+
+        protected static Explicit<Boolean> parseSubobjects(Map<String, Object> node) {
+            Object subobjectsNode = node.remove("subobjects");
+            if (subobjectsNode != null) {
+                return Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(subobjectsNode, "subobjects.subobjects"));
+            }
+            return Explicit.IMPLICIT_TRUE;
         }
 
         protected static void parseProperties(
@@ -278,12 +272,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperException(
-                            "Object ["
-                                + objBuilder.name()
-                                + "] has subobjects set to false hence it does not support inner object ["
+                        throw new MapperParsingException(
+                            "Tried to add subobject ["
                                 + fieldName
-                                + "]"
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
+                        );
+                    }
+                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Tried to add nested object ["
+                                + fieldName
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
                         );
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
@@ -298,7 +301,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
+                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i], Defaults.SUBOBJECTS);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
@@ -367,9 +370,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
     public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
-        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName());
+        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName(), subobjects);
         builder.enabled = this.enabled;
-        builder.subobjects = this.subobjects;
         builder.dynamic = this.dynamic;
         return builder;
     }
@@ -414,8 +416,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith) {
-        return merge(mergeWith, MergeReason.MAPPING_UPDATE);
+    public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperBuilderContext);
     }
 
     @Override
@@ -425,7 +427,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
         if ((mergeWith instanceof ObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
@@ -435,11 +437,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
-        merged.doMerge(mergeWithObject, reason);
+        merged.doMerge(mergeWithObject, reason, mapperBuilderContext);
         return merged;
     }
 
-    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason) {
+    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
 
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
@@ -469,7 +471,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeIntoMapper == null) {
                 merged = mergeWithMapper;
             } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                merged = objectMapper.merge(mergeWithMapper, reason);
+                MapperBuilderContext childContext = mapperBuilderContext.createChildContext(objectMapper.simpleName());
+                merged = objectMapper.merge(mergeWithMapper, reason, childContext);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                 if (mergeWithMapper instanceof ObjectMapper) {
@@ -483,7 +486,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     merged = mergeWithMapper;
                 } else {
-                    merged = mergeIntoMapper.merge(mergeWithMapper);
+                    merged = mergeIntoMapper.merge(mergeWithMapper, mapperBuilderContext);
                 }
             }
             if (mergedMappers == null) {
@@ -514,7 +517,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (subobjects() == false) {
+        if (subobjects != Defaults.SUBOBJECTS) {
             builder.field("subobjects", subobjects.value());
         }
         if (custom != null) {
@@ -551,53 +554,51 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
-        mappers.values().stream().sorted(Comparator.comparing(Mapper::name)).forEach(sub -> {
-            SourceLoader.SyntheticFieldLoader subLoader = sub.syntheticFieldLoader();
-            if (subLoader != null) {
-                fields.add(subLoader);
-            }
-        });
+        List<SourceLoader.SyntheticFieldLoader> fields = mappers.values()
+            .stream()
+            .sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != null)
+            .toList();
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public Leaf leaf(LeafReader reader) throws IOException {
-                List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
+            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+                List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    leaves.add(field.leaf(reader));
+                    Leaf leaf = field.leaf(reader, docIdsInLeaf);
+                    if (false == leaf.empty()) {
+                        l.add(leaf);
+                    }
                 }
+                SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
                 return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    private boolean hasValue;
+
                     @Override
-                    public void advanceToDoc(int docId) throws IOException {
-                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            leaf.advanceToDoc(docId);
-                        }
+                    public boolean empty() {
+                        return leaves.length == 0;
                     }
 
                     @Override
-                    public boolean hasValue() {
+                    public boolean advanceToDoc(int docId) throws IOException {
+                        hasValue = false;
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                return true;
-                            }
+                            boolean leafHasValue = leaf.advanceToDoc(docId);
+                            hasValue |= leafHasValue;
                         }
-                        return false;
+                        return hasValue;
                     }
 
                     @Override
-                    public void load(XContentBuilder b) throws IOException {
-                        boolean started = false;
+                    public void write(XContentBuilder b) throws IOException {
+                        if (hasValue == false) {
+                            return;
+                        }
+                        startSyntheticField(b);
                         for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            if (leaf.hasValue()) {
-                                if (false == started) {
-                                    started = true;
-                                    startSyntheticField(b);
-                                }
-                                leaf.load(b);
-                            }
+                            leaf.write(b);
                         }
-                        if (started) {
-                            b.endObject();
-                        }
+                        b.endObject();
                     }
                 };
             }

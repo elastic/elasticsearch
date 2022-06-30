@@ -14,6 +14,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -37,6 +38,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "ilm";
 
+    public static final String HELP_URL = "https://ela.st/fix-ilm";
+    public static final UserAction ILM_NOT_RUNNING = new UserAction(
+        new UserAction.Definition("ilm-not-running", "Start ILM using [POST /_ilm/start].", HELP_URL),
+        null
+    );
+
     private final ClusterService clusterService;
 
     public IlmHealthIndicatorService(ClusterService clusterService) {
@@ -54,12 +61,17 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
     public HealthIndicatorResult calculate(boolean explain) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No policies configured",
+                "No ILM policies configured",
                 createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -68,12 +80,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     3,
-                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of your system "
+                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             );
-            return createIndicator(YELLOW, "ILM is not running", createDetails(explain, ilmMetadata), impacts, Collections.emptyList());
+            return createIndicator(YELLOW, "ILM is not running", createDetails(explain, ilmMetadata), impacts, List.of(ILM_NOT_RUNNING));
         } else {
             return createIndicator(
                 GREEN,

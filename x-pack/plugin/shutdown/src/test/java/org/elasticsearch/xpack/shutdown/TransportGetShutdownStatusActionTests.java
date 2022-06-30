@@ -32,13 +32,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +44,9 @@ import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
@@ -110,9 +110,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 }
             })
         );
-        snapshotsInfoService = () -> new SnapshotShardSizeInfo(
-            new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build()
-        );
+        snapshotsInfoService = () -> new SnapshotShardSizeInfo(Map.of());
         allocationService = new AllocationService(
             allocationDeciders,
             new BalancedShardsAllocator(Settings.EMPTY),
@@ -416,13 +414,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
     public void testNodeNotInCluster() {
         String bogusNodeId = randomAlphaOfLength(10);
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
+        Map<String, IndexMetadata> indicesTable = new HashMap<>();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable.build())
+                    .indices(indicesTable)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -513,13 +511,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         List<IndexMetadata> indices,
         SingleNodeShutdownMetadata.Type shutdownType
     ) {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
-        indices.forEach(imd -> { indicesTable.fPut(imd.getIndex().getName(), imd); });
+        Map<String, IndexMetadata> indicesTable = new HashMap<>();
+        indices.forEach(imd -> { indicesTable.put(imd.getIndex().getName(), imd); });
 
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable.build())
+                    .indices(indicesTable)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -567,12 +565,5 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             )
             .routingTable(indexRoutingTable)
             .build();
-    }
-
-    private static class TestSnapshotInfoService implements SnapshotsInfoService {
-        @Override
-        public SnapshotShardSizeInfo snapshotShardSizes() {
-            return new SnapshotShardSizeInfo(new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build());
-        }
     }
 }

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -253,7 +252,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
+        Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
         MappingMetadata typeMappings = indexMappings.get(sharedResultsIndex);
         assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
@@ -504,7 +503,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     private Map<String, Object> getIndexMappingProperties(String index) {
         GetMappingsRequest request = new GetMappingsRequest().indices(index);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
+        Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
         MappingMetadata typeMappings = indexMappings.get(index);
         assertNotNull("expected " + index + " in " + indexMappings, typeMappings);
@@ -526,7 +525,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private Set<String> getAliases(String index) {
         GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
+        Map<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
         List<AliasMetadata> aliasMetadataList = aliases.get(index);
         for (AliasMetadata aliasMetadata : aliasMetadataList) {

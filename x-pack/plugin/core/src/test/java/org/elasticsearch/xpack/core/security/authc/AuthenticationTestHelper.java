@@ -108,6 +108,10 @@ public class AuthenticationTestHelper {
         return new RealmDomain(ESTestCase.randomAlphaOfLengthBetween(3, 8), domainRealms);
     }
 
+    public static Authentication.RealmRef randomRealmRef() {
+        return randomRealmRef(ESTestCase.randomBoolean());
+    }
+
     public static Authentication.RealmRef randomRealmRef(boolean underDomain) {
         return randomRealmRef(underDomain, true);
     }

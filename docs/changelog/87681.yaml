@@ -1,0 +1,5 @@
+pr: 87681
+summary: Make `GetIndexAction` cancellable
+area: Indices APIs
+type: bug
+issues: []

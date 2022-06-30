@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -26,6 +25,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class PyTorchResultProcessor {
 
@@ -141,11 +142,11 @@ public class PyTorchResultProcessor {
         PyTorchInferenceResult inferenceResult = result.inferenceResult();
         assert inferenceResult != null;
 
-        logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
+        logger.trace(() -> format("[%s] Parsed result with id [%s]", deploymentId, inferenceResult.getRequestId()));
         processResult(inferenceResult);
         PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
         if (pendingResult == null) {
-            logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
+            logger.debug(() -> format("[%s] no pending result for [%s]", deploymentId, inferenceResult.getRequestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -155,10 +156,10 @@ public class PyTorchResultProcessor {
         ThreadSettings threadSettings = result.threadSettings();
         assert threadSettings != null;
 
-        logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, threadSettings.requestId()));
+        logger.trace(() -> format("[%s] Parsed result with id [%s]", deploymentId, threadSettings.requestId()));
         PendingResult pendingResult = pendingResults.remove(threadSettings.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, threadSettings.requestId()));
+            logger.debug(() -> format("[%s] no pending result for [%s]", deploymentId, threadSettings.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }
@@ -170,10 +171,10 @@ public class PyTorchResultProcessor {
 
         errorCount++;
 
-        logger.trace(() -> new ParameterizedMessage("[{}] Parsed error with id [{}]", deploymentId, errorResult.requestId()));
+        logger.trace(() -> format("[%s] Parsed error with id [%s]", deploymentId, errorResult.requestId()));
         PendingResult pendingResult = pendingResults.remove(errorResult.requestId());
         if (pendingResult == null) {
-            logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, errorResult.requestId()));
+            logger.debug(() -> format("[%s] no pending result for [%s]", deploymentId, errorResult.requestId()));
         } else {
             pendingResult.listener.onResponse(result);
         }

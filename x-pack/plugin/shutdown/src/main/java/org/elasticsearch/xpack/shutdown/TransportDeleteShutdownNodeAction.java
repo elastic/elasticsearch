@@ -92,7 +92,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                     continue;
                 }
                 var reroute = clusterService.getRerouteService();
-                taskContext.success(taskContext.getTask().listener().delegateFailure((l, s) -> ackAndReroute(request, l, reroute)));
+                taskContext.success(() -> ackAndReroute(request, taskContext.getTask().listener(), reroute));
             }
             if (changed == false) {
                 return currentState;

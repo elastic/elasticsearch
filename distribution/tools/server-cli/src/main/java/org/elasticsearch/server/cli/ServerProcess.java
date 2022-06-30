@@ -129,6 +129,13 @@ public class ServerProcess {
     }
 
     /**
+     * Return the process id of the server.
+     */
+    public long pid() {
+        return jvmProcess.pid();
+    }
+
+    /**
      * Detaches the server process from the current process, enabling the current process to exit.
      *
      * @throws IOException If an I/O error occured while reading stderr or closing any of the standard streams
@@ -142,12 +149,9 @@ public class ServerProcess {
     /**
      * Waits for the subprocess to exit.
      */
-    public void waitFor() {
+    public int waitFor() {
         errorPump.drain();
-        int exitCode = nonInterruptible(jvmProcess::waitFor);
-        if (exitCode != ExitCodes.OK) {
-            throw new RuntimeException("server process exited with status code " + exitCode);
-        }
+        return nonInterruptible(jvmProcess::waitFor);
     }
 
     /**
@@ -164,7 +168,7 @@ public class ServerProcess {
         }
 
         sendShutdownMarker();
-        waitFor();
+        waitFor(); // ignore exit code, we are already shutting down
     }
 
     private static void sendArgs(ServerArgs args, OutputStream processStdin) {
@@ -214,11 +218,10 @@ public class ServerProcess {
         boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
         command.add(javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString());
         command.addAll(jvmOptions);
-        command.add("-cp");
-        // The '*' isn't allowed by the windows filesystem, so we need to force it into the classpath after converting to a string.
-        // Thankfully this will all go away when switching to modules, which take the directory instead of a glob.
-        command.add(esHome.resolve("lib") + (isWindows ? "\\" : "/") + "*");
-        command.add("org.elasticsearch.bootstrap.Elasticsearch");
+        command.add("--module-path");
+        command.add(esHome.resolve("lib").toString());
+        command.add("-m");
+        command.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
 
         var builder = new ProcessBuilder(command);
         builder.environment().putAll(envVars);

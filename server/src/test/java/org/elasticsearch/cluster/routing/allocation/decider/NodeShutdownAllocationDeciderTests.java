@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -82,7 +83,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.RESTART
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
@@ -99,7 +100,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE)
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
@@ -113,7 +114,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.RESTART
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
         Decision decision = decider.canRemain(shard, routingNode, allocation);
@@ -130,7 +131,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE)
         );
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
         Decision decision = decider.canRemain(shard, routingNode, allocation);

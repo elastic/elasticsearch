@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * This class represents a node's view of the history of which nodes have been elected master over the last 30 minutes. It is kept in
@@ -77,7 +76,14 @@ public class MasterHistory implements ClusterStateListener {
             int startIndex = Math.max(0, sizeAfterAddingNewMaster - MAX_HISTORY_SIZE);
             for (int i = startIndex; i < masterHistory.size(); i++) {
                 TimeAndMaster timeAndMaster = masterHistory.get(i);
-                if (timeAndMaster.startTimeMillis >= oldestRelevantHistoryTime) {
+                final long currentMasterEndTime;
+                if (i < masterHistory.size() - 1) {
+                    // We treat the start time of the next master as the end time of this current master
+                    currentMasterEndTime = masterHistory.get(i + 1).startTimeMillis;
+                } else {
+                    currentMasterEndTime = Long.MAX_VALUE; // This current master has no end time
+                }
+                if (currentMasterEndTime >= oldestRelevantHistoryTime) {
                     newMasterHistory.add(timeAndMaster);
                 }
             }
@@ -175,25 +181,41 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Returns true if a non-null master was seen at any point in the last nSeconds seconds, or if the last-seen master was more than
-     * nSeconds seconds ago and non-null.
+     * Returns true if a non-null master existed at any point in the last nSeconds seconds. Note that this could be a master whose start
+     * time was more than nSeconds ago, as long as either it is still master or the next master took over less than nSeconds ago.
      * @param nSeconds The number of seconds to look back
      * @return true if the current master is non-null or if a non-null master was seen in the last nSeconds seconds
      */
     public boolean hasSeenMasterInLastNSeconds(int nSeconds) {
+        if (getMostRecentMaster() != null) {
+            return true;
+        }
         List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         long now = currentTimeMillisSupplier.getAsLong();
         TimeValue nSecondsTimeValue = new TimeValue(nSeconds, TimeUnit.SECONDS);
         long nSecondsAgo = now - nSecondsTimeValue.getMillis();
-        return getMostRecentMaster() != null
-            || masterHistoryCopy.stream()
-                .filter(timeAndMaster -> timeAndMaster.master != null)
-                .anyMatch(timeAndMaster -> timeAndMaster.startTimeMillis > nSecondsAgo);
+
+        /*
+         * We traverse the list backwards (since it is ordered by time ascending). Once we find an entry whose
+         * timeAndMaster.startTimeMillis was more than nSeconds ago we can stop because it is not possible that any more of the nodes
+         * we'll see have ended within the last nSeconds.
+         */
+        for (int i = masterHistoryCopy.size() - 1; i >= 0; i--) {
+            TimeAndMaster timeAndMaster = masterHistoryCopy.get(i);
+            if (timeAndMaster.master != null) {
+                return true;
+            }
+            if (timeAndMaster.startTimeMillis < nSecondsAgo) {
+                break;
+            }
+        }
+        return false;
     }
 
     /*
-     * This method creates a copy of masterHistory that only has entries from more than maxHistoryAge before now (but leaves the newest
-     * entry in even if it is more than maxHistoryAge).
+     * This method creates a mutable copy of masterHistory that only has entries that have been active in the recent past
+     * (maxHistoryAge). In this case, "active" means that either the master's start time has been within maxHistoryAge, or the master was
+     *  replaced by another master within maxHistoryAge.
      */
     private List<TimeAndMaster> getRecentMasterHistory(List<TimeAndMaster> history) {
         if (history.size() < 2) {
@@ -201,12 +223,23 @@ public class MasterHistory implements ClusterStateListener {
         }
         long now = currentTimeMillisSupplier.getAsLong();
         long oldestRelevantHistoryTime = now - maxHistoryAge.getMillis();
-        TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
-        List<TimeAndMaster> filteredHistory = history.stream()
-            .filter(timeAndMaster -> timeAndMaster.startTimeMillis > oldestRelevantHistoryTime)
-            .collect(Collectors.toList());
-        if (filteredHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
-            filteredHistory.add(mostRecent);
+
+        List<TimeAndMaster> filteredHistory = new ArrayList<>();
+        for (int i = 0; i < history.size(); i++) {
+            TimeAndMaster timeAndMaster = history.get(i);
+            final long endTime;
+            /*
+             * The end time of this timeAndMaster is the start time of the next one in the list. If there is no next one, this is the
+             * current timeAndMaster, so there is no endTime (so it is set to Long.MAX_VALUE).
+             */
+            if (i < history.size() - 1) {
+                endTime = history.get(i + 1).startTimeMillis;
+            } else {
+                endTime = Long.MAX_VALUE;
+            }
+            if (endTime >= oldestRelevantHistoryTime) {
+                filteredHistory.add(timeAndMaster);
+            }
         }
         return filteredHistory;
     }

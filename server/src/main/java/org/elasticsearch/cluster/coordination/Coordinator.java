@@ -10,8 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -93,6 +91,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -285,7 +284,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.nodeHealthService = nodeHealthService;
     }
 
-    private ClusterFormationState getClusterFormationState() {
+    /**
+     * This method returns an object containing information about why cluster formation failed, which can be useful in troubleshooting.
+     * @return Information about why cluster formation failed
+     */
+    public ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
             settings,
             getStateForMasterService(),
@@ -298,14 +301,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
     }
 
-    private void onLeaderFailure(MessageSupplier message, Exception e) {
+    private void onLeaderFailure(Supplier<String> message, Exception e) {
         synchronized (mutex) {
             if (mode != Mode.CANDIDATE) {
                 assert lastKnownLeader.isPresent();
                 if (logger.isDebugEnabled()) {
-                    logger.info(message, e);
+                    // TODO this is a workaround for log4j's Supplier. We should remove this, once using ES logging api
+                    logger.info(() -> message.get(), e);
                 } else {
-                    logger.info(message);
+                    logger.info(() -> message.get());
                 }
             }
             becomeCandidate("onLeaderFailure");
@@ -481,7 +485,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         ensureTermAtLeast(getLocalNode(), maxTermSeen);
                         startElection();
                     } catch (Exception e) {
-                        logger.warn(new ParameterizedMessage("failed to bump term to {}", maxTermSeen), e);
+                        logger.warn(() -> format("failed to bump term to %s", maxTermSeen), e);
                         becomeCandidate("updateMaxTermSeen");
                     }
                 }
@@ -597,8 +601,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             @Override
             public void onFailure(Exception e) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "received join request from [{}] but could not connect back to the joining node",
+                    () -> format(
+                        "received join request from [%s] but could not connect back to the joining node",
                         joinRequest.getSourceNode()
                     ),
                     e
@@ -697,10 +701,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.of(null, channelType),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(
-                    () -> new ParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
-                    e
-                );
+                logger.warn(() -> format("failed to ping joining node [%s] on channel type [%s]", discoveryNode, channelType), e);
                 listener.onFailure(
                     new IllegalStateException(
                         String.format(
@@ -1332,8 +1333,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             synchronized (mutex) {
                 if (mode != Mode.LEADER || getCurrentTerm() != clusterStatePublicationEvent.getNewState().term()) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed publication as node is no longer master for term {}",
+                        () -> format(
+                            "[%s] failed publication as node is no longer master for term %s",
                             clusterStatePublicationEvent.getSummary(),
                             clusterStatePublicationEvent.getNewState().term()
                         )
@@ -1351,8 +1352,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 if (currentPublication.isPresent()) {
                     assert false : "[" + currentPublication.get() + "] in progress, cannot start new publication";
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed publication as already publication in progress",
+                        () -> format(
+                            "[%s] failed publication as already publication in progress",
                             clusterStatePublicationEvent.getSummary()
                         )
                     );
@@ -1559,6 +1560,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public Iterable<DiscoveryNode> getFoundPeers() {
         return peerFinder.getFoundPeers();
+    }
+
+    public PeerFinder getPeerFinder() {
+        return this.peerFinder;
     }
 
     /**

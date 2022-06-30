@@ -21,9 +21,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -70,7 +70,7 @@ public class Netty4BadRequestTests extends ESTestCase {
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                 try {
                     final Exception e = cause instanceof Exception ? (Exception) cause : new ElasticsearchException(cause);
-                    channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
+                    channel.sendResponse(new RestResponse(channel, RestStatus.BAD_REQUEST, e));
                 } catch (final IOException e) {
                     throw new UncheckedIOException(e);
                 }

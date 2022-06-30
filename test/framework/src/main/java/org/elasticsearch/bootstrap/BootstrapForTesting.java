@@ -18,11 +18,12 @@ import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PrivilegedOperations;
@@ -86,13 +87,13 @@ public class BootstrapForTesting {
                                                                                               // setting
         // some tests need the ability to disable system call filters (so they can fork other processes as part of test execution)
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
-        Bootstrap.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
+        Elasticsearch.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
 
         // init filesystem natives
         FileSystemNatives.init();
 
         // initialize probes
-        Bootstrap.initializeProbes();
+        Elasticsearch.initializeProbes();
 
         // initialize sysprops
         BootstrapInfo.getSystemProperties();
@@ -155,14 +156,14 @@ public class BootstrapForTesting {
                 // read test-framework permissions
                 Map<String, URL> codebases = getCodebases();
 
-                final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                final Policy testFramework = PolicyUtil.readPolicy(Elasticsearch.class.getResource("test-framework.policy"), codebases);
                 final Policy runnerPolicy;
                 if (System.getProperty("tests.gradle") != null) {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("gradle.policy"), codebases);
+                    runnerPolicy = PolicyUtil.readPolicy(Elasticsearch.class.getResource("gradle.policy"), codebases);
                 } else if (codebases.containsKey("junit-rt.jar")) {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
+                    runnerPolicy = PolicyUtil.readPolicy(Elasticsearch.class.getResource("intellij.policy"), codebases);
                 } else {
-                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("eclipse.policy"), codebases);
+                    runnerPolicy = PolicyUtil.readPolicy(Elasticsearch.class.getResource("eclipse.policy"), codebases);
                 }
                 // this mimicks the recursive data path permission added in Security.java
                 Permissions fastPathPermissions = new Permissions();
@@ -190,7 +191,9 @@ public class BootstrapForTesting {
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
-                for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_PROPERTIES))) {
+                for (URL url : Collections.list(
+                    BootstrapForTesting.class.getClassLoader().getResources(PluginDescriptor.ES_PLUGIN_PROPERTIES)
+                )) {
                     Properties properties = new Properties();
                     try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
                         properties.load(stream);
@@ -245,7 +248,9 @@ public class BootstrapForTesting {
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static Map<String, Policy> getPluginPermissions() throws Exception {
-        List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
+        List<URL> pluginPolicies = Collections.list(
+            BootstrapForTesting.class.getClassLoader().getResources(PluginDescriptor.ES_PLUGIN_POLICY)
+        );
         if (pluginPolicies.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -255,7 +260,7 @@ public class BootstrapForTesting {
         Set<URL> excluded = new HashSet<>(
             Arrays.asList(
                 // es core
-                Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
+                Elasticsearch.class.getProtectionDomain().getCodeSource().getLocation(),
                 // es test framework
                 BootstrapForTesting.class.getProtectionDomain().getCodeSource().getLocation(),
                 // lucene test framework
@@ -327,7 +332,7 @@ public class BootstrapForTesting {
     @SuppressForbidden(reason = "does evil stuff with paths and urls because devs and jenkins do evil stuff with paths and urls")
     static Set<URL> parseClassPathWithSymlinks() throws Exception {
         Set<URL> raw = JarHell.parseClassPath();
-        Set<URL> cooked = new HashSet<>(raw.size());
+        Set<URL> cooked = Sets.newHashSetWithExpectedSize(raw.size());
         for (URL url : raw) {
             Path path = PathUtils.get(url.toURI());
             if (Files.exists(path)) {

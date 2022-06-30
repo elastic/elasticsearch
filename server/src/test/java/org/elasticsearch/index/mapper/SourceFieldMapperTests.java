@@ -172,4 +172,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));
     }
 
+    public void testSyntheticDisabledNotSupported() throws Exception {
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                topMapping(b -> b.startObject("_source").field("enabled", false).field("synthetic", true).endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("_source may not be disabled when setting [synthetic: true]"));
+    }
 }

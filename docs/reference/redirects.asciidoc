@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="jwt-realm"]
+=== JWT realm
+
+Refer to <<jwt-auth-realm,JWT authentication>>.
+
+[role="exclude",id="_authorizing_with_the_role_mapping_api"]
+==== Role mapping with JWT
+
+Refer to <<jwt-authorization-role-mapping,Authorizing with the role mapping API>>.
+
 [role="exclude",id="migration-api-feature-upgrade"]
 === Feature upgrade APIs
 
@@ -604,10 +614,6 @@ See <<getting-started-search>>.
 [role="exclude", id="getting-started-search-API"]
 === Search API
 See <<getting-started-search>>.
-
-[role="exclude", id="getting-started-conclusion"]
-=== Conclusion
-See <<getting-started-next-steps>>.
 
 [role="exclude",id="ccs-reduction"]
 === {ccs-cap} reduction
@@ -1712,27 +1718,27 @@ See <<rollup-apis>>.
 [role="exclude",id="getting-started-install"]
 === Get {es} up and running
 
-See <<run-elasticsearch>>.
+See <<configuring-stack-security>>.
+
+[role="exclude",id="getting-started"]
+=== Quick start
+
+See {estc-welcome}/getting-started-general-purpose.html[Set up a general purpose Elastic deployment].
 
 [role="exclude",id="getting-started-index"]
 === Index some documents
 
-See <<add-data>>.
+See {estc-welcome}/getting-started-general-purpose.html#gp-gs-add-data[Add data].
 
 [role="exclude",id="getting-started-search"]
 === Start searching
 
-See <<qs-search-data>>.
+See {estc-welcome}/getting-started-general-purpose.html#gp-gs-search-data[Search and sort data].
 
 [role="exclude",id="getting-started-aggregations"]
 === Analyze results with aggregations
 
-See <<getting-started>>.
-
-[role="exclude",id="getting-started-next-steps"]
-=== Where to go from here
-
-See <<getting-started>>.
+See <<search-aggregations>>.
 
 [role="exclude",id="jvm-options"]
 === Setting JVM options

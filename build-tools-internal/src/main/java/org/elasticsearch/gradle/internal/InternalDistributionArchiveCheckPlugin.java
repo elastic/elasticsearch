@@ -55,13 +55,17 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
         // sanity checks if archives can be extracted
         TaskProvider<Copy> checkExtraction = registerCheckExtractionTask(project, buildDistTask, archiveExtractionDir);
         TaskProvider<Task> checkLicense = registerCheckLicenseTask(project, checkExtraction);
-
         TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, checkExtraction);
+        TaskProvider<Task> checkModulesTask = InternalDistributionModuleCheckTaskProvider.registerCheckModulesTask(
+            project,
+            checkExtraction
+        );
         TaskProvider<Task> checkTask = project.getTasks().named("check");
         checkTask.configure(task -> {
             task.dependsOn(checkExtraction);
             task.dependsOn(checkLicense);
             task.dependsOn(checkNotice);
+            task.dependsOn(checkModulesTask);
         });
 
         String projectName = project.getName();

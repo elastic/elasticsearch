@@ -16,7 +16,6 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
@@ -104,6 +103,8 @@ import java.util.stream.Stream;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.X509KeyManager;
 
+import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.DN_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.ENCRYPTION_KEY_ALIAS;
@@ -855,13 +856,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         List<String> getAttribute(SamlAttributes attributes) {
             final List<String> attrValue = parser.apply(attributes);
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "Parser [{}] generated values [{}]",
-                    name,
-                    Strings.collectionToCommaDelimitedString(attrValue)
-                )
-            );
+            logger.trace(() -> format("Parser [%s] generated values [%s]", name, collectionToCommaDelimitedString(attrValue)));
             return attrValue;
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -18,7 +17,6 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -41,6 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Tracks the mapping of the {@code @timestamp} field of immutable indices that expose their timestamp range in their index metadata.
@@ -90,7 +89,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final Metadata metadata = event.state().metadata();
-        final ImmutableOpenMap<String, IndexMetadata> indices = metadata.indices();
+        final Map<String, IndexMetadata> indices = metadata.indices();
         if (indices == event.previousState().metadata().indices()) {
             return;
         }
@@ -113,7 +112,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
                     executor.execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            logger.debug(new ParameterizedMessage("failed to compute mapping for {}", index), e);
+                            logger.debug(() -> format("failed to compute mapping for %s", index), e);
                             future.onResponse(null); // no need to propagate a failure to create the mapper service to searches
                         }
 

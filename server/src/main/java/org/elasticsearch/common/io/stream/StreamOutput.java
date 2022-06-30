@@ -97,10 +97,6 @@ public abstract class StreamOutput extends OutputStream {
         throw new UnsupportedOperationException();
     }
 
-    public void seek(long position) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
     /**
      * Writes a single byte.
      */
@@ -497,8 +493,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     @Override
     public abstract void close() throws IOException;
-
-    public abstract void reset() throws IOException;
 
     @Override
     public void write(int b) throws IOException {

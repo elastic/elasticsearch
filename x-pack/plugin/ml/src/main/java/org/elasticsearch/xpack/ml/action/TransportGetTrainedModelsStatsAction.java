@@ -34,6 +34,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -96,7 +97,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         GetTrainedModelsStatsAction.Request request,
         ActionListener<GetTrainedModelsStatsAction.Response> listener
     ) {
-
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterService.state());
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
@@ -109,18 +110,20 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             responseBuilder.setDeploymentStatsByModelId(
                 deploymentStats.getStats().results().stream().collect(Collectors.toMap(AssignmentStats::getModelId, Function.identity()))
             );
-            modelSizeStats(responseBuilder.getExpandedIdsWithAliases(), request.isAllowNoResources(), modelSizeStatsListener);
+            modelSizeStats(responseBuilder.getExpandedIdsWithAliases(), request.isAllowNoResources(), parentTaskId, modelSizeStatsListener);
         }, listener::onFailure);
 
         ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(inferenceStats -> {
             responseBuilder.setInferenceStatsByModelId(
                 inferenceStats.stream().collect(Collectors.toMap(InferenceStats::getModelId, Function.identity()))
             );
+            GetDeploymentStatsAction.Request getDeploymentStatsRequest = new GetDeploymentStatsAction.Request(request.getResourceId());
+            getDeploymentStatsRequest.setParentTask(parentTaskId);
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 GetDeploymentStatsAction.INSTANCE,
-                new GetDeploymentStatsAction.Request(request.getResourceId()),
+                getDeploymentStatsRequest,
                 deploymentStatsListener
             );
         }, listener::onFailure);
@@ -144,6 +147,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             responseBuilder.setIngestStatsByModelId(modelIdIngestStats);
             trainedModelProvider.getInferenceStats(
                 responseBuilder.getExpandedIdsWithAliases().keySet().toArray(new String[0]),
+                parentTaskId,
                 inferenceStatsListener
             );
         }, listener::onFailure);
@@ -153,6 +157,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             String[] ingestNodes = ingestNodes(clusterService.state());
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
                 .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
+            nodesStatsRequest.setParentTask(parentTaskId);
             executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
         }, listener::onFailure);
         trainedModelProvider.expandIds(
@@ -161,6 +166,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             request.getPageParams(),
             Collections.emptySet(),
             currentMetadata,
+            parentTaskId,
             idsListener
         );
     }
@@ -168,6 +174,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     private void modelSizeStats(
         Map<String, Set<String>> expandedIdsWithAliases,
         boolean allowNoResources,
+        TaskId parentTaskId,
         ActionListener<Map<String, TrainedModelSizeStats>> listener
     ) {
         ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
@@ -175,7 +182,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
                 .map(TrainedModelConfig::getModelId)
                 .toList();
-            definitionLengths(pytorchModelIds, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
+            definitionLengths(pytorchModelIds, parentTaskId, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
                 Map<String, TrainedModelSizeStats> modelSizeStatsByModelId = new HashMap<>();
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
@@ -201,11 +208,12 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             expandedIdsWithAliases,
             GetTrainedModelsAction.Includes.empty(),
             allowNoResources,
+            parentTaskId,
             modelsListener
         );
     }
 
-    private void definitionLengths(List<String> modelIds, ActionListener<Map<String, Long>> listener) {
+    private void definitionLengths(List<String> modelIds, TaskId parentTaskId, ActionListener<Map<String, Long>> listener) {
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME))
             .filter(QueryBuilders.termsQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelIds))
@@ -218,6 +226,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             // First find the latest index
             .addSort("_index", SortOrder.DESC)
             .request();
+        searchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
             Map<String, Long> totalDefinitionLengthByModelId = new HashMap<>();
@@ -377,12 +386,11 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             this.type = type;
         }
 
-        IngestStatsAccumulator inc(IngestStats.Stats s) {
+        void inc(IngestStats.Stats s) {
             ingestCount.inc(s.getIngestCount());
             ingestTimeInMillis.inc(s.getIngestTimeInMillis());
             ingestCurrent.inc(s.getIngestCurrent());
             ingestFailedCount.inc(s.getIngestFailedCount());
-            return this;
         }
 
         IngestStats.Stats build() {

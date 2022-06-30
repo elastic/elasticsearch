@@ -276,7 +276,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
-    protected final SourceToParse source(String source) {
+    protected static SourceToParse source(String source) {
         return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
     }
 
@@ -654,8 +654,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             iw.addDocument(mapper.parse(source(build)).rootDoc());
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
-                String syntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                String syntheticSource = loader.leaf(getOnlyLeafReader(reader), new int[] { 0 }).source(null, 0).utf8ToString();
                 roundTripSyntheticSource(mapper, syntheticSource, reader);
                 return syntheticSource;
             }
@@ -680,8 +680,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
-                String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(roundTripReader)).source(null, 0).utf8ToString();
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(roundTripReader), new int[] { 0 })
+                    .source(null, 0)
+                    .utf8ToString();
                 assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
                 validateRoundTripReader(syntheticSource, reader, roundTripReader);
             }

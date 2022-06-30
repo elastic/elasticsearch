@@ -396,7 +396,28 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [service] has subobjects set to false hence it does not support inner object [time]",
+            "Failed to parse mapping: Tried to add subobject [time] to object [service] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("metrics.service");
+            {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("time");
+                    b.field("type", "nested");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [time] to object [service] which does not support subobjects",
             exception.getMessage()
         );
     }
@@ -419,6 +440,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
     }
 
+    public void testExplicitDefaultSubobjects() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", true)));
+        assertEquals("{\"_doc\":{\"subobjects\":true}}", Strings.toString(mapperService.mappingLookup().getMapping()));
+    }
+
     public void testSubobjectsFalseRootWithInnerObject() {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
             b.field("subobjects", false);
@@ -439,8 +465,24 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support inner object "
-                + "[metrics.service.time]",
+            "Failed to parse mapping: Tried to add subobject [metrics.service.time] to object [_doc] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseRootWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties");
+            {
+                b.startObject("metrics.service");
+                b.field("type", "nested");
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [metrics.service] to object [_doc] which does not support subobjects",
             exception.getMessage()
         );
     }

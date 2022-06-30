@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -104,38 +105,51 @@ public class DatafeedConfigProvider {
      * the config will not be overwritten.
      *
      * @param config The datafeed configuration
-     * @param listener Index response listener
+     * @param listener Listener that returns config augmented with security headers and index response
      */
-    public void putDatafeedConfig(DatafeedConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
+    public void putDatafeedConfig(
+        DatafeedConfig config,
+        Map<String, String> headers,
+        ActionListener<Tuple<DatafeedConfig, IndexResponse>> listener
+    ) {
 
-        if (headers.isEmpty() == false) {
+        DatafeedConfig finalConfig;
+        if (headers.isEmpty()) {
+            finalConfig = config;
+        } else {
             // Filter any values in headers that aren't security fields
-            config = new DatafeedConfig.Builder(config).setHeaders(
+            finalConfig = new DatafeedConfig.Builder(config).setHeaders(
                 ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterService.state())
             ).build();
         }
 
-        final String datafeedId = config.getId();
+        final String datafeedId = finalConfig.getId();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            XContentBuilder source = config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            XContentBuilder source = finalConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
             IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(datafeedId))
                 .source(source)
                 .opType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(listener::onResponse, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    // the dafafeed already exists
-                    listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                IndexAction.INSTANCE,
+                indexRequest,
+                ActionListener.wrap(r -> listener.onResponse(Tuple.tuple(finalConfig, r)), e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        // the datafeed already exists
+                        listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
 
         } catch (IOException e) {
-            listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + config.getId() + "]", e));
+            listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + datafeedId + "]", e));
         }
     }
 

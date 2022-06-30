@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -46,6 +45,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
@@ -105,9 +105,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             return;
         }
 
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] Received request to undeploy{}", request.getId(), request.isForce() ? " (force)" : "")
-        );
+        logger.debug(() -> format("[%s] Received request to undeploy%s", request.getId(), request.isForce() ? " (force)" : ""));
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelsResponse -> {
             List<TrainedModelConfig> models = getModelsResponse.getResources().results();
@@ -198,10 +196,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 modelId,
                 ActionListener.wrap(deleted -> listener.onResponse(r), deletionFailed -> {
                     logger.error(
-                        () -> new ParameterizedMessage(
-                            "[{}] failed to delete model assignment after nodes unallocated the deployment",
-                            modelId
-                        ),
+                        () -> format("[%s] failed to delete model assignment after nodes unallocated the deployment", modelId),
                         deletionFailed
                     );
                     listener.onFailure(

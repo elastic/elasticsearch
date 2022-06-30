@@ -152,7 +152,7 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testValidUserWithMaxLengthUsername() {
-        testValidUser(new User(randomUsername(NativeRealmValidationUtil.MAX_NAME_LENGTH)));
+        testValidUser(new User(randomValidUsername(NativeRealmValidationUtil.MAX_NAME_LENGTH)));
     }
 
     private void testValidUser(User user) {
@@ -212,7 +212,7 @@ public class TransportPutUserActionTests extends ESTestCase {
     public void testInvalidUserWithExtraLongUsername() {
         testInvalidUser(
             new User(
-                randomUsername(
+                randomValidUsername(
                     randomIntBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
                 )
             )
@@ -248,12 +248,34 @@ public class TransportPutUserActionTests extends ESTestCase {
     /**
      * Generates a random username whose length is exactly as given {@code length}.
      */
-    private String randomUsername(long length) {
-        StringBuilder username = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            username.append(randomFrom(Validation.VALID_NAME_CHARS));
+    private String randomValidUsername(int length) {
+        assert length >= 1 : "username length cannot be less than 1";
+
+        final char[] username = new char[length];
+
+        // First character cannot be a whitespace.
+        username[0] = chooseValidNonWhitespaceCharacter();
+
+        if (length == 1) {
+            return String.valueOf(username);
         }
-        return username.toString();
+
+        for (int i = 1; i < length - 1; i++) {
+            username[i] = chooseValidCharacter();
+        }
+
+        // Last character cannot be a whitespace.
+        username[length - 1] = chooseValidNonWhitespaceCharacter();
+
+        return String.valueOf(username);
+    }
+
+    private static char chooseValidCharacter() {
+        return randomFrom(Validation.VALID_NAME_CHARS);
+    }
+
+    private static char chooseValidNonWhitespaceCharacter() {
+        return randomValueOtherThan(' ', () -> chooseValidCharacter());
     }
 
     public void testException() {

@@ -112,6 +112,7 @@
   "transID": 2,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "1.5.0",
   "sequence": 18
  },
  {
@@ -120,6 +121,7 @@
   "transID": 0,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "1.5.0",
   "sequence": 19
  },
  {
@@ -128,6 +130,7 @@
   "transID": 0,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "1.2.4",
   "sequence": 20
  },
  {
@@ -136,6 +139,7 @@
   "transID": 0,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "1.11.3",
   "sequence": 21
  },
  {
@@ -144,6 +148,7 @@
   "transID": 0,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "bad",
   "sequence": 22
  },
  {
@@ -152,6 +157,7 @@
   "transID": 0,
   "process.entity_id": 512,
   "process.pid": 123,
+  "version": "1.2.4-SNAPSHOT",
   "sequence": 23
  }
 ]

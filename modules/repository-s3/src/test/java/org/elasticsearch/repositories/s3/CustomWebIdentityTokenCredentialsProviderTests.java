@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.services.securitytoken.model.AWSSecurityTokenServiceException;
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
@@ -21,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
@@ -36,10 +38,30 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.containsString;
+
 public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
 
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "aws-sdk-java-1651084775908";
+
+    // No region is set, but the SDK shouldn't fail because of that
+    private static final Map<String, String> ENVIRONMENT_VARIABLES = Map.of(
+        "AWS_WEB_IDENTITY_TOKEN_FILE",
+        "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
+        "AWS_ROLE_ARN",
+        ROLE_ARN
+    );
+    private static final Clock CLOCK = Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC);
+
+    private static Environment environment() throws IOException {
+        Path configDirectory = Files.createTempDirectory("web-identity-token-test");
+        Files.createDirectory(configDirectory.resolve("repository-s3"));
+        Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
+        Environment environment = Mockito.mock(Environment.class);
+        Mockito.when(environment.configFile()).thenReturn(configDirectory);
+        return environment;
+    }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
     public void testCreateWebIdentityTokenCredentialsProvider() throws Exception {
@@ -86,28 +108,15 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         });
         httpServer.start();
 
-        Path configDirectory = Files.createTempDirectory("web-identity-token-test");
-        Files.createDirectory(configDirectory.resolve("repository-s3"));
-        Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
-        Environment environment = Mockito.mock(Environment.class);
-        Mockito.when(environment.configFile()).thenReturn(configDirectory);
-
-        // No region is set, but the SDK shouldn't fail because of that
-        Map<String, String> environmentVariables = Map.of(
-            "AWS_WEB_IDENTITY_TOKEN_FILE",
-            "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
-            "AWS_ROLE_ARN",
-            ROLE_ARN
-        );
         Map<String, String> systemProperties = Map.of(
             "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
             "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
         );
         var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
-            environment,
-            environmentVariables::get,
+            environment(),
+            ENVIRONMENT_VARIABLES::get,
             systemProperties::getOrDefault,
-            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC)
+            CLOCK
         );
         try {
             AWSCredentials credentials = S3Service.buildCredentials(
@@ -120,6 +129,36 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             Assert.assertEquals("secret_access_key", credentials.getAWSSecretKey());
         } finally {
             webIdentityTokenCredentialsProvider.shutdown();
+            httpServer.stop(0);
+        }
+    }
+
+    @SuppressForbidden(reason = "HTTP server is used for testing")
+    public void testProviderIsNotAvailableIfSecurityTokenServiceIsDown() throws Exception {
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpServer.createContext("/", exchange -> {
+            try (exchange) {
+                exchange.sendResponseHeaders(RestStatus.SERVICE_UNAVAILABLE.getStatus(), 0);
+                exchange.getResponseBody().write("Service Unavailable".getBytes(StandardCharsets.UTF_8));
+            }
+        });
+        httpServer.start();
+        Map<String, String> systemProperties = Map.of(
+            "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
+            "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
+        );
+
+        try {
+            new S3Service.CustomWebIdentityTokenCredentialsProvider(
+                environment(),
+                ENVIRONMENT_VARIABLES::get,
+                systemProperties::getOrDefault,
+                CLOCK
+            );
+            Assert.fail("Should fail to initialize");
+        } catch (AWSSecurityTokenServiceException e) {
+            assertThat(e.getMessage(), containsString("AWSSecurityTokenService; Status Code: 503; Error Code: 503 Service Unavailable"));
+        } finally {
             httpServer.stop(0);
         }
     }

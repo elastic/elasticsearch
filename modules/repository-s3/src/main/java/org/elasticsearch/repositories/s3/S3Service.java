@@ -345,8 +345,14 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
+
+                // Fail-fast if we can't access the STS
+                credentialsProvider.getCredentials();
             } catch (Exception e) {
-                stsClient.shutdown();
+                LOGGER.warn("Unable to exchange web identity token to credentials from the AWS Security Token Service", e);
+                try {
+                    shutdown();
+                } catch (IOException ignore) {}
                 throw e;
             }
         }

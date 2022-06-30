@@ -371,8 +371,9 @@ public abstract class EngineTestCase extends ESTestCase {
         return new LuceneDocument();
     }
 
-    public static ParsedDocument createParsedDoc(String id, FieldType idFieldType, String routing) {
+    public static ParsedDocument createParsedDoc(Version indexVersionCreated, String id, FieldType idFieldType, String routing) {
         return testParsedDocument(
+            indexVersionCreated,
             id,
             idFieldType,
             routing,
@@ -383,8 +384,15 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
-    public static ParsedDocument createParsedDoc(String id, FieldType idFieldType, String routing, boolean recoverySource) {
+    public static ParsedDocument createParsedDoc(
+        Version indexVersionCreated,
+        String id,
+        FieldType idFieldType,
+        String routing,
+        boolean recoverySource
+    ) {
         return testParsedDocument(
+            indexVersionCreated,
             id,
             idFieldType,
             routing,
@@ -396,16 +404,18 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected ParsedDocument testParsedDocument(
+        Version indexVersionCreated,
         String id,
         String routing,
         LuceneDocument document,
         BytesReference source,
         Mapping mappingUpdate
     ) {
-        return testParsedDocument(id, idFieldType, routing, document, source, mappingUpdate, false);
+        return testParsedDocument(indexVersionCreated, id, idFieldType, routing, document, source, mappingUpdate, false);
     }
 
     protected static ParsedDocument testParsedDocument(
+        Version indexVersionCreated,
         String id,
         FieldType idFieldType,
         String routing,
@@ -416,7 +426,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         Field idField = new Field("_id", Uid.encodeId(id), idFieldType);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
+        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(indexVersionCreated);
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);
@@ -968,6 +978,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static List<Engine.Operation> generateSingleDocHistory(
+        Version indexVersionCreated,
         boolean forReplica,
         VersionType versionType,
         long primaryTerm,
@@ -992,7 +1003,16 @@ public abstract class EngineTestCase extends ESTestCase {
             if (randomBoolean()) {
                 op = new Engine.Index(
                     id,
-                    testParsedDocument(docId, idFieldType, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null, false),
+                    testParsedDocument(
+                        indexVersionCreated,
+                        docId,
+                        idFieldType,
+                        null,
+                        testDocumentWithTextField(valuePrefix + i),
+                        SOURCE,
+                        null,
+                        false
+                    ),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
@@ -1054,7 +1074,7 @@ public abstract class EngineTestCase extends ESTestCase {
             for (int copy = 0; copy < copies; copy++) {
                 final ParsedDocument doc = isNestedDoc
                     ? nestedParsedDocFactory.apply(id, nestedValues)
-                    : createParsedDoc(id, idFieldType, null);
+                    : createParsedDoc(engine.config().getIndexSettings().getIndexVersionCreated(), id, idFieldType, null);
                 switch (opType) {
                     case INDEX -> operations.add(
                         new Engine.Index(

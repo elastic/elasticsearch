@@ -1676,7 +1676,8 @@ public class InternalEngineTests extends EngineTestCase {
                     testDocument(),
                     B_1,
                     null,
-                    useRecoverySource
+                    useRecoverySource,
+                    engine.config().getIndexSettings().getIndexVersionCreated()
                 );
                 engine.index(indexForDoc(doc));
                 liveDocs.add(doc.id());
@@ -1693,7 +1694,8 @@ public class InternalEngineTests extends EngineTestCase {
                     testDocument(),
                     B_1,
                     null,
-                    useRecoverySource
+                    useRecoverySource,
+                    engine.config().getIndexSettings().getIndexVersionCreated()
                 );
                 if (randomBoolean()) {
                     engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
@@ -1754,7 +1756,16 @@ public class InternalEngineTests extends EngineTestCase {
             }
             if (numSegments == 1) {
                 boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
-                ParsedDocument doc = testParsedDocument("dummy", idFieldType, null, testDocument(), B_1, null, useRecoverySource);
+                ParsedDocument doc = testParsedDocument(
+                    "dummy",
+                    idFieldType,
+                    null,
+                    testDocument(),
+                    B_1,
+                    null,
+                    useRecoverySource,
+                    engine.config().getIndexSettings().getIndexVersionCreated()
+                );
                 engine.index(indexForDoc(doc));
                 if (useRecoverySource == false) {
                     liveDocsWithSource.add(doc.id());

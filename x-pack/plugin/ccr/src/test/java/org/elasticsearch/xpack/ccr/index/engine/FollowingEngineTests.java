@@ -152,7 +152,15 @@ public class FollowingEngineTests extends ESTestCase {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final VersionType versionType = randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
-                final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, 2, 2, 20, "id");
+                final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(
+                    followingEngine.config().getIndexSettings().getIndexVersionCreated(),
+                    true,
+                    versionType,
+                    2,
+                    2,
+                    20,
+                    "id"
+                );
                 ops.stream().mapToLong(op -> op.seqNo()).max().ifPresent(followingEngine::advanceMaxSeqNoOfUpdatesOrDeletes);
                 EngineTestCase.assertOpsOnReplica(ops, followingEngine, true, logger);
             }

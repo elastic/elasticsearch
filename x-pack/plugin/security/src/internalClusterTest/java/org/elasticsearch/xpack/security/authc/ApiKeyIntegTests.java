@@ -1564,7 +1564,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeysNotAllowedEx.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             apiKeysNotAllowedEx.getMessage(),
-            containsString("authentication via an API key is not supported for updating API keys")
+            containsString("authentication via API key not supported: only the owner user can update an API key")
         );
 
         final boolean invalidated = randomBoolean();

@@ -51,7 +51,13 @@ public class HealthMetadataService {
     private final ClusterStateListener clusterStateListener;
     private final DiskHealthMetadataMonitor diskHealthMetadataMonitor;
     private volatile boolean enabled;
-    private volatile boolean publishedAfterElection = false;
+
+    // Signifies that a node has been elected as master, but it was not able yet to publish its health metadata for
+    // other reasons for example not all nodes of the cluster are 8.4.0 or newer
+    private volatile boolean readyToPublish = false;
+    // Allows us to know if this node is the elected master without checking the cluster state, effectively protecting
+    // us from checking the cluster state before it's initialized
+    private volatile boolean isMaster = false;
 
     private final ClusterStateTaskExecutor<UpdateHealthMetadataTask> taskExecutor = new UpdateHealthMetadataTask.Executor();
 
@@ -77,28 +83,32 @@ public class HealthMetadataService {
             updateHealthMetadata();
         } else {
             clusterService.removeListener(clusterStateListener);
-            publishedAfterElection = false;
+            readyToPublish = false;
         }
     }
 
     private void updateHealthMetadataIfNecessary(ClusterChangedEvent event) {
+        final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
+        isMaster = event.localNodeMaster();
+        if (isMaster && wasMaster == false) {
+            readyToPublish = true;
+        } else if (isMaster == false) {
+            readyToPublish = false;
+        }
         // Wait until every node in the cluster is upgraded to 8.4.0 or later
         if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
-            if (event.localNodeMaster() && publishedAfterElection == false) {
+            if (readyToPublish) {
                 submitHealthMetadata("health-metadata-update-master-election");
+                readyToPublish = false;
             }
-            // If the node is not the elected master anymore
-            publishedAfterElection = event.localNodeMaster();
         }
     }
 
     private void updateHealthMetadata() {
-        // The first trigger to update the health metadata should be a master election because
-        // this means the cluster is fully initialized
-        if (publishedAfterElection && enabled) {
+        // We do not use the cluster state to check of this is the master node because it might not have been initialized
+        if (isMaster && enabled) {
             ClusterState clusterState = clusterService.state();
-            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)
-                && clusterState.nodes().isLocalNodeElectedMaster()) {
+            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
                 submitHealthMetadata("health-metadata-update");
             }
         }

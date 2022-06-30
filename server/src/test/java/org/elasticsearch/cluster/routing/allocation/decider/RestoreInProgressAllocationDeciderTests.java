@@ -148,6 +148,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             recoverySource.restoreUUID(),
             snapshot,
             restoreState,
+            false,
             singletonList("test"),
             shards.build()
         );

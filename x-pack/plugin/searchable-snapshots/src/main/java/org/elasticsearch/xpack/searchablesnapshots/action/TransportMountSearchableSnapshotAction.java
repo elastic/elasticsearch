@@ -272,7 +272,9 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         // Pass through the master-node timeout
                         .masterNodeTimeout(request.masterNodeTimeout())
                         // Fail the restore if the snapshot found above is swapped out from under us before the restore happens
-                        .snapshotUuid(snapshotId.getUUID()),
+                        .snapshotUuid(snapshotId.getUUID())
+                        // Log snapshot restore at a lower level
+                        .silent(true),
                     listener
                 );
         }, listener::onFailure), threadPool.executor(ThreadPool.Names.SNAPSHOT_META), null);

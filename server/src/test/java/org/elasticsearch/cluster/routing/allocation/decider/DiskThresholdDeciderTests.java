@@ -1199,7 +1199,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         shards.put(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder().add(
-            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, List.of("test"), shards.build())
+            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, false, List.of("test"), shards.build())
         );
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))

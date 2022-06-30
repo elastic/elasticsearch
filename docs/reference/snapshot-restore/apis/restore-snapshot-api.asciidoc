@@ -144,6 +144,10 @@ backing indices are configured using the data stream's matching index template.
 If `true`, the request restores aliases for any restored data streams and
 indices. If `false`, the request doesn't restore aliases. Defaults to `true`.
 
+`silent`::
+(Optional, Boolean)
+If `true`, logging happens at a lower level. Defaults to `false`.
+
 [[restore-snapshot-api-include-global-state]]
 `include_global_state`::
 +

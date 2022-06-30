@@ -48,6 +48,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
+    private boolean silent = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
@@ -83,6 +84,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
+        silent = in.readBoolean();
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
@@ -102,6 +104,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
+        out.writeBoolean(silent);
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
@@ -384,6 +387,26 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
+     * If set to true the logging should be at a lower level
+     *
+     * @param silent true if logging should be at a lower level
+     * @return this request
+     */
+    public RestoreSnapshotRequest silent(boolean silent) {
+        this.silent = silent;
+        return this;
+    }
+
+    /**
+     * Returns a boolean for whether logging should be at a lower or higher level
+     *
+     * @return true if logging should be at a lower level
+     */
+    public boolean silent() {
+        return silent;
+    }
+
+    /**
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(Settings settings) {
@@ -505,6 +528,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
                 includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
+            } else if (name.equals("silent")) {
+                silent = nodeBooleanValue(entry.getValue(), "silent");
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
@@ -573,6 +598,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
+        builder.field("silent", silent);
         if (indexSettings != null) {
             builder.startObject("index_settings");
             if (indexSettings.isEmpty() == false) {
@@ -601,6 +627,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && includeGlobalState == that.includeGlobalState
             && partial == that.partial
             && includeAliases == that.includeAliases
+            && silent == that.silent
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(repository, that.repository)
             && Arrays.equals(indices, that.indices)
@@ -626,6 +653,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             includeGlobalState,
             partial,
             includeAliases,
+            silent,
             indexSettings,
             snapshotUuid,
             skipOperatorOnlyState

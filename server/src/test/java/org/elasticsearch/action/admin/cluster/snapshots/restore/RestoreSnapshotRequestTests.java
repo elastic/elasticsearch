@@ -64,6 +64,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         }
         instance.partial(randomBoolean());
         instance.includeAliases(randomBoolean());
+        instance.silent(randomBoolean());
 
         if (randomBoolean()) {
             Map<String, Object> indexSettings = new HashMap<>();

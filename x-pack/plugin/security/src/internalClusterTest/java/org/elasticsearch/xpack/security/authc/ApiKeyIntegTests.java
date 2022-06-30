@@ -1432,11 +1432,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
-
         final var newRoleDescriptors = randomRoleDescriptors();
         final boolean nullRoleDescriptors = newRoleDescriptors == null;
-
-        // TODO parse role?
         final var expectedLimitedByRoleDescriptors = Set.of(
             new RoleDescriptor(
                 TEST_ROLE,

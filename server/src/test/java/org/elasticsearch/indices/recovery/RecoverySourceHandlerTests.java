@@ -53,7 +53,6 @@ import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -476,11 +475,10 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         @Override
         public Engine.Index createIndexOp(int docIdent) {
             SourceToParse source = new SourceToParse(Integer.toString(docIdent), new BytesArray("{}"), XContentType.JSON);
-            SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
             return IndexShard.prepareIndex(
                 mapper,
                 source,
-                seqID.seqNo.numericValue().longValue(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(),
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
@@ -513,11 +511,10 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                     "@timestamp": %s,
                     "dim": "dim"
                 }""", docIdent)), XContentType.JSON);
-            SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
             return IndexShard.prepareIndex(
                 mapper,
                 source,
-                seqID.seqNo.numericValue().longValue(),
+                UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(),
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,

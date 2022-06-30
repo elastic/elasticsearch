@@ -381,8 +381,8 @@ public final class InternalTestCluster extends TestCluster {
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TransportSettings.PORT.getKey(), 0);
-        builder.put("http.port", 0);
+        builder.put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange());
+        builder.put("http.port", ESTestCase.getPortRange());
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }

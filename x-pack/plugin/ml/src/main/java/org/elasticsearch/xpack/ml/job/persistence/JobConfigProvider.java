@@ -47,11 +47,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -82,7 +84,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -358,33 +359,27 @@ public class JobConfigProvider {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
-                    if (errorIfMissing) {
-                        listener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                    } else {
-                        listener.onResponse(Boolean.FALSE);
-                    }
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+            if (getResponse.isExists() == false) {
+                if (errorIfMissing) {
+                    listener.onFailure(ExceptionsHelper.missingJobException(jobId));
                 } else {
-                    listener.onResponse(Boolean.TRUE);
+                    listener.onResponse(Boolean.FALSE);
                 }
+            } else {
+                listener.onResponse(Boolean.TRUE);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e.getClass() == IndexNotFoundException.class) {
-                    if (errorIfMissing) {
-                        listener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                    } else {
-                        listener.onResponse(Boolean.FALSE);
-                    }
+        }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                if (errorIfMissing) {
+                    listener.onFailure(ExceptionsHelper.missingJobException(jobId));
                 } else {
-                    listener.onFailure(e);
+                    listener.onResponse(Boolean.FALSE);
                 }
+            } else {
+                listener.onFailure(e);
             }
-        });
+        }));
     }
 
     /**
@@ -468,6 +463,7 @@ public class JobConfigProvider {
      * @param tasksCustomMetadata The current persistent task metadata.
      *                            For resolving jobIds that have tasks, but for some reason, don't have configs
      * @param allowMissingConfigs If a job has a task, but is missing a config, allow the ID to be expanded via the existing task
+     * @param parentTaskId the parent task ID if available
      * @param listener The expanded job Ids listener
      */
     public void expandJobsIds(
@@ -476,6 +472,7 @@ public class JobConfigProvider {
         boolean excludeDeleting,
         @Nullable PersistentTasksCustomMetadata tasksCustomMetadata,
         boolean allowMissingConfigs,
+        @Nullable TaskId parentTaskId,
         ActionListener<SortedSet<String>> listener
     ) {
         String[] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
@@ -490,6 +487,9 @@ public class JobConfigProvider {
             .setSource(sourceBuilder)
             .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
         Collection<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetadata);
@@ -506,7 +506,7 @@ public class JobConfigProvider {
                     jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
                     List<Object> groups = hit.field(Job.GROUPS.getPreferredName()).getValues();
                     if (groups != null) {
-                        groupsIds.addAll(groups.stream().map(Object::toString).collect(Collectors.toList()));
+                        groupsIds.addAll(groups.stream().map(Object::toString).toList());
                     }
                 }
                 if (allowMissingConfigs) {
@@ -528,19 +528,27 @@ public class JobConfigProvider {
     }
 
     /**
-     * The same logic as {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} but
+     * The same logic as
+     * {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)} but
      * the full anomaly detector job configuration is returned.
      *
-     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
+     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param excludeDeleting If true exclude jobs marked as deleting
+     * @param parentTaskId parent task id
      * @param listener The expanded jobs listener
      */
-    public void expandJobs(String expression, boolean allowNoMatch, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
+    public void expandJobs(
+        String expression,
+        boolean allowNoMatch,
+        boolean excludeDeleting,
+        @Nullable TaskId parentTaskId,
+        ActionListener<List<Job.Builder>> listener
+    ) {
         String[] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildJobWildcardQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
@@ -550,6 +558,9 @@ public class JobConfigProvider {
             .setSource(sourceBuilder)
             .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
 
@@ -591,8 +602,8 @@ public class JobConfigProvider {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
-     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} it is not an error
-     * if a group Id does not exist.
+     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)} it is not an
+     * error if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
      * @param groupIds Group Ids to expand
@@ -654,7 +665,7 @@ public class JobConfigProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(
-                response -> { listener.onResponse(response.getHits().getTotalHits().value > 0); },
+                response -> listener.onResponse(response.getHits().getTotalHits().value > 0),
                 listener::onFailure
             ),
             client::search
@@ -733,7 +744,7 @@ public class JobConfigProvider {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
         ) {
             jobListener.onResponse(Job.LENIENT_PARSER.apply(parser, null));
         } catch (Exception e) {
@@ -745,7 +756,7 @@ public class JobConfigProvider {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
         ) {
             return Job.LENIENT_PARSER.apply(parser, null);
         }

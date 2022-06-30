@@ -138,7 +138,7 @@ final class KDE {
         return 0.5 * Erf.erfc(dev / (standardDeviation * SQRT2));
     }
 
-    static record ValueAndMagnitude(double value, double magnitude) {
+    record ValueAndMagnitude(double value, double magnitude) {
         boolean isMoreSignificant(ValueAndMagnitude o, int numberOfTestedValues) {
             int c = Double.compare(significance(numberOfTestedValues), o.significance(numberOfTestedValues));
             if (c != 0) {

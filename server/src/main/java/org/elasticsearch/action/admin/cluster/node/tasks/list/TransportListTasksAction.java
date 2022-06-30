@@ -61,7 +61,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
-    protected void taskOperation(ListTasksRequest request, Task task, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(Task actionTask, ListTasksRequest request, Task task, ActionListener<TaskInfo> listener) {
         listener.onResponse(task.taskInfo(clusterService.localNode().getId(), request.getDetailed()));
     }
 

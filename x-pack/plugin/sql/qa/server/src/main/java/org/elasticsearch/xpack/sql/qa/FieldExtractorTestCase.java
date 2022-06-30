@@ -359,6 +359,25 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
+     *    "version_field": {
+     *       "type": "version",
+     *    }
+     */
+    public void testVersionField() throws IOException {
+        String query = "SELECT version_field FROM test";
+        String actualValue = "2.11.4";
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        createIndexWithFieldTypeAndProperties("version", fieldProps, getIndexProps());
+        index("{\"version_field\":\"" + actualValue + "\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", asList(columnInfo("plain", "version_field", "version", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(getExpectedValueFromSource(actualValue))));
+        assertResponse(expected, runSql(query));
+    }
+
+    /*
      *    "geo_point_field": {
      *       "type": "geo_point",
      *       "ignore_malformed": true/false

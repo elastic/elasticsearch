@@ -284,7 +284,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.nodeHealthService = nodeHealthService;
     }
 
-    private ClusterFormationState getClusterFormationState() {
+    /**
+     * This method returns an object containing information about why cluster formation failed, which can be useful in troubleshooting.
+     * @return Information about why cluster formation failed
+     */
+    public ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
             settings,
             getStateForMasterService(),
@@ -1556,6 +1560,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public Iterable<DiscoveryNode> getFoundPeers() {
         return peerFinder.getFoundPeers();
+    }
+
+    public PeerFinder getPeerFinder() {
+        return this.peerFinder;
     }
 
     /**

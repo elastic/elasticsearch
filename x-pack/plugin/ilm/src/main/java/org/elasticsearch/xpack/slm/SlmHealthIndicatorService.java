@@ -14,6 +14,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
@@ -38,6 +39,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "slm";
 
     public static final String HELP_URL = "https://ela.st/fix-slm";
+    public static final UserAction SLM_NOT_RUNNING = new UserAction(
+        new UserAction.Definition("slm-not-running", "Start SLM using [POST /_slm/start].", HELP_URL),
+        null
+    );
 
     private final ClusterService clusterService;
 
@@ -79,7 +84,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.BACKUP)
                 )
             );
-            return createIndicator(YELLOW, "SLM is not running", createDetails(explain, slmMetadata), impacts, Collections.emptyList());
+            return createIndicator(YELLOW, "SLM is not running", createDetails(explain, slmMetadata), impacts, List.of(SLM_NOT_RUNNING));
         } else {
             return createIndicator(
                 GREEN,

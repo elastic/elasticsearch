@@ -320,10 +320,10 @@ See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 
 See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 
-[role="exclude",id="security-api-search-user-profile"]
-=== Search user profile API
+//[role="exclude",id="security-api-search-user-profile"]
+//=== Search user profile API
 
-See <<security-api-suggest-user-profile,Suggest user profile API>>.
+//`See security-api-suggest-user-profile,Suggest user profile API`.
 // [END] Security redirects
 
 [roles="exclude",id="modules-scripting-stored-scripts"]

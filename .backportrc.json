@@ -10,7 +10,7 @@
   ],
   "targetPRLabels": ["backport"],
   "branchLabelMapping": {
-    "^v8.3.0$": "master",
+    "^v8.3.1$": "master",
     "^v(\\d+).(\\d+).\\d+(?:-(?:alpha|beta|rc)\\d+)?$": "$1.$2"
   }
 }

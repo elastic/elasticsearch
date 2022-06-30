@@ -18,6 +18,7 @@ import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -331,7 +332,7 @@ public class BootstrapForTesting {
     @SuppressForbidden(reason = "does evil stuff with paths and urls because devs and jenkins do evil stuff with paths and urls")
     static Set<URL> parseClassPathWithSymlinks() throws Exception {
         Set<URL> raw = JarHell.parseClassPath();
-        Set<URL> cooked = new HashSet<>(raw.size());
+        Set<URL> cooked = Sets.newHashSetWithExpectedSize(raw.size());
         for (URL url : raw) {
             Path path = PathUtils.get(url.toURI());
             if (Files.exists(path)) {

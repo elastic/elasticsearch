@@ -6,7 +6,7 @@ issues: []
 highlight:
   title: Transforms support range aggregation
   body: |-
-    Now it is possible to use the range aggregations in {transforms}. 
-    {transforms-cap} didn’t support multi-bucket aggregations, but this 
-    limitation no longer exist.
+    Now it is possible to use the range aggregations in {transforms}.
+    {transforms-cap} didn’t support multi-bucket aggregations, but this
+    limitation no longer exists.
   notable: true

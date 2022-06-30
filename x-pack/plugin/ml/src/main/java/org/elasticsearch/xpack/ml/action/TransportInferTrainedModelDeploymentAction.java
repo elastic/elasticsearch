@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -32,11 +34,15 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
     InferTrainedModelDeploymentAction.Request,
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
 
     private final TrainedModelProvider provider;
 
@@ -94,6 +100,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
+        logger.trace(() -> format("[%s] selecting node from routing table: %s", assignment.getModelId(), assignment.getNodeRoutingTable()));
         String[] randomRunningNode = assignment.getStartedNodes();
         if (randomRunningNode.length == 0) {
             String message = "Trained model [" + deploymentId + "] is not allocated to any nodes";
@@ -102,6 +109,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         }
         // TODO Do better routing for inference calls
         int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
+        logger.trace(() -> format("[%s] selected node [%s]", assignment.getModelId(), randomRunningNode[nodeIndex]));
         request.setNodes(randomRunningNode[nodeIndex]);
         super.doExecute(task, request, listener);
     }
@@ -118,6 +126,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         } else if (failedNodeExceptions.isEmpty() == false) {
             throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
         } else if (tasks.isEmpty()) {
+            logger.trace(() -> format("[%s] unable to find deployment task for inference", request.getDeploymentId()));
             throw new ElasticsearchStatusException(
                 "[{}] unable to find deployment task for inference please stop and start the deployment or try again momentarily",
                 RestStatus.NOT_FOUND,

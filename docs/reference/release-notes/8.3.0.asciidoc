@@ -5,6 +5,13 @@ coming[8.3.0]
 
 Also see <<breaking-changes-8.3,Breaking changes in 8.3>>.
 
+[discrete]
+=== Known issues
+
+* 8.3.0 has an issue that could cause creating and accessing snapshots against Azure snapshot repositories 
+to fail authenticating when using SAS tokens. This impacts self-managed customers who have deployed 8.3.0. 
+Elastic Cloud Azure deployments are not currently being upgraded to 8.3.0 and are not impacted as a result (issue: {es-issue}88140[#88140])
+
 [[bug-8.3.0]]
 [float]
 === Bug fixes
@@ -20,6 +27,7 @@ Aggregations::
 
 Audit::
 * Fix audit logging to consistently include port number in `origin.address` {es-pull}86732[#86732]
+* Support removing ignore filters for audit logging {es-pull}87675[#87675] (issue: {es-issue}68588[#68588])
 
 Authentication::
 * An authorized user can disable a user with same name but different realm {es-pull}86473[#86473]
@@ -37,6 +45,7 @@ CCR::
 
 Cluster Coordination::
 * Add `master_timeout` support to voting config exclusions APIs {es-pull}86670[#86670]
+* Small fixes to clear voting config excls API {es-pull}87828[#87828]
 
 Discovery-Plugins::
 * [discovery-gce] Fix initialisation of transport in FIPS mode {es-pull}85817[#85817] (issue: {es-issue}85803[#85803])
@@ -65,6 +74,9 @@ ILM+SLM::
 
 Indices APIs::
 * Make `GetIndexAction` cancellable {es-pull}87681[#87681]
+
+Infra/Circuit Breakers::
+* Make CBE message creation more robust {es-pull}87881[#87881]
 
 Infra/Core::
 * Adjust osprobe assertion for burst cpu {es-pull}86990[#86990]
@@ -133,6 +145,7 @@ Search::
 * Fields API to allow fetching values when `_source` is disabled {es-pull}87267[#87267] (issue: {es-issue}87072[#87072])
 * Fix `_terms_enum` on unconfigured `constant_keyword` {es-pull}86191[#86191] (issues: {es-issue}86187[#86187], {es-issue}86267[#86267])
 * Fix status code when open point in time without `keep_alive` {es-pull}87011[#87011] (issue: {es-issue}87003[#87003])
+* Handle empty point values in `DiskUsage` API {es-pull}87826[#87826] (issue: {es-issue}87761[#87761])
 * Make sure to rewrite explain query on coordinator {es-pull}87013[#87013] (issue: {es-issue}64281[#64281])
 
 Security::
@@ -144,7 +157,11 @@ Snapshot/Restore::
 * Distinguish missing and invalid repositories {es-pull}85551[#85551] (issue: {es-issue}85550[#85550])
 * Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87264[#87264] (issue: {es-issue}87237[#87237])
 * Fork after calling `getRepositoryData` from `StoreRecovery` {es-pull}87254[#87254] (issue: {es-issue}87237[#87237])
+* Throw exception on illegal `RepositoryData` updates {es-pull}87654[#87654]
 * Upgrade Azure SDK to 12.16.0 {es-pull}86135[#86135]
+
+Stats::
+* Run `TransportClusterInfoActions` on MANAGEMENT pool {es-pull}87679[#87679]
 
 TSDB::
 * TSDB: fix the time_series in order collect priority {es-pull}85526[#85526]
@@ -191,6 +208,9 @@ Cluster Coordination::
 * Reduce resource needs of join validation {es-pull}85380[#85380] (issue: {es-issue}83204[#83204])
 * Report pending joins in `ClusterFormationFailureHelper` {es-pull}85635[#85635]
 * Speed up map diffing (2) {es-pull}86375[#86375]
+
+Discovery-Plugins::
+* Remove redundant jackson dependencies from discovery-azure {es-pull}87898[#87898]
 
 Distributed::
 * Keep track of desired nodes cluster membership {es-pull}84165[#84165]
@@ -247,13 +267,14 @@ Machine Learning::
 * Adds start and end params to `_preview` and excludes cold/frozen tiers from unbounded previews {es-pull}86989[#86989]
 * Adjust automatic JVM heap sizing for dedicated ML nodes {es-pull}86399[#86399]
 * Replace the implementation of the `categorize_text` aggregation {es-pull}85872[#85872]
-* Upgrade PyTorch to version 1.11 {ml-pull}2233[#2233], {ml-pull}2235[#2235],{ml-pull}2238[#2238]
+* Upgrade PyTorch to version 1.11 {ml-pull}2233[#2233], {ml-pull}2235[#2235], {ml-pull}2238[#2238]
 * Upgrade zlib to version 1.2.12 on Windows {ml-pull}2253[#2253]
 * Upgrade libxml2 to version 2.9.14 on Linux and Windows {ml-pull}2287[#2287]
 * Improve time series model stability and anomaly scoring consistency for data
   for which many buckets are empty {ml-pull}2267[#2267]
 * Address root cause for actual equals typical equals zero anomalies {ml-pull}2270[#2270]
 * Better handling of outliers in update immediately after detecting changes in time series {ml-pull}2280[#2280]
+* Improve normalization of anomaly detection results for short bucket lengths. This corrects bias which could cause our scoring to be too low for these jobs {ml-pull}2285[#2285] (issue: {ml-issue}2276[#2276])
 
 Mapping::
 * Intern field names in Mappers {es-pull}86301[#86301]
@@ -288,6 +309,7 @@ TSDB::
 
 Transform::
 * Prefer secondary auth headers for transforms {es-pull}86757[#86757]
+* Support `range` aggregation in transform {es-pull}86501[#86501]
 
 [[feature-8.3.0]]
 [float]
@@ -344,5 +366,8 @@ SQL::
 
 Search::
 * Update to public lucene 9.2.0 release {es-pull}87162[#87162]
+
+Snapshot/Restore::
+* Upgrade GCS Plugin to 1.118.1 {es-pull}87800[#87800]
 
 

@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_source";
@@ -40,7 +39,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final XContentFieldFilter filter;
 
     /** The source mode */
-    public enum Mode { DISABLED, STORED, SYNTHETIC }
+    public enum Mode {
+        DISABLED,
+        STORED,
+        SYNTHETIC
+    }
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
         null,
@@ -69,14 +72,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled = Parameter.explicitBoolParam(
-            "enabled",
-                false,
-                m -> toType(m).enabled, true)
+        private final Parameter<Explicit<Boolean>> enabled = Parameter.explicitBoolParam("enabled", false, m -> toType(m).enabled, true)
             .setSerializerCheck((includeDefaults, isConfigured, value) -> value.explicit())
             // this field mapper may be enabled but once enabled, may not be disabled
-            .setMergeValidator((previous, current, conflicts)
-                -> (previous.value() == current.value()) || (previous.value() && current.value() == false));
+            .setMergeValidator(
+                (previous, current, conflicts) -> (previous.value() == current.value()) || (previous.value() && current.value() == false)
+            );
         private final Parameter<Mode> mode = new Parameter<>(
             "mode",
             true,
@@ -85,9 +86,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             m -> toType(m).enabled.explicit() ? null : toType(m).mode,
             (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
             v -> v.toString().toLowerCase(Locale.ROOT)
-        ).setMergeValidator(
-            (previous, current, conflicts) -> (previous == current) || current != Mode.STORED
-        ).setSerializerCheck((includeDefaults, isConfigured, value) -> value != null); // don't emit if `enabled` is configured
+        ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
+            .setSerializerCheck((includeDefaults, isConfigured, value) -> value != null); // don't emit if `enabled` is configured
         private final Parameter<List<String>> includes = Parameter.stringArrayParam(
             "includes",
             false,

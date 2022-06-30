@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -63,13 +64,14 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         return PARSER;
     }
 
+    @Nullable
     private final String resourceId;
     private final String message;
     private final Level level;
     private final Date timestamp;
     private final String nodeName;
 
-    protected AbstractAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
+    protected AbstractAuditMessage(@Nullable String resourceId, String message, Level level, Date timestamp, String nodeName) {
         this.resourceId = resourceId;
         this.message = Objects.requireNonNull(message);
         this.level = Objects.requireNonNull(level);
@@ -77,6 +79,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         this.nodeName = nodeName;
     }
 
+    @Nullable
     public final String getResourceId() {
         return resourceId;
     }
@@ -154,6 +157,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     /**
      * @return resource id field name used when storing a new message
      */
+    @Nullable
     protected abstract String getResourceField();
 
     /**

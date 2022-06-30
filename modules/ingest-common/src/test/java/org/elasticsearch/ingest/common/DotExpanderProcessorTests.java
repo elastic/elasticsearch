@@ -26,7 +26,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
     public void testEscapeFields() throws Exception {
         Map<String, Object> source = new HashMap<>();
         source.put("foo.bar", "baz1");
-        IngestDocument document = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -34,7 +34,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         source = new HashMap<>();
         source.put("foo.bar.baz", "value");
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar.baz");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -44,10 +44,11 @@ public class DotExpanderProcessorTests extends ESTestCase {
         source = new HashMap<>();
         source.put("foo.bar", "baz1");
         source.put("foo", new HashMap<>(Collections.singletonMap("bar", "baz2")));
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
-        assertThat(document.getSourceAndMetadata().size(), equalTo(1));
+        assertThat(document.getSource().size(), equalTo(1));
+        assertThat(document.getMetadataMap().size(), equalTo(1)); // the default version
         assertThat(document.getFieldValue("foo.bar", List.class).size(), equalTo(2));
         assertThat(document.getFieldValue("foo.bar.0", String.class), equalTo("baz2"));
         assertThat(document.getFieldValue("foo.bar.1", String.class), equalTo("baz1"));
@@ -55,10 +56,11 @@ public class DotExpanderProcessorTests extends ESTestCase {
         source = new HashMap<>();
         source.put("foo.bar", "2");
         source.put("foo", new HashMap<>(Collections.singletonMap("bar", 1)));
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
-        assertThat(document.getSourceAndMetadata().size(), equalTo(1));
+        assertThat(document.getSource().size(), equalTo(1));
+        assertThat(document.getMetadataMap().size(), equalTo(1)); // the default version
         assertThat(document.getFieldValue("foo.bar", List.class).size(), equalTo(2));
         assertThat(document.getFieldValue("foo.bar.0", Integer.class), equalTo(1));
         assertThat(document.getFieldValue("foo.bar.1", String.class), equalTo("2"));
@@ -68,7 +70,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("foo.bar", "baz1");
         source.put("foo", "baz2");
-        IngestDocument document1 = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(source);
         Processor processor1 = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         // foo already exists and if a leaf field and therefor can't be replaced by a map field:
         Exception e = expectThrows(IllegalArgumentException.class, () -> processor1.execute(document1));
@@ -76,7 +78,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         // so because foo is no branch field but a value field the `foo.bar` field can't be expanded
         // into [foo].[bar], so foo should be renamed first into `[foo].[bar]:
-        IngestDocument document = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         Processor processor = new RenameProcessor(
             "_tag",
             null,
@@ -93,7 +95,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         source = new HashMap<>();
         source.put("foo.bar", "baz1");
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -102,7 +104,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         source = new HashMap<>();
         source.put("foo.bar.baz", "baz1");
         source.put("foo", new HashMap<>(Collections.singletonMap("bar", new HashMap<>())));
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar.baz");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -112,7 +114,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         source = new HashMap<>();
         source.put("foo.bar.baz", "baz1");
         source.put("foo", new HashMap<>(Collections.singletonMap("bar", "baz2")));
-        IngestDocument document2 = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(source);
         Processor processor2 = new DotExpanderProcessor("_tag", null, null, "foo.bar.baz");
         e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(document2));
         assertThat(e.getMessage(), equalTo("cannot expand [foo.bar.baz], because [foo.bar] is not an object field, but a value field"));
@@ -121,7 +123,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
     public void testEscapeFields_path() throws Exception {
         Map<String, Object> source = new HashMap<>();
         source.put("foo", new HashMap<>(Collections.singletonMap("bar.baz", "value")));
-        IngestDocument document = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, "foo", "bar.baz");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -130,7 +132,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
 
         source = new HashMap<>();
         source.put("field", new HashMap<>(Collections.singletonMap("foo.bar.baz", "value")));
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, "field", "foo.bar.baz");
         processor.execute(document);
         assertThat(document.getFieldValue("field.foo", Map.class).size(), equalTo(1));
@@ -142,7 +144,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         // asking to expand a (literal) field that is not present in the source document
         Map<String, Object> source = new HashMap<>();
         source.put("foo.bar", "baz1");
-        IngestDocument document = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         // abc.def does not exist in source, so don't mutate document
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "abc.def");
         processor.execute(document);
@@ -160,7 +162,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         Map<String, Object> inner = new HashMap<>();
         inner.put("bar", "baz1");
         source.put("foo", inner);
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         // foo.bar, the literal value (as opposed to nested value) does not exist in source, so don't mutate document
         processor = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         processor.execute(document);
@@ -178,7 +180,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         inner.put("qux", "quux");
         source.put("foo", inner);
         source.put("foo.bar", "baz2");
-        IngestDocument document = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "foo.bar", true);
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(2));
@@ -190,7 +192,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("foo.bar", "baz");
         source.put("qux.quux", "corge");
-        IngestDocument document = TestIngestDocument.ofSourceAndMetadata(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         DotExpanderProcessor processor = new DotExpanderProcessor("_tag", null, null, "*");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -202,7 +204,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         Map<String, Object> inner = new HashMap<>();
         inner.put("bar.baz", "qux");
         source.put("foo", inner);
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, "foo", "*");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
@@ -213,7 +215,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         inner = new HashMap<>();
         inner.put("bar.baz", "qux");
         source.put("foo", inner);
-        document = TestIngestDocument.ofSourceAndMetadata(source);
+        document = TestIngestDocument.withDefaultVersion(source);
         processor = new DotExpanderProcessor("_tag", null, null, "*");
         processor.execute(document);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));

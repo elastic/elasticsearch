@@ -116,10 +116,7 @@ public final class TransformScheduler {
         if (isTraceEnabled) {
             Instant processingFinished = clock.instant();
             logger.trace(
-                format(
-                    "Processing scheduled tasks finished, took %dms",
-                    Duration.between(processingStarted, processingFinished).toMillis()
-                )
+                format("Processing scheduled tasks finished, took %dms", Duration.between(processingStarted, processingFinished).toMillis())
             );
         }
         if (taskWasProcessed == false) {

@@ -3,12 +3,117 @@
     "mappings": {
       "dynamic_templates": [
         {
-          "match_message": {
-            "match_mapping_type": "string",
+          "message": {
             "path_match": "message",
-            "mapping": {
-              "type": "match_only_text"
-            }
+            "mapping": { "type": "match_only_text" }
+          }
+        },
+        {
+          "trace_id": {
+            "path_match": "trace.id",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "span_id": {
+            "path_match": "span.id",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "transaction_id": {
+            "path_match": "transaction.id",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "service_name": {
+            "path_match": "service.name",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "service_version": {
+            "path_match": "service.version",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "service_environment": {
+            "path_match": "service.environment",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "process_pid": {
+            "path_match": "process.pid",
+            "mapping": { "type": "long" }
+          }
+        },
+        {
+          "cloud_provider": {
+            "path_match": "cloud.provider",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "cloud_availability_zone": {
+            "path_match": "cloud.availability_zone",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "cloud_region": {
+            "path_match": "cloud.region",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "host_hostname": {
+            "path_match": "host.hostname",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "host_name": {
+            "path_match": "host.name",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "container_id": {
+            "path_match": "container.id",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "container_name": {
+            "path_match": "container.name",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "orchestrator_namespace": {
+            "path_match": "orchestrator.namespace",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "orchestrator_id": {
+            "path_match": "orchestrator.id",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "orchestrator_resource_id": {
+            "path_match": "orchestrator.resource.id",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "orchestrator_resource_name": {
+            "path_match": "orchestrator.resource.name",
+            "mapping": { "type": "keyword" }
           }
         }
       ],

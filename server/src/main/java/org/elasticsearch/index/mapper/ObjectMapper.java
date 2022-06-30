@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -560,48 +559,45 @@ public class ObjectMapper extends Mapper implements Cloneable {
             .map(Mapper::syntheticFieldLoader)
             .filter(l -> l != null)
             .toList();
-        return new SourceLoader.SyntheticFieldLoader() {
-            @Override
-            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-                List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
-                for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    Leaf leaf = field.leaf(reader, docIdsInLeaf);
-                    if (false == leaf.empty()) {
-                        l.add(leaf);
-                    }
+        return (reader, docIdsInLeaf) -> {
+            List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                SourceLoader.SyntheticFieldLoader.Leaf leaf = field.leaf(reader, docIdsInLeaf);
+                if (false == leaf.empty()) {
+                    l.add(leaf);
                 }
-                SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
-                return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                    private boolean hasValue;
-
-                    @Override
-                    public boolean empty() {
-                        return leaves.length == 0;
-                    }
-
-                    @Override
-                    public boolean advanceToDoc(int docId) throws IOException {
-                        hasValue = false;
-                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            boolean leafHasValue = leaf.advanceToDoc(docId);
-                            hasValue |= leafHasValue;
-                        }
-                        return hasValue;
-                    }
-
-                    @Override
-                    public void write(XContentBuilder b) throws IOException {
-                        if (hasValue == false) {
-                            return;
-                        }
-                        startSyntheticField(b);
-                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                            leaf.write(b);
-                        }
-                        b.endObject();
-                    }
-                };
             }
+            SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private boolean hasValue;
+
+                @Override
+                public boolean empty() {
+                    return leaves.length == 0;
+                }
+
+                @Override
+                public boolean advanceToDoc(int docId) throws IOException {
+                    hasValue = false;
+                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                        boolean leafHasValue = leaf.advanceToDoc(docId);
+                        hasValue |= leafHasValue;
+                    }
+                    return hasValue;
+                }
+
+                @Override
+                public void write(XContentBuilder b) throws IOException {
+                    if (hasValue == false) {
+                        return;
+                    }
+                    startSyntheticField(b);
+                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                        leaf.write(b);
+                    }
+                    b.endObject();
+                }
+            };
         };
     }
 

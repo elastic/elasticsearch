@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -146,6 +147,36 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractSerializing
         );
 
         assertEquals("[size] must be greater than 0. Found [-2] in [fi]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+
+        new FrequentItemSetsAggregationBuilder(
+            "fi",
+            List.of(
+                new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
+                new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
+            ),
+            randomDoubleBetween(0.0, 1.0, false),
+            randomIntBetween(1, 20),
+            randomIntBetween(1, 20)
+        ).subAggregation(AggregationBuilders.avg("fieldA")));
+
+        assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+
+        new FrequentItemSetsAggregationBuilder(
+            "fi",
+            List.of(
+                new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
+                new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
+            ),
+            randomDoubleBetween(0.0, 1.0, false),
+            randomIntBetween(1, 20),
+            randomIntBetween(1, 20)
+        ).subAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("fieldA"))));
+
+        assertEquals("Aggregator [fi] of type [frequent_items] cannot accept sub-aggregations", e.getMessage());
     }
 
 }

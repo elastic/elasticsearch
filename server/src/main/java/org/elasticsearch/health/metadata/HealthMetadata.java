@@ -40,23 +40,23 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
     public static final ConstructingObjectParser<HealthMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         true,
-        args -> new HealthMetadata((DiskMetadata) args[0])
+        args -> new HealthMetadata((Disk) args[0])
     );
 
-    private static final ParseField DISK_THRESHOLDS = new ParseField("disk");
+    private static final ParseField DISK_METADATA = new ParseField(Disk.TYPE);
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DiskMetadata.fromXContent(p), DISK_THRESHOLDS);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Disk.fromXContent(p), DISK_METADATA);
     }
 
-    private final DiskMetadata diskMetadata;
+    private final Disk diskMetadata;
 
-    public HealthMetadata(DiskMetadata diskMetadata) {
+    public HealthMetadata(Disk diskMetadata) {
         this.diskMetadata = diskMetadata;
     }
 
     public HealthMetadata(StreamInput in) throws IOException {
-        this.diskMetadata = new DiskMetadata(in);
+        this.diskMetadata = new Disk(in);
     }
 
     @Override
@@ -80,7 +80,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(DISK_THRESHOLDS.getPreferredName());
+        builder.startObject(DISK_METADATA.getPreferredName());
         diskMetadata.toXContent(builder, params);
         builder.endObject();
         return builder;
@@ -104,7 +104,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         return Metadata.API_AND_GATEWAY;
     }
 
-    public DiskMetadata getDiskMetadata() {
+    public Disk getDiskMetadata() {
         return diskMetadata;
     }
 
@@ -125,13 +125,15 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
      * Contains the thresholds necessary to determine the health of the disk space of a node. The thresholds are determined by the elected
      * master.
      */
-    public record DiskMetadata(
-        DiskThreshold lowWatermark,
-        DiskThreshold highWatermark,
-        DiskThreshold floodStageWatermark,
-        DiskThreshold frozenFloodStageWatermark,
+    public record Disk(
+        Threshold lowWatermark,
+        Threshold highWatermark,
+        Threshold floodStageWatermark,
+        Threshold frozenFloodStageWatermark,
         ByteSizeValue frozenFloodStageMaxHeadroom
     ) implements ToXContentFragment, Writeable {
+
+        public static final String TYPE = "disk";
 
         private static final ParseField LOW_WATERMARK_FIELD = new ParseField("low_watermark");
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
@@ -139,14 +141,14 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         private static final ParseField FROZEN_FLOOD_STAGE_WATERMARK_FIELD = new ParseField("frozen_flood_stage_watermark");
         private static final ParseField FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD = new ParseField("frozen_flood_stage_max_headroom");
 
-        public static final ConstructingObjectParser<DiskMetadata, Void> PARSER = new ConstructingObjectParser<>(
-            "disk_thresholds",
+        public static final ConstructingObjectParser<Disk, Void> PARSER = new ConstructingObjectParser<>(
+            TYPE,
             true,
-            (args) -> new DiskMetadata(
-                DiskThreshold.parse((String) args[0], LOW_WATERMARK_FIELD.getPreferredName()),
-                DiskThreshold.parse((String) args[1], HIGH_WATERMARK_FIELD.getPreferredName()),
-                DiskThreshold.parse((String) args[2], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
-                DiskThreshold.parse((String) args[3], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+            (args) -> new Disk(
+                Threshold.parse((String) args[0], LOW_WATERMARK_FIELD.getPreferredName()),
+                Threshold.parse((String) args[1], HIGH_WATERMARK_FIELD.getPreferredName()),
+                Threshold.parse((String) args[2], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                Threshold.parse((String) args[3], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
                 ByteSizeValue.parseBytesSizeValue((String) args[4], FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName())
             )
         );
@@ -159,17 +161,17 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD);
         }
 
-        DiskMetadata(StreamInput in) throws IOException {
+        Disk(StreamInput in) throws IOException {
             this(
-                DiskThreshold.readFrom(in),
-                DiskThreshold.readFrom(in),
-                DiskThreshold.readFrom(in),
-                DiskThreshold.readFrom(in),
+                Threshold.readFrom(in, LOW_WATERMARK_FIELD.getPreferredName()),
+                Threshold.readFrom(in, HIGH_WATERMARK_FIELD.getPreferredName()),
+                Threshold.readFrom(in, FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                Threshold.readFrom(in, FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
                 new ByteSizeValue(in)
             );
         }
 
-        static DiskMetadata fromXContent(XContentParser parser) throws IOException {
+        static Disk fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
@@ -189,51 +191,50 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(LOW_WATERMARK_FIELD.getPreferredName(), lowWatermark.toStringRep());
-            builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), highWatermark.toStringRep());
-            builder.field(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), floodStageWatermark.toStringRep());
-            builder.field(FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), frozenFloodStageWatermark.toStringRep());
+            builder.field(LOW_WATERMARK_FIELD.getPreferredName(), lowWatermark.getStringRep());
+            builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), highWatermark.getStringRep());
+            builder.field(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), floodStageWatermark.getStringRep());
+            builder.field(FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), frozenFloodStageWatermark.getStringRep());
             builder.field(FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName(), frozenFloodStageMaxHeadroom);
             return builder;
         }
 
-        public record DiskThreshold(double maxUsedPercent, ByteSizeValue minFreeBytes) implements Writeable {
+        public record Threshold(double maxUsedPercent, ByteSizeValue minFreeBytes) implements Writeable {
 
-            public DiskThreshold {
+            public Threshold {
                 assert maxUsedPercent == 100.0 || minFreeBytes.getBytes() == 0
                     : "only one of the values in a disk threshold can be set, the other one needs to have the default value";
             }
 
-            public DiskThreshold(double maxUsedPercent) {
+            public Threshold(double maxUsedPercent) {
                 this(maxUsedPercent, ByteSizeValue.ZERO);
             }
 
-            public DiskThreshold(ByteSizeValue minFreeBytes) {
+            public Threshold(ByteSizeValue minFreeBytes) {
                 this(100.0, minFreeBytes);
             }
 
-            public DiskThreshold(RelativeByteSizeValue value) {
+            public Threshold(RelativeByteSizeValue value) {
                 this(
                     value.isAbsolute() ? 100.0 : value.getRatio().getAsPercent(),
                     value.isAbsolute() ? value.getAbsolute() : ByteSizeValue.ZERO
                 );
             }
 
-            public static DiskThreshold readFrom(StreamInput in) throws IOException {
+            public static Threshold readFrom(StreamInput in, String setting) throws IOException {
                 String description = in.readString();
-                return parse(description, "");
+                return parse(description, setting);
             }
 
-            static DiskThreshold parse(String description, String setting) {
-                ByteSizeValue minFreeBytes = DiskThresholdSettingParser.parseThresholdBytes(description, setting);
-                if (minFreeBytes.getBytes() > 0) {
-                    return new DiskThreshold(minFreeBytes);
+            static Threshold parse(String description, String setting) {
+                if (DiskThresholdSettingParser.definitelyNotPercentage(description)) {
+                    return new Threshold(DiskThresholdSettingParser.parseThresholdBytes(description, setting));
                 } else {
-                    return new DiskThreshold(DiskThresholdSettingParser.parseThresholdPercentage(description));
+                    return new Threshold(DiskThresholdSettingParser.parseThresholdPercentage(description));
                 }
             }
 
-            public String toStringRep() {
+            public String getStringRep() {
                 return minFreeBytes.equals(ByteSizeValue.ZERO)
                     ? RatioValue.formatPercentNoTrailingZeros(maxUsedPercent)
                     : minFreeBytes.toString();
@@ -241,7 +242,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(this.toStringRep());
+                out.writeString(this.getStringRep());
             }
         }
     }

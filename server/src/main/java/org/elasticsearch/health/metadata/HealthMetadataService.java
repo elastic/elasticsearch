@@ -262,12 +262,12 @@ public class HealthMetadataService {
             return frozenFloodStageMaxHeadroom;
         }
 
-        HealthMetadata.DiskMetadata getDiskHealthMetadata() {
-            return new HealthMetadata.DiskMetadata(
-                new HealthMetadata.DiskMetadata.DiskThreshold(getWatermarkLow(), getFreeBytesWatermarkLow()),
-                new HealthMetadata.DiskMetadata.DiskThreshold(getWatermarkHigh(), getFreeBytesWatermarkHigh()),
-                new HealthMetadata.DiskMetadata.DiskThreshold(getWatermarkFloodStage(), getFreeBytesWatermarkFloodStage()),
-                new HealthMetadata.DiskMetadata.DiskThreshold(getFrozenFloodStage()),
+        HealthMetadata.Disk getDiskHealthMetadata() {
+            return new HealthMetadata.Disk(
+                new HealthMetadata.Disk.Threshold(getWatermarkLow(), getFreeBytesWatermarkLow()),
+                new HealthMetadata.Disk.Threshold(getWatermarkHigh(), getFreeBytesWatermarkHigh()),
+                new HealthMetadata.Disk.Threshold(getWatermarkFloodStage(), getFreeBytesWatermarkFloodStage()),
+                new HealthMetadata.Disk.Threshold(getFrozenFloodStage()),
                 getFrozenFloodStageMaxHeadroom()
             );
         }

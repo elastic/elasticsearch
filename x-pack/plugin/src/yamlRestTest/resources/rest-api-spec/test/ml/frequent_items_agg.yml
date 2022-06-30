@@ -15,6 +15,10 @@ setup:
                 type: keyword
               timestamp:
                 type: date
+              geo_point:
+                type: geo_point
+              histogram:
+                type: histogram
 
   - do:
       headers:
@@ -219,3 +223,78 @@ setup:
   - match: { aggregations.fi.buckets.1.doc_count: 4 }
   - match: { aggregations.fi.buckets.1.support: 0.4 }
   - match: { aggregations.fi.buckets.1.key.data\.error_message: ["engine overheated"] }
+
+---
+"Test frequent items unsupported types":
+  - do:
+      catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_items\]/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"},
+                    {"field": "geo_point"}
+                  ]
+                }
+              }
+            }
+          }
+  - do:
+      catch: /Field \[histogram\] of type \[histogram\] is not supported for aggregation \[frequent_items\]/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"},
+                    {"field": "histogram"}
+                  ]
+                }
+              }
+            }
+          }
+
+---
+"Test frequent items unsupported subaggs":
+  - do:
+      catch: /Aggregator \[fi\] of type \[frequent_items\] cannot accept sub-aggregations/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"}
+                  ]
+                },
+              "aggs": {
+                "sum": {
+                  "sum": {
+                    "field": "some_field"
+                  }
+                }
+              }
+            }
+            }
+          }

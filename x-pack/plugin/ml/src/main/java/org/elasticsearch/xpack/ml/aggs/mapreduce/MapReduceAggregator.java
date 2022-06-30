@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.REGISTRY_KEY;
+import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.SUPPORTED_TYPES;
 
 public abstract class MapReduceAggregator<
     MapContext extends Closeable,
@@ -62,9 +63,17 @@ public abstract class MapReduceAggregator<
         List<String> fieldNames = new ArrayList<>();
         int id = 0;
         for (ValuesSourceConfig c : configs) {
+            if (SUPPORTED_TYPES.contains(c.valueSourceType()) == false) {
+                throw new IllegalArgumentException(
+                    c.getDescription() + " is not supported for aggregation [" + mapReducer.getWriteableName() + "]"
+                );
+            }
+
             ValuesExtractor e = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c, id++);
-            fieldNames.add(e.getField().getName());
-            extractors.add(e);
+            if (e.getField().getName() != null) {
+                fieldNames.add(e.getField().getName());
+                extractors.add(e);
+            }
         }
 
         this.extractors = Collections.unmodifiableList(extractors);

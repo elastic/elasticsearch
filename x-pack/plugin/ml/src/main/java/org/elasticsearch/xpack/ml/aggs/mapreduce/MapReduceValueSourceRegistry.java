@@ -10,11 +10,20 @@ package org.elasticsearch.xpack.ml.aggs.mapreduce;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.util.List;
 
 public final class MapReduceValueSourceRegistry {
     public static final String NAME = "mapreduce";
+
+    public static final List<ValuesSourceType> SUPPORTED_TYPES = List.of(
+        CoreValuesSourceType.KEYWORD,
+        CoreValuesSourceType.IP,
+        CoreValuesSourceType.DATE,
+        CoreValuesSourceType.NUMERIC,
+        CoreValuesSourceType.BOOLEAN
+    );
 
     @FunctionalInterface
     interface MapReduceValuesSupplier {

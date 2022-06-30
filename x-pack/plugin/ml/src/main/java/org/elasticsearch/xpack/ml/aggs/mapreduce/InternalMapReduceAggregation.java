@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContent.DelegatingMapParams;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.Closeable;
@@ -54,7 +53,7 @@ public final class InternalMapReduceAggregation<
         this.mapReducer = Objects.requireNonNull(mapReducer);
         this.mapFinalContext = mapFinalContext;
         this.mapReduceResult = mapReduceResult;
-        this.fieldNames = fieldNames;
+        this.fieldNames = Objects.requireNonNull(fieldNames);
         this.profiling = profiling;
 
         // we use the `NON_RECYCLING_INSTANCE` here, which has no circuit breaker attached

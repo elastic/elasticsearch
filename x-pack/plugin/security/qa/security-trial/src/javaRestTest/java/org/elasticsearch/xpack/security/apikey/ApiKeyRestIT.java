@@ -51,6 +51,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final SecureString SYSTEM_USER_PASSWORD = new SecureString("system-user-password".toCharArray());
     private static final String END_USER = "end_user";
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
+    private static final String MANAGE_OWN_API_KEY_USER = "manage_own_api_key_user";
 
     @Before
     public void createUsers() throws IOException {
@@ -58,15 +59,20 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRole("system_role", Set.of("grant_api_key"));
         createUser(END_USER, END_USER_PASSWORD, List.of("user_role"));
         createRole("user_role", Set.of("monitor"));
+        createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
+        createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
     }
 
     @After
     public void cleanUp() throws IOException {
-        deleteUser("system_user");
-        deleteUser("end_user");
+        deleteUser(SYSTEM_USER);
+        deleteUser(END_USER);
+        deleteUser(MANAGE_OWN_API_KEY_USER);
         deleteRole("system_role");
         deleteRole("user_role");
+        deleteRole("manage_own_api_key_role");
         invalidateApiKeysForUser(END_USER);
+        invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -170,21 +176,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testGrantApiKeyWithOnlyManageOwnApiKeyPrivilegeFails() throws IOException {
-        final String manageOwnApiKeyUser = "manage-own-api-key-user";
-        final SecureString manageOwnApiKeyUserPassword = new SecureString("manage-own-api-key-password".toCharArray());
-        final String manageOwnApiKeyRole = "manage_own_api_key_role";
-        createUser(manageOwnApiKeyUser, manageOwnApiKeyUserPassword, List.of(manageOwnApiKeyRole));
-        createRole(manageOwnApiKeyRole, Set.of("manage_own_api_key"));
-
         final Request request = new Request("POST", "_security/api_key/grant");
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(manageOwnApiKeyUser, manageOwnApiKeyUserPassword))
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
         );
         final Map<String, Object> requestBody = Map.ofEntries(
             Map.entry("grant_type", "password"),
-            Map.entry("username", manageOwnApiKeyUser),
-            Map.entry("password", manageOwnApiKeyUserPassword.toString()),
+            Map.entry("username", MANAGE_OWN_API_KEY_USER),
+            Map.entry("password", END_USER_PASSWORD.toString()),
             Map.entry("api_key", Map.of("name", "test_api_key_password"))
         );
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
@@ -193,8 +193,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [" + GrantApiKeyAction.NAME + "] is unauthorized for user"));
-        deleteUser(manageOwnApiKeyUser);
-        deleteRole(manageOwnApiKeyRole);
     }
 
     public void testUpdateApiKey() throws IOException {
@@ -204,8 +202,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
+        createApiKeyRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+        );
 
-        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
         final Map<String, Object> createApiKeyResponseMap = responseAsMap(createApiKeyResponse); // keys: id, name, api_key, encoded
         final String apiKeyId = (String) createApiKeyResponseMap.get("id");
         final String apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
@@ -216,8 +218,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
         final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
+        updateApiKeyRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+        );
 
-        final Response updateApiKeyResponse = adminClient().performRequest(updateApiKeyRequest);
+        final Response updateApiKeyResponse = client().performRequest(updateApiKeyRequest);
         assertOK(updateApiKeyResponse);
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
         assertTrue((Boolean) updateApiKeyResponseMap.get("updated"));

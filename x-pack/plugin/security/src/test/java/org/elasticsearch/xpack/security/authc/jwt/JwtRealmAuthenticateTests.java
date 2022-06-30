@@ -113,16 +113,40 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
 
-        final SecureString jwtIssuedWithOrigJwk = this.randomJwt(jwtIssuerAndRealm, user);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtIssuedWithOrigJwk, clientSecret, jwtAuthcRange);
-        super.rotateJwks(jwtIssuerAndRealm);
-        final SecureString jwtReissuedWithNewJwk = this.randomJwt(jwtIssuerAndRealm, user);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtReissuedWithNewJwk, clientSecret, jwtAuthcRange);
+        // PKC +PKC: 1) Old WORKS 2) Issuer rotates 3) New fails, realm loads PKC, retry WORKS 4) Old fails, realm loads PKC, retry fails
+        // HMAC+PKC: 1) Old WORKS 2) Issuer rotates 3) New fails, realm loads PKC, retry WORKS 4) Old WORKS (PKC reload => no HMAC reload)
+        // PKC +HMAC: 1) Old WORKS 2) Issuer rotates 3) New fails, realm loads HMAC, retry skips 4) Old WORKS (HMAC reload => NO-OP)
+        // HMAC+HMAC: 1) Old WORKS 2) Issuer rotates 3) New fails, realm loads HMAC, retry skips 4) Old WORKS (HMAC reload => NO-OP)
 
-        final String jwtOriginalAlg = SignedJWT.parse(jwtIssuedWithOrigJwk.toString()).getHeader().getAlgorithm().getName();
-        // TODO Support reloading of HMAC JWKSet or HMAC OIDC JWK secure settings
-        if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(jwtOriginalAlg)) {
+        // Verify original always works
+        final SecureString jwtIssuedWithOrigJwk = this.randomJwt(jwtIssuerAndRealm, user);
+        final String jwtAlgOrig = SignedJWT.parse(jwtIssuedWithOrigJwk.toString()).getHeader().getAlgorithm().getName();
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtIssuedWithOrigJwk, clientSecret, jwtAuthcRange);
+
+        // Issuer rotates all PKC+HMAC JWKs
+        super.rotateJwks(jwtIssuerAndRealm);
+
+        final SecureString jwtReissuedWithNewJwk = this.randomJwt(jwtIssuerAndRealm, user);
+        final String jwtAlgNew = SignedJWT.parse(jwtReissuedWithNewJwk.toString()).getHeader().getAlgorithm().getName();
+
+        if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(jwtAlgNew)) {
+            // PKC +PKC: Verify new PKC JWT triggered the realm to load new PKC JWKs, so new PKC JWT works.
+            // HMAC+PKC: Verify new PKC JWT triggered the realm to load new PKC JWKs, so new PKC JWT works.
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtReissuedWithNewJwk, clientSecret, jwtAuthcRange);
+        } else {
+            // PKC +HMAC: Verify new HMAC JWT triggered the realm to load old HMAC JWKs, but HMAC reload is a NO-OP, so new HMAC JWT fails.
+            // HMAC+HMAC: Verify new HMAC JWT triggered the realm to load old HMAC JWKs, but HMAC reload is a NO-OP, so new HMAC JWT fails.
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtReissuedWithNewJwk, clientSecret);
+        }
+        if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(jwtAlgNew)
+            && JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(jwtAlgOrig)) {
+            // PKC +PKC: Verify old PKC JWT fails if a new PKC JWT triggered the realm to do a PKC JWK reload
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIssuedWithOrigJwk, clientSecret);
+        } else {
+            // HMAC+PKC: Verify new PKC JWT did not trigger the realm to load new HMAC JWKs, so old HMAC JWT continues to work.
+            // PKC+HMAC: Verify new HMAC JWT did not trigger the realm to load new PKC JWKs, so old PKC JWT continues to work.
+            // HMAC+HMAC: Verify new HMAC JWT did not trigger the realm to load new HMAC JWKs, so old HMAC JWT continues to work.
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtIssuedWithOrigJwk, clientSecret, jwtAuthcRange);
         }
 
         // // Change JWKs to trigger authenticate failure

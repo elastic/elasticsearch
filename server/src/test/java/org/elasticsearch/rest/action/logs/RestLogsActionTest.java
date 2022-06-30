@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -150,6 +151,7 @@ public class RestLogsActionTest extends RestActionTestCase {
                 when(bulkItemResponse.isFailed()).thenReturn(true);
                 BulkItemResponse.Failure failure = Mockito.mock(BulkItemResponse.Failure.class);
                 when(failure.getCause()).thenReturn(new MapperParsingException("bad foo"));
+                when(failure.getStatus()).thenReturn(RestStatus.BAD_REQUEST);
                 when(bulkItemResponse.getFailure()).thenReturn(failure);
                 when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[] { bulkItemResponse });
                 return bulkResponse;

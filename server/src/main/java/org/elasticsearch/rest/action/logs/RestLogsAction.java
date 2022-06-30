@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.logs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -21,11 +20,11 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.MapUtils;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -40,6 +39,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -129,10 +129,7 @@ public class RestLogsAction extends BaseRestHandler {
                         dataStream.putIfAbsent("namespace", "default");
                     }
                     String index = "logs-" + dataStream.get("dataset") + "-" + dataStream.get("namespace");
-                    indexRequests.add(Requests.indexRequest(index)
-                        .opType(DocWriteRequest.OpType.CREATE)
-                        .source(doc)
-                    );
+                    indexRequests.add(Requests.indexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc));
                 }
             }
         }
@@ -141,54 +138,61 @@ public class RestLogsAction extends BaseRestHandler {
             client.bulk(Requests.bulkRequest().add(indexRequests), new RestActionListener<BulkResponse>(channel) {
                 @Override
                 protected void processResponse(BulkResponse bulkItemResponses) throws Exception {
-                    // always accept request and process it asynchronously
-                    try (XContentBuilder builder = channel.newBuilder()) {
-                        channel.sendResponse(new RestResponse(RestStatus.ACCEPTED, builder));
+                    if (bulkItemResponses.hasFailures() == false) {
+                        sendResponse(channel, RestStatus.ACCEPTED, b -> {});
+                        return;
                     }
-                    if (bulkItemResponses.hasFailures()) {
-                        BulkRequest retryBulk = Requests.bulkRequest();
-                        Arrays.stream(bulkItemResponses.getItems())
-                            .filter(BulkItemResponse::isFailed)
-                            .map(failedRequest -> {
-                                Map<String, Object> doc = indexRequests.get(failedRequest.getItemId()).sourceAsMap();
-                                Exception cause = failedRequest.getFailure().getCause();
+                    BulkRequest retryBulk = Requests.bulkRequest();
+                    Arrays.stream(bulkItemResponses.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .forEach(failedRequest -> {
+                            IndexRequest originalRequest = indexRequests.get(failedRequest.getItemId());
+                            Map<String, Object> doc = originalRequest.sourceAsMap();
+                            BulkItemResponse.Failure failure = failedRequest.getFailure();
+                            if (failure.getStatus() == RestStatus.BAD_REQUEST) {
+                                // looks like an error with the document (such as a mapping issue);
+                                // re-try in fallback data stream which has lenient mappings
+                                Exception cause = failure.getCause();
                                 addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
                                 addPath(doc, "_logs.error.message", cause.getMessage());
                                 addPath(doc, "_logs.data_stream", doc.get("data_stream"));
                                 addPath(doc, "_logs.data_stream", doc.get("data_stream"));
                                 addPath(doc, "data_stream.dataset", "generic");
                                 addPath(doc, "data_stream.namespace", "default");
-                                return doc;
-                            })
-                            .map(doc -> Requests.indexRequest("logs-generic-default")
-                                .opType(DocWriteRequest.OpType.CREATE)
-                                .source(doc))
-                            .forEach(retryBulk::add);
-                        client.bulk(retryBulk, new ActionListener<BulkResponse>() {
-                            @Override
-                            public void onResponse(BulkResponse bulkItemResponses) {
-                                if (bulkItemResponses.hasFailures()) {
-                                    logger.error(
-                                        "Failed to ingest logs: re-try batch has failures. First failure: {}",
-                                        Arrays.stream(bulkItemResponses.getItems())
-                                            .filter(BulkItemResponse::isFailed)
-                                            .findFirst()
-                                            .map(BulkItemResponse::getFailureMessage)
-                                            .orElse(null)
-                                    );
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("Failed to ingest logs on re-try", e);
+                                retryBulk.add(Requests.indexRequest("logs-generic-default").opType(DocWriteRequest.OpType.CREATE).source(doc));
+                            } else {
+                                // looks like a transient error; re-try as-is
+                                retryBulk.add(Requests.indexRequest(originalRequest.index()).opType(DocWriteRequest.OpType.CREATE).source(doc));
                             }
                         });
-                    }
+                    client.bulk(retryBulk, new RestActionListener<BulkResponse>(channel) {
+                        @Override
+                        protected void processResponse(BulkResponse bulkItemResponses) throws Exception {
+                            if (bulkItemResponses.hasFailures() == false) {
+                                sendResponse(channel, RestStatus.ACCEPTED, b -> {});
+                            } else {
+                                sendResponse(channel, RestStatus.INTERNAL_SERVER_ERROR, b -> {});
+                                logger.error(
+                                    "Failed to ingest logs: re-try batch has failures. First failure: {}",
+                                    Arrays.stream(bulkItemResponses.getItems())
+                                        .filter(BulkItemResponse::isFailed)
+                                        .findFirst()
+                                        .map(BulkItemResponse::getFailureMessage)
+                                        .orElse(null)
+                                );
+                            }
+                        }
+                    });
                 }
             });
         };
+    }
 
+    public void sendResponse(RestChannel channel, RestStatus status, Consumer<XContentBuilder> builderConsumer) throws IOException {
+        try (XContentBuilder builder = channel.newBuilder()) {
+            builderConsumer.accept(builder);
+            channel.sendResponse(new RestResponse(status, builder));
+        }
     }
 
     private Map<String, Object> parseJson(String json) throws IOException {
@@ -200,7 +204,7 @@ public class RestLogsAction extends BaseRestHandler {
 
     private Map<String, Object> getMetadata(Map<String, ?> event) {
         Object metadata = event.get("_metadata");
-        if (metadata instanceof Map<?,?>) {
+        if (metadata instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> metadataMap = (Map<String, Object>) metadata;
             return metadataMap;
@@ -223,7 +227,7 @@ public class RestLogsAction extends BaseRestHandler {
         String[] pathElements = path.split("\\.");
         for (int i = 0; i < pathElements.length; i++) {
             String pathElement = pathElements[i];
-            if (i == pathElements.length -1) {
+            if (i == pathElements.length - 1) {
                 parent.put(pathElement, value);
             } else {
                 if (parent.containsKey(pathElement) == false) {

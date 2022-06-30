@@ -1108,7 +1108,7 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(true, true, 0, 0, metadata.indices().size(), 0);
+            return new WriterStats(true, true, 0, metadata.indices().size(), 0, 0);
         }
 
         public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
@@ -1214,7 +1214,7 @@ public class PersistedClusterStateService {
             @Override
             public String toString() {
                 if (isFullWrite) {
-                    return String.format(Locale.ROOT, "wrote global metadata and metadata for [%d] indices", numIndicesUpdated);
+                    return String.format(Locale.ROOT, "wrote global metadata and metadata for [%d] indices", numIndicesAdded);
                 } else {
                     return String.format(
                         Locale.ROOT,

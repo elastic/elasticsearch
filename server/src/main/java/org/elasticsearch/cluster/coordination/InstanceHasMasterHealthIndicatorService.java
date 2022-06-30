@@ -38,7 +38,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         new UserAction.Definition(
             "no-master-on-instance",
             "The instance handling the health request does not have an elected master node. Please try executing the "
-            + "API against a different node or try again later. If the problem persists please contact support",
+                + "API against a different node or try again later. If the problem persists please contact support",
             GET_HELP_GUIDE
         ),
         null

@@ -1544,10 +1544,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testInvalidUpdateApiKeyScenarios() throws ExecutionException, InterruptedException {
-        final CreateApiKeyResponse createdApiKey = createApiKeys(TEST_USER_NAME, 1, null, "all").v1().get(0);
+        final var apiKeyClusterPrivilege = randomFrom("all", "manage_security", "manage_api_key", "manage_own_api_key");
+        final CreateApiKeyResponse createdApiKey = createApiKeys(TEST_USER_NAME, 1, null, apiKeyClusterPrivilege).v1().get(0);
         final var apiKeyId = createdApiKey.getId();
 
-        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { apiKeyClusterPrivilege }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
         PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
         client().filterWithHeader(

@@ -61,6 +61,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRespo
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -1432,6 +1435,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var apiKeyId = createdApiKey.v1().getId();
         final var newRoleDescriptors = randomRoleDescriptors();
         final boolean nullRoleDescriptors = newRoleDescriptors == null;
+        // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML
         final var expectedLimitedByRoleDescriptors = Set.of(
             new RoleDescriptor(
                 TEST_ROLE,
@@ -1493,6 +1497,51 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             );
             createUserWithRunAsRole(authorizationHeaders);
         }
+    }
+
+    public void testUpdateApiKeyAutoSyncsUserRoles() throws IOException, ExecutionException, InterruptedException {
+        // Create native realm user and role
+        final var nativeRealmUser = "native_user";
+        final var nativeRealmRole = "native_role";
+        createNativeRealmUser(
+            nativeRealmUser,
+            nativeRealmRole,
+            new String(HASHER.hash(TEST_PASSWORD_SECURE_STRING)),
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        putRoleWithClusterPrivileges(nativeRealmRole, "all");
+
+        // Create api key
+        final CreateApiKeyResponse createdApiKey = createApiKeys(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(nativeRealmUser, TEST_PASSWORD_SECURE_STRING)),
+            1,
+            null,
+            "all"
+        ).v1().get(0);
+        final String apiKeyId = createdApiKey.getId();
+        expectRoleDescriptorsForApiKey(
+            "limited_by_role_descriptors",
+            Set.of(new RoleDescriptor(nativeRealmRole, new String[] { "all" }, null, null)),
+            getApiKeyDocument(apiKeyId)
+        );
+
+        // Update user role
+        putRoleWithClusterPrivileges(nativeRealmRole, "manage_own_api_key");
+
+        // Update API key
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(nativeRealmUser, TEST_PASSWORD_SECURE_STRING))
+        ).execute(UpdateApiKeyAction.INSTANCE, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), listener);
+        final var response = listener.get();
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+
+        expectRoleDescriptorsForApiKey(
+            "limited_by_role_descriptors",
+            Set.of(new RoleDescriptor(nativeRealmRole, new String[] { "manage_own_api_key" }, null, null)),
+            getApiKeyDocument(apiKeyId)
+        );
     }
 
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
@@ -1987,6 +2036,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
         final PutUserResponse putUserResponse = listener.get();
         assertTrue(putUserResponse.created());
+    }
+
+    private void putRoleWithClusterPrivileges(final String nativeRealmRoleName, final String clusterPrivilege) throws InterruptedException,
+        ExecutionException {
+        final PutRoleRequest putRoleRequest = new PutRoleRequest();
+        putRoleRequest.name(nativeRealmRoleName);
+        putRoleRequest.cluster(clusterPrivilege);
+        final PlainActionFuture<PutRoleResponse> roleListener = new PlainActionFuture<>();
+        client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING)))
+            .execute(PutRoleAction.INSTANCE, putRoleRequest, roleListener);
+        assertNotNull(roleListener.get());
     }
 
     private Client getClientForRunAsUser() {

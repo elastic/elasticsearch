@@ -203,8 +203,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
         createApiKeyRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authorizationHeader(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
         );
 
         final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
@@ -219,8 +218,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
         updateApiKeyRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authorizationHeader(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
         );
 
         final Response updateApiKeyResponse = client().performRequest(updateApiKeyRequest);
@@ -231,6 +229,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         expectMetadata(apiKeyId, expectedApiKeyMetadata);
         // validate authentication still works after update
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+    }
+
+    private String authorizationHeader(final String username, final SecureString password) throws IOException {
+        final boolean useBearerTokenAuth = randomBoolean();
+        if (useBearerTokenAuth) {
+            final Tuple<String, String> token = super.createOAuthToken(username, password);
+            return "Bearer " + token.v1();
+        } else {
+            return UsernamePasswordToken.basicAuthHeaderValue(username, password);
+        }
     }
 
     private void doTestAuthenticationWithApiKey(

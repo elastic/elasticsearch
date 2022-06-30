@@ -150,9 +150,7 @@ public class RestLogsAction extends BaseRestHandler {
                                 addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
                                 addPath(doc, "_logs.error.message", cause.getMessage());
                                 addPath(doc, "_logs.data_stream", doc.get("data_stream"));
-                                // TODO should we retain the original data_stream fields?
-                                //  we would need to map `data_stream.dataset` to a `dynamic: runtime` field instead of `constant_keyword`
-                                //  however, this would break the assumption that there's only one dataset within a datastream
+                                addPath(doc, "_logs.data_stream", doc.get("data_stream"));
                                 addPath(doc, "data_stream.dataset", "generic");
                                 addPath(doc, "data_stream.namespace", "default");
                                 return doc;

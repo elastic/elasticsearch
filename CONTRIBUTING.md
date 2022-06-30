@@ -700,8 +700,8 @@ https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
 
 ### Only running failed tests
 
-When you open your pull-request it may be approved for review. When it is the full
-test suite is ran within Elasticsearch's CI environment. If a test fails,
+When you open your pull-request it may be approved for review. If so, the full
+test suite is run within Elasticsearch's CI environment. If a test fails,
 you can see how to run that particular test by searching for the `REPRODUCE`
 string in the CI's console output.
 

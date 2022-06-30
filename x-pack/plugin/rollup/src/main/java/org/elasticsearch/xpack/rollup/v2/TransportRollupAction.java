@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -18,8 +19,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -38,6 +37,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,7 +46,10 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,7 +71,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
 /**
  * The master rollup action that coordinates
@@ -81,6 +88,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private static final Logger logger = LogManager.getLogger(TransportRollupAction.class);
 
     private final Client client;
+    private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
@@ -106,6 +114,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     @Inject
     public TransportRollupAction(
         Client client,
+        IndicesService indicesService,
         ClusterService clusterService,
         TransportService transportService,
         ThreadPool threadPool,
@@ -124,6 +133,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
@@ -175,7 +185,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         // Rollup will perform the following tasks:
         // 1. Extract source index mappings
-        // 2. Extract rollup config from source index field caps
+        // 2. Extract rollup config from index mappings
         // 3. Create the rollup index
         // 4. Run rollup indexer
         // 5. Make rollup index read-only and set replicas
@@ -185,8 +195,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         // At any point if there is an issue, delete the rollup index
 
         // 1. Extract source index mappings
-        client.admin().indices().getMappings(new GetMappingsRequest().indices(sourceIndexName), ActionListener.wrap(getMappingsResponse -> {
-            final Map<String, ?> sourceIndexMappings = getMappingsResponse.mappings()
+        final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
+        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
+        getMappingsRequest.setParentTask(parentTask);
+        client.admin().indices().getMappings(getMappingsRequest, ActionListener.wrap(getMappingsResponse -> {
+            final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
                 .entrySet()
                 .stream()
                 .filter(entry -> sourceIndexName.equals(entry.getKey()))
@@ -194,197 +207,183 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
                 .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
 
-            // 2. Extract rollup config from source index field caps
-            FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
-            final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
-            fieldCapsRequest.setParentTask(parentTask);
-            client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
-                final List<String> dimensionFields = new ArrayList<>();
-                final List<String> metricFields = new ArrayList<>();
-                final List<String> labelFields = new ArrayList<>();
-                for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
-                    String field = e.getKey();
-                    /*
-                     * Rollup runs on a single index, and we do not expect multiple mappings for the same
-                     * field. So, it is safe to select the first and only value of the FieldCapsResponse
-                     * by running: e.getValue().values().iterator().next()
-                     */
-                    if (e.getValue().size() != 1) {
-                        throw new IllegalStateException(
-                            "Cannot parse mapping for field [" + field + "] at source index [" + sourceIndexName + "]"
-                        );
-                    }
-                    FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
-                    if (fieldCaps.isDimension()) {
-                        dimensionFields.add(field);
-                    } else {
-                        TimeSeriesParams.MetricType metricType = e.getValue().values().iterator().next().getMetricType();
-                        if (metricType != null) {
-                            metricFields.add(field);
-                        } else {
-                            final String timestampField = request.getRollupConfig().getTimestampField();
-                            if (fieldCaps.isLabel() && timestampField.equals(field) == false) {
-                                labelFields.add(field);
-                            }
-                        }
-                    }
-                }
+            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
+            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
 
-                RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
-                if (dimensionFields.isEmpty()) {
-                    validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
+            // 2. Extract rollup config from index mappings
+            final List<String> dimensionFields = new ArrayList<>();
+            final List<String> metricFields = new ArrayList<>();
+            final List<String> labelFields = new ArrayList<>();
+            MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
+                if (isDimensionField(field, mapping)) {
+                    dimensionFields.add(field);
+                } else if (isMetricField(field, mapping)) {
+                    metricFields.add(field);
+                } else if (isLabelField(field, request.getRollupConfig().getTimestampField(), mapperService)) {
+                    labelFields.add(field);
                 }
-                if (metricFields.isEmpty()) {
-                    validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
-                }
+            });
 
-                if (validationException.validationErrors().isEmpty() == false) {
-                    listener.onFailure(validationException);
-                    return;
-                }
+            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
+            if (dimensionFields.isEmpty()) {
+                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
+            }
+            if (metricFields.isEmpty()) {
+                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
+            }
 
-                final String mapping;
-                try {
-                    mapping = createRollupIndexMapping(
-                        request.getRollupConfig(),
-                        dimensionFields,
-                        metricFields,
-                        labelFields,
-                        sourceIndexMappings
+            if (validationException.validationErrors().isEmpty() == false) {
+                listener.onFailure(validationException);
+                return;
+            }
+
+            final String mapping;
+            try {
+                mapping = createRollupIndexMapping(request.getRollupConfig(), mapperService, sourceIndexMappings, listener::onFailure);
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
+            // 3. Create rollup index
+            createRollupIndex(rollupIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
+                if (createIndexResp.isAcknowledged()) {
+                    // 3. Rollup index created. Run rollup indexer
+                    RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
+                        request,
+                        dimensionFields.toArray(new String[0]),
+                        metricFields.toArray(new String[0]),
+                        labelFields.toArray(new String[0])
                     );
-                } catch (IOException e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                // 3. Create rollup index
-                createRollupIndex(rollupIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
-                    if (createIndexResp.isAcknowledged()) {
-                        // 3. Rollup index created. Run rollup indexer
-                        RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
-                            request,
-                            dimensionFields.toArray(new String[0]),
-                            metricFields.toArray(new String[0]),
-                            labelFields.toArray(new String[0])
-                        );
-                        rollupIndexerRequest.setParentTask(parentTask);
-                        client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
-                            if (indexerResp.isCreated()) {
-                                // 4. Make rollup index read-only and set the correct number of replicas
-                                final Settings settings = Settings.builder()
-                                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
-                                    .build();
-                                UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
-                                updateSettingsReq.setParentTask(parentTask);
-                                client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
-                                    if (updateSettingsResponse.isAcknowledged()) {
-                                        // 5. Refresh rollup index
-                                        refreshIndex(rollupIndexName, parentTask, ActionListener.wrap(refreshIndexResponse -> {
-                                            if (refreshIndexResponse.getFailedShards() == 0) {
-                                                // 6. Mark rollup index as "completed successfully"
-                                                updateRollupMetadata(
-                                                    sourceIndexName,
-                                                    rollupIndexName,
-                                                    request,
-                                                    ActionListener.wrap(resp -> {
-                                                        if (resp.isAcknowledged()) {
-                                                            // 7. Force-merge the rollup index to a single segment
-                                                            forceMergeIndex(
-                                                                rollupIndexName,
-                                                                parentTask,
-                                                                ActionListener.wrap(
-                                                                    mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                                                    e -> {
-                                                                        /*
-                                                                         * At this point rollup has been created successfully even if
-                                                                         * force-merge fails. So, we should not fail the rollup operation.
-                                                                         */
-                                                                        logger.error(
-                                                                            "Failed to force-merge rollup index [" + rollupIndexName + "]",
-                                                                            e
-                                                                        );
-                                                                        listener.onResponse(AcknowledgedResponse.TRUE);
-                                                                    }
-                                                                )
-                                                            );
-                                                        } else {
-                                                            deleteRollupIndex(
-                                                                sourceIndexName,
-                                                                rollupIndexName,
-                                                                parentTask,
-                                                                listener,
-                                                                new ElasticsearchException(
-                                                                    "Failed to publish new cluster state with rollup metadata"
-                                                                )
-                                                            );
-                                                        }
-                                                    },
-                                                        e -> deleteRollupIndex(
-                                                            sourceIndexName,
-                                                            rollupIndexName,
-                                                            parentTask,
-                                                            listener,
-                                                            new ElasticsearchException(
-                                                                "Failed to publish new cluster state with rollup metadata",
-                                                                e
-                                                            )
+                    rollupIndexerRequest.setParentTask(parentTask);
+                    client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
+                        if (indexerResp.isCreated()) {
+                            // 4. Make rollup index read-only and set the correct number of replicas
+                            final Settings settings = Settings.builder()
+                                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
+                                .build();
+                            UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
+                            updateSettingsReq.setParentTask(parentTask);
+                            client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
+                                if (updateSettingsResponse.isAcknowledged()) {
+                                    // 5. Refresh rollup index
+                                    refreshIndex(rollupIndexName, parentTask, ActionListener.wrap(refreshIndexResponse -> {
+                                        if (refreshIndexResponse.getFailedShards() == 0) {
+                                            // 6. Mark rollup index as "completed successfully"
+                                            updateRollupMetadata(sourceIndexName, rollupIndexName, request, ActionListener.wrap(resp -> {
+                                                if (resp.isAcknowledged()) {
+                                                    // 7. Force-merge the rollup index to a single segment
+                                                    forceMergeIndex(
+                                                        rollupIndexName,
+                                                        parentTask,
+                                                        ActionListener.wrap(
+                                                            mergeIndexResp -> listener.onResponse(AcknowledgedResponse.TRUE),
+                                                            e -> {
+                                                                /*
+                                                                 * At this point rollup has been created successfully even if
+                                                                 * force-merge fails. So, we should not fail the rollup operation.
+                                                                 */
+                                                                logger.error(
+                                                                    "Failed to force-merge rollup index [" + rollupIndexName + "]",
+                                                                    e
+                                                                );
+                                                                listener.onResponse(AcknowledgedResponse.TRUE);
+                                                            }
                                                         )
-                                                    )
-                                                );
-                                            } else {
-                                                deleteRollupIndex(
+                                                    );
+                                                } else {
+                                                    deleteRollupIndex(
+                                                        sourceIndexName,
+                                                        rollupIndexName,
+                                                        parentTask,
+                                                        listener,
+                                                        new ElasticsearchException(
+                                                            "Failed to publish new cluster state with rollup metadata"
+                                                        )
+                                                    );
+                                                }
+                                            },
+                                                e -> deleteRollupIndex(
                                                     sourceIndexName,
                                                     rollupIndexName,
                                                     parentTask,
                                                     listener,
-                                                    new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]")
-                                                );
-                                            }
-                                        },
-                                            e -> deleteRollupIndex(
+                                                    new ElasticsearchException(
+                                                        "Failed to publish new cluster state with rollup metadata",
+                                                        e
+                                                    )
+                                                )
+                                            ));
+                                        } else {
+                                            deleteRollupIndex(
                                                 sourceIndexName,
                                                 rollupIndexName,
                                                 parentTask,
                                                 listener,
-                                                new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]", e)
-                                            )
-                                        ));
-                                    } else {
-                                        deleteRollupIndex(
+                                                new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]")
+                                            );
+                                        }
+                                    },
+                                        e -> deleteRollupIndex(
                                             sourceIndexName,
                                             rollupIndexName,
                                             parentTask,
                                             listener,
-                                            new ElasticsearchException(
-                                                "Unable to update settings of rollup index [" + rollupIndexName + "]"
-                                            )
-                                        );
-                                    }
-                                },
-                                    e -> deleteRollupIndex(
+                                            new ElasticsearchException("Failed to refresh rollup index [" + rollupIndexName + "]", e)
+                                        )
+                                    ));
+                                } else {
+                                    deleteRollupIndex(
                                         sourceIndexName,
                                         rollupIndexName,
                                         parentTask,
                                         listener,
-                                        new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]", e)
-                                    )
-                                ));
-                            } else {
-                                deleteRollupIndex(
+                                        new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]")
+                                    );
+                                }
+                            },
+                                e -> deleteRollupIndex(
                                     sourceIndexName,
                                     rollupIndexName,
                                     parentTask,
                                     listener,
-                                    new ElasticsearchException("Unable to index into rollup index [" + rollupIndexName + "]")
-                                );
-                            }
-                        }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, parentTask, listener, e)));
-                    } else {
-                        listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + rollupIndexName + "]"));
-                    }
-                }, listener::onFailure));
+                                    new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]", e)
+                                )
+                            ));
+                        } else {
+                            deleteRollupIndex(
+                                sourceIndexName,
+                                rollupIndexName,
+                                parentTask,
+                                listener,
+                                new ElasticsearchException("Unable to index into rollup index [" + rollupIndexName + "]")
+                            );
+                        }
+                    }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, parentTask, listener, e)));
+                } else {
+                    listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + rollupIndexName + "]"));
+                }
             }, listener::onFailure));
         }, listener::onFailure));
+    }
+
+    private boolean isLabelField(final String field, final String timestampField, final MapperService mapperService) {
+        final MappedFieldType fieldType = mapperService.mappingLookup().getFieldType(field);
+        return (timestampField.equals(field) == false)
+            && (fieldType.isAggregatable())
+            && (fieldType.isDimension() == false)
+            && (mapperService.isMetadataField(field) == false);
+    }
+
+    private static boolean isMetricField(final String field, final Map<String, ?> mapping) {
+        final String metricTYpe = (String) mapping.get(TIME_SERIES_METRIC_PARAM);
+        return metricTYpe != null
+            && Arrays.asList(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricTYpe));
+    }
+
+    private static boolean isDimensionField(final String field, final Map<String, ?> mapping) {
+        return Boolean.TRUE.equals(mapping.get(TIME_SERIES_DIMENSION_PARAM));
     }
 
     @Override
@@ -398,42 +397,65 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      * rollup configuration.
      *
      * @param config the rollup configuration
-     * @param dimensionFields a list of fields whose 'time_series_dimension' property is set to true
-     * @param metricFields a list of fields whose 'time_series_metric' property is set to one of the supported types (counter, gauge, ...)
-     * @param labelFields a list of fields which are not dimensions or metrics
-     * @param sourceIndexMappingProperties a map with the source index mapping
+     * @param sourceIndexMappings a map with the source index mapping
      * @return the mapping of the rollup index
      */
     public static String createRollupIndexMapping(
         final RollupActionConfig config,
-        final List<String> dimensionFields,
-        final List<String> metricFields,
-        final List<String> labelFields,
-        Map<String, ?> sourceIndexMappingProperties
+        final MapperService mapperService,
+        final Map<String, Object> sourceIndexMappings,
+        final Consumer<Exception> failureHandler
     ) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        builder = getDynamicTemplates(builder);
+        final XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        addDynamicTemplates(builder);
 
         builder.startObject("properties");
 
-        String timestampField = config.getTimestampField();
-        String dateIntervalType = config.getIntervalType();
-        String dateInterval = config.getInterval().toString();
-        String tz = config.getTimeZone();
+        addTimestampField(config, builder);
+        addMetricFields(sourceIndexMappings, failureHandler, builder);
+
+        builder.endObject(); // match initial startObject
+        builder.endObject(); // match startObject("properties")
+
+        final CompressedXContent rollupDiffXContent = CompressedXContent.fromJSON(
+            XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON)
+        );
+        return mapperService.merge(MapperService.SINGLE_MAPPING_NAME, rollupDiffXContent, MapperService.MergeReason.INDEX_TEMPLATE)
+            .mappingSource()
+            .uncompressed()
+            .utf8ToString();
+    }
+
+    private static void addMetricFields(
+        final Map<String, Object> sourceIndexMappings,
+        final Consumer<Exception> failureHandler,
+        final XContentBuilder builder
+    ) {
+        MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
+            if (isMetricField(field, mapping)) {
+                try {
+                    addMetricFieldMapping(builder, field, mapping);
+                } catch (IOException e) {
+                    failureHandler.accept(e);
+                }
+            }
+        });
+    }
+
+    private static void addTimestampField(final RollupActionConfig config, final XContentBuilder builder) throws IOException {
+        final String timestampField = config.getTimestampField();
+        final String dateIntervalType = config.getIntervalType();
+        final String dateInterval = config.getInterval().toString();
+        final String timezone = config.getTimeZone();
 
         builder.startObject(timestampField)
             .field("type", DateFieldMapper.CONTENT_TYPE)
             .startObject("meta")
             .field(dateIntervalType, dateInterval)
-            .field(RollupActionConfig.TIME_ZONE, tz)
+            .field(RollupActionConfig.TIME_ZONE, timezone)
             .endObject()
             .endObject();
-
-        copyFieldMappings(dimensionFields, metricFields, labelFields, sourceIndexMappingProperties, builder);
-
-        builder.endObject();
-        builder.endObject();
-        return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
     }
 
     private static void copyFieldMappings(
@@ -452,24 +474,21 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 if (dimensionFields.contains(field) || labelFields.contains(field)) {
                     copyDimensionOrLabelFieldMapping(builder, field, fieldProperties);
                 } else if (metricFields.contains(field)) {
-                    copyMetricFieldMappings(builder, field, fieldProperties);
+                    addMetricFieldMapping(builder, field, fieldProperties);
                 } else throw new IllegalArgumentException("Field [" + field + "] is not a metric, a dimension or a label");
             }
         }
     }
 
-    private static void copyMetricFieldMappings(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
+    private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
         throws IOException {
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.valueOf(
-            fieldProperties.get(TimeSeriesParams.TIME_SERIES_METRIC_PARAM).toString()
+            fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
         if (TimeSeriesParams.MetricType.counter.equals(metricType)) {
             // For counters, we keep the same field type, because they store
             // only one value (the last value of the counter)
-            builder.startObject(field)
-                .field("type", fieldProperties.get("type"))
-                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
-                .endObject();
+            builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();
         } else {
             final List<String> supportedAggs = List.of(metricType.supportedAggs());
             // We choose max as the default metric
@@ -478,7 +497,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
                 .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggs)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
-                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
+                .field(TIME_SERIES_METRIC_PARAM, metricType)
                 .endObject();
         }
     }
@@ -558,8 +577,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     /**
      * Configure the dynamic templates to always map strings to the keyword field type.
      */
-    private static XContentBuilder getDynamicTemplates(XContentBuilder builder) throws IOException {
-        return builder.startArray("dynamic_templates")
+    private static void addDynamicTemplates(final XContentBuilder builder) throws IOException {
+        builder.startArray("dynamic_templates")
             .startObject()
             .startObject("strings")
             .field("match_mapping_type", "string")

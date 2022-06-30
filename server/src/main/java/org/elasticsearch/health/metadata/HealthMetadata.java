@@ -199,6 +199,82 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             return builder;
         }
 
+        static Builder newBuilder() {
+            return new Builder();
+        }
+
+        static Builder newBuilder(Disk disk) {
+            return new Builder(disk);
+        }
+
+        public static class Builder {
+
+            private Threshold lowWatermark;
+            private Threshold highWatermark;
+            private Threshold floodStageWatermark;
+            private Threshold frozenFloodStageWatermark;
+            private ByteSizeValue frozenFloodStageMaxHeadroom;
+
+            private Builder(Disk disk) {
+                this.lowWatermark = disk.lowWatermark;
+                this.highWatermark = disk.highWatermark;
+                this.floodStageWatermark = disk.floodStageWatermark;
+                this.frozenFloodStageWatermark = disk.frozenFloodStageWatermark;
+                this.frozenFloodStageMaxHeadroom = disk.frozenFloodStageMaxHeadroom;
+            }
+
+            private Builder() {}
+
+            Disk.Builder lowWatermark(String lowWatermark, String setting) {
+                return lowWatermark(Threshold.parse(lowWatermark, setting));
+            }
+
+            Disk.Builder lowWatermark(Threshold lowWatermark) {
+                this.lowWatermark = lowWatermark;
+                return this;
+            }
+
+            Disk.Builder highWatermark(Threshold highWatermark) {
+                this.highWatermark = highWatermark;
+                return this;
+            }
+
+            Disk.Builder highWatermark(String highWatermark, String setting) {
+                return highWatermark(Threshold.parse(highWatermark, setting));
+            }
+
+            Disk.Builder floodStageWatermark(Threshold floodStageWatermark) {
+                this.floodStageWatermark = floodStageWatermark;
+                return this;
+            }
+
+            public Disk.Builder floodStageWatermark(String floodStageWatermark, String setting) {
+                return floodStageWatermark(Threshold.parse(floodStageWatermark, setting));
+            }
+
+            Disk.Builder frozenFloodStageWatermark(Threshold frozenFloodStageWatermark) {
+                this.frozenFloodStageWatermark = frozenFloodStageWatermark;
+                return this;
+            }
+
+            Disk.Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
+                return frozenFloodStageWatermark(Threshold.parse(frozenFloodStageWatermark, setting));
+            }
+
+            Disk.Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
+                this.frozenFloodStageMaxHeadroom = frozenFloodStageMaxHeadroom;
+                return this;
+            }
+
+            Disk.Builder frozenFloodStageMaxHeadroom(String frozenFloodStageMaxHeadroom, String setting) {
+                return frozenFloodStageMaxHeadroom(ByteSizeValue.parseBytesSizeValue(frozenFloodStageMaxHeadroom, setting));
+            }
+
+            Disk build() {
+                return new Disk(lowWatermark, highWatermark, floodStageWatermark, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
+            }
+        }
+
         public record Threshold(double maxUsedPercent, ByteSizeValue minFreeBytes) implements Writeable {
 
             public Threshold {

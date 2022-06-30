@@ -992,7 +992,7 @@ public class PersistedClusterStateService {
                     addIndexMetadataDocuments(indexMetadata);
                 } else {
                     numIndicesUnchanged++;
-                    logger.trace("no action required for [{}]", indexMetadata.getIndex());
+                    logger.trace("no action required for index [{}]", indexMetadata.getIndex());
                 }
                 indexMetadataVersionByUUID.remove(indexMetadata.getIndexUUID());
             }

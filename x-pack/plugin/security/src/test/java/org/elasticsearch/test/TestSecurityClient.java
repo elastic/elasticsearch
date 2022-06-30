@@ -465,7 +465,7 @@ public class TestSecurityClient {
     }
 
     private static ElasticsearchException toException(Map<String, ?> map) {
-        try (final XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, toJson(map))) {
+        try (var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, toJson(map))) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             return ElasticsearchException.fromXContent(parser);
         } catch (IOException e) {

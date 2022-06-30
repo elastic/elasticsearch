@@ -29,7 +29,7 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 POST _slm/start
 ----
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----
@@ -46,7 +46,7 @@ The reponse will look like this:
 GET _slm/status
 ----
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----
@@ -64,7 +64,7 @@ The reponse will look like this:
 ----
 POST _slm/start
 ----
-The reponse will look like this:
+The response will look like this:
 [source,console-result]
 ----
 {
@@ -77,7 +77,7 @@ Verify the {slm} is now running:
 ----
 GET _slm/status
 ----
-The reponse will look like this:
+The response will look like this:
 [source,console-result]
 ----
 {

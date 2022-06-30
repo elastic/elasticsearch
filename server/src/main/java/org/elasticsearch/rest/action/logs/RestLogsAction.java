@@ -112,13 +112,17 @@ public class RestLogsAction extends BaseRestHandler {
                         String now = Instant.now().toString();
                         doc.put("@timestamp", now);
                     }
+                    // routing based on data_stream.* fields
+                    // this part will be handled by document based routing in the future
+                    // for example, by a routing pipeline that is attached to the logs-router-default data stream
                     doc.putIfAbsent("data_stream", new HashMap<>());
                     @SuppressWarnings("unchecked")
                     Map<String, String> dataStream = (Map<String, String>) doc.get("data_stream");
                     dataStream.put("type", "logs");
                     dataStream.putIfAbsent("dataset", "generic");
                     dataStream.putIfAbsent("namespace", "default");
-                    indexRequests.add(Requests.indexRequest("logs-" + dataStream.get("dataset") + "-" + dataStream.get("namespace"))
+                    String index = "logs-" + dataStream.get("dataset") + "-" + dataStream.get("namespace");
+                    indexRequests.add(Requests.indexRequest(index)
                         .opType(DocWriteRequest.OpType.CREATE)
                         .source(doc)
                     );

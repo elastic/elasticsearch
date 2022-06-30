@@ -108,7 +108,6 @@ import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.elasticsearch.test.SecuritySettingsSource.HASHER;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
-import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;

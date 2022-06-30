@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -22,19 +20,15 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
  */
 public class DiskThresholdSettings {
-    private static final Logger logger = LogManager.getLogger(DiskThresholdSettings.class);
-
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.threshold_enabled",
         true,
@@ -104,8 +98,6 @@ public class DiskThresholdSettings {
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
     private volatile RelativeByteSizeValue frozenFloodStage;
     private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
-
-    private final Collection<Listener> listeners = new CopyOnWriteArrayList<>();
 
     static {
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
@@ -293,7 +285,6 @@ public class DiskThresholdSettings {
             lowWatermark,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
         );
-        notifyListeners();
     }
 
     private void setHighWatermark(String highWatermark) {
@@ -304,7 +295,6 @@ public class DiskThresholdSettings {
             highWatermark,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
         );
-        notifyListeners();
     }
 
     private void setFloodStage(String floodStageRaw) {
@@ -314,17 +304,14 @@ public class DiskThresholdSettings {
             floodStageRaw,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
         );
-        notifyListeners();
     }
 
     private void setFrozenFloodStage(RelativeByteSizeValue floodStage) {
         this.frozenFloodStage = floodStage;
-        notifyListeners();
     }
 
     private void setFrozenFloodStageMaxHeadroom(ByteSizeValue maxHeadroom) {
         this.frozenFloodStageMaxHeadroom = maxHeadroom;
-        notifyListeners();
     }
 
     /**
@@ -363,14 +350,6 @@ public class DiskThresholdSettings {
 
     public ByteSizeValue getFreeBytesThresholdFloodStage() {
         return freeBytesThresholdFloodStage;
-    }
-
-    public RelativeByteSizeValue getFrozenFloodStage() {
-        return frozenFloodStage;
-    }
-
-    public ByteSizeValue getFrozenFloodStageMaxHeadroom() {
-        return frozenFloodStageMaxHeadroom;
     }
 
     public ByteSizeValue getFreeBytesThresholdFrozenFloodStage(ByteSizeValue total) {
@@ -441,30 +420,5 @@ public class DiskThresholdSettings {
             }
         }
         return watermark;
-    }
-
-    public boolean addListener(Listener listener) {
-        return this.listeners.add(listener);
-    }
-
-    public boolean removeListener(Listener listener) {
-        return this.listeners.remove(listener);
-    }
-
-    void notifyListeners() {
-        listeners.forEach(listener -> {
-            try {
-                listener.onChange();
-            } catch (Exception error) {
-                logger.error("error occurred while notifying listener about disk threshold setting change", error);
-            }
-        });
-    }
-
-    /**
-     * Listening to changes on the raw values of the watermarks.
-     */
-    public interface Listener {
-        void onChange();
     }
 }

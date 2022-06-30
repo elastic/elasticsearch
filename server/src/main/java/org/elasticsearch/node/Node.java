@@ -58,7 +58,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
@@ -800,10 +799,10 @@ public class Node implements Closeable {
                 systemIndices,
                 indicesService
             );
-            final DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(settings, clusterService.getClusterSettings());
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
-                diskThresholdSettings,
+                settings,
                 clusterService::state,
+                clusterService.getClusterSettings(),
                 client,
                 threadPool::relativeTimeInMillis,
                 rerouteService
@@ -914,7 +913,7 @@ public class Node implements Closeable {
             );
             HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
             HealthMetadataService healthMetadataService = HealthNode.isEnabled()
-                ? new HealthMetadataService(diskThresholdSettings, clusterService, settings)
+                ? new HealthMetadataService(clusterService, settings)
                 : null;
 
             modules.add(b -> {

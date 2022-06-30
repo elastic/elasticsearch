@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -170,28 +169,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             );
         }
 
-        static DiskThresholds createDiskThresholds(DiskThresholdSettings allocationDiskThresholdSettings) {
-            RelativeByteSizeValue frozenFloodStage = allocationDiskThresholdSettings.getFrozenFloodStage();
-            return new DiskThresholds(
-                DiskThreshold.fromWatermark(
-                    allocationDiskThresholdSettings.getFreeDiskThresholdLow(),
-                    allocationDiskThresholdSettings.getFreeBytesThresholdLow()
-                ),
-                DiskThreshold.fromWatermark(
-                    allocationDiskThresholdSettings.getFreeDiskThresholdHigh(),
-                    allocationDiskThresholdSettings.getFreeBytesThresholdHigh()
-                ),
-                DiskThreshold.fromWatermark(
-                    allocationDiskThresholdSettings.getFreeDiskThresholdFloodStage(),
-                    allocationDiskThresholdSettings.getFreeBytesThresholdFloodStage()
-                ),
-                frozenFloodStage.isAbsolute()
-                    ? new DiskThreshold(frozenFloodStage.getAbsolute())
-                    : new DiskThreshold(frozenFloodStage.getRatio().getAsPercent()),
-                allocationDiskThresholdSettings.getFrozenFloodStageMaxHeadroom()
-            );
-        }
-
         static DiskThresholds fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
@@ -235,6 +212,13 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
                 this(100.0, minFreeBytes);
             }
 
+            public DiskThreshold(RelativeByteSizeValue value) {
+                this(
+                    value.isAbsolute() ? 100.0 : value.getRatio().getAsPercent(),
+                    value.isAbsolute() ? value.getAbsolute() : ByteSizeValue.ZERO
+                );
+            }
+
             public static DiskThreshold readFrom(StreamInput in) throws IOException {
                 String description = in.readString();
                 return parse(description, "");
@@ -246,14 +230,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
                     return new DiskThreshold(minFreeBytes);
                 } else {
                     return new DiskThreshold(DiskThresholdSettingParser.parseThresholdPercentage(description));
-                }
-            }
-
-            static DiskThreshold fromWatermark(double minFreeDiskSpacePercent, ByteSizeValue minFreeBytes) {
-                if (minFreeBytes.getBytes() > 0) {
-                    return new DiskThreshold(minFreeBytes);
-                } else {
-                    return new DiskThreshold(100.0 - minFreeDiskSpacePercent);
                 }
             }
 

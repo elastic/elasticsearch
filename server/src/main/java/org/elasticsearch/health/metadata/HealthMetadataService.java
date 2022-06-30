@@ -19,17 +19,25 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.DiskThresholdSettingParser;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.health.node.selection.HealthNodeTaskExecutor.ENABLED_SETTING;
 
 /**
@@ -40,26 +48,24 @@ public class HealthMetadataService {
     private static final Logger logger = LogManager.getLogger(HealthMetadataService.class);
 
     private final ClusterService clusterService;
-    private final DiskThresholdSettings diskThresholdSettings;
-
     private final ClusterStateListener clusterStateListener;
-    private final DiskThresholdSettings.Listener diskThresholdListener;
-
+    private final DiskHealthMetadataMonitor diskHealthMetadataMonitor;
     private volatile boolean enabled;
-
     private volatile boolean publishedAfterElection = false;
 
     private final ClusterStateTaskExecutor<UpdateHealthMetadataTask> taskExecutor = new UpdateHealthMetadataTask.Executor();
 
-    public HealthMetadataService(DiskThresholdSettings diskThresholdSettings, ClusterService clusterService, Settings settings) {
+    public HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
-        this.diskThresholdSettings = diskThresholdSettings;
+        this.diskHealthMetadataMonitor = new DiskHealthMetadataMonitor(
+            settings,
+            clusterService.getClusterSettings(),
+            this::updateHealthMetadata
+        );
         this.clusterStateListener = this::updateHealthMetadataIfNecessary;
-        this.diskThresholdListener = this::updateHealthMetadataIfNecessary;
         this.enabled = ENABLED_SETTING.get(settings);
         if (this.enabled) {
             this.clusterService.addListener(clusterStateListener);
-            this.diskThresholdSettings.addListener(diskThresholdListener);
         }
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
     }
@@ -68,10 +74,9 @@ public class HealthMetadataService {
         this.enabled = enabled;
         if (this.enabled) {
             clusterService.addListener(clusterStateListener);
-            diskThresholdSettings.addListener(diskThresholdListener);
+            updateHealthMetadata();
         } else {
             clusterService.removeListener(clusterStateListener);
-            diskThresholdSettings.removeListener(diskThresholdListener);
             publishedAfterElection = false;
         }
     }
@@ -87,11 +92,15 @@ public class HealthMetadataService {
         }
     }
 
-    private void updateHealthMetadataIfNecessary() {
-        ClusterState clusterState = clusterService.state();
-        if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)
-            && clusterState.nodes().isLocalNodeElectedMaster()) {
-            submitHealthMetadata("health-metadata-update-threshold-change");
+    private void updateHealthMetadata() {
+        // The first trigger to update the health metadata should be a master election because
+        // this means the cluster is fully initialized
+        if (publishedAfterElection && enabled) {
+            ClusterState clusterState = clusterService.state();
+            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)
+                && clusterState.nodes().isLocalNodeElectedMaster()) {
+                submitHealthMetadata("health-metadata-update");
+            }
         }
     }
 
@@ -109,7 +118,7 @@ public class HealthMetadataService {
     }
 
     private HealthMetadata createHealthMetadata() {
-        return new HealthMetadata(HealthMetadata.DiskThresholds.createDiskThresholds(diskThresholdSettings));
+        return new HealthMetadata(diskHealthMetadataMonitor.getDiskHealthMetadata());
     }
 
     private void submitHealthMetadata(String source) {
@@ -147,6 +156,121 @@ public class HealthMetadataService {
                     ? currentState
                     : currentState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
             }
+        }
+    }
+
+    /**
+     * Monitors and caches the current values of the disk thresholds. Upon a setting change
+     * it runs the callback method.
+     */
+    static class DiskHealthMetadataMonitor {
+        private final Runnable callback;
+        private volatile Double watermarkLow;
+        private volatile Double watermarkHigh;
+        private volatile ByteSizeValue freeBytesWatermarkLow;
+        private volatile ByteSizeValue freeBytesWatermarkHigh;
+        private volatile Double watermarkFloodStage;
+        private volatile ByteSizeValue freeBytesWatermarkFloodStage;
+        private volatile RelativeByteSizeValue frozenFloodStage;
+        private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
+
+        public DiskHealthMetadataMonitor(Settings settings, ClusterSettings clusterSettings, Runnable callback) {
+            this.callback = callback;
+            setLowWatermark(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings));
+            setHighWatermark(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings));
+            setFloodStage(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings));
+            setFrozenFloodStage(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings));
+            setFrozenFloodStageMaxHeadroom(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings));
+            clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
+            clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
+            clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
+            clusterSettings.addSettingsUpdateConsumer(
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING,
+                this::setFrozenFloodStage
+            );
+            clusterSettings.addSettingsUpdateConsumer(
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+                this::setFrozenFloodStageMaxHeadroom
+            );
+        }
+
+        private void setLowWatermark(String lowWatermark) {
+            this.watermarkLow = DiskThresholdSettingParser.parseThresholdPercentage(lowWatermark);
+            this.freeBytesWatermarkLow = DiskThresholdSettingParser.parseThresholdBytes(
+                lowWatermark,
+                CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+            );
+            callback.run();
+        }
+
+        private void setHighWatermark(String highWatermark) {
+            this.watermarkHigh = DiskThresholdSettingParser.parseThresholdPercentage(highWatermark);
+            this.freeBytesWatermarkHigh = DiskThresholdSettingParser.parseThresholdBytes(
+                highWatermark,
+                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+            );
+            callback.run();
+        }
+
+        private void setFloodStage(String floodStageRaw) {
+            this.watermarkFloodStage = DiskThresholdSettingParser.parseThresholdPercentage(floodStageRaw);
+            this.freeBytesWatermarkFloodStage = DiskThresholdSettingParser.parseThresholdBytes(
+                floodStageRaw,
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
+            );
+            callback.run();
+        }
+
+        private void setFrozenFloodStage(RelativeByteSizeValue floodStage) {
+            this.frozenFloodStage = floodStage;
+            callback.run();
+        }
+
+        private void setFrozenFloodStageMaxHeadroom(ByteSizeValue maxHeadroom) {
+            this.frozenFloodStageMaxHeadroom = maxHeadroom;
+            callback.run();
+        }
+
+        Double getWatermarkLow() {
+            return watermarkLow;
+        }
+
+        Double getWatermarkHigh() {
+            return watermarkHigh;
+        }
+
+        ByteSizeValue getFreeBytesWatermarkLow() {
+            return freeBytesWatermarkLow;
+        }
+
+        ByteSizeValue getFreeBytesWatermarkHigh() {
+            return freeBytesWatermarkHigh;
+        }
+
+        Double getWatermarkFloodStage() {
+            return watermarkFloodStage;
+        }
+
+        ByteSizeValue getFreeBytesWatermarkFloodStage() {
+            return freeBytesWatermarkFloodStage;
+        }
+
+        RelativeByteSizeValue getFrozenFloodStage() {
+            return frozenFloodStage;
+        }
+
+        ByteSizeValue getFrozenFloodStageMaxHeadroom() {
+            return frozenFloodStageMaxHeadroom;
+        }
+
+        HealthMetadata.DiskThresholds getDiskHealthMetadata() {
+            return new HealthMetadata.DiskThresholds(
+                new HealthMetadata.DiskThresholds.DiskThreshold(getWatermarkLow(), getFreeBytesWatermarkLow()),
+                new HealthMetadata.DiskThresholds.DiskThreshold(getWatermarkHigh(), getFreeBytesWatermarkHigh()),
+                new HealthMetadata.DiskThresholds.DiskThreshold(getWatermarkFloodStage(), getFreeBytesWatermarkFloodStage()),
+                new HealthMetadata.DiskThresholds.DiskThreshold(getFrozenFloodStage()),
+                getFrozenFloodStageMaxHeadroom()
+            );
         }
     }
 }

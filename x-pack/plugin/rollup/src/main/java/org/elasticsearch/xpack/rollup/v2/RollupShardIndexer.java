@@ -244,7 +244,10 @@ class RollupShardIndexer {
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final long timestamp = aggCtx.getTimestamp();
-                    final long histoTimestamp = rounding.round(timestamp);
+                    final long histoTimestamp = Math.max(
+                        rounding.round(timestamp),
+                        searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
+                    );
 
                     logger.trace(
                         "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",

@@ -187,7 +187,7 @@ public class FollowingEngine extends InternalEngine {
             final IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
             final Query query = new BooleanQuery.Builder().add(
-                SeqNoFieldMapper.INSTANCE.fieldType().exactQuery(seqNo),
+                SeqNoFieldMapper.INSTANCE.fieldType().exactQuery(config().getIndexSettings().getIndexVersionCreated(), seqNo),
                 BooleanClause.Occur.FILTER
             ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.FILTER).build();
             final TopDocs topDocs = searcher.search(query, 1);

@@ -308,6 +308,7 @@ public class InternalEngine extends Engine {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
         return new SoftDeletesPolicy(
+            config().getIndexSettings().getIndexVersionCreated(),
             translog::getLastSyncedGlobalCheckpoint,
             lastMinRetainedSeqNo,
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
@@ -1574,7 +1575,10 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
-            final ParsedDocument tombstone = ParsedDocument.deleteTombstone(delete.id());
+            final ParsedDocument tombstone = ParsedDocument.deleteTombstone(
+                config().getIndexSettings().getIndexVersionCreated(),
+                delete.id()
+            );
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.versionOfDeletion);
@@ -1734,7 +1738,10 @@ public class InternalEngine extends Engine {
                 markSeqNoAsSeen(noOp.seqNo());
                 if (hasBeenProcessedBefore(noOp) == false) {
                     try {
-                        final ParsedDocument tombstone = ParsedDocument.noopTombstone(noOp.reason());
+                        final ParsedDocument tombstone = ParsedDocument.noopTombstone(
+                            config().getIndexSettings().getIndexVersionCreated(),
+                            noOp.reason()
+                        );
                         tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
                         // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version
                         // field. 1L is selected to optimize the compression because it might probably be the most common value in
@@ -2762,7 +2769,12 @@ public class InternalEngine extends Engine {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
-            return LuceneChangesSnapshot.countOperations(searcher, fromSeqNo, toSeqNo);
+            return LuceneChangesSnapshot.countOperations(
+                config().getIndexSettings().getIndexVersionCreated(),
+                searcher,
+                fromSeqNo,
+                toSeqNo
+            );
         } catch (Exception e) {
             try {
                 maybeFailEngine("count changes", e);
@@ -2787,6 +2799,7 @@ public class InternalEngine extends Engine {
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
+                config().getIndexSettings().getIndexVersionCreated(),
                 searcher,
                 LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
                 fromSeqNo,
@@ -2964,7 +2977,8 @@ public class InternalEngine extends Engine {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
-            SeqNoFieldMapper.INSTANCE.fieldType().rangeQuery(getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
+            SeqNoFieldMapper.INSTANCE.fieldType()
+                .rangeQuery(config().getIndexSettings().getIndexVersionCreated(), getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
             BooleanClause.Occur.MUST
         )
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents

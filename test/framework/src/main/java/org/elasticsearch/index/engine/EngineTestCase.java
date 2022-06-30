@@ -416,7 +416,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         Field idField = new Field("_id", Uid.encodeId(id), idFieldType);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);

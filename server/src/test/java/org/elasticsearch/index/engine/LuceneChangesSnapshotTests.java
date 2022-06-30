@@ -9,6 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -82,6 +83,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                    Version.CURRENT,
                     searcher,
                     between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -100,6 +102,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                    Version.CURRENT,
                     searcher,
                     between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -124,6 +127,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                    Version.CURRENT,
                     searcher,
                     between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -141,6 +145,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                    Version.CURRENT,
                     searcher,
                     between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -163,6 +168,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                    Version.CURRENT,
                     searcher,
                     between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -224,6 +230,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         final boolean accessStats = randomBoolean();
         try (
             Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                Version.CURRENT,
                 searcher,
                 between(1, 100),
                 0,

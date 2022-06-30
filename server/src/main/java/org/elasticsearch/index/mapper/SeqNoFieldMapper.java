@@ -16,6 +16,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -54,18 +54,19 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
      */
     public static class SequenceIDFields {
 
+        private final boolean useShift;
         private final Field seqNoPoint;
         private final Field seqNoDocValue;
         private final Field primaryTerm;
         private final Field tombstoneField;
 
-        private SequenceIDFields(Field seqNoPoint, Field seqNoDocValue, Field primaryTerm, @Nullable Field tombstoneField) {
-            Objects.requireNonNull(seqNoPoint, "sequence number field cannot be null");
-            Objects.requireNonNull(seqNoDocValue, "sequence number dv field cannot be null");
-            Objects.requireNonNull(primaryTerm, "primary term field cannot be null");
-            this.seqNoPoint = seqNoPoint;
-            this.seqNoDocValue = seqNoDocValue;
-            this.primaryTerm = primaryTerm;
+        private SequenceIDFields(Version indexVersionCreated, @Nullable Field tombstoneField) {
+            this.useShift = indexVersionCreated.before(Version.V_8_4_0);
+            this.seqNoPoint = useShift
+                ? new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO)
+                : new LongPoint(POINTS_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO >> POINTS_SHIFT);
+            this.seqNoDocValue = new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO);
+            this.primaryTerm = new NumericDocValuesField(PRIMARY_TERM_NAME, 0);
             this.tombstoneField = tombstoneField;
         }
 
@@ -84,27 +85,17 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
          */
         public void set(long seqNo, long primaryTerm) {
             // TODO negative values no shift?
-            this.seqNoPoint.setLongValue(seqNo >> POINTS_SHIFT);
+            this.seqNoPoint.setLongValue(useShift ? seqNo >> POINTS_SHIFT : seqNo);
             this.seqNoDocValue.setLongValue(seqNo);
             this.primaryTerm.setLongValue(primaryTerm);
         }
 
-        public static SequenceIDFields emptySeqID() {
-            return new SequenceIDFields(
-                new LongPoint(POINTS_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO >> POINTS_SHIFT),
-                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
-                null
-            );
+        public static SequenceIDFields emptySeqID(Version indexVersionCreated) {
+            return new SequenceIDFields(indexVersionCreated, null);
         }
 
-        public static SequenceIDFields tombstone() {
-            return new SequenceIDFields(
-                new LongPoint(POINTS_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO >> POINTS_SHIFT),
-                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
-                new NumericDocValuesField(TOMBSTONE_NAME, 1)
-            );
+        public static SequenceIDFields tombstone(Version indexVersionCreated) {
+            return new SequenceIDFields(indexVersionCreated, new NumericDocValuesField(TOMBSTONE_NAME, 1));
         }
     }
 
@@ -160,14 +151,18 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
-            return exactQuery(parse(value));
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            return exactQuery(context.indexVersionCreated(), parse(value));
         }
 
         /**
          * Query for a precise sequence number.
          */
-        public Query exactQuery(long seqNo) {
+        public Query exactQuery(Version indexVersionCreated, long seqNo) {
+            if (indexVersionCreated.before(Version.V_8_4_0)) {
+                // Before 8.4.0 we wrote the points as _seq_no and didn't shift them
+                return LongPoint.newExactQuery(NAME, seqNo);
+            }
             // TODO hand rolled query?
             // TODO negative values no shift?
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -212,13 +207,17 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                     --u;
                 }
             }
-            return rangeQuery(l, u);
+            return rangeQuery(context.getIndexSettings().getIndexVersionCreated(), l, u);
         }
 
         /**
          * Query for a range of sequence numbers.
          */
-        public Query rangeQuery(long from, long to) {
+        public Query rangeQuery(Version indexVersionCreated, long from, long to) {
+            if (indexVersionCreated.before(Version.V_8_4_0)) {
+                // Before 8.4.0 we wrote the points as _seq_no and didn't shift them
+                return LongPoint.newRangeQuery(NAME, from, to);
+            }
             // TODO hand rolled query that only scans on the lower and upper end and only if from and to aren't on the rounding boundary
             // TODO negative values no shift?
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -243,7 +242,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
-        SequenceIDFields seqID = SequenceIDFields.emptySeqID();
+        SequenceIDFields seqID = SequenceIDFields.emptySeqID(context.indexSettings().getIndexVersionCreated());
         context.seqID(seqID);
         seqID.addFields(context.doc());
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -42,9 +43,9 @@ public class ParsedDocument {
      * Create a no-op tombstone document
      * @param reason    the reason for the no-op
      */
-    public static ParsedDocument noopTombstone(String reason) {
+    public static ParsedDocument noopTombstone(Version indexVersionCreated, String reason) {
         LuceneDocument document = new LuceneDocument();
-        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(indexVersionCreated);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
@@ -68,9 +69,9 @@ public class ParsedDocument {
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      * @param id    the id of the deleted document
      */
-    public static ParsedDocument deleteTombstone(String id) {
+    public static ParsedDocument deleteTombstone(Version indexVersionCreated, String id) {
         LuceneDocument document = new LuceneDocument();
-        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(indexVersionCreated);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);

@@ -21,12 +21,12 @@ Other versions:
 
 [discrete]
 [[notable_release_highlight_number_1]]
-=== Notable release highlight number 1
+=== {es-pull}1[Notable release highlight number 1]
 Notable release body number 1
 
 [discrete]
 [[notable_release_highlight_number_2]]
-=== Notable release highlight number 2
+=== {es-pull}2[Notable release highlight number 2]
 Notable release body number 2
 
 // end::notable-highlights[]
@@ -34,6 +34,6 @@ Notable release body number 2
 
 [discrete]
 [[notable_release_highlight_number_3]]
-=== Notable release highlight number 3
+=== {es-pull}3[Notable release highlight number 3]
 Notable release body number 3
 

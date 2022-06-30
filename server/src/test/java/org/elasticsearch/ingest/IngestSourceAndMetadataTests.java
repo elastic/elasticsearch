@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -318,6 +319,25 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             assertThat(IngestSourceAndMetadata.VALIDATORS, hasEntry(equalTo(m.getFieldName()), notNullValue()));
         }
         assertEquals(IngestDocument.Metadata.values().length, IngestSourceAndMetadata.VALIDATORS.size());
+    }
+
+    public void testHandlesAllVersionTypes() {
+        Map<String, Object> md = new HashMap<>();
+        md.put("_version", 1234);
+        map = new IngestSourceAndMetadata(new HashMap<>(), md, null, null);
+        assertNull(map.getVersionType());
+        for (VersionType vt : VersionType.values()) {
+            map.setVersionType(VersionType.toString(vt));
+            assertEquals(VersionType.toString(vt), map.get("_version_type"));
+        }
+
+        for (VersionType vt : VersionType.values()) {
+            map.put("_version_type", VersionType.toString(vt));
+            assertEquals(vt.toString().toLowerCase(Locale.ROOT), map.getVersionType());
+        }
+
+        map.setVersionType(null);
+        assertNull(map.getVersionType());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

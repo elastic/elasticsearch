@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.operator;
+package org.elasticsearch.immutablestate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -23,9 +23,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class OperatorHandlerTests extends ESTestCase {
+public class ImmutableClusterStateHandlerTests extends ESTestCase {
     public void testValidation() {
-        OperatorHandler<ValidRequest> handler = new OperatorHandler<>() {
+        ImmutableClusterStateHandler<ValidRequest> handler = new ImmutableClusterStateHandler<>() {
             @Override
             public String name() {
                 return "handler";
@@ -61,7 +61,7 @@ public class OperatorHandlerTests extends ESTestCase {
                 }
             }""";
 
-        OperatorHandler<ValidRequest> persistentHandler = new OperatorHandler<>() {
+        ImmutableClusterStateHandler<ValidRequest> persistentHandler = new ImmutableClusterStateHandler<>() {
             @Override
             public String name() {
                 return "persistent";

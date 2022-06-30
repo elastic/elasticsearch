@@ -1472,11 +1472,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Document updated as expected
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
         expectMetadataForApiKey(expectedMetadata, updatedApiKeyDoc);
-        expectRoleDescriptorForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, updatedApiKeyDoc);
+        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, updatedApiKeyDoc);
         if (nullRoleDescriptors) {
             // Default role descriptor assigned to api key in `createApiKey`
             final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-            expectRoleDescriptorForApiKey("role_descriptors", List.of(expectedRoleDescriptor), updatedApiKeyDoc);
+            expectRoleDescriptorsForApiKey("role_descriptors", List.of(expectedRoleDescriptor), updatedApiKeyDoc);
 
             // Create user action unauthorized because we did not update key role; it only has `monitor` cluster priv
             final Map<String, String> authorizationHeaders = Collections.singletonMap(
@@ -1487,7 +1487,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(e.getMessage(), containsString("unauthorized"));
             assertThat(e.getCause(), instanceOf(ElasticsearchSecurityException.class));
         } else {
-            expectRoleDescriptorForApiKey("role_descriptors", newRoleDescriptors, updatedApiKeyDoc);
+            expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, updatedApiKeyDoc);
             // Create user action authorized because we updated key role to `all` cluster priv
             final var authorizationHeaders = Collections.singletonMap(
                 "Authorization",
@@ -1634,17 +1634,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Update the first key
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        serviceForDoc1.updateApiKey(
-            fileRealmAuth(serviceWithNameForDoc1.nodeName(), ES_TEST_ROOT_USER, ES_TEST_ROOT_ROLE),
-            new UpdateApiKeyRequest(apiKey1.v1(), List.of(), null),
-            Set.of(),
-            listener
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
+        client.execute(UpdateApiKeyAction.INSTANCE, new UpdateApiKeyRequest(apiKey1.v1(), List.of(), null), listener);
         final var response = listener.get();
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
-        // The cache entry should be gone for the first key
+        // The doc cache entry should be gone for the first key
         if (sameServiceNode) {
             assertEquals(1, serviceForDoc1.getDocCache().count());
             assertNull(serviceForDoc1.getDocCache().get(apiKey1.v1()));
@@ -1708,7 +1706,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private void expectMetadataForApiKey(Map<String, Object> expectedMetadata, Map<String, Object> actualRawApiKeyDoc) {
+    private void expectMetadataForApiKey(final Map<String, Object> expectedMetadata, final Map<String, Object> actualRawApiKeyDoc) {
         assertNotNull(actualRawApiKeyDoc);
         @SuppressWarnings("unchecked")
         final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("metadata_flattened");
@@ -1716,7 +1714,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void expectRoleDescriptorForApiKey(
+    private void expectRoleDescriptorsForApiKey(
         final String roleDescriptorType,
         final Collection<RoleDescriptor> expectedRoleDescriptors,
         final Map<String, Object> actualRawApiKeyDoc

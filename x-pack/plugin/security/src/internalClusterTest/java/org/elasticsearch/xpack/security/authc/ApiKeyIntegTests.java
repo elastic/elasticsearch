@@ -1597,6 +1597,41 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    public void testUpdateApiKeyAccountsForSecurityDomains() throws ExecutionException, InterruptedException {
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
+        final var apiKeyId = createdApiKey.v1().getId();
+
+        final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
+        final RealmConfig.RealmIdentifier otherRealmInDomain = AuthenticationTestHelper.randomRealmIdentifier(true);
+        final var realmDomain = new RealmDomain(
+            ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            Set.of(creatorRealmOnCreatedApiKey, otherRealmInDomain)
+        );
+        // Update should work for any of the realms within the domain
+        final var authenticatingRealm = randomFrom(creatorRealmOnCreatedApiKey, otherRealmInDomain);
+        final var authentication = randomValueOtherThanMany(
+            Authentication::isApiKey,
+            () -> AuthenticationTestHelper.builder()
+                .user(new User(TEST_USER_NAME, TEST_ROLE))
+                .realmRef(
+                    new Authentication.RealmRef(
+                        authenticatingRealm.getName(),
+                        authenticatingRealm.getType(),
+                        serviceWithNodeName.nodeName(),
+                        realmDomain
+                    )
+                )
+                .build()
+        );
+        serviceWithNodeName.service().updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), Set.of(), listener);
+        final UpdateApiKeyResponse response = listener.get();
+
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+    }
+
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
         final List<ServiceWithNodeName> services = Arrays.stream(internalCluster().getNodeNames())
             .map(n -> new ServiceWithNodeName(internalCluster().getInstance(ApiKeyService.class, n), n))
@@ -1678,31 +1713,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var ex = expectThrows(ExecutionException.class, listener::get);
         assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
         assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
-    }
-
-    private static Authentication fileRealmAuth(String nodeName, String userName, String roleName) {
-        boolean includeDomain = randomBoolean();
-        final var realmName = "file";
-        final String realmType = FileRealmSettings.TYPE;
-        return randomValueOtherThanMany(
-            Authentication::isApiKey,
-            () -> AuthenticationTestHelper.builder()
-                .user(new User(userName, roleName))
-                .realmRef(
-                    new Authentication.RealmRef(
-                        realmName,
-                        realmType,
-                        nodeName,
-                        includeDomain
-                            ? new RealmDomain(
-                                ESTestCase.randomAlphaOfLengthBetween(3, 8),
-                                Set.of(new RealmConfig.RealmIdentifier(realmType, realmName))
-                            )
-                            : null
-                    )
-                )
-                .build()
-        );
     }
 
     private void expectMetadataForApiKey(final Map<String, Object> expectedMetadata, final Map<String, Object> actualRawApiKeyDoc) {

@@ -118,7 +118,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     );
 
     public static final Setting<TimeValue> SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING = Setting.timeSetting(
-        "cluster.single_node_cluster_seed_hosts_check_interval",
+        "cluster.discovery_configuration_check.interval",
         TimeValue.timeValueMillis(30000),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope

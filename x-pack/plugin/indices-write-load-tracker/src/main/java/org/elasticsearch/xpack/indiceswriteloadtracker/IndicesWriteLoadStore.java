@@ -39,7 +39,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -70,7 +69,7 @@ class IndicesWriteLoadStore implements Closeable {
     );
     static final Setting<Integer> MAX_DOCUMENTS_PER_BULK_SETTING = Setting.intSetting(
         "indices.write_load.store.max_documents",
-        2000,
+        100,
         1,
         10000, // That sets an upper bound of ~5Mb
         Setting.Property.NodeScope
@@ -98,10 +97,10 @@ class IndicesWriteLoadStore implements Closeable {
             return new SystemDataStreamDescriptor(
                 INDICES_WRITE_LOAD_DATA_STREAM,
                 "Stores indices write load over time",
-                SystemDataStreamDescriptor.Type.INTERNAL,
+                SystemDataStreamDescriptor.Type.EXTERNAL,
                 composableIndexTemplate,
                 Map.of(),
-                Collections.emptyList(),
+                List.of("test"),
                 ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
             );
         } catch (IOException e) {

@@ -213,6 +213,10 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         return totalMerges.sum();
     }
 
+    long activeMerges() {
+        return currentMerges.count();
+    }
+
     void refreshConfig() {
         if (this.getMaxMergeCount() != config.getMaxMergeCount() || this.getMaxThreadCount() != config.getMaxThreadCount()) {
             this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());

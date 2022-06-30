@@ -1368,6 +1368,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public long getActiveMerges() {
+        final var engine = getEngineOrNull();
+        if (engine instanceof InternalEngine) {
+            return ((InternalEngine) engine).activeMerges();
+        } else {
+            return 0;
+        }
+    }
     public long getTotalRefreshTimeInNanos() {
         final var engine = getEngineOrNull();
         if (engine instanceof InternalEngine) {

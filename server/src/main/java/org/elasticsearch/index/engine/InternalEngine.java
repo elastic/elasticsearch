@@ -2667,6 +2667,10 @@ public class InternalEngine extends Engine {
         return mergeScheduler.totalMergeTimeInMillis();
     }
 
+    public long activeMerges() {
+        return mergeScheduler.activeMerges();
+    }
+
     public long totalRefreshTimeInNanos() {
         return totalRefreshTimeTracker.getTotalRefreshTimeInNanos();
     }

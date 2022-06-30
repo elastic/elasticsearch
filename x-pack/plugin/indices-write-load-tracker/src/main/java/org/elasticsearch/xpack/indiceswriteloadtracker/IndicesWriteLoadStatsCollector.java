@@ -140,6 +140,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
                 indexShard.getTotalDeleteTimeInNanos()
             );
             long totalMergeTimeInMillisSample = indexShard.getTotalMergeTimeInMillis();
+            long activeMerges = indexShard.getActiveMerges();
             long totalRefreshTimeInNanos = indexShard.getTotalRefreshTimeInNanos();
 
             long sampleRelativeTimeInNanos = relativeTimeInNanosSupplier.getAsLong();
@@ -172,7 +173,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
             synchronized (histogramsLock) {
                 indexingTimeHistogram.recordValue(indexingCPUs);
-                mergeTimeHistogram.recordValue(mergeCPUs);
+                mergeTimeHistogram.recordValue(activeMerges);
                 refreshTimeHistogram.recordValue(refreshCPUs);
             }
         }
@@ -213,6 +214,10 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
         void recordValue(double value) {
             delegate.recordValue((int) (value * ADJUST_FACTOR));
+        }
+
+        void recordValue(long value) {
+
         }
 
         void reset() {

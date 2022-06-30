@@ -472,6 +472,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    static Map<String, Set<String>> UBER_PLUGINS_MODULES = Map.of(
+        "x-pack-analytics",
+        Set.of(
+            // The set of accessible modules
+            "org.elasticsearch.base",
+            "org.elasticsearch.server",
+            "org.elasticsearch.xcore",
+            "org.elasticsearch.xcontent",
+            "org.apache.lucene.core"
+        )
+    );
+
     static LayerAndLoader createPlugin(
         PluginBundle bundle,
         ClassLoader pluginParentLoader,
@@ -486,6 +498,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 extendedPlugins.stream().map(LoadedPlugin::layer)
             ).toList();
             return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers);
+        } else if (UBER_PLUGINS_MODULES.containsKey(plugin.getName())) {
+            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", uber-modular");
+            var parentLayers = Stream.concat(
+                Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
+                extendedPlugins.stream().map(LoadedPlugin::layer)
+            ).toList();
+            return createSyntheticModuleLayer(bundle, pluginParentLoader, parentLayers, UBER_PLUGINS_MODULES.get(plugin.getName()));
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
@@ -621,6 +640,33 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return new LayerAndLoader(controller.layer(), privilegedFindLoader(controller.layer(), moduleName));
     }
 
+    // just ensures that the name is unique
+    private static int id = 0;
+
+    static final LayerAndLoader createSyntheticModuleLayer(
+        PluginBundle bundle,
+        ClassLoader parentLoader,
+        List<ModuleLayer> parentLayers,
+        Set<String> requires
+    ) {
+        String moduleName = (bundle.plugin.getName() + id++).replace('-', '.');
+        Path[] paths = urlsToPaths(bundle.urls);
+        logger.debug(() -> "Loading bundle: creating synthetic module layer and loader for module " + moduleName);
+        var finder = ModuleSupport.ofSyntheticPluginModule(moduleName, paths, requires);
+        var configuration = Configuration.resolveAndBind(
+            ModuleFinder.of(),
+            parentConfigurationOrBoot(parentLayers),
+            finder,
+            Set.of(moduleName)
+        );
+        ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
+        var controller = privilegedDefineModules(configuration, parentLayersOrBoot(parentLayers), loader);
+        var pluginModule = controller.layer().findModule(moduleName).get();
+        assert pluginModule.getName().equals(moduleName);
+        logger.debug(() -> "Loading bundle: created synthetic module layer and loader for module " + moduleName);
+        return new LayerAndLoader(controller.layer(), loader);
+    }
+
     private static List<ModuleLayer> parentLayersOrBoot(List<ModuleLayer> parentLayers) {
         if (parentLayers == null || parentLayers.isEmpty()) {
             return List.of(ModuleLayer.boot());
@@ -725,6 +771,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Thread.currentThread().setContextClassLoader(loader);
             return null;
         });
+    }
+
+    static Controller privilegedDefineModules(Configuration cf, List<ModuleLayer> parentLayers, ClassLoader loader) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<Controller>) () -> ModuleLayer.defineModules(cf, parentLayers, mn -> loader)
+        );
     }
 
     @SuppressWarnings("removal")

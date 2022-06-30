@@ -1521,6 +1521,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
         );
 
+        // Test not found exception on API key of user with the same username but from a different realm
         // Create native realm user with same username but different password to allow us to create an API key for _that_ user
         // instead of file realm one
         final var passwordSecureString = new SecureString("x-pack-test-other-password".toCharArray());
@@ -1534,7 +1535,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, passwordSecureString)),
             1,
             null,
-            "ALL"
+            "all"
         ).v1().get(0);
         doTestUpdateApiKeyNotFound(
             new UpdateApiKeyRequest(apiKeyForNativeRealmUser.getId(), request.getRoleDescriptors(), request.getMetadata())

@@ -380,12 +380,12 @@ public class ApiKeyService {
                 throw new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]");
             }
 
-            final VersionedApiKeyDoc currentApiKeyDoc = singleDoc(apiKeyId, versionedDocs);
+            final VersionedApiKeyDoc versionedDoc = singleDoc(apiKeyId, versionedDocs);
 
-            validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, currentApiKeyDoc.doc());
+            validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
             executeBulkRequest(
-                buildBulkRequestForUpdate(currentApiKeyDoc, authentication, request, userRoles),
+                buildBulkRequestForUpdate(versionedDoc, authentication, request, userRoles),
                 ActionListener.wrap(bulkResponse -> translateResponseAndClearCache(apiKeyId, bulkResponse, listener), listener::onFailure)
             );
         }, listener::onFailure));

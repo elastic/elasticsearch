@@ -370,7 +370,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
     private boolean isLabelField(final String field, final String timestampField, final MapperService mapperService) {
         final MappedFieldType fieldType = mapperService.mappingLookup().getFieldType(field);
-        return (timestampField.equals(field) == false)
+        return fieldType != null
+            && (timestampField.equals(field) == false)
             && (fieldType.isAggregatable())
             && (fieldType.isDimension() == false)
             && (mapperService.isMetadataField(field) == false);

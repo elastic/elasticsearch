@@ -10,6 +10,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -19,7 +23,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -29,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -47,8 +58,10 @@ import java.util.stream.Collectors;
  */
 public class CoordinationDiagnosticsService implements ClusterStateListener {
     private final ClusterService clusterService;
+    private final TransportService transportService;
     private final Coordinator coordinator;
     private final MasterHistoryService masterHistoryService;
+
     /**
      * This is the amount of time we use to make the initial decision -- have we seen a master node in the very recent past?
      */
@@ -96,12 +109,17 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         Setting.Property.NodeScope
     );
 
+    private Scheduler.Cancellable remoteStableMasterHealthIndicatorTask = null;
+    private volatile RemoteMasterHealthResult remoteCoordinationDiagnosisResult = null;
+
     public CoordinationDiagnosticsService(
         ClusterService clusterService,
+        TransportService transportService,
         Coordinator coordinator,
         MasterHistoryService masterHistoryService
     ) {
         this.clusterService = clusterService;
+        this.transportService = transportService;
         this.coordinator = coordinator;
         this.masterHistoryService = masterHistoryService;
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
@@ -303,6 +321,60 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         } else if (leaderHasBeenElected) {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
             result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
+        } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
+            RemoteMasterHealthResult remoteResultOrException = remoteCoordinationDiagnosisResult;
+            final CoordinationDiagnosticsStatus status;
+            final String summary;
+            if (remoteResultOrException == null) {
+                status = CoordinationDiagnosticsStatus.RED;
+                summary = String.format(
+                    Locale.ROOT,
+                    "No master node observed in the last %s, and this node is not master eligible. Reaching out to a master-eligible node"
+                        + " for more information, but no result yet.",
+                    nodeHasMasterLookupTimeframe
+                );
+            } else {
+                DiscoveryNode remoteNode = remoteResultOrException.node;
+                CoordinationDiagnosticsResult remoteResult = remoteResultOrException.result;
+                Exception exception = remoteResultOrException.remoteException;
+                if (remoteResult != null) {
+                    if (remoteResult.status().equals(CoordinationDiagnosticsStatus.GREEN) == false) {
+                        status = remoteResult.status();
+                        summary = remoteResult.summary;
+                    } else {
+                        status = CoordinationDiagnosticsStatus.RED;
+                        summary = String.format(
+                            Locale.ROOT,
+                            "No master node observed in the last %s from this node, but %s reports that the status is GREEN. This "
+                                + "indicates that there is a discovery problem on %s",
+                            nodeHasMasterLookupTimeframe,
+                            remoteNode.getName(),
+                            coordinator.getLocalNode().getName()
+                        );
+                    }
+                } else if (exception != null) {
+                    status = CoordinationDiagnosticsStatus.RED;
+                    summary = String.format(
+                        Locale.ROOT,
+                        "No master node observed in the last %s from this node, and received an exception while reaching out to %s for "
+                            + "diagnosis",
+                        nodeHasMasterLookupTimeframe,
+                        remoteNode.getName()
+                    );
+                } else {
+                    // It should not be possible to get here
+                    status = CoordinationDiagnosticsStatus.RED;
+                    summary = String.format(
+                        Locale.ROOT,
+                        "No master node observed in the last %s from this node, and received an unexpected response from %s when "
+                            + "reaching out for diagnosis",
+                        nodeHasMasterLookupTimeframe,
+                        remoteNode.getName()
+                    );
+                }
+            }
+            result = new CoordinationDiagnosticsResult(status, summary, CoordinationDiagnosticsDetails.EMPTY);
+
         } else {
             // NOTE: The logic in this block will be implemented in a future PR
             result = new CoordinationDiagnosticsResult(
@@ -409,6 +481,84 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     masterHistoryService.refreshRemoteMasterHistory(master);
                 }
             }
+        }
+    }
+
+    private void beginPollingRemoteStableMasterHealthIndicatorService() {
+        cancelPollingRemoteStableMasterHealthIndicatorService();
+        Optional<DiscoveryNode> masterNodeOptional = getMasterEligibleNodes().stream().findAny();
+        if (masterNodeOptional.isPresent()) {
+            DiscoveryNode node = masterNodeOptional.get();
+            remoteStableMasterHealthIndicatorTask = Scheduler.wrapAsCancellable(
+                transportService.getThreadPool().scheduler().scheduleAtFixedRate(() -> {
+                    Version minSupportedVersion = Version.V_8_4_0;
+                    if (node.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.4.0
+                        logger.trace(
+                            "Cannot ask {} for master stability indicator results because it is at version {} and {} is required",
+                            node,
+                            node.getVersion(),
+                            minSupportedVersion
+                        );
+                    } else {
+                        long startTime = System.nanoTime();
+                        transportService.connectToNode(
+                            node,
+                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(Releasable releasable) {
+                                    logger.trace("Connected to {}, making master stability request", node);
+                                    // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                                    final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+                                    transportService.sendRequest(
+                                        node,
+                                        CoordinationDiagnosticsAction.NAME,
+                                        new CoordinationDiagnosticsAction.Request(true),
+                                        TransportRequestOptions.timeout(transportTimeout),
+                                        new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
+
+                                            @Override
+                                            public void onResponse(CoordinationDiagnosticsAction.Response response) {
+                                                long endTime = System.nanoTime();
+                                                logger.trace(
+                                                    "Received master stability result from {} in {}",
+                                                    node,
+                                                    TimeValue.timeValueNanos(endTime - startTime)
+                                                );
+                                                remoteCoordinationDiagnosisResult = new RemoteMasterHealthResult(
+                                                    node,
+                                                    response.getCoordinationDiagnosticsResult(),
+                                                    null
+                                                );
+                                            }
+
+                                            @Override
+                                            public void onFailure(Exception e) {
+                                                logger.warn("Exception in master stability request to master node", e);
+                                                remoteCoordinationDiagnosisResult = new RemoteMasterHealthResult(node, null, e);
+                                            }
+                                        }, () -> Releasables.close(releasable)), CoordinationDiagnosticsAction.Response::new)
+                                    );
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn("Exception connecting to master node", e);
+                                    remoteCoordinationDiagnosisResult = new RemoteMasterHealthResult(node, null, e);
+                                }
+                            }
+                        );
+                    }
+                }, 10, 10, TimeUnit.SECONDS)
+            );
+        }
+    }
+
+    private void cancelPollingRemoteStableMasterHealthIndicatorService() {
+        if (remoteStableMasterHealthIndicatorTask != null) {
+            remoteStableMasterHealthIndicatorTask.cancel();
+            remoteStableMasterHealthIndicatorTask = null;
+            remoteCoordinationDiagnosisResult = null;
         }
     }
 
@@ -519,4 +669,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }
 
     }
+
+    private record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {}
 }

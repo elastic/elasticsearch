@@ -164,6 +164,8 @@ public class DateUtils {
         entry("Zulu", "Etc/UTC")
     );
 
+    private DateUtils(){}
+
     public static ZoneId ZoneIdOf(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {

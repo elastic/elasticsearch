@@ -218,8 +218,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    // TODO Check if this comment is still needed
-    // must call loadContentAndFilterJwksAlgsHmac() before loadContentAndFilterJwksAlgsPkc()
     private ContentAndFilteredJwksAlgs loadContentAndFilterJwksAlgsHmac() {
         final FilteredJwksAlgs filteredJwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);

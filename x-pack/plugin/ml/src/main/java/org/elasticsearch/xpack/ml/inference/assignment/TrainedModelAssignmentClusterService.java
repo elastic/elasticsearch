@@ -322,6 +322,22 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                // As a model deployment has been stopped we should rebalance as we might now
+                // be able to satisfy more allocations for the rest of the deployments.
+                rebalanceAssignments(
+                    newState,
+                    Optional.empty(),
+                    "deployment for model [" + modelId + "] stopped",
+                    ActionListener.wrap(
+                        metadataAfterRebalance -> logger.debug(
+                            () -> format("Successfully rebalanced model deployments after deployment for model [%s] was stopped", modelId)
+                        ),
+                        e -> logger.error(
+                            format("Failed to rebalance model deployments after deployment for model [%s] was stopped", modelId),
+                            e
+                        )
+                    )
+                );
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         });

@@ -8,12 +8,7 @@ dependencies {
   yamlRestTestImplementation project(':x-pack:qa')
 }
 
-def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, pluginProject ->
-  // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-  def ignoreIngestAttachment = BuildParams.inFipsJvm && pluginName == "ingest-attachment"
-
-  return ignoreIngestAttachment == false
-}.collect {pluginName, pluginProject -> pluginProject.path }
+def pluginPaths = project(':plugins').getChildProjects().collect {pluginName, pluginProject -> pluginProject.path }
 
 ext.expansions = [
   'expected.plugins.count': pluginPaths.size()

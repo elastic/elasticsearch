@@ -29,10 +29,10 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final Normalizer2 normalizer;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         String method = settings.get("name", "nfkc_cf");
         Normalizer2 normalizerInstance = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
-        this.normalizer = wrapWithUnicodeSetFilter(indexSettings, normalizerInstance, settings);
+        this.normalizer = wrapWithUnicodeSetFilter(normalizerInstance, settings);
     }
 
     @Override
@@ -40,7 +40,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
-    static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings, final Normalizer2 normalizer, final Settings settings) {
+    static Normalizer2 wrapWithUnicodeSetFilter(final Normalizer2 normalizer, final Settings settings) {
         String unicodeSetFilter = settings.get("unicode_set_filter");
         if (unicodeSetFilter != null) {
             UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);

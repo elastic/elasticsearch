@@ -51,7 +51,6 @@ Infra/Scripting::
 
 Ingest::
 * Don't download geoip databases if geoip system index is blocked {es-pull}86842[#86842]
-* Don't ignore pipeline for upserts in bulk api {es-pull}87719[#87719] (issue: {es-issue}87131[#87131])
 
 Java Low Level REST Client::
 * Do not retry client requests when failing with `ContentTooLargeException` {es-pull}87248[#87248] (issue: {es-issue}86041[#86041])
@@ -80,9 +79,6 @@ Snapshot/Restore::
 
 Stats::
 * Run `TransportClusterInfoActions` on MANAGEMENT pool {es-pull}87679[#87679]
-
-Transform::
-* Execute `_refresh` (with system permissions) separately from `delete by query` (with user permissions) {es-pull}88005[#88005] (issue: {es-issue}88001[#88001])
 
 [[enhancement-7.17.5]]
 [float]

@@ -1751,7 +1751,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private ServiceWithNodeName getServiceWithNodeName() {
-        final var nodeName = internalCluster().getNodeNames()[0];
+        final var nodeName = randomFrom(internalCluster().getNodeNames());
         final var service = internalCluster().getInstance(ApiKeyService.class, nodeName);
         return new ServiceWithNodeName(service, nodeName);
     }

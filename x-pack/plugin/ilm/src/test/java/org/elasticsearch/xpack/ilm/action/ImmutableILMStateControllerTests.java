@@ -11,8 +11,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.immutablestate.TransformState;
+import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
+import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -39,10 +43,12 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
@@ -208,5 +214,75 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle2"));
         ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
+    }
+
+    public void testOperatorController() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
+        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
+
+        String testJSON = """
+            {
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     },
+                     "ilm": {
+                         "my_timeseries_lifecycle": {
+                             "phases": {
+                                 "warm": {
+                                     "min_age": "10s",
+                                     "actions": {
+                                     }
+                                 },
+                                 "delete": {
+                                     "min_age": "30s",
+                                     "actions": {
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+            }""";
+
+        AtomicReference<Exception> x = new AtomicReference<>();
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> x.set(e));
+
+            assertTrue(x.get() instanceof IllegalStateException);
+            assertEquals("Error processing state change request for operator", x.get().getMessage());
+        }
+
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        controller.initHandlers(
+            List.of(
+                new ImmutableClusterSettingsAction(clusterSettings),
+                new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
+            )
+        );
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> {
+                if (e != null) {
+                    fail("Should not fail");
+                }
+            });
+        }
     }
 }

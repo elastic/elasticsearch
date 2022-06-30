@@ -251,6 +251,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -262,6 +263,10 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
+import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
+import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -273,6 +278,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -448,6 +454,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
+    private final ImmutableClusterStateController immutableStateController;
 
     public ActionModule(
         Settings settings,
@@ -460,7 +467,8 @@ public class ActionModule extends AbstractModule {
         NodeClient nodeClient,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ClusterService clusterService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -511,6 +519,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService);
+        immutableStateController = new ImmutableClusterStateController(clusterService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -888,6 +897,24 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
     }
 
+    /**
+     * Initializes the immutable cluster state handlers for Elasticsearch and it's modules/plugins
+     *
+     * @param pluginsService needed to load all modules/plugins immutable state handlers through SPI
+     */
+    public void initImmutableClusterStateHandlers(PluginsService pluginsService) {
+        List<ImmutableClusterStateHandler<?>> handlers = new ArrayList<>();
+
+        List<? extends ImmutableClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
+            ImmutableClusterStateHandlerProvider.class
+        );
+
+        handlers.add(new ImmutableClusterSettingsAction(clusterSettings));
+        pluginHandlers.forEach(h -> handlers.addAll(h.handlers()));
+
+        immutableStateController.initHandlers(handlers);
+    }
+
     @Override
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
@@ -919,5 +946,9 @@ public class ActionModule extends AbstractModule {
 
     public RestController getRestController() {
         return restController;
+    }
+
+    public ImmutableClusterStateController getImmutableClusterStateController() {
+        return immutableStateController;
     }
 }

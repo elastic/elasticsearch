@@ -214,6 +214,9 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertTrue(mapper.enabled());
         assertTrue(mapper.isSynthetic());
 
+        ParsedDocument doc = mapperService.documentMapper().parse(source("{}"));
+        assertNull(doc.rootDoc().get(SourceFieldMapper.NAME));
+
         Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, """
             { "_doc" : { "_source" : { "mode" : "stored" } } }
             """));

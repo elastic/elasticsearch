@@ -651,7 +651,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            iw.addDocument(mapper.parse(source(build)).rootDoc());
+            LuceneDocument doc = mapper.parse(source(build)).rootDoc();
+            iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());

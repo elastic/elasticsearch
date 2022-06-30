@@ -194,7 +194,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private boolean stored() {
-        return (enabled.explicit() && enabled.value()) || mode == Mode.STORED || enabled.value();
+        if (enabled.explicit() || mode == null) {
+            return enabled.value();
+        }
+        return mode == Mode.STORED;
     }
 
     public boolean enabled() {

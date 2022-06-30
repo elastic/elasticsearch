@@ -10,7 +10,11 @@ package org.elasticsearch.gradle.internal
 
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.ClassRule
+import org.junit.rules.TemporaryFolder
+import spock.lang.Shared
 
 import java.nio.charset.StandardCharsets
 import java.util.zip.ZipEntry
@@ -19,6 +23,10 @@ import java.util.zip.ZipFile
 import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarHellJar
 
 class BuildPluginFuncTest extends AbstractGradleFuncTest {
+
+    @Shared
+    @ClassRule
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def EXAMPLE_LICENSE = """\
         Redistribution and use in source and binary forms, with or without
@@ -120,6 +128,8 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def "applies checks"() {
         given:
+        repository.generateJar("org.elasticsearch", "build-conventions", "unspecified", 'org.acme.CheckstyleStuff')
+        repository.configureBuild(buildFile)
         setupJarHellJar(dir('local-repo/org/elasticsearch/elasticsearch-core/current/'))
         file("licenses/hamcrest-core-1.3.jar.sha1").text = "42a25dc3219429f0e5d060061f71acb49bf010a0"
         file("licenses/hamcrest-core-LICENSE.txt").text = EXAMPLE_LICENSE

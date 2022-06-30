@@ -901,3 +901,17 @@ process where pid > 100 and pid < 200
 // the "not" has an undefined location of where it should be used in the Painless script
 // disjunctionInsideFunctionWithNot
 // process where string(pid > 5 and pid != 10) == \"true\"
+
+
+versionFieldAutomaticConversion
+process where version > "2"
+;
+{"range":{"version":{"gt":"2"
+;
+
+versionFieldCast
+process where CONCAT(version, constant_keyword) > "2"
+;
+{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalEqlScriptUtils.concat([X0,X1]),params.v2))))"
+"params":{"v0":"version","v1":"constant_keyword","v2":"2"}}
+;

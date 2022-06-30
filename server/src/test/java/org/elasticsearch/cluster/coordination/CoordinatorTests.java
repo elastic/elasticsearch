@@ -616,7 +616,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final int newClusterNodes = between(initialClusterSize + 1, 4);
             logger.info("--> adding [{}] new healthy nodes", newClusterNodes);
             final NodeHealthService alwaysHealthy = () -> new StatusInfo(HEALTHY, "healthy-info");
-            final Set<String> newNodeIds = new HashSet<>(newClusterNodes);
+            final Set<String> newNodeIds = Sets.newHashSetWithExpectedSize(newClusterNodes);
             for (int i = 0; i < newClusterNodes; i++) {
                 final ClusterNode node = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, alwaysHealthy);
                 newNodeIds.add(node.getId());

@@ -23,10 +23,27 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 [[start-trained-model-deployment-desc]]
 == {api-description-title}
 
-Currently only `pytorch` models are supported for deployment. When deployed,
-the model attempts allocation to every machine learning node. Once deployed
+Currently only `pytorch` models are supported for deployment. Once deployed
 the model can be used by the <<inference-processor,{infer-cap} processor>>
 in an ingest pipeline or directly in the <<infer-trained-model>> API.
+
+Scaling inference performance can be achieved by setting the parameters
+`number_of_allocations` and `threads_per_allocation`.
+
+Increasing `threads_per_allocation` means more threads are used when
+an inference request is processed on a node. This can improve inference speed
+for certain models. It may also result in improvement to throughput.
+
+Increasing `number_of_allocations` means more threads are used to 
+process multiple inference requests in parallel resulting in throughput
+improvement. Each model allocation uses a number of threads defined by
+`threads_per_allocation`.
+
+Model allocations are distributed across {ml} nodes. All allocations assigned
+to a node share the same copy of the model in memory. To avoid
+thread oversubscription which is detrimental to performance, model allocations
+are distributed in such a way that the total number of used threads does not
+surpass the node's allocated processors.
 
 [[start-trained-model-deployment-path-params]]
 == {api-path-parms-title}
@@ -40,21 +57,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `number_of_allocations`::
 (Optional, integer)
-The number of model allocations on each node where the model is deployed.
-All allocations on a node share the same copy of the model in memory but use
-a separate set of threads to evaluate the model. 
+The total number of allocations this model is assigned across {ml} nodes.
 Increasing this value generally increases the throughput.
-If this setting is greater than the number of hardware threads
-it will automatically be changed to a value less than the number of hardware threads.
 Defaults to 1.
-+
---
-[NOTE]
-=============================================
-If the sum of `threads_per_allocation` and `number_of_allocations` is greater
-than the number of hardware threads, the `threads_per_allocation` value is reduced.
-=============================================
---
 
 `queue_capacity`::
 (Optional, integer)
@@ -66,10 +71,8 @@ new requests are rejected with a 429 error. Defaults to 1024.
 `threads_per_allocation`::
 (Optional, integer)
 Sets the number of threads used by each model allocation during inference. This generally increases
-the inference speed. The inference process is a compute-bound process; any number
-greater than the number of available hardware threads on the machine does not increase the
-inference speed. If this setting is greater than the number of hardware threads
-it will automatically be changed to a value less than the number of hardware threads.
+the speed per inference request. The inference process is a compute-bound process;
+`threads_per_allocations` must not exceed the number of available allocated processors per node.
 Defaults to 1. Must be a power of 2. Max allowed value is 32.
 
 `timeout`::

@@ -468,7 +468,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         Version version = VersionUtils.randomVersionBetween(
             random(),
             Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(Version.CURRENT)
+            VersionUtils.getPreviousVersion(Version.V_8_3_0)
         );
         InternalAutoDateHistogram deserialized = copyInstance(instance, version);
         assertEquals(1, deserialized.getBucketInnerInterval());

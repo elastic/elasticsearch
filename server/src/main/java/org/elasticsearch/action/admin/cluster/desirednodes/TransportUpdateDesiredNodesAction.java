@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -50,7 +51,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredNodesSettingsValidator settingsValidator
+        DesiredNodesSettingsValidator settingsValidator,
+        AllocationService allocationService
     ) {
         super(
             UpdateDesiredNodesAction.NAME,
@@ -65,7 +67,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
-        this.taskExecutor = new UpdateDesiredNodesExecutor(clusterService.getRerouteService());
+        this.taskExecutor = new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService);
     }
 
     @Override
@@ -167,9 +169,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         );
 
         private final RerouteService rerouteService;
+        private final AllocationService allocationService;
 
-        UpdateDesiredNodesExecutor(RerouteService rerouteService) {
+        UpdateDesiredNodesExecutor(RerouteService rerouteService, AllocationService allocationService) {
             this.rerouteService = rerouteService;
+            this.allocationService = allocationService;
         }
 
         @Override
@@ -194,7 +198,12 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
             desiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(currentState.nodes(), desiredNodes);
 
-            return desiredNodes == initialDesiredNodes ? currentState : replaceDesiredNodes(currentState, desiredNodes);
+            if (desiredNodes == initialDesiredNodes) {
+                return currentState;
+            } else {
+                final ClusterState withUpdatedDesiredNodes = replaceDesiredNodes(currentState, desiredNodes);
+                return allocationService.adaptAutoExpandReplicas(withUpdatedDesiredNodes);
+            }
         }
 
         @Override

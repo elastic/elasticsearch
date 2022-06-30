@@ -681,6 +681,7 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             List.of(),
+            null,
             ActionListener.wrap(
                 statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
                 e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
@@ -774,6 +775,7 @@ public class JobResultsProviderTests extends ESTestCase {
         );
         provider.datafeedTimingStats(
             List.of("foo", "bar"),
+            null,
             ActionListener.wrap(
                 statsByJobId -> assertThat(
                     statsByJobId,

@@ -46,7 +46,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @SuppressWarnings("HiddenField")
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         // Sample Format for the type table:
         // $ => DIGIT

@@ -201,7 +201,7 @@ public class JobNodeSelector {
                     jobId,
                     nodeNameAndMlAttributes(node),
                     "This node is full. Number of opened jobs and allocated native inference processes [%s], %s [%s].",
-                    currentLoad.getNumAssignedJobs(),
+                    currentLoad.getNumAssignedJobsAndModels(),
                     MAX_OPEN_JOBS_PER_NODE.getKey(),
                     maxNumberOfOpenJobs
                 );
@@ -234,7 +234,7 @@ public class JobNodeSelector {
 
             // If this will be the first job assigned to the node then it will need to
             // load the native code shared libraries, so add the overhead for this
-            if (currentLoad.getNumAssignedJobs() == 0) {
+            if (currentLoad.getNumAssignedJobsAndModels() == 0) {
                 requiredMemoryForJob += MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
             }
             long availableMemory = currentLoad.getMaxMlMemory() - currentLoad.getAssignedJobMemory();

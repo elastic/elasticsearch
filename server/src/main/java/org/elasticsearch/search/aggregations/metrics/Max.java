@@ -22,21 +22,22 @@ import java.util.Objects;
 
 public class Max extends InternalNumericMetricsAggregation.SingleValue {
     private final double max;
-    private final boolean mapped;
+    private final boolean nonEmpty;
 
     public Max(String name, double max, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.max = max;
-        this.mapped = true;
+        this.nonEmpty = true;
     }
 
     public static Max EmptyMax(String name, DocValueFormat formatter, Map<String, Object> metadata) {
         return new Max(name, formatter, metadata);
     }
+
     private Max(String name, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.max = Double.NEGATIVE_INFINITY;
-        this.mapped = false;
+        this.nonEmpty = false;
     }
 
     /**
@@ -45,7 +46,7 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     public Max(StreamInput in) throws IOException {
         super(in);
         max = in.readDouble();
-        this.mapped = true;
+        this.nonEmpty = true;
     }
 
     @Override
@@ -78,8 +79,8 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     }
 
     @Override
-    public boolean isMapped() {
-        return mapped;
+    public boolean canLeadReduction() {
+        return nonEmpty;
     }
 
     @Override

@@ -236,9 +236,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     protected static final double TOLERANCE = 1e-10;
 
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
-        if (agg1.isMapped() == agg2.isMapped()) {
+        if (agg1.canLeadReduction() == agg2.canLeadReduction()) {
             return 0;
-        } else if (agg1.isMapped() && agg2.isMapped() == false) {
+        } else if (agg1.canLeadReduction() && agg2.canLeadReduction() == false) {
             return -1;
         } else {
             return 1;

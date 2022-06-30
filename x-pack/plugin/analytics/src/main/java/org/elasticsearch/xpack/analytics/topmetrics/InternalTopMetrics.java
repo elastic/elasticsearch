@@ -112,7 +112,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
 
     @Override
     public InternalTopMetrics reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        if (false == isMapped()) {
+        if (false == canLeadReduction()) {
             return this;
         }
         List<TopMetric> merged = new ArrayList<>(size);
@@ -124,7 +124,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         };
         for (InternalAggregation agg : aggregations) {
             InternalTopMetrics result = (InternalTopMetrics) agg;
-            if (result.isMapped()) {
+            if (result.canLeadReduction()) {
                 queue.add(new ReduceState(result));
             }
         }
@@ -141,7 +141,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return false == topMetrics.isEmpty();
     }
 

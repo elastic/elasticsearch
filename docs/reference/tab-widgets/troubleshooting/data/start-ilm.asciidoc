@@ -29,7 +29,7 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 POST _ilm/start
 ----
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----
@@ -47,7 +47,7 @@ The reponse will look like this:
 GET _ilm/status
 ----
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----
@@ -61,14 +61,14 @@ The reponse will look like this:
 // end::cloud[]
 
 // tag::self-managed[]
-<<ilm-start, Start ILM>>:
+<<ilm-start, Start>> {ilm}:
 
 [source,console]
 ----
 POST _ilm/start
 ----
 
-The reponse will look like this:
+The response will look like this:
 
 [source,console-result]
 ----
@@ -86,7 +86,7 @@ Verify {ilm} is now running:
 GET _ilm/status
 ----
 
-The reponse will look like this:
+The response will look like this:
 
 [source,console-result]
 ----

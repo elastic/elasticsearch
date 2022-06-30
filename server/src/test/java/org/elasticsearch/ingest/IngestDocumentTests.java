@@ -966,6 +966,7 @@ public class IngestDocumentTests extends ESTestCase {
             Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
             sourceAndMetadata.put(metadata.v1(), metadata.v2());
         }
+        sourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
         Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
@@ -978,6 +979,7 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> otherSourceAndMetadata;
         if (randomBoolean()) {
             otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
+            otherSourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
             changed = true;
         } else {
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
@@ -1046,7 +1048,7 @@ public class IngestDocumentTests extends ESTestCase {
         sourceAndMetadata.put("beforeClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509237000), timezone));
         sourceAndMetadata.put("afterClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509240600), timezone));
 
-        IngestDocument original = TestIngestDocument.ofSourceAndMetadata(sourceAndMetadata);
+        IngestDocument original = TestIngestDocument.withDefaultVersion(sourceAndMetadata);
         IngestDocument copy = new IngestDocument(original);
 
         assertThat(copy.getSourceAndMetadata().get("beforeClockChange"), equalTo(original.getSourceAndMetadata().get("beforeClockChange")));

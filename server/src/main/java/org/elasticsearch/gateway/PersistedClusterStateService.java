@@ -947,16 +947,24 @@ public class PersistedClusterStateService {
                 addGlobalMetadataDocuments(metadata);
             }
 
+            int numMappingsAdded = 0;
+            int numMappingsRemoved = 0;
+            int numMappingsUnchanged = 0;
             final var previousMappingHashes = new HashSet<>(previouslyWrittenMetadata.getMappingsByHash().keySet());
             for (final var entry : metadata.getMappingsByHash().entrySet()) {
                 if (previousMappingHashes.remove(entry.getKey()) == false) {
                     addMappingDocuments(entry.getKey(), entry.getValue());
+                    numMappingsAdded++;
+                } else {
+                    logger.trace("no action required for mapping [{}]", entry.getKey());
+                    numMappingsUnchanged++;
                 }
             }
 
             for (final var unusedMappingHash : previousMappingHashes) {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                     metadataIndexWriter.deleteMappingMetadata(unusedMappingHash);
+                    numMappingsRemoved++;
                 }
             }
 
@@ -1010,7 +1018,17 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(false, updateGlobalMeta, numIndicesUnchanged, numIndicesAdded, numIndicesUpdated, numIndicesRemoved);
+            return new WriterStats(
+                false,
+                updateGlobalMeta,
+                numMappingsUnchanged,
+                numMappingsAdded,
+                numMappingsRemoved,
+                numIndicesUnchanged,
+                numIndicesAdded,
+                numIndicesUpdated,
+                numIndicesRemoved
+            );
         }
 
         private static int lastPageValue(boolean isLastPage) {
@@ -1108,7 +1126,7 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(true, true, 0, metadata.indices().size(), 0, 0);
+            return new WriterStats(true, true, 0, metadata.getMappingsByHash().size(), 0, 0, metadata.indices().size(), 0, 0);
         }
 
         public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
@@ -1206,6 +1224,9 @@ public class PersistedClusterStateService {
         private record WriterStats(
             boolean isFullWrite,
             boolean globalMetaUpdated,
+            int numMappingsUnchanged,
+            int numMappingsAdded,
+            int numMappingsRemoved,
             int numIndicesUnchanged,
             int numIndicesAdded,
             int numIndicesUpdated,
@@ -1214,14 +1235,24 @@ public class PersistedClusterStateService {
             @Override
             public String toString() {
                 if (isFullWrite) {
-                    return String.format(Locale.ROOT, "wrote global metadata and metadata for [%d] indices", numIndicesAdded);
+                    return String.format(
+                        Locale.ROOT,
+                        "wrote global metadata, [%d] mappings, and metadata for [%d] indices",
+                        numMappingsAdded,
+                        numIndicesAdded
+                    );
                 } else {
                     return String.format(
                         Locale.ROOT,
                         """
-                            [%s] global metadata, wrote metadata for [%d] new indices and [%d] existing indices, \
+                            [%s] global metadata, \
+                            wrote [%d] new mappings, removed [%d] mappings and skipped [%d] unchanged mappings, \
+                            wrote metadata for [%d] new indices and [%d] existing indices, \
                             removed metadata for [%d] indices and skipped [%d] unchanged indices""",
                         globalMetaUpdated ? "wrote" : "skipped writing",
+                        numMappingsAdded,
+                        numMappingsRemoved,
+                        numMappingsUnchanged,
                         numIndicesAdded,
                         numIndicesUpdated,
                         numIndicesRemoved,

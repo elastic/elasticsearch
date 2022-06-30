@@ -1194,7 +1194,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         Level.WARN,
                         """
                             writing full cluster state took [*] which is above the warn threshold of [*]; \
-                            wrote global metadata and metadata for [0] indices"""
+                            wrote global metadata, [0] mappings, and metadata for [0] indices"""
                     )
                 );
 
@@ -1210,7 +1210,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         Level.WARN,
                         """
                             writing full cluster state took [*] which is above the warn threshold of [*]; \
-                            wrote global metadata and metadata for [0] indices"""
+                            wrote global metadata, [0] mappings, and metadata for [0] indices"""
                     )
                 );
 
@@ -1244,7 +1244,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         Level.WARN,
                         """
                             writing full cluster state took [*] which is above the warn threshold of [*]; \
-                            wrote global metadata and metadata for [0] indices"""
+                            wrote global metadata, [0] mappings, and metadata for [0] indices"""
                     )
                 );
 
@@ -1254,6 +1254,14 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             .version(clusterState.version())
                             .put(
                                 IndexMetadata.builder("test")
+                                    .putMapping("""
+                                        {
+                                          "_doc": {
+                                            "properties": {
+                                              "somefield": { "type": "text" }
+                                            }
+                                          }
+                                        }""")
                                     .settings(
                                         Settings.builder()
                                             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -1277,6 +1285,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         Level.WARN,
                         """
                             writing cluster state took [*] which is above the warn threshold of [*]; [skipped writing] global metadata, \
+                            wrote [1] new mappings, removed [0] mappings and skipped [0] unchanged mappings, \
                             wrote metadata for [1] new indices and [0] existing indices, removed metadata for [0] indices and \
                             skipped [0] unchanged indices"""
                     )

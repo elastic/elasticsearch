@@ -231,6 +231,49 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
 
+    public void testGrantTargetCanUpdateApiKey() throws IOException {
+        final var request = new Request("POST", "_security/api_key/grant");
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD))
+        );
+        final var apiKeyName = "test_api_key_password";
+        final Map<String, Object> requestBody = Map.ofEntries(
+            Map.entry("grant_type", "password"),
+            Map.entry("username", MANAGE_OWN_API_KEY_USER),
+            Map.entry("password", END_USER_PASSWORD.toString()),
+            Map.entry("api_key", Map.of("name", apiKeyName))
+        );
+        request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+
+        final Response response = client().performRequest(request);
+        final Map<String, Object> responseBody = entityAsMap(response);
+
+        assertThat(responseBody.get("name"), equalTo(apiKeyName));
+        assertThat(responseBody.get("id"), notNullValue());
+        assertThat(responseBody.get("id"), instanceOf(String.class));
+
+        final var apiKeyId = (String) responseBody.get("id");
+        final var apiKeyEncoded = (String) responseBody.get("encoded");
+
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
+        final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
+        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
+        updateApiKeyRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authorizationHeader(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+        );
+
+        final Response updateApiKeyResponse = client().performRequest(updateApiKeyRequest);
+        assertOK(updateApiKeyResponse);
+        final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
+        assertTrue((Boolean) updateApiKeyResponseMap.get("updated"));
+
+        expectMetadata(apiKeyId, expectedApiKeyMetadata);
+        // validate authentication still works after update
+        doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+    }
+
     private String authorizationHeader(final String username, final SecureString password) throws IOException {
         final boolean useBearerTokenAuth = randomBoolean();
         if (useBearerTokenAuth) {

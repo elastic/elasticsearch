@@ -120,9 +120,14 @@ public class RestLogsAction extends BaseRestHandler {
                     doc.putIfAbsent("data_stream", new HashMap<>());
                     @SuppressWarnings("unchecked")
                     Map<String, String> dataStream = (Map<String, String>) doc.get("data_stream");
-                    dataStream.put("type", "logs");
-                    dataStream.putIfAbsent("dataset", "generic");
-                    dataStream.putIfAbsent("namespace", "default");
+                    dataStream.putIfAbsent("type", "logs");
+                    if (dataStream.get("type").equals("logs") == false) {
+                        dataStream.put("dataset", "generic");
+                        dataStream.put("namespace", "default");
+                    } else {
+                        dataStream.putIfAbsent("dataset", "generic");
+                        dataStream.putIfAbsent("namespace", "default");
+                    }
                     String index = "logs-" + dataStream.get("dataset") + "-" + dataStream.get("namespace");
                     indexRequests.add(Requests.indexRequest(index)
                         .opType(DocWriteRequest.OpType.CREATE)

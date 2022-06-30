@@ -243,7 +243,7 @@ There are different mechanisms by which cardinality aggregations can be executed
 
  - by using field values directly (`direct`)
  - by using global ordinals of the field and resolving those values after
-   finishing a shard(`global_ordinals`)
+   finishing a shard (`global_ordinals`)
  - by using segment ordinal values and resolving those values after each
    segment (`segment_ordinals`)
 

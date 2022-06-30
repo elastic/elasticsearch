@@ -521,6 +521,9 @@ public class AllocationService {
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
         for (String index : clusterState.metadata().getConcreteAllIndices()) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+            if (indexRoutingTable == null) {
+                continue;
+            }
             if (indexRoutingTable.allShardsActive()) {
                 // GREEN index
                 continue;

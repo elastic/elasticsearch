@@ -100,7 +100,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<String, Object> metadataMap = ingestDocument.getMetadata();
+            Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
             assertThat(metadataMap.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
             assertThat(metadataMap.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
@@ -196,7 +196,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<String, Object> metadataMap = ingestDocument.getMetadata();
+            Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
             assertThat(metadataMap.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
             assertThat(metadataMap.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(metadataMap.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));
@@ -349,7 +349,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<String, Object> metadataMap = ingestDocument.getMetadata();
+            Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
             assertThat(metadataMap.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
             assertThat(metadataMap.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(metadataMap.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));

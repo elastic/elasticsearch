@@ -31,7 +31,7 @@ public abstract class GeoPointFieldScript extends AbstractPointFieldScript<GeoPo
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory<GeoPoint> newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
             return ctx -> new GeoPointFieldScript(field, params, lookup, ctx) {
                 @Override
                 public void execute() {
@@ -49,7 +49,7 @@ public abstract class GeoPointFieldScript extends AbstractPointFieldScript<GeoPo
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
         return (leafFieldName, params, searchLookup) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
-            return (LeafFactory<GeoPoint>) ctx -> {
+            return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
                 return new GeoPointFieldScript(leafFieldName, params, searchLookup, ctx) {
                     @Override
@@ -66,8 +66,12 @@ public abstract class GeoPointFieldScript extends AbstractPointFieldScript<GeoPo
         };
     }
 
+    public interface LeafFactory {
+        GeoPointFieldScript newInstance(LeafReaderContext ctx);
+    }
+
     public interface Factory extends ScriptFactory {
-        LeafFactory<GeoPoint> newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {

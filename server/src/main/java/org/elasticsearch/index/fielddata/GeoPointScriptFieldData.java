@@ -28,12 +28,12 @@ import org.elasticsearch.search.sort.SortOrder;
 public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final GeoPointFieldScript.LeafFactory<GeoPoint> leafFactory;
+        private final GeoPointFieldScript.LeafFactory leafFactory;
         private final ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory;
 
         public Builder(
             String name,
-            GeoPointFieldScript.LeafFactory<GeoPoint> leafFactory,
+            GeoPointFieldScript.LeafFactory leafFactory,
             ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory
         ) {
             this.name = name;
@@ -47,13 +47,13 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
         }
     }
 
-    private final GeoPointFieldScript.LeafFactory<GeoPoint> leafFactory;
+    private final GeoPointFieldScript.LeafFactory leafFactory;
     private final String name;
     private final ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory;
 
     private GeoPointScriptFieldData(
         String fieldName,
-        GeoPointFieldScript.LeafFactory<GeoPoint> leafFactory,
+        GeoPointFieldScript.LeafFactory leafFactory,
         ToScriptFieldFactory<MultiPointValues<GeoPoint>> toScriptFieldFactory
     ) {
         this.name = fieldName;

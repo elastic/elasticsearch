@@ -28,7 +28,7 @@ public abstract class CartesianPointFieldScript extends AbstractPointFieldScript
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory<CartesianPoint> newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
             return ctx -> new CartesianPointFieldScript(field, params, lookup, ctx) {
                 @Override
                 public void execute() {
@@ -46,7 +46,7 @@ public abstract class CartesianPointFieldScript extends AbstractPointFieldScript
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
         return (leafFieldName, params, searchLookup) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
-            return (LeafFactory<CartesianPoint>) ctx -> {
+            return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
                 return new CartesianPointFieldScript(leafFieldName, params, searchLookup, ctx) {
                     @Override
@@ -63,12 +63,16 @@ public abstract class CartesianPointFieldScript extends AbstractPointFieldScript
         };
     }
 
-    public CartesianPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx, new CartesianPointFieldScriptEncoder());
+    public interface LeafFactory {
+        CartesianPointFieldScript newInstance(LeafReaderContext ctx);
     }
 
     public interface Factory extends ScriptFactory {
-        LeafFactory<CartesianPoint> newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+    }
+
+    public CartesianPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        super(fieldName, params, searchLookup, ctx, new CartesianPointFieldScriptEncoder());
     }
 
     public static class CartesianPointFieldScriptEncoder implements PointFieldScriptEncoder<CartesianPoint> {

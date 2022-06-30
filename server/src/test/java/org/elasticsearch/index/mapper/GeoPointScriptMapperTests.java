@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -22,12 +21,8 @@ public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFiel
     private static GeoPointFieldScript.Factory factory(Consumer<GeoPointFieldScript> executor) {
         return new GeoPointFieldScript.Factory() {
             @Override
-            public GeoPointFieldScript.LeafFactory<GeoPoint> newFactory(
-                String fieldName,
-                Map<String, Object> params,
-                SearchLookup searchLookup
-            ) {
-                return new GeoPointFieldScript.LeafFactory<>() {
+            public GeoPointFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                return new GeoPointFieldScript.LeafFactory() {
                     @Override
                     public GeoPointFieldScript newInstance(LeafReaderContext ctx) {
                         return new GeoPointFieldScript(fieldName, params, searchLookup, ctx) {

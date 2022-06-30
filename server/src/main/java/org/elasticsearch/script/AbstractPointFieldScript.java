@@ -30,10 +30,6 @@ public abstract class AbstractPointFieldScript<T extends ToXContentFragment> ext
 
     protected final PointFieldScriptEncoder<T> pointFieldScriptEncoder;
 
-    public interface LeafFactory<T extends ToXContentFragment> {
-        AbstractPointFieldScript<T> newInstance(LeafReaderContext ctx);
-    }
-
     public AbstractPointFieldScript(
         String fieldName,
         Map<String, Object> params,

@@ -620,7 +620,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == GeoPointFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     GeoPointFieldScript.Factory factory = scriptService.compile(request.script, GeoPointFieldScript.CONTEXT);
-                    GeoPointFieldScript.LeafFactory<GeoPoint> leafFactory = factory.newFactory(
+                    GeoPointFieldScript.LeafFactory leafFactory = factory.newFactory(
                         GeoPointFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
                         context.lookup()

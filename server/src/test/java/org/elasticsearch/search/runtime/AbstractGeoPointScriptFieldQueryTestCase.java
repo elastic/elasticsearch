@@ -8,15 +8,14 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.GeoPointFieldScript;
 
 import static org.mockito.Mockito.mock;
 
-public abstract class AbstractGeoPointScriptFieldQueryTestCase<T extends AbstractGeoPointScriptFieldQuery<GeoPoint>> extends
+public abstract class AbstractGeoPointScriptFieldQueryTestCase<T extends AbstractGeoPointScriptFieldQuery> extends
     AbstractScriptFieldQueryTestCase<T> {
 
-    protected final GeoPointFieldScript.LeafFactory<GeoPoint> leafFactory = mock(GeoPointFieldScript.LeafFactory.class);
+    protected final GeoPointFieldScript.LeafFactory leafFactory = mock(GeoPointFieldScript.LeafFactory.class);
 
     @Override
     public final void testVisit() {

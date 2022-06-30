@@ -243,7 +243,7 @@ Synthetic source always sorts numeric fields and removes duplicates. For example
 PUT idx
 {
   "mappings": {
-    "_source": { "synthetic": true },
+    "_source": { "mode": "synthetic" },
     "properties": {
       "long": { "type": "long" }
     }

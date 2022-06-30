@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
@@ -48,7 +48,7 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/api_key/_update/{id}"));
+        return List.of(new Route(PUT, "/_security/api_key/{id}"));
     }
 
     @Override

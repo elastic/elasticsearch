@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.action.apikey;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -19,19 +18,15 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-
-import java.util.Set;
 
 public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
-    private final CompositeRolesStore rolesStore;
-    private final NamedXContentRegistry xContentRegistry;
+    private final ApiKeyGenerator apiKeyGenerator;
 
     @Inject
     public TransportUpdateApiKeyAction(
@@ -45,8 +40,7 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
         super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
-        this.rolesStore = rolesStore;
-        this.xContentRegistry = xContentRegistry;
+        this.apiKeyGenerator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
     }
 
     @Override
@@ -60,21 +54,14 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             return;
         }
 
-        // Don't resolve and validate owner roles if the service is not enabled; this avoids a costly operation and also provides
-        // a clearer error message (a service disabled error is prioritized over role descriptor validation errors)
+        // TODO generalize `ApiKeyGenerator` to handle updates
         apiKeyService.ensureEnabled();
-        rolesStore.getRoleDescriptorsList(authentication.getEffectiveSubject(), ActionListener.wrap(roleDescriptorsList -> {
-            assert roleDescriptorsList.size() == 1;
-            final Set<RoleDescriptor> roleDescriptors = roleDescriptorsList.iterator().next();
-            for (final var roleDescriptor : roleDescriptors) {
-                try {
-                    DLSRoleQueryValidator.validateQueryField(roleDescriptor.getIndicesPrivileges(), xContentRegistry);
-                } catch (ElasticsearchException | IllegalArgumentException e) {
-                    listener.onFailure(e);
-                    return;
-                }
-            }
-            apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener);
-        }, listener::onFailure));
+        apiKeyGenerator.getUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),
+                listener::onFailure
+            )
+        );
     }
 }

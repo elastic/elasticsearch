@@ -34,12 +34,12 @@ public class RestClearApiKeyCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/api_key/{ids}/_clear_cache"));
+        return List.of(new Route(POST, "/_security/api_key/{id}/_clear_cache"));
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String[] ids = request.paramAsStringArrayOrEmptyIfAll("ids");
+        String[] ids = request.paramAsStringArrayOrEmptyIfAll("id");
         final ClearSecurityCacheRequest req = new ClearSecurityCacheRequest().cacheName("api_key").keys(ids);
         return channel -> client.execute(ClearSecurityCacheAction.INSTANCE, req, new NodesResponseRestListener<>(channel));
     }

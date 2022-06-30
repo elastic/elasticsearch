@@ -62,6 +62,11 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
+            } else if (request instanceof UpdateApiKeyRequest) {
+                // Note: we return `true` here even if the authenticated entity is an API key. API keys *cannot* update themselves
+                // however this is a "business-logic" restriction, rather than one related to privileges. We therefore enforce this
+                // limitation at the transport layer, in `TransportUpdateApiKeyAction`
+                return true;
             } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {
                 return checkIfUserIsOwnerOfApiKeys(
                     authentication,
@@ -94,17 +99,10 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 }
             } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
                 return queryApiKeyRequest.isFilterForCurrentUser();
-            } else if (request instanceof UpdateApiKeyRequest) {
-                // Note: this returns true even for requests authenticated via API keys.
-                // An API key currently *cannot* update itself. However, that's not because it's not authorized. Rather, it's because
-                // we have not resolved how to handle role descriptors for API keys. As such, an API key as an owner of itself is authorized
-                // to update itself but the behavior is currently not supported, and prevented as a bad request at the transport level.
-                return authentication.isApiKey() == false
-                    || isCurrentAuthenticationUsingSameApiKeyIdFromRequest(authentication, ((UpdateApiKeyRequest) request).getId());
             } else if (request instanceof GrantApiKeyRequest) {
                 return false;
             }
-            String message = "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")";
+            final var message = "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")";
             assert false : message;
             throw new IllegalArgumentException(message);
         }

@@ -24,6 +24,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -131,16 +133,13 @@ public class RestLogsAction extends BaseRestHandler {
         }
 
         return channel -> {
-            // always accept request and process it asynchronously
-            try (XContentBuilder builder = channel.newBuilder()) {
-                builder.startObject();
-                builder.endObject();
-                channel.sendResponse(new RestResponse(RestStatus.ACCEPTED, builder));
-            }
-
-            client.bulk(Requests.bulkRequest().add(indexRequests), new ActionListener<BulkResponse>() {
+            client.bulk(Requests.bulkRequest().add(indexRequests), new RestActionListener<BulkResponse>(channel) {
                 @Override
-                public void onResponse(BulkResponse bulkItemResponses) {
+                protected void processResponse(BulkResponse bulkItemResponses) throws Exception {
+                    // always accept request and process it asynchronously
+                    try (XContentBuilder builder = channel.newBuilder()) {
+                        channel.sendResponse(new RestResponse(RestStatus.ACCEPTED, builder));
+                    }
                     if (bulkItemResponses.hasFailures()) {
                         BulkRequest retryBulk = Requests.bulkRequest();
                         Arrays.stream(bulkItemResponses.getItems())
@@ -150,6 +149,7 @@ public class RestLogsAction extends BaseRestHandler {
                                 Exception cause = failedRequest.getFailure().getCause();
                                 addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
                                 addPath(doc, "_logs.error.message", cause.getMessage());
+                                addPath(doc, "_logs.data_stream", doc.get("data_stream"));
                                 // TODO should we retain the original data_stream fields?
                                 //  we would need to map `data_stream.dataset` to a `dynamic: runtime` field instead of `constant_keyword`
                                 //  however, this would break the assumption that there's only one dataset within a datastream
@@ -178,15 +178,10 @@ public class RestLogsAction extends BaseRestHandler {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.error("Failed to ingest logs", e);
+                                logger.error("Failed to ingest logs on re-try", e);
                             }
                         });
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to ingest logs", e);
                 }
             });
         };

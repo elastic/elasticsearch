@@ -119,19 +119,18 @@ public final class InternalMapReduceAggregation<
         if (aggReduceContext.isFinalReduce()) {
             // we can use the reduce context big arrays, because we finalize here
             try (ReduceContext reduceContext = mapReducer.reduceInit(aggReduceContext.bigArrays())) {
-                mapReducer.reduce(contexts, reduceContext);
-                mapReduceResult = mapReducer.reduceFinalize(reduceContext, fieldNames);
+                mapReducer.reduce(contexts, reduceContext, aggReduceContext.isCanceled());
+                mapReduceResult = mapReducer.reduceFinalize(reduceContext, fieldNames, aggReduceContext.isCanceled());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Final reduction failed", e);
             }
 
             return new InternalMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fieldNames, profiling);
-
         }
         // else: combine
         // can't use the bigarray from the agg reduce context, because we don't finalize it here
         ReduceContext newMapReduceContext = mapReducer.reduceInit(bigArraysForMapReduce);
-        MapFinalContext newMapFinalContext = mapReducer.combine(contexts, newMapReduceContext);
+        MapFinalContext newMapFinalContext = mapReducer.combine(contexts, newMapReduceContext, aggReduceContext.isCanceled());
 
         return new InternalMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fieldNames, profiling);
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -60,6 +62,8 @@ public final class EclatMapReducer extends AbstractMapReducer<
     ImmutableTransactionStore,
     HashBasedTransactionStore,
     EclatMapReducer.EclatResult> {
+
+    private static final int ITERATION_CHECK_INTERVAL = 100000;
 
     static class EclatResult implements ToXContent, Writeable {
 
@@ -177,8 +181,12 @@ public final class EclatMapReducer extends AbstractMapReducer<
     }
 
     @Override
-    protected ImmutableTransactionStore combine(Stream<ImmutableTransactionStore> partitions, HashBasedTransactionStore transactionStore) {
-        HashBasedTransactionStore t = reduce(partitions, transactionStore);
+    protected ImmutableTransactionStore combine(
+        Stream<ImmutableTransactionStore> partitions,
+        HashBasedTransactionStore transactionStore,
+        Supplier<Boolean> isCanceledSupplier
+    ) {
+        HashBasedTransactionStore t = reduce(partitions, transactionStore, isCanceledSupplier);
         return t.createImmutableTransactionStore();
     }
 
@@ -193,10 +201,17 @@ public final class EclatMapReducer extends AbstractMapReducer<
     }
 
     @Override
-    public HashBasedTransactionStore reduce(Stream<ImmutableTransactionStore> partitions, HashBasedTransactionStore transactionStore) {
+    public HashBasedTransactionStore reduce(
+        Stream<ImmutableTransactionStore> partitions,
+        HashBasedTransactionStore transactionStore,
+        Supplier<Boolean> isCanceledSupplier
+    ) {
         // we must iterate one at a time, because the transaction store isn't thread-safe
         partitions.forEachOrdered(p -> {
             try {
+                if (isCanceledSupplier.get()) {
+                    throw new TaskCancelledException("Cancelled");
+                }
                 transactionStore.merge(p);
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to merge shard results", e);
@@ -209,13 +224,28 @@ public final class EclatMapReducer extends AbstractMapReducer<
     }
 
     @Override
-    public EclatResult reduceFinalize(HashBasedTransactionStore transactionStore, List<String> fieldNames) throws IOException {
+    public EclatResult reduceFinalize(
+        HashBasedTransactionStore transactionStore,
+        List<String> fieldNames,
+        Supplier<Boolean> isCanceledSupplier
+    ) throws IOException {
         transactionStore.prune(minimumSupport);
+
+        if (isCanceledSupplier.get()) {
+            throw new TaskCancelledException("Cancelled");
+        }
 
         // by dropping the hashes we can free some resources before the miner allocates again
         try (TransactionStore immutableTransactionStore = transactionStore.createImmutableTransactionStore()) {
             transactionStore.close();
-            EclatResult frequentItemSets = eclat(immutableTransactionStore, minimumSupport, minimumSetSize, size, fieldNames);
+            EclatResult frequentItemSets = eclat(
+                immutableTransactionStore,
+                minimumSupport,
+                minimumSetSize,
+                size,
+                fieldNames,
+                isCanceledSupplier
+            );
             return frequentItemSets;
         }
     }
@@ -233,13 +263,15 @@ public final class EclatMapReducer extends AbstractMapReducer<
         double minimumSupport,
         int minimumSetSize,
         int size,
-        List<String> fieldNames
+        List<String> fieldNames,
+        Supplier<Boolean> isCanceledSupplier
     ) throws IOException {
         final long relativeStartNanos = System.nanoTime();
         final long totalTransactionCount = transactionStore.getTotalTransactionCount();
 
         long minCount = (long) Math.ceil(totalTransactionCount * minimumSupport);
         FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, size, minCount);
+        long numberOfSetsChecked = 0;
 
         try (
             CountingItemSetTraverser setTraverser = new CountingItemSetTraverser(
@@ -258,6 +290,20 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
             long previousMinCount = 0;
             while (setTraverser.next(minCount)) {
+                if (numberOfSetsChecked % ITERATION_CHECK_INTERVAL == 0) {
+                    logger.debug("checked {} sets", numberOfSetsChecked);
+
+                    if (isCanceledSupplier.get()) {
+                        final long eclatRuntimeNanos = System.nanoTime() - relativeStartNanos;
+                        logger.debug(
+                            "eclat has been cancelled after {} iterations and a runtime of {}s",
+                            numberOfSetsChecked,
+                            TimeUnit.NANOSECONDS.toSeconds(eclatRuntimeNanos)
+                        );
+                        throw new TaskCancelledException("Cancelled");
+                    }
+                }
+                numberOfSetsChecked++;
 
                 // Step 2: check which item sets should be reported, this is done lazily
                 // stop exploring the current branch if we fall below minCount
@@ -359,7 +405,9 @@ public final class EclatMapReducer extends AbstractMapReducer<
                 "end_min_count",
                 minCount,
                 "eclat_runtime_ms",
-                TimeUnit.NANOSECONDS.toMillis(eclatRuntimeNanos)
+                TimeUnit.NANOSECONDS.toMillis(eclatRuntimeNanos),
+                "item_sets_checked",
+                numberOfSetsChecked
             )
         );
     }

@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -124,7 +125,7 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
 
         @Override
-        public WordCounts reduce(Stream<WordCounts> partitions, WordCounts wordCounts) {
+        public WordCounts reduce(Stream<WordCounts> partitions, WordCounts wordCounts, Supplier<Boolean> isCanceledSupplier) {
             partitions.forEach(
                 p -> { p.frequencies.forEach((key, value) -> wordCounts.frequencies.merge(key, value, (v1, v2) -> v1 + v2)); }
             );
@@ -133,7 +134,8 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
 
         @Override
-        public WordCounts reduceFinalize(WordCounts wordCounts, List<String> fieldNames) throws IOException {
+        public WordCounts reduceFinalize(WordCounts wordCounts, List<String> fieldNames, Supplier<Boolean> isCanceledSupplier)
+            throws IOException {
             return wordCounts;
         }
 
@@ -143,8 +145,8 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
 
         @Override
-        protected WordCounts combine(Stream<WordCounts> partitions, WordCounts mapReduceContext) {
-            return reduce(partitions, mapReduceContext);
+        protected WordCounts combine(Stream<WordCounts> partitions, WordCounts mapReduceContext, Supplier<Boolean> isCanceledSupplier) {
+            return reduce(partitions, mapReduceContext, isCanceledSupplier);
         }
 
     }

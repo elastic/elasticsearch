@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -96,8 +97,13 @@ public abstract class AbstractMapReducer<
      *
      * @param partitions individual map reduce context instances which hold the data
      * @param mapReduceContext the result object create by doReduceInit
+     * @param isCanceledSupplier supplier to check whether the request has been canceled
      */
-    protected abstract ReduceContext reduce(Stream<MapFinalContext> partitions, ReduceContext mapReduceContext);
+    protected abstract ReduceContext reduce(
+        Stream<MapFinalContext> partitions,
+        ReduceContext mapReduceContext,
+        Supplier<Boolean> isCanceledSupplier
+    );
 
     /**
      * Definition of the combiner that works as a local reducer, reducing partial data.
@@ -106,18 +112,25 @@ public abstract class AbstractMapReducer<
      *
      * @param partitions individual map reduce context instances which hold the data
      * @param mapReduceContext the result object created by doReduceInit
+     * @param isCanceledSupplier supplier to check whether the request has been canceled
      *
      */
-    protected abstract MapFinalContext combine(Stream<MapFinalContext> partitions, ReduceContext mapReduceContext);
+    protected abstract MapFinalContext combine(
+        Stream<MapFinalContext> partitions,
+        ReduceContext mapReduceContext,
+        Supplier<Boolean> isCanceledSupplier
+    );
 
     /**
      * Definition of code to execute after the reducer processed all input.
      *
      * @param reduceContext the result object returned from doReduce
      * @param fieldNames list of field names from the input
+     * @param isCanceledSupplier supplier to check whether the request has been canceled
      * @throws IOException
      */
-    protected abstract Result reduceFinalize(ReduceContext reduceContext, List<String> fieldNames) throws IOException;
+    protected abstract Result reduceFinalize(ReduceContext reduceContext, List<String> fieldNames, Supplier<Boolean> isCanceledSupplier)
+        throws IOException;
 
     /**
      * Definition of code to execute if sampling has been applied.

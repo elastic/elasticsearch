@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -37,9 +38,11 @@ import static org.mockito.Mockito.when;
 public class CombinedDeletionPolicyTests extends ESTestCase {
 
     public void testKeepCommitsAfterGlobalCheckpoint() throws Exception {
+        Version indexVersionCreated = randomBoolean() ? Version.V_8_3_0 : Version.CURRENT;
         final AtomicLong globalCheckpoint = new AtomicLong();
         final int extraRetainedOps = between(0, 100);
         final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(
+            indexVersionCreated,
             globalCheckpoint::get,
             NO_OPS_PERFORMED,
             extraRetainedOps,
@@ -89,9 +92,11 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     }
 
     public void testAcquireIndexCommit() throws Exception {
+        Version indexVersionCreated = randomBoolean() ? Version.V_8_3_0 : Version.CURRENT;
         final AtomicLong globalCheckpoint = new AtomicLong();
         final int extraRetainedOps = between(0, 100);
         final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(
+            indexVersionCreated,
             globalCheckpoint::get,
             -1,
             extraRetainedOps,
@@ -187,8 +192,15 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     }
 
     public void testDeleteInvalidCommits() throws Exception {
+        Version indexVersionCreated = randomBoolean() ? Version.V_8_3_0 : Version.CURRENT;
         final AtomicLong globalCheckpoint = new AtomicLong(randomNonNegativeLong());
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, () -> RetentionLeases.EMPTY);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(
+            indexVersionCreated,
+            globalCheckpoint::get,
+            -1,
+            0,
+            () -> RetentionLeases.EMPTY
+        );
         TranslogDeletionPolicy translogPolicy = new TranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);
 
@@ -221,8 +233,15 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     }
 
     public void testCheckUnreferencedCommits() throws Exception {
+        Version indexVersionCreated = randomBoolean() ? Version.V_8_3_0 : Version.CURRENT;
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, () -> RetentionLeases.EMPTY);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(
+            indexVersionCreated,
+            globalCheckpoint::get,
+            -1,
+            0,
+            () -> RetentionLeases.EMPTY
+        );
         final UUID translogUUID = UUID.randomUUID();
         final TranslogDeletionPolicy translogPolicy = new TranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);

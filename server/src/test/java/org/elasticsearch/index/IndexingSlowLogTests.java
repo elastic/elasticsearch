@@ -201,7 +201,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT),
             "id",
             "routingValue",
             null,
@@ -229,7 +229,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT),
             "id",
             null,
             null,
@@ -247,7 +247,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT),
             "id",
             null,
             null,
@@ -278,7 +278,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         source = new BytesArray("invalid");
         ParsedDocument doc = new ParsedDocument(
             new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT),
             "id",
             null,
             null,

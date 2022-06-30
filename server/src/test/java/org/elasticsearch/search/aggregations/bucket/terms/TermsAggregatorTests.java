@@ -34,6 +34,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -2231,7 +2232,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, keywordFt);
     }
 
-    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
 
     private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
         List<Iterable<IndexableField>> documents = new ArrayList<>();

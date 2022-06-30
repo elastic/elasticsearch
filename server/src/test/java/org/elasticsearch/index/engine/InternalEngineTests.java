@@ -4618,7 +4618,11 @@ public class InternalEngineTests extends EngineTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(
             searchResult,
-            EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(SeqNoFieldMapper.INSTANCE.fieldType().rangeQuery(2, 2), 1)
+            EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(
+                SeqNoFieldMapper.INSTANCE.fieldType()
+                    .rangeQuery(engine.getEngineConfig().getIndexSettings().getIndexVersionCreated(), 2, 2),
+                1
+            )
         );
         searchResult.close();
     }
@@ -5479,7 +5483,9 @@ public class InternalEngineTests extends EngineTestCase {
                 randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE
             );
             final Field versionField = new NumericDocValuesField("_version", 0);
-            final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+            final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+                engine.config().getIndexSettings().getIndexVersionCreated()
+            );
             final LuceneDocument document = new LuceneDocument();
             document.add(uidField);
             document.add(versionField);

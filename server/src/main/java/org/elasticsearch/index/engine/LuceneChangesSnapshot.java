@@ -284,7 +284,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             .build();
     }
 
-    static int countOperations(Version indexVersionCreated, Engine.Searcher engineSearcher, long fromSeqNo, long toSeqNo) throws IOException {
+    static int countOperations(Version indexVersionCreated, Engine.Searcher engineSearcher, long fromSeqNo, long toSeqNo)
+        throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }

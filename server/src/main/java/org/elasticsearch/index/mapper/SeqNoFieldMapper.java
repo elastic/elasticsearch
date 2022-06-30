@@ -61,10 +61,10 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private final Field tombstoneField;
 
         private SequenceIDFields(Version indexVersionCreated, @Nullable Field tombstoneField) {
-            this.useShift = indexVersionCreated.before(Version.V_8_4_0);
+            this.useShift = indexVersionCreated.onOrAfter(Version.V_8_4_0);
             this.seqNoPoint = useShift
-                ? new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO)
-                : new LongPoint(POINTS_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO >> POINTS_SHIFT);
+                ? new LongPoint(POINTS_NAME, SequenceNumbers.UNASSIGNED_SEQ_NO >> POINTS_SHIFT)
+                : new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO);
             this.seqNoDocValue = new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO);
             this.primaryTerm = new NumericDocValuesField(PRIMARY_TERM_NAME, 0);
             this.tombstoneField = tombstoneField;

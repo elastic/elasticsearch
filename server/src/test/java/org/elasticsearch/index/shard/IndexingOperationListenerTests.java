@@ -8,6 +8,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -126,7 +127,7 @@ public class IndexingOperationListenerTests extends ESTestCase {
             indexingOperationListeners,
             logger
         );
-        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
+        ParsedDocument doc = EngineTestCase.createParsedDoc(Version.CURRENT, "1", EngineTestCase.randomIdFieldType(), null);
         Engine.Delete delete = new Engine.Delete("1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
         compositeListener.postDelete(

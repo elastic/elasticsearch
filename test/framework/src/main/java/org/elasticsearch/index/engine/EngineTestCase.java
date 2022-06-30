@@ -404,14 +404,22 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected ParsedDocument testParsedDocument(
-        Version indexVersionCreated,
         String id,
         String routing,
         LuceneDocument document,
         BytesReference source,
         Mapping mappingUpdate
     ) {
-        return testParsedDocument(indexVersionCreated, id, idFieldType, routing, document, source, mappingUpdate, false);
+        return testParsedDocument(
+            engine.config().getIndexSettings().getIndexVersionCreated(),
+            id,
+            idFieldType,
+            routing,
+            document,
+            source,
+            mappingUpdate,
+            false
+        );
     }
 
     protected static ParsedDocument testParsedDocument(

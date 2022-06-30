@@ -117,7 +117,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     private static final String SUM_AGG_NAME = "sumAgg";
     private static final String INVERSE_SCRIPT = "inverse";
 
-    private static final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private static final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
 
     /**
      * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
@@ -334,7 +334,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     public void testResetRootDocId() throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, iwc)) {
                 List<Iterable<IndexableField>> documents = new ArrayList<>();

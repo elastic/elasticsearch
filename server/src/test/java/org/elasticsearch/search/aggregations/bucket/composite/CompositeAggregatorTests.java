@@ -40,6 +40,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -751,7 +752,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testSubAggregationOfNested() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         final String leafNameField = "name";
         final String rootNameField = "name";
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
@@ -802,7 +803,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testSubAggregationOfNestedAggregateAfter() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         final String leafNameField = "name";
         final String rootNameField = "name";
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);

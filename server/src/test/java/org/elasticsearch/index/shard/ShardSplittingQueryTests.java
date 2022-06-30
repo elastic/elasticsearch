@@ -43,7 +43,7 @@ import java.util.List;
 
 public class ShardSplittingQueryTests extends ESTestCase {
     public void testSplitOnID() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -69,7 +69,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnRouting() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -94,7 +94,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnIdOrRouting() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -121,7 +121,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnRoutingPartitioned() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT);
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -229,7 +229,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         if (routing != null) {
             topLevel.add(new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES));
         }
-        SeqNoFieldMapper.SequenceIDFields.emptySeqID().addFields(topLevel);
+        SeqNoFieldMapper.SequenceIDFields.emptySeqID(Version.CURRENT).addFields(topLevel);
         return topLevel;
     }
 

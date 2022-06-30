@@ -18,8 +18,10 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 
@@ -30,30 +32,30 @@ public class SeqNoFieldMapperTests extends MapperServiceTestCase {
 
     // TODO randomize version before 8.4.0
     public void testTermQuery() throws IOException {
-        testCase((ft, searcher) -> {
+        testCase((ft, context) -> {
             int seqNo = randomInt(MAX_SEQ_NO);
-            TopFieldDocs docs = docs(searcher, ft.termQuery(seqNo, null), 10);
+            TopFieldDocs docs = docs(context, ft.termQuery(seqNo, context), 10);
             assertThat(docs.totalHits, equalTo(new TotalHits(1, TotalHits.Relation.EQUAL_TO)));
             assertThat(((FieldDoc) docs.scoreDocs[0]).fields[0], equalTo((long) seqNo));
         });
     }
 
     public void testExactQuery() throws IOException {
-        testCase((ft, searcher) -> {
+        testCase((ft, context) -> {
             int seqNo = randomInt(MAX_SEQ_NO);
-            TopFieldDocs docs = docs(searcher, ft.exactQuery(seqNo), 10);
+            TopFieldDocs docs = docs(context, ft.exactQuery(context.indexVersionCreated(), seqNo), 10);
             assertThat(docs.totalHits, equalTo(new TotalHits(1, TotalHits.Relation.EQUAL_TO)));
             assertThat(((FieldDoc) docs.scoreDocs[0]).fields[0], equalTo((long) seqNo));
         });
     }
 
     public void testRangeQuery() throws IOException {
-        testCase((ft, searcher) -> {
+        testCase((ft, context) -> {
             int min = randomInt(MAX_SEQ_NO - 1);
             int max = randomIntBetween(min, MAX_SEQ_NO);
             TopFieldDocs docs = docs(
-                searcher,
-                ft.rangeQuery(min, max, true, true, ShapeRelation.INTERSECTS, null, null, null),
+                context,
+                ft.rangeQuery(min, max, true, true, ShapeRelation.INTERSECTS, null, null, context),
                 max - min + 100
             );
             assertThat(docs.totalHits, equalTo(new TotalHits(max - min + 1, TotalHits.Relation.EQUAL_TO)));
@@ -64,10 +66,10 @@ public class SeqNoFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testNativeRangeQuery() throws IOException {
-        testCase((ft, searcher) -> {
+        testCase((ft, context) -> {
             int min = randomInt(MAX_SEQ_NO - 1);
             int max = randomIntBetween(min, MAX_SEQ_NO);
-            TopFieldDocs docs = docs(searcher, ft.rangeQuery(min, max), max - min + 100);
+            TopFieldDocs docs = docs(context, ft.rangeQuery(context.indexVersionCreated(), min, max), max - min + 100);
             assertThat(docs.totalHits, equalTo(new TotalHits(max - min + 1, TotalHits.Relation.EQUAL_TO)));
             for (int i = 0; i < docs.scoreDocs.length; i++) {
                 assertThat(((FieldDoc) docs.scoreDocs[i]).fields[0], equalTo((long) (min + i)));
@@ -75,8 +77,8 @@ public class SeqNoFieldMapperTests extends MapperServiceTestCase {
         });
     }
 
-    private void testCase(CheckedBiConsumer<SeqNoFieldMapper.SeqNoFieldType, IndexSearcher, IOException> c) throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
+    private void testCase(CheckedBiConsumer<SeqNoFieldMapper.SeqNoFieldType, SearchExecutionContext, IOException> c) throws IOException {
+        MapperService mapperService = createMapperService(randomBoolean() ? Version.CURRENT : Version.V_8_3_0, mapping(b -> {}));
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             for (int seqNo = 0; seqNo <= MAX_SEQ_NO; seqNo++) {
                 ParsedDocument parsed = mapperService.documentParser().parseDocument(source("{}"), mapperService.mappingLookup());
@@ -86,13 +88,13 @@ public class SeqNoFieldMapperTests extends MapperServiceTestCase {
             try (IndexReader reader = iw.getReader()) {
                 c.accept(
                     (SeqNoFieldMapper.SeqNoFieldType) mapperService.mappingLookup().getFieldType(SeqNoFieldMapper.NAME),
-                    new IndexSearcher(reader)
+                    createSearchExecutionContext(mapperService, new IndexSearcher(reader))
                 );
             }
         }
     }
 
-    private TopFieldDocs docs(IndexSearcher searcher, Query query, int n) throws IOException {
-        return searcher.search(query, n, new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)));
+    private TopFieldDocs docs(SearchExecutionContext context, Query query, int n) throws IOException {
+        return context.searcher().search(query, n, new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)));
     }
 }

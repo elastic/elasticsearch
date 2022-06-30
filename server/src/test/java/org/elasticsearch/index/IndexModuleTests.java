@@ -306,7 +306,12 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(IndexingSlowLog.class, indexService.getIndexOperationListeners().get(0).getClass());
         assertSame(listener, indexService.getIndexOperationListeners().get(1));
 
-        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
+        ParsedDocument doc = EngineTestCase.createParsedDoc(
+            indexSettings.getIndexVersionCreated(),
+            "1",
+            EngineTestCase.randomIdFieldType(),
+            null
+        );
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
         ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {

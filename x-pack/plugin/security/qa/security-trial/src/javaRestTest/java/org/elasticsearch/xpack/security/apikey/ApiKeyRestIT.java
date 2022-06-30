@@ -208,27 +208,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
         final Map<String, Object> createApiKeyResponseMap = responseAsMap(createApiKeyResponse); // keys: id, name, api_key, encoded
-        final String apiKeyId = (String) createApiKeyResponseMap.get("id");
-        final String apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        final var apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
         assertThat(apiKeyId, not(emptyString()));
         assertThat(apiKeyEncoded, not(emptyString()));
 
-        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
-        final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
-        final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
-        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
-        updateApiKeyRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authorizationHeader(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
-        );
-
-        final Response updateApiKeyResponse = client().performRequest(updateApiKeyRequest);
-        assertOK(updateApiKeyResponse);
-        final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
-        assertTrue((Boolean) updateApiKeyResponseMap.get("updated"));
-
-        expectMetadata(apiKeyId, expectedApiKeyMetadata);
-        // validate authentication still works after update
-        doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+        doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
 
     public void testGrantTargetCanUpdateApiKey() throws IOException {
@@ -247,15 +232,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
 
         final Response response = client().performRequest(request);
-        final Map<String, Object> responseBody = entityAsMap(response);
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(response); // keys: id, name, api_key, encoded
+        final var apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        assertThat(apiKeyId, not(emptyString()));
+        assertThat(apiKeyEncoded, not(emptyString()));
 
-        assertThat(responseBody.get("name"), equalTo(apiKeyName));
-        assertThat(responseBody.get("id"), notNullValue());
-        assertThat(responseBody.get("id"), instanceOf(String.class));
+        doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+    }
 
-        final var apiKeyId = (String) responseBody.get("id");
-        final var apiKeyEncoded = (String) responseBody.get("encoded");
-
+    private void doTestUpdateApiKey(String apiKeyName, String apiKeyId, String apiKeyEncoded) throws IOException {
         final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
         final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);

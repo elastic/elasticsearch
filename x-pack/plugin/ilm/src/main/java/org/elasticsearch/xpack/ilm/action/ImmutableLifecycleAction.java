@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ilm.immutablestate.action;
+package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,8 +18,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
-import org.elasticsearch.xpack.ilm.action.TransportDeleteLifecycleAction;
-import org.elasticsearch.xpack.ilm.action.TransportPutLifecycleAction;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ilm.immutablestate;
+package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,7 +26,7 @@ public class ILMImmutableStateHandlerProvider implements ImmutableClusterStateHa
         return handlers;
     }
 
-    public static void handler(ImmutableClusterStateHandler<?> handler) {
-        handlers.add(handler);
+    public static void registerHandlers(ImmutableClusterStateHandler<?>... stateHandlers) {
+        handlers.addAll(Arrays.asList(stateHandlers));
     }
 }

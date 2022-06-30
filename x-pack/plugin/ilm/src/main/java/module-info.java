@@ -1,4 +1,4 @@
-import org.elasticsearch.xpack.ilm.immutablestate.ILMImmutableStateHandlerProvider;
+import org.elasticsearch.xpack.ilm.ILMImmutableStateHandlerProvider;
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
-import org.elasticsearch.xpack.ilm.immutablestate.action.ImmutableLifecycleAction;
 
 import java.util.List;
 import java.util.Optional;
@@ -76,9 +75,8 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
         /**
          * Used by the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} for ILM
          * {@link ImmutableLifecycleAction}
-         * @param policyName
          */
-        public DeleteLifecyclePolicyTask(String policyName) {
+        DeleteLifecyclePolicyTask(String policyName) {
             this(new Request(policyName), null);
         }
 

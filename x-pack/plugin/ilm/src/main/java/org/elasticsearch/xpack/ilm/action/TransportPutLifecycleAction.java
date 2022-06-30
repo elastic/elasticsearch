@@ -41,10 +41,9 @@ import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.ilm.immutablestate.action.ImmutableLifecycleAction;
 
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -115,7 +114,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
         submitUnbatchedTask(
             "put-lifecycle-" + request.getPolicy().getName(),
-            new UpdateLifecyclePolicyTask(request, listener, licenseState, filteredHeaders, xContentRegistry, client, true)
+            new UpdateLifecyclePolicyTask(request, listener, licenseState, filteredHeaders, xContentRegistry, client)
         );
     }
 
@@ -133,8 +132,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             XPackLicenseState licenseState,
             Map<String, String> filteredHeaders,
             NamedXContentRegistry xContentRegistry,
-            Client client,
-            boolean verboseLogging
+            Client client
         ) {
             super(request, listener);
             this.request = request;
@@ -142,7 +140,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             this.filteredHeaders = filteredHeaders;
             this.xContentRegistry = xContentRegistry;
             this.client = client;
-            this.verboseLogging = verboseLogging;
+            this.verboseLogging = true;
         }
 
         /**
@@ -150,19 +148,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
          * {@link ImmutableLifecycleAction}
          * <p>
          * It disables verbose logging and has no filtered headers.
-         *
-         * @param request
-         * @param licenseState
-         * @param xContentRegistry
-         * @param client
          */
-        public UpdateLifecyclePolicyTask(
-            Request request,
-            XPackLicenseState licenseState,
-            NamedXContentRegistry xContentRegistry,
-            Client client
-        ) {
-            this(request, null, licenseState, new HashMap<>(), xContentRegistry, client, false);
+        UpdateLifecyclePolicyTask(Request request, XPackLicenseState licenseState, NamedXContentRegistry xContentRegistry, Client client) {
+            super(request, null);
+            this.request = request;
+            this.licenseState = licenseState;
+            this.filteredHeaders = Collections.emptyMap();
+            this.xContentRegistry = xContentRegistry;
+            this.client = client;
+            this.verboseLogging = false;
         }
 
         @Override

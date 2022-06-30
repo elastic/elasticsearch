@@ -37,8 +37,11 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
             .register("generateSnykDependencyGraph", GenerateSnykDependencyGraph.class, generateSnykDependencyGraph -> {
                 generateSnykDependencyGraph.getProjectPath().set(project.getPath());
                 generateSnykDependencyGraph.getProjectName().set(project.getName());
-                generateSnykDependencyGraph.getVersion().set(project.getVersion().toString());
+                String projectVersion = project.getVersion().toString();
+                generateSnykDependencyGraph.getVersion().set(projectVersion);
                 generateSnykDependencyGraph.getGradleVersion().set(project.getGradle().getGradleVersion());
+                generateSnykDependencyGraph.getTargetReference()
+                    .set(providerFactory.gradleProperty("snykTargetReference").orElse(projectVersion));
                 generateSnykDependencyGraph.getOutputFile().set(projectLayout.getBuildDirectory().file("snyk/dependencies.json"));
             });
 

@@ -159,6 +159,7 @@ public final class DatafeedManager {
         datafeedConfigProvider.expandDatafeedConfigs(
             request.getDatafeedId(),
             request.allowNoMatch(),
+            null,
             ActionListener.wrap(datafeedBuilders ->
 
             // Build datafeeds

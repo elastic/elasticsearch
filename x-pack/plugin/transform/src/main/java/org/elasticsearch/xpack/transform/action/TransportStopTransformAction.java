@@ -224,7 +224,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     @Override
-    protected void taskOperation(Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {

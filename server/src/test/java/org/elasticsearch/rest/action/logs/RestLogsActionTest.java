@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.logs;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -17,10 +18,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -136,7 +137,7 @@ public class RestLogsActionTest extends RestActionTestCase {
     }
 
     @Test
-    public void testRetryOnIngestError() {
+    public void testRetryInGenericDataStreamOnMappingError() {
         RestRequest req = createLogsRequest("/_logs/foo", Map.of("message", "Hello World"));
         AtomicBoolean firstRequest = new AtomicBoolean(true);
         setBulkRequestVerifier((actionType, request) -> {
@@ -144,17 +145,7 @@ public class RestLogsActionTest extends RestActionTestCase {
                 firstRequest.set(false);
                 assertEquals(1, request.requests().size());
                 assertDataStreamFields("foo", "default", request.requests().get(0));
-                BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
-                BulkItemResponse bulkItemResponse = Mockito.mock(BulkItemResponse.class);
-                when(bulkResponse.hasFailures()).thenReturn(true);
-                when(bulkItemResponse.getItemId()).thenReturn(0);
-                when(bulkItemResponse.isFailed()).thenReturn(true);
-                BulkItemResponse.Failure failure = Mockito.mock(BulkItemResponse.Failure.class);
-                when(failure.getCause()).thenReturn(new MapperParsingException("bad foo"));
-                when(failure.getStatus()).thenReturn(RestStatus.BAD_REQUEST);
-                when(bulkItemResponse.getFailure()).thenReturn(failure);
-                when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[] { bulkItemResponse });
-                return bulkResponse;
+                return createMockBulkFailureResponse(new MapperParsingException("bad foo"));
             } else {
                 assertEquals(1, request.requests().size());
                 IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
@@ -162,10 +153,53 @@ public class RestLogsActionTest extends RestActionTestCase {
                 Map<String, Object> doc = indexRequest.sourceAsMap();
                 assertEquals("mapper_parsing_exception", getPath(doc, "_logs.error.type"));
                 assertEquals("bad foo", getPath(doc, "_logs.error.message"));
+                assertEquals("logs", getPath(doc, "_logs.data_stream.type"));
+                assertEquals("foo", getPath(doc, "_logs.data_stream.dataset"));
+                assertEquals("default", getPath(doc, "_logs.data_stream.namespace"));
                 return Mockito.mock(BulkResponse.class);
             }
         });
         dispatchRequest(req);
+    }
+
+    @Test
+    public void testRetryInSameDataStreamOnTransientError() {
+        RestRequest req = createLogsRequest("/_logs/foo", Map.of("message", "Hello World"));
+        AtomicBoolean firstRequest = new AtomicBoolean(true);
+        setBulkRequestVerifier((actionType, request) -> {
+            if (firstRequest.get()) {
+                firstRequest.set(false);
+                assertEquals(1, request.requests().size());
+                assertDataStreamFields("foo", "default", request.requests().get(0));
+                return createMockBulkFailureResponse(new EsRejectedExecutionException());
+            } else {
+                assertEquals(1, request.requests().size());
+                IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
+                assertDataStreamFields("foo", "default", indexRequest);
+                Map<String, Object> doc = indexRequest.sourceAsMap();
+                assertNull(doc.get("_logs"));
+                return Mockito.mock(BulkResponse.class);
+            }
+        });
+        dispatchRequest(req);
+
+    }
+
+    private BulkResponse createMockBulkFailureResponse(Exception exception) {
+        BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
+        when(bulkResponse.hasFailures()).thenReturn(true);
+
+        BulkItemResponse bulkItemResponse = Mockito.mock(BulkItemResponse.class);
+        when(bulkItemResponse.getItemId()).thenReturn(0);
+        when(bulkItemResponse.isFailed()).thenReturn(true);
+        when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[] { bulkItemResponse });
+
+        BulkItemResponse.Failure failure = Mockito.mock(BulkItemResponse.Failure.class);
+        when(failure.getCause()).thenReturn(exception);
+        when(failure.getStatus()).thenReturn(ExceptionsHelper.status(exception));
+        when(bulkItemResponse.getFailure()).thenReturn(failure);
+
+        return bulkResponse;
     }
 
     @Test

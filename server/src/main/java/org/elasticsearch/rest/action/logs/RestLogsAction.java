@@ -84,7 +84,7 @@ public class RestLogsAction extends BaseRestHandler {
                 if (line.isBlank()) {
                     continue;
                 }
-                Map<String, Object> event = null;
+                Map<String, Object> event;
                 if (line.startsWith("{")) {
                     try {
                         event = parseJson(line);
@@ -120,14 +120,10 @@ public class RestLogsAction extends BaseRestHandler {
                     doc.putIfAbsent("data_stream", new HashMap<>());
                     @SuppressWarnings("unchecked")
                     Map<String, String> dataStream = (Map<String, String>) doc.get("data_stream");
-                    dataStream.putIfAbsent("type", "logs");
-                    if (dataStream.get("type").equals("logs") == false) {
-                        dataStream.put("dataset", "generic");
-                        dataStream.put("namespace", "default");
-                    } else {
-                        dataStream.putIfAbsent("dataset", "generic");
-                        dataStream.putIfAbsent("namespace", "default");
-                    }
+                    dataStream.put("type", "logs");
+                    dataStream.putIfAbsent("dataset", "generic");
+                    dataStream.putIfAbsent("namespace", "default");
+                    // TODO validate or sanitize dataset and namespace
                     String index = "logs-" + dataStream.get("dataset") + "-" + dataStream.get("namespace");
                     indexRequests.add(Requests.indexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc));
                 }
@@ -135,7 +131,7 @@ public class RestLogsAction extends BaseRestHandler {
         }
 
         return channel -> {
-            client.bulk(Requests.bulkRequest().add(indexRequests), new RestActionListener<BulkResponse>(channel) {
+            client.bulk(Requests.bulkRequest().add(indexRequests), new RestActionListener<>(channel) {
                 @Override
                 protected void processResponse(BulkResponse bulkItemResponses) throws Exception {
                     if (bulkItemResponses.hasFailures() == false) {
@@ -143,29 +139,27 @@ public class RestLogsAction extends BaseRestHandler {
                         return;
                     }
                     BulkRequest retryBulk = Requests.bulkRequest();
-                    Arrays.stream(bulkItemResponses.getItems())
-                        .filter(BulkItemResponse::isFailed)
-                        .forEach(failedRequest -> {
-                            IndexRequest originalRequest = indexRequests.get(failedRequest.getItemId());
-                            Map<String, Object> doc = originalRequest.sourceAsMap();
-                            BulkItemResponse.Failure failure = failedRequest.getFailure();
-                            if (failure.getStatus() == RestStatus.BAD_REQUEST) {
-                                // looks like an error with the document (such as a mapping issue);
-                                // re-try in fallback data stream which has lenient mappings
-                                Exception cause = failure.getCause();
-                                addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
-                                addPath(doc, "_logs.error.message", cause.getMessage());
-                                addPath(doc, "_logs.data_stream", doc.get("data_stream"));
-                                addPath(doc, "_logs.data_stream", doc.get("data_stream"));
-                                addPath(doc, "data_stream.dataset", "generic");
-                                addPath(doc, "data_stream.namespace", "default");
-                                retryBulk.add(Requests.indexRequest("logs-generic-default").opType(DocWriteRequest.OpType.CREATE).source(doc));
-                            } else {
-                                // looks like a transient error; re-try as-is
-                                retryBulk.add(Requests.indexRequest(originalRequest.index()).opType(DocWriteRequest.OpType.CREATE).source(doc));
-                            }
-                        });
-                    client.bulk(retryBulk, new RestActionListener<BulkResponse>(channel) {
+                    Arrays.stream(bulkItemResponses.getItems()).filter(BulkItemResponse::isFailed).forEach(failedRequest -> {
+                        IndexRequest originalRequest = indexRequests.get(failedRequest.getItemId());
+                        Map<String, Object> doc = originalRequest.sourceAsMap();
+                        BulkItemResponse.Failure failure = failedRequest.getFailure();
+                        if (failure.getStatus() == RestStatus.BAD_REQUEST) {
+                            // looks like an error with the document (such as a mapping issue);
+                            // re-try in fallback data stream which has lenient mappings
+                            Exception cause = failure.getCause();
+                            addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
+                            addPath(doc, "_logs.error.message", cause.getMessage());
+                            addPath(doc, "_logs.data_stream", doc.remove("data_stream"));
+                            addPath(doc, "data_stream.type", "logs");
+                            addPath(doc, "data_stream.dataset", "generic");
+                            addPath(doc, "data_stream.namespace", "default");
+                            retryBulk.add(Requests.indexRequest("logs-generic-default").opType(DocWriteRequest.OpType.CREATE).source(doc));
+                        } else {
+                            // looks like a transient error; re-try as-is
+                            retryBulk.add(Requests.indexRequest(originalRequest.index()).opType(DocWriteRequest.OpType.CREATE).source(doc));
+                        }
+                    });
+                    client.bulk(retryBulk, new RestActionListener<>(channel) {
                         @Override
                         protected void processResponse(BulkResponse bulkItemResponses) throws Exception {
                             if (bulkItemResponses.hasFailures() == false) {

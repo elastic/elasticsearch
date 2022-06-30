@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class SeqNoFieldMapperTests extends MapperServiceTestCase {
     private static final int MAX_SEQ_NO = 10_000;
 
-    // TODO randomize version before 8.4.0
     public void testTermQuery() throws IOException {
         testCase((ft, context) -> {
             int seqNo = randomInt(MAX_SEQ_NO);

@@ -215,13 +215,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         final var victimName = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
         logger.info("--> master [{}], victim [{}]", masterName, victimName);
 
-        // drop the victim from the cluster with a network disruption
-        final var masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterName);
-        masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, victimName));
-        logger.info("--> waiting for victim's departure");
-        ensureStableCluster(2, masterName);
-
-        // block the cluster applier thread on the victim
+        // block the cluster applier thread on the victim (we expect no further cluster state applications at this point)
         logger.info("--> blocking victim's applier service");
         final var barrier = new CyclicBarrier(2);
         internalCluster().getInstance(ClusterService.class, victimName).getClusterApplierService().onNewClusterState("block", () -> {
@@ -234,6 +228,12 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             }
         }, ActionListener.wrap(() -> {}));
         barrier.await(10, TimeUnit.SECONDS);
+
+        // drop the victim from the cluster with a network disruption
+        final var masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterName);
+        masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, victimName));
+        logger.info("--> waiting for victim's departure");
+        ensureStableCluster(2, masterName);
 
         // verify that the victim sends no joins while the applier is blocked
         final var victimTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, victimName);

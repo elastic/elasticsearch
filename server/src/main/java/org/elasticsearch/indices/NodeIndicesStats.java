@@ -29,6 +29,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -164,6 +165,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Nullable
     public BulkStats getBulk() {
         return stats.getBulk();
+    }
+
+    @Nullable
+    public ShardCountStats getShardCount() {
+        return stats.getShards();
     }
 
     @Override

@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStatsAction.Response> {
 
@@ -66,6 +67,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
         public Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_trained_model_stats[%s]", getResourceId());
         }
 
         @Override

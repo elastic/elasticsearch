@@ -17,7 +17,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 public class CzechStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     CzechStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

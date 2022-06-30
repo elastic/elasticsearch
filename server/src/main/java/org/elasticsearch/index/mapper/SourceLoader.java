@@ -29,7 +29,7 @@ public interface SourceLoader {
     /**
      * Build the loader for some segment.
      */
-    Leaf leaf(LeafReader reader) throws IOException;
+    Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
     /**
      * Loads {@code _source} from some segment.
@@ -43,13 +43,10 @@ public interface SourceLoader {
          */
         BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
 
-        Leaf EMPTY_OBJECT = new Leaf() {
-            @Override
-            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                // TODO accept a requested xcontent type
-                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                    return BytesReference.bytes(b.startObject().endObject());
-                }
+        Leaf EMPTY_OBJECT = (fieldsVisitor, docId) -> {
+            // TODO accept a requested xcontent type
+            try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                return BytesReference.bytes(b.startObject().endObject());
             }
         };
     }
@@ -64,13 +61,8 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) {
-            return new Leaf() {
-                @Override
-                public BytesReference source(FieldsVisitor fieldsVisitor, int docId) {
-                    return fieldsVisitor.source();
-                }
-            };
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
+            return (fieldsVisitor, docId) -> fieldsVisitor.source();
         }
     };
 
@@ -90,23 +82,20 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
-            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader);
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader, docIdsInLeaf);
             if (leaf.empty()) {
                 return Leaf.EMPTY_OBJECT;
             }
-            return new Leaf() {
-                @Override
-                public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    // TODO accept a requested xcontent type
-                    try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                        if (leaf.advanceToDoc(docId)) {
-                            leaf.write(b);
-                        } else {
-                            b.startObject().endObject();
-                        }
-                        return BytesReference.bytes(b);
+            return (fieldsVisitor, docId) -> {
+                // TODO accept a requested xcontent type
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                    if (leaf.advanceToDoc(docId)) {
+                        leaf.write(b);
+                    } else {
+                        b.startObject().endObject();
                     }
+                    return BytesReference.bytes(b);
                 }
             };
         }
@@ -119,7 +108,7 @@ public interface SourceLoader {
         /**
          * Load no values.
          */
-        SyntheticFieldLoader NOTHING = r -> new Leaf() {
+        SyntheticFieldLoader.Leaf NOTHING_LEAF = new Leaf() {
             @Override
             public boolean empty() {
                 return true;
@@ -135,9 +124,14 @@ public interface SourceLoader {
         };
 
         /**
+         * Load no values.
+         */
+        SyntheticFieldLoader NOTHING = (r, docIds) -> NOTHING_LEAF;
+
+        /**
          * Build a loader for this field in the provided segment.
          */
-        Leaf leaf(LeafReader reader) throws IOException;
+        Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
         /**
          * Loads values for a field in a particular leaf.

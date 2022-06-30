@@ -25,7 +25,6 @@ import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -334,7 +333,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         if (nodes == null || nodes.length == 0) {
             return stream().map(DiscoveryNode::getId).toArray(String[]::new);
         } else {
-            Set<String> resolvedNodesIds = new HashSet<>(nodes.length);
+            Set<String> resolvedNodesIds = Sets.newHashSetWithExpectedSize(nodes.length);
             for (String nodeId : nodes) {
                 if (nodeId == null) {
                     // don't silence the underlying issue, it is a bug, so lets fail if assertions are enabled

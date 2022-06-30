@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
 
@@ -306,7 +307,7 @@ public final class ThreadContext implements Writeable {
                 return Collections.singleton(input.readString());
             } else {
                 // use a linked hash set to preserve order
-                final LinkedHashSet<String> values = new LinkedHashSet<>(size);
+                final LinkedHashSet<String> values = Sets.newLinkedHashSetWithExpectedSize(size);
                 for (int i = 0; i < size; i++) {
                     final String value = input.readString();
                     final boolean added = values.add(value);

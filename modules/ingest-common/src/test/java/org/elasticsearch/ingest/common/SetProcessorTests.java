@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
@@ -28,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.ingest.IngestDocument.Metadata;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,6 +36,9 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        while (Metadata.isMetadata(fieldName)) {
+            fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        }
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, true, false);
         processor.execute(ingestDocument);

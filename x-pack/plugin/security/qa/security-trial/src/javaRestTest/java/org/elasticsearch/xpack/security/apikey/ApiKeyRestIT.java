@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -267,7 +268,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
 
-        final Response updateApiKeyResponse = doUpdateWithRandomAuthMethod(updateApiKeyRequest);
+        final Response updateApiKeyResponse = doUpdateUsingRandomAuthMethod(updateApiKeyRequest);
 
         assertOK(updateApiKeyResponse);
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
@@ -278,10 +279,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
 
-    private Response doUpdateWithRandomAuthMethod(Request updateApiKeyRequest) throws IOException {
+    private Response doUpdateUsingRandomAuthMethod(Request updateApiKeyRequest) throws IOException {
         final boolean useRunAs = randomBoolean();
         if (useRunAs) {
-            updateApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", MANAGE_OWN_API_KEY_USER));
+            updateApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RUN_AS_USER_HEADER, MANAGE_OWN_API_KEY_USER));
             return adminClient().performRequest(updateApiKeyRequest);
         } else {
             updateApiKeyRequest.setOptions(

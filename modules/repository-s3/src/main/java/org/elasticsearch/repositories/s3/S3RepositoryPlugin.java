@@ -16,7 +16,6 @@ import com.amazonaws.util.json.Jackson;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.client.internal.Client;
@@ -50,7 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -64,25 +63,23 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
                 // kick jackson to do some static caching of declared members info
                 Jackson.jsonNodeOf("{}");
 
-                // some AWS classes emit noisy WARN logs so we hide them by setting logger to ERROR level
-                final Map<Logger, Level> awsConfigLoggers = List.of(
+                // some AWS classes emit noisy WARN logs when initialized, so we set their logging
+                // levels to ERROR if they are not explicitly configured in log4j2.properties
+                Stream.of(
                     AwsSdkMetrics.class,
                     BasicProfileConfigFileLoader.class,
                     SdkMBeanRegistrySupport.class,
                     UseArnRegionResolver.class
-                ).stream().map(LogManager::getLogger).collect(Collectors.toUnmodifiableMap(logger -> logger, Logger::getLevel));
-                try {
-                    awsConfigLoggers.forEach((logger, level) -> {
-                        if (level.isLessSpecificThan(Level.ERROR)) {
-                            Loggers.setLevel(logger, Level.ERROR);
-                        }
-                    });
-                    // ClientConfiguration clinit has some classloader problems
-                    // TODO: fix that
-                    Class.forName("com.amazonaws.ClientConfiguration");
-                } finally {
-                    awsConfigLoggers.forEach(Loggers::setLevel);
-                }
+                ).forEach(cl -> {
+                    final String loggerName = cl.getName();
+                    if (Loggers.isExplicitlyConfigured(loggerName) == false) {
+                        Loggers.setLevel(LogManager.getLogger(loggerName), Level.ERROR);
+                    }
+                });
+
+                // ClientConfiguration clinit has some classloader problems
+                // TODO: fix that
+                Class.forName("com.amazonaws.ClientConfiguration");
             } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }

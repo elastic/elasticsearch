@@ -117,18 +117,13 @@ public class HealthMetadataService {
         );
     }
 
-    private HealthMetadata createHealthMetadata() {
-        return new HealthMetadata(diskHealthMetadataMonitor.getDiskHealthMetadata());
-    }
-
     private void submitHealthMetadata(String source) {
-        HealthMetadata localHealthMedata = createHealthMetadata();
-        var task = new UpdateHealthMetadataTask(localHealthMedata);
+        var task = new UpdateHealthMetadataTask(diskHealthMetadataMonitor);
         var config = ClusterStateTaskConfig.build(Priority.NORMAL);
         clusterService.submitStateUpdateTask(source, task, config, taskExecutor);
     }
 
-    record UpdateHealthMetadataTask(HealthMetadata healthMetadata) implements ClusterStateTaskListener {
+    record UpdateHealthMetadataTask(DiskHealthMetadataMonitor diskHealthMetadataMonitor) implements ClusterStateTaskListener {
 
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
@@ -140,6 +135,10 @@ public class HealthMetadataService {
             logger.error("failure during health metadata update", e);
         }
 
+        private HealthMetadata execute() {
+            return new HealthMetadata(diskHealthMetadataMonitor.getDiskHealthMetadata());
+        }
+
         static class Executor implements ClusterStateTaskExecutor<UpdateHealthMetadataTask> {
 
             @Override
@@ -148,7 +147,7 @@ public class HealthMetadataService {
                 final HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(currentState);
                 HealthMetadata currentHealthMetadata = initialHealthMetadata;
                 for (TaskContext<UpdateHealthMetadataTask> taskContext : taskContexts) {
-                    currentHealthMetadata = taskContext.getTask().healthMetadata();
+                    currentHealthMetadata = taskContext.getTask().execute();
                     taskContext.success(() -> {});
                 }
                 final var finalHealthMetadata = currentHealthMetadata;
@@ -174,7 +173,7 @@ public class HealthMetadataService {
         private volatile RelativeByteSizeValue frozenFloodStage;
         private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
 
-        public DiskHealthMetadataMonitor(Settings settings, ClusterSettings clusterSettings, Runnable callback) {
+        DiskHealthMetadataMonitor(Settings settings, ClusterSettings clusterSettings, Runnable callback) {
             this.callback = callback;
             setLowWatermark(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings));
             setHighWatermark(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings));
@@ -263,12 +262,12 @@ public class HealthMetadataService {
             return frozenFloodStageMaxHeadroom;
         }
 
-        HealthMetadata.DiskThresholds getDiskHealthMetadata() {
-            return new HealthMetadata.DiskThresholds(
-                new HealthMetadata.DiskThresholds.DiskThreshold(getWatermarkLow(), getFreeBytesWatermarkLow()),
-                new HealthMetadata.DiskThresholds.DiskThreshold(getWatermarkHigh(), getFreeBytesWatermarkHigh()),
-                new HealthMetadata.DiskThresholds.DiskThreshold(getWatermarkFloodStage(), getFreeBytesWatermarkFloodStage()),
-                new HealthMetadata.DiskThresholds.DiskThreshold(getFrozenFloodStage()),
+        HealthMetadata.DiskMetadata getDiskHealthMetadata() {
+            return new HealthMetadata.DiskMetadata(
+                new HealthMetadata.DiskMetadata.DiskThreshold(getWatermarkLow(), getFreeBytesWatermarkLow()),
+                new HealthMetadata.DiskMetadata.DiskThreshold(getWatermarkHigh(), getFreeBytesWatermarkHigh()),
+                new HealthMetadata.DiskMetadata.DiskThreshold(getWatermarkFloodStage(), getFreeBytesWatermarkFloodStage()),
+                new HealthMetadata.DiskMetadata.DiskThreshold(getFrozenFloodStage()),
                 getFrozenFloodStageMaxHeadroom()
             );
         }

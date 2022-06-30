@@ -50,9 +50,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             String electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskMetadata.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
-                ).getDiskThresholds().lowWatermark();
+                ).getDiskMetadata().lowWatermark();
                 assertThat(lowWatermark.toStringRep(), equalTo(watermarkByNode.get(electedMaster)));
             }
 
@@ -61,9 +61,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             ensureStableCluster(numberOfNodes - 1);
             electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskMetadata.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
-                ).getDiskThresholds().lowWatermark();
+                ).getDiskMetadata().lowWatermark();
                 assertThat(lowWatermark.toStringRep(), equalTo(watermarkByNode.get(electedMaster)));
             }
         }
@@ -85,9 +85,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             ensureStableCluster(numberOfNodes);
             {
-                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskMetadata.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
-                ).getDiskThresholds().lowWatermark();
+                ).getDiskMetadata().lowWatermark();
                 assertThat(lowWatermark.toStringRep(), equalTo(initialWatermark));
             }
             internalCluster.client()
@@ -96,9 +96,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 .updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(createWatermarkSettings(updatedWatermark)))
                 .actionGet();
             assertBusy(() -> {
-                HealthMetadata.DiskThresholds.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
+                HealthMetadata.DiskMetadata.DiskThreshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
                     internalCluster.clusterService().state()
-                ).getDiskThresholds().lowWatermark();
+                ).getDiskMetadata().lowWatermark();
                 assertThat(lowWatermark.toStringRep(), equalTo(updatedWatermark));
             });
         }

@@ -93,12 +93,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
             params.setJavaToolChainSpec(resolveToolchainSpecFromEnv());
-            // TODO: Temporarily hard-code this to 17 until we upgrade to Gradle 7.3 and bump minimumRuntimeVersion
             params.setRuntimeJavaVersion(
                 determineJavaVersion(
                     "runtime java.home",
                     runtimeJavaHome,
-                    isRuntimeJavaHomeSet ? JavaVersion.VERSION_17 : Jvm.current().getJavaVersion()
+                    isRuntimeJavaHomeSet ? minimumRuntimeVersion : Jvm.current().getJavaVersion()
                 )
             );
             params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeSet);
@@ -280,8 +279,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (runtimeJavaProperty != null) {
             return new File(findJavaHome(runtimeJavaProperty));
         }
-
-        return System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"));
+        String env = System.getenv("RUNTIME_JAVA_HOME");
+        if (env != null) {
+            return new File(env);
+        }
+        // fall back to tool chain if set.
+        env = System.getenv("JAVA_TOOLCHAIN_HOME");
+        return env == null ? Jvm.current().getJavaHome() : new File(env);
     }
 
     private String findJavaHome(String version) {

@@ -100,6 +100,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards.get(id);
     }
 
+    public boolean hasIndex(Index index) {
+        return shardsByIndex.containsKey(index);
+    }
+
     /**
      * Get the id of this node
      * @return id of the node

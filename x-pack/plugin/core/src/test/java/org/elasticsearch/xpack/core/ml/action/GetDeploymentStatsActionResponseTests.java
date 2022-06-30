@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 
-import static org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatsTests.randomDeploymentStats;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStatsTests.randomDeploymentStats;
 
 public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializingTestCase<GetDeploymentStatsAction.Response> {
     @Override
@@ -30,11 +30,11 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
 
     public static GetDeploymentStatsAction.Response createRandom() {
         int numStats = randomIntBetween(0, 2);
-        var stats = new ArrayList<AllocationStats>(numStats);
+        var stats = new ArrayList<AssignmentStats>(numStats);
         for (var i = 0; i < numStats; i++) {
             stats.add(randomDeploymentStats());
         }
-        stats.sort(Comparator.comparing(AllocationStats::getModelId));
+        stats.sort(Comparator.comparing(AssignmentStats::getModelId));
         return new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), stats, stats.size());
     }
 

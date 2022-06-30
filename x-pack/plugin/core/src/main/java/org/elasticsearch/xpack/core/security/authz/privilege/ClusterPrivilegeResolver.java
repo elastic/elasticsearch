@@ -46,7 +46,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 /**
  * Translates cluster privilege names into concrete implementations
@@ -319,7 +318,7 @@ public class ClusterPrivilegeResolver {
             .stream()
             .filter(e -> e.getValue().permission().check(action, request, authentication))
             .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     /**

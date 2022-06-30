@@ -59,9 +59,10 @@ mode, you must explicitly list the master-eligible nodes whose votes should be
 counted in the very first election. You set this list using the
 `cluster.initial_master_nodes` setting.
 
-IMPORTANT: After the cluster forms successfully for the first time, remove the `cluster.initial_master_nodes` setting from each nodes'
-configuration. Do not use this setting when
-restarting a cluster or adding a new node to an existing cluster.
+IMPORTANT: After the cluster forms successfully for the first time, remove the
+`cluster.initial_master_nodes` setting from each node's configuration. Do not
+use this setting when restarting a cluster or adding a new node to an existing
+cluster.
 
 [source,yaml]
 --------------------------------------------------

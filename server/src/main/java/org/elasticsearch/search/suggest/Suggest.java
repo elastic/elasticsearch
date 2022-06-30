@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -181,7 +180,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return suggestions.stream()
             .filter(suggestion -> suggestion.getClass() == suggestionType)
             .map(suggestion -> (T) suggestion)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     @Override
@@ -543,10 +542,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 out.writeText(text);
                 out.writeVInt(offset);
                 out.writeVInt(length);
-                out.writeVInt(options.size());
-                for (Option option : options) {
-                    option.writeTo(out);
-                }
+                out.writeCollection(options);
             }
 
             @Override

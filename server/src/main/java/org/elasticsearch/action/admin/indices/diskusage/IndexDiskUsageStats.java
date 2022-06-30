@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * The result of analyzing disk usage of each field in a shard/index
@@ -79,7 +78,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         return indexSizeInBytes;
     }
 
-    private void checkByteSize(long bytes) {
+    private static void checkByteSize(long bytes) {
         if (bytes < 0) {
             throw new IllegalArgumentException("Bytes must be non-negative; got " + bytes);
         }
@@ -143,7 +142,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             final List<Map.Entry<String, PerFieldDiskUsage>> entries = fields.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.toList());
+                .toList();
             for (Map.Entry<String, PerFieldDiskUsage> entry : entries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);

@@ -111,11 +111,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         indexDoc(messageFactory.newMessage(resourceId, message, Level.ERROR, new Date(), nodeName));
     }
 
-    private void onIndexResponse(IndexResponse response) {
+    private static void onIndexResponse(IndexResponse response) {
         logger.trace("Successfully wrote audit message");
     }
 
-    private void onIndexFailure(Exception exception) {
+    private static void onIndexFailure(Exception exception) {
         logger.debug("Failed to write audit message", exception);
     }
 
@@ -178,7 +178,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private void writeDoc(ToXContent toXContent) {
-        client.index(indexRequest(toXContent), ActionListener.wrap(this::onIndexResponse, this::onIndexFailure));
+        client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, AbstractAuditor::onIndexFailure));
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {
@@ -188,7 +188,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         return indexRequest;
     }
 
-    private XContentBuilder toXContentBuilder(ToXContent toXContent) {
+    private static XContentBuilder toXContentBuilder(ToXContent toXContent) {
         try (XContentBuilder jsonBuilder = jsonBuilder()) {
             return toXContent.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         } catch (IOException e) {
@@ -221,7 +221,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 logger.trace("Successfully wrote audit message backlog after upgrading template");
             }
             backlog = null;
-        }, this::onIndexFailure));
+        }, AbstractAuditor::onIndexFailure));
     }
 
     // for testing

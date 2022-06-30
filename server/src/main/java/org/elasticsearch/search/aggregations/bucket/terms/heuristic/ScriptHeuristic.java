@@ -146,7 +146,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
-    public final class LongAccessor extends Number {
+    public static final class LongAccessor extends Number {
         public long value;
 
         @Override

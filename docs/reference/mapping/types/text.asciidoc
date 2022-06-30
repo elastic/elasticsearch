@@ -159,6 +159,63 @@ The following parameters are accepted by `text` fields:
 
     Metadata about the field.
 
+ifeval::["{release-state}"=="unreleased"]
+[[text-synthetic-source]]
+==== Synthetic source
+`text` fields support <<synthetic-source,synthetic `_source`>> if they have
+a `keyword` sub-field that supports synthetic `_source` and *do not* have
+<<copy-to,`copy_to`>>.
+
+Synthetic source always sorts `keyword` fields and removes duplicates, so
+`text` fields are sorted based on the sub-`keyword` field. For example:
+[source,console,id=synthetic-source-text-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "synthetic": true },
+    "properties": {
+      "text": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "text": [
+    "the quick brown fox",
+    "the quick brown fox",
+    "jumped over the lazy dog"
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "text": [
+    "jumped over the lazy dog",
+    "the quick brown fox"
+  ]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+NOTE: Reordering text fields can have an effect on <<query-dsl-match-query-phrase,phrase>>
+      and <<span-queries,span>> queries. See the discussion about
+      <<position-increment-gap,`position_increment_gap`>> for more detail. You
+      can avoid this by making sure the `slop` parameter on the phrase queries
+      is lower than the `position_increment_gap`. This is the default.
+endif::[]
+
 [[fielddata-mapping-param]]
 ==== `fielddata` mapping parameter
 

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -64,7 +63,7 @@ public class FakeThreadPoolMasterService extends MasterService {
             1,
             1,
             TimeUnit.SECONDS,
-            EsExecutors.daemonThreadFactory(name),
+            r -> { throw new AssertionError("should not create new threads"); },
             null,
             null,
             PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER

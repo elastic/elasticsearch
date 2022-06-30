@@ -11,6 +11,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,5 +76,15 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
                 + InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
             assertThat(storedField.stringValue(), containsString(strVal));
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

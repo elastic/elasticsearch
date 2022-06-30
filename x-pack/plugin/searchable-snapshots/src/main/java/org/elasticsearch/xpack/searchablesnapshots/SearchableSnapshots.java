@@ -205,8 +205,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String SNAPSHOT_BLOB_CACHE_INDEX_PATTERN = SNAPSHOT_BLOB_CACHE_INDEX + "*";
     public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
     public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
-        new Setting.SimpleKey(SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH),
-        s -> new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
+        SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH,
+        new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
         s -> Setting.parseByteSize(
             s,
             new ByteSizeValue(1L, ByteSizeUnit.KB),
@@ -582,7 +582,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             ) };
     }
 
-    private Settings getIndexSettings() {
+    private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -592,7 +592,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .build();
     }
 
-    private XContentBuilder getIndexMappings() {
+    private static XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {
@@ -750,7 +750,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 .filter(s -> s.equals(RepositoryData.MISSING_UUID) == false)
                 .collect(Collectors.toSet());
             if (knownUuids.addAll(newUuids)) {
-                rerouteService.reroute("repository UUIDs changed", Priority.NORMAL, ActionListener.wrap((() -> {})));
+                rerouteService.reroute("repository UUIDs changed", Priority.NORMAL, ActionListener.noop());
             }
             knownUuids.retainAll(newUuids);
             assert knownUuids.equals(newUuids) : knownUuids + " vs " + newUuids;

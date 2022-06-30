@@ -296,7 +296,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     )
                 );
             }
-            builder.addIndexShard(indexShard.build());
+            builder.addIndexShard(indexShard);
         }
         return builder.build();
     }
@@ -306,16 +306,19 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
-        for (Map.Entry<Integer, IndexShardRoutingTable> indexShardRoutingTable : original.shards().entrySet()) {
+        for (int i = 0; i < original.size(); i++) {
+            IndexShardRoutingTable indexShardRoutingTable = original.shard(i);
             Set<String> availableNodes = Sets.newHashSet(nodes);
-            for (ShardRouting shardRouting : indexShardRoutingTable.getValue().shards()) {
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 availableNodes.remove(shardRouting.currentNodeId());
                 if (shardRouting.relocating()) {
                     availableNodes.remove(shardRouting.relocatingNodeId());
                 }
             }
 
-            for (ShardRouting shardRouting : indexShardRoutingTable.getValue().shards()) {
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
                 availableNodes.remove(updatedShardRouting.currentNodeId());
                 if (shardRouting.relocating()) {
@@ -368,7 +371,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(ClusterState clusterState);
+        Map<String, T> parts(ClusterState clusterState);
 
         /**
          * Puts the part back into metadata
@@ -398,7 +401,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private <T> ClusterState randomClusterStateParts(ClusterState clusterState, String prefix, RandomClusterPart<T> randomPart) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(clusterState);
+        Map<String, T> parts = randomPart.parts(clusterState);
         int partCount = parts.size();
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(
@@ -469,7 +472,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(Metadata metadata);
+        Map<String, T> parts(Metadata metadata);
 
         /**
          * Puts the part back into metadata
@@ -499,7 +502,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private <T> Metadata randomParts(Metadata metadata, String prefix, RandomPart<T> randomPart) {
         Metadata.Builder builder = Metadata.builder(metadata);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(metadata);
+        Map<String, T> parts = randomPart.parts(metadata);
         int partCount = parts.size();
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(randomInt(partCount - 1), randomPart.parts(metadata).keySet().toArray(new String[0]));
@@ -526,7 +529,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "index", new RandomPart<IndexMetadata>() {
 
             @Override
-            public ImmutableOpenMap<String, IndexMetadata> parts(Metadata metadata) {
+            public Map<String, IndexMetadata> parts(Metadata metadata) {
                 return metadata.indices();
             }
 
@@ -586,7 +589,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private Metadata randomTemplates(Metadata metadata) {
         return randomParts(metadata, "template", new RandomPart<IndexTemplateMetadata>() {
             @Override
-            public ImmutableOpenMap<String, IndexTemplateMetadata> parts(Metadata metadata) {
+            public Map<String, IndexTemplateMetadata> parts(Metadata metadata) {
                 return metadata.templates();
             }
 
@@ -643,7 +646,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, Metadata.Custom> parts(Metadata metadata) {
+            public Map<String, Metadata.Custom> parts(Metadata metadata) {
                 return metadata.customs();
             }
 
@@ -685,7 +688,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return ClusterState.builder(randomClusterStateParts(clusterState, "custom", new RandomClusterPart<ClusterState.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, ClusterState.Custom> parts(ClusterState clusterState) {
+            public Map<String, ClusterState.Custom> parts(ClusterState clusterState) {
                 return clusterState.customs();
             }
 

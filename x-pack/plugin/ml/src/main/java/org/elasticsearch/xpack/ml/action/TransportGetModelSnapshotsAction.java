@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -19,6 +18,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetModelSnapshotsAction extends HandledTransportAction<
     GetModelSnapshotsAction.Request,
@@ -48,8 +49,8 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
         ActionListener<GetModelSnapshotsAction.Response> listener
     ) {
         logger.debug(
-            () -> new ParameterizedMessage(
-                "Get model snapshots for job {} snapshot ID {}. from = {}, size = {} start = '{}', end='{}', sort={} descending={}",
+            () -> format(
+                "Get model snapshots for job %s snapshot ID %s. from = %s, size = %s start = '%s', end='%s', sort=%s descending=%s",
                 request.getJobId(),
                 request.getSnapshotId(),
                 request.getPageParams().getFrom(),

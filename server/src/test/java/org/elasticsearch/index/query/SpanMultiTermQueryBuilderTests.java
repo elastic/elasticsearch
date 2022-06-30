@@ -234,8 +234,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                       "boost" : 1.08
                     }
                   }
-                },
-                "boost" : 1.0
+                }
               }
             }""";
 

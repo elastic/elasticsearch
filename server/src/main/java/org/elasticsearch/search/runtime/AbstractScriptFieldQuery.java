@@ -119,7 +119,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
         }
     }
 
-    final Explanation explainMatch(float boost, String description) {
+    static Explanation explainMatch(float boost, String description) {
         return Explanation.match(
             boost,
             description,

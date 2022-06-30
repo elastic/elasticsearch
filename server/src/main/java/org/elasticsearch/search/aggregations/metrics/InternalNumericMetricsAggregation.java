@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -62,7 +63,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
 
         @Override
-        public final double sortValue(String key) {
+        public final SortValue sortValue(String key) {
             if (key != null && false == key.equals("value")) {
                 throw new IllegalArgumentException(
                     "Unknown value key ["
@@ -72,7 +73,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
                         + "]. Either use [value] as key or drop the key all together"
                 );
             }
-            return value();
+            return SortValue.from(value());
         }
     }
 
@@ -115,11 +116,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
 
         @Override
-        public final double sortValue(String key) {
+        public final SortValue sortValue(String key) {
             if (key == null) {
                 throw new IllegalArgumentException("Missing value key in [" + key + "] which refers to a multi-value metric aggregation");
             }
-            return value(key);
+            return SortValue.from(value(key));
         }
     }
 
@@ -146,7 +147,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     }
 
     @Override
-    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public final SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         throw new IllegalArgumentException("Metrics aggregations cannot have sub-aggregations (at [>" + head + "]");
     }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -171,7 +170,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).collect(Collectors.toList()),
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).toList(),
             StreamOutput::writeNamedWriteable
         );
         createIndexRequest.writeTo(out);

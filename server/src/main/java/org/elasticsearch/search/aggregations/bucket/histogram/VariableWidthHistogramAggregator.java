@@ -51,7 +51,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
      * Running a clustering algorithm like K-Means is unfeasible because large indices don't fit into memory.
      * But having multiple collection phases lets us accurately bucket the docs in one pass.
      */
-    private abstract class CollectionPhase implements Releasable {
+    private abstract static class CollectionPhase implements Releasable {
 
         /**
          * This method will collect the doc and then either return itself or a new CollectionPhase
@@ -352,20 +352,17 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 clusterSizes.set(index, holdSize);
 
                 // Move the underlying buckets
-                LongUnaryOperator mergeMap = new LongUnaryOperator() {
-                    @Override
-                    public long applyAsLong(long i) {
-                        if (i < index) {
-                            // The clusters in range {0 ... idx - 1} don't move
-                            return i;
-                        }
-                        if (i == numClusters - 1) {
-                            // The new cluster moves to index
-                            return (long) index;
-                        }
-                        // The clusters in range {index ... numClusters - 1} shift forward
-                        return i + 1;
+                LongUnaryOperator mergeMap = i -> {
+                    if (i < index) {
+                        // The clusters in range {0 ... idx - 1} don't move
+                        return i;
                     }
+                    if (i == numClusters - 1) {
+                        // The new cluster moves to index
+                        return (long) index;
+                    }
+                    // The clusters in range {index ... numClusters - 1} shift forward
+                    return i + 1;
                 };
 
                 rewriteBuckets(numClusters, mergeMap);
@@ -495,7 +492,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         return null;
     }
 
-    private String descendsFromNestedAggregator(Aggregator parent) {
+    private static String descendsFromNestedAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent.getClass() == NestedAggregator.class) {
                 return parent.name();

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -99,7 +100,7 @@ public class GrokProcessorTests extends ESTestCase {
 
     public void testMatchWithoutCaptures() throws Exception {
         String fieldName = "value";
-        IngestDocument originalDoc = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument originalDoc = TestIngestDocument.emptyIngestDocument();
         originalDoc.setFieldValue(fieldName, fieldName);
         IngestDocument doc = new IngestDocument(originalDoc);
         GrokProcessor processor = new GrokProcessor(

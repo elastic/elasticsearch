@@ -56,6 +56,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+
 /**
  * Represents the state of the cluster, held in memory on all nodes in the cluster with updates coordinated by the elected master.
  * <p>
@@ -149,7 +151,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final ClusterBlocks blocks;
 
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, Custom> customs;
 
     private final ClusterName clusterName;
 
@@ -181,7 +183,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         ClusterBlocks blocks,
-        ImmutableOpenMap<String, Custom> customs,
+        Map<String, Custom> customs,
         boolean wasReadFromDiff,
         @Nullable RoutingNodes routingNodes
     ) {
@@ -240,6 +242,17 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return nodes();
     }
 
+    /**
+     * Returns the set of nodes that should be exposed to things like REST handlers that behave differently depending on the nodes in the
+     * cluster and their versions. Specifically, if the cluster has properly formed then this is the nodes in the last-applied cluster
+     * state, but if the cluster has not properly formed then no nodes are returned.
+     *
+     * @return the nodes in the cluster if the cluster has properly formed, otherwise an empty set of nodes.
+     */
+    public DiscoveryNodes nodesIfRecovered() {
+        return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
+    }
+
     public Metadata metadata() {
         return this.metadata;
     }
@@ -268,11 +281,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return blocks;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -522,10 +535,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
                 builder.startObject(indexRoutingTable.getIndex().getName());
                 builder.startObject("shards");
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                     builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        shardRouting.toXContent(builder, params);
+                    for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                        indexShardRoutingTable.shard(copy).toXContent(builder, params);
                     }
                     builder.endArray();
                 }
@@ -684,7 +698,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+        public Builder customs(Map<String, Custom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;
@@ -800,7 +814,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<ClusterBlocks> blocks;
 
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, Custom>> customs;
 
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
@@ -823,7 +837,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             if (in.getVersion().before(Version.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }

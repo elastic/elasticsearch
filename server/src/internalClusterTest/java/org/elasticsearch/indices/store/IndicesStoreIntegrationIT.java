@@ -481,7 +481,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             indexRoutingTableBuilder.addIndexShard(
                 new IndexShardRoutingTable.Builder(shardId).addShard(
                     TestShardRouting.newShardRouting(shardId, masterId, true, ShardRoutingState.STARTED)
-                ).build()
+                )
             );
         }
         ClusterState newState = ClusterState.builder(currentState)

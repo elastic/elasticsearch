@@ -1078,19 +1078,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "query" : "this AND that OR thus",
                 "default_field" : "content",
                 "fields" : [ ],
-                "type" : "best_fields",
-                "tie_breaker" : 0.0,
-                "default_operator" : "or",
-                "max_determinized_states" : 10000,
-                "enable_position_increments" : true,
-                "fuzziness" : "AUTO",
-                "fuzzy_prefix_length" : 0,
-                "fuzzy_max_expansions" : 50,
-                "phrase_slop" : 0,
-                "escape" : false,
-                "auto_generate_synonyms_phrase_query" : true,
+                "type" : "most_fields",
+                "tie_breaker" : 0.1,
+                "default_operator" : "and",
+                "max_determinized_states" : 8000,
+                "enable_position_increments" : false,
+                "fuzziness" : "1",
+                "fuzzy_prefix_length" : 1,
+                "fuzzy_max_expansions" : 20,
+                "phrase_slop" : 1,
+                "escape" : true,
+                "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "boost" : 2.0
               }
             }""";
 
@@ -1100,6 +1100,24 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
         assertEquals(json, false, parsed.fuzzyTranspositions());
+    }
+
+    public void testSimpleFromJson() throws IOException {
+        String json = """
+            {
+              "query_string" : {
+                "query" : "this AND that OR thus",
+                "default_field" : "content",
+                "fields" : [ ]
+              }
+            }""";
+
+        QueryStringQueryBuilder parsed = (QueryStringQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "this AND that OR thus", parsed.queryString());
+        assertEquals(json, "content", parsed.defaultField());
+        assertEquals(json, true, parsed.fuzzyTranspositions());
     }
 
     public void testExpandedTerms() throws Exception {

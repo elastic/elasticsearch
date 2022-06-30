@@ -76,6 +76,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "name": "",
                             "ephemeral_id": "%s",
                             "transport_address": "0.0.0.0:9000",
+                            "external_id": "",
                             "attributes": {},
                             "roles": [
                               "data",
@@ -141,7 +142,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           },
                           "index-graveyard": {
                             "tombstones": []
-                          }
+                          },
+                          "immutable_state":{}
                         },
                         "routing_table": {
                           "indices": {}
@@ -245,7 +247,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       },
                       "index-graveyard" : {
                         "tombstones" : [ ]
-                      }
+                      },
+                      "immutable_state":{}
                     }
                   }
                 }"""), XContentHelper.stripWhitespace(Strings.toString(builder)));

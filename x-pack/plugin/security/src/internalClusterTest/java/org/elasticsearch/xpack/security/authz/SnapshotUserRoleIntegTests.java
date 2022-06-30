@@ -31,8 +31,8 @@ import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPT
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -109,7 +109,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
             ResponseException.class,
             () -> securityClient.putRole(new RoleDescriptor("snapshot_user", new String[] { "all" }, null, new String[] { "*" }))
         );
-        assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be modified"));
+        assertThat(e.getMessage(), containsString("Role [snapshot_user] is reserved and may not be used"));
 
         e = expectThrows(ResponseException.class, () -> securityClient.deleteRole("snapshot_user"));
         assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be deleted"));

@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
@@ -69,7 +68,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
-    private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
+    private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         ClusterSearchShardsAction.NAME
@@ -253,10 +252,6 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
-        return VALUES.entrySet()
-            .stream()
-            .filter(e -> e.getValue().predicate.test(action))
-            .map(e -> e.getKey())
-            .collect(Collectors.toUnmodifiableList());
+        return VALUES.entrySet().stream().filter(e -> e.getValue().predicate.test(action)).map(e -> e.getKey()).toList();
     }
 }

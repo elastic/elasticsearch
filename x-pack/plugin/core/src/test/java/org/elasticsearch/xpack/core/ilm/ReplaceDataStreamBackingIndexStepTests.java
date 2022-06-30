@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 
@@ -81,7 +80,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, List.of(sourceIndexMetadata.getIndex())))
                     .build()
             )
             .build();
@@ -112,7 +111,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .build()
             )
             .build();
@@ -160,7 +159,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )
@@ -206,13 +205,13 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> backingIndices = List.of(writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )

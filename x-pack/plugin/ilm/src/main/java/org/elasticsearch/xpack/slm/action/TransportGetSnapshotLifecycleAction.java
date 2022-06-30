@@ -34,7 +34,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeAction<
     GetSnapshotLifecycleAction.Request,
@@ -118,7 +117,7 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
                         slmStats.getMetrics().get(policyMeta.getPolicy().getId())
                     )
                 )
-                .collect(Collectors.toList());
+                .toList();
             if (lifecycles.size() == 0) {
                 if (request.getLifecycleIds().length == 0) {
                     listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));

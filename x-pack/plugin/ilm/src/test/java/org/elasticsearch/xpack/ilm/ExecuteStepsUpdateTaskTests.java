@@ -303,7 +303,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.phaseTime(), nullValue());
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepInfo(), containsString("""
-            {"type":"runtime_exception","reason":"error","stack_trace":\""""));
+            {"type":"runtime_exception","reason":"error\""""));
     }
 
     public void testClusterWaitStepThrowsException() throws Exception {
@@ -322,7 +322,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.phaseTime(), nullValue());
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepInfo(), containsString("""
-            {"type":"runtime_exception","reason":"error","stack_trace":\""""));
+            {"type":"runtime_exception","reason":"error\""""));
     }
 
     private void setStateToKey(StepKey stepKey) throws IOException {

@@ -66,7 +66,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     /**
      * Task wrapper for throttled execution, we need this wrapper in order to cancel and re-issue scheduled searches
      */
-    class ScheduledRunnable {
+    static class ScheduledRunnable {
         private final ThreadPool threadPool;
         private final Runnable command;
         private Scheduler.ScheduledCancellable scheduled;

@@ -155,7 +155,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         recoverReplica(replica, primary, true);
 
         IndexRoutingTable.Builder routing = IndexRoutingTable.builder(indexMetadata.getIndex());
-        routing.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary.routingEntry()).build());
+        routing.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary.routingEntry()));
         state.routingTable(RoutingTable.builder().add(routing.build()).build());
 
         setState(clusterService, state.build());

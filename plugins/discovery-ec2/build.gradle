@@ -45,10 +45,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("bundlePlugin").configure {
-  from('config/discovery-ec2') {
+esplugin.bundleSpec.from('config/discovery-ec2') {
     into 'config'
-  }
 }
 
 tasks.register("writeTestJavaPolicy") {

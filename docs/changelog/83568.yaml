@@ -1,6 +1,0 @@
-pr: 83568
-summary: Fix for self-suppression in rest client
-area: Client
-type: bug
-issues:
- - 42223

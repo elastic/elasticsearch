@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -271,7 +272,7 @@ public class ActionModuleTests extends ESTestCase {
                 e.getMessage(),
                 Matchers.equalTo(
                     "The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin tried to "
-                        + "install a custom REST wrapper. This functionality is not available anymore."
+                        + "install a custom REST interceptor. This functionality is not available anymore."
                 )
             );
         } finally {
@@ -289,9 +290,9 @@ public class ActionModuleTests extends ESTestCase {
         public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
     }
 
-    class SecPlugin implements ActionPlugin {
+    class SecPlugin implements ActionPlugin, RestInterceptorActionPlugin {
         @Override
-        public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+        public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
             return UnaryOperator.identity();
         }
     };

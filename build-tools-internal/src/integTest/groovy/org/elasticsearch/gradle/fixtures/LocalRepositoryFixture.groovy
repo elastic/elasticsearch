@@ -17,8 +17,20 @@ class LocalRepositoryFixture extends ExternalResource{
 
     private TemporaryFolder temporaryFolder
 
-    LocalRepositoryFixture(TemporaryFolder temporaryFolder){
-        this.temporaryFolder = temporaryFolder
+    LocalRepositoryFixture(){
+        this.temporaryFolder = new TemporaryFolder()
+    }
+
+    @Override
+    protected void before() throws Throwable {
+        super.before()
+        temporaryFolder.before()
+    }
+
+    @Override
+    protected void after() {
+        super.after()
+        temporaryFolder.after()
     }
 
     void generateJar(String group, String module, String version, String... clazzNames){

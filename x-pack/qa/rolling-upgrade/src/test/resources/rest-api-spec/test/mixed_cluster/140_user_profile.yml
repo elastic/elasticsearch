@@ -8,7 +8,7 @@
 
   - do:
       node_selector:
-        version: " 8.3.0 - "
+        version: " 8.4.0 - "
       security.activate_user_profile:
         body: >
           {
@@ -22,7 +22,7 @@
 
   - do:
       node_selector:
-        version: " 8.3.0 - "
+        version: " 8.4.0 - "
       security.get_user_profile:
         uid: "$profile_uid"
 

@@ -61,7 +61,7 @@ The response will look like this:
 // end::cloud[]
 
 // tag::self-managed[]
-<<ilm-start, Start Index Lifecycle Management>>:
+<<ilm-start, Start>> {ilm}:
 
 [source,console]
 ----

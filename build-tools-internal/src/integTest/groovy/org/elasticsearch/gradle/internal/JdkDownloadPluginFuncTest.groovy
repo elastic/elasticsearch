@@ -147,6 +147,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download'
             }
+            import org.elasticsearch.gradle.internal.Jdk
             apply plugin: 'base'
             apply plugin: 'elasticsearch.jdk-download'
 
@@ -158,11 +159,18 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 architecture = "x64"
               }
             }
-
-            tasks.register("getJdk") {
+            
+            tasks.register("getJdk", PrintJdk) {
                 dependsOn jdks.myJdk
-                doLast {
-                    println "JDK HOME: " + jdks.myJdk
+                jdkPath = jdks.myJdk.getPath()
+            }
+
+            class PrintJdk extends DefaultTask {
+                @Input
+                String jdkPath
+                
+                @TaskAction void print() {
+                    println "JDK HOME: " + jdkPath
                 }
             }
         """

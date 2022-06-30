@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -29,6 +28,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -116,10 +116,9 @@ public class DiskUsageTests extends ESTestCase {
             new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null),
             new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null),
             new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats2, null, null, null) };
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizes = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();
-        ClusterState state = ClusterState.builder(new ClusterName("blarg")).version(0).build();
+        Map<String, Long> shardSizes = new HashMap<>();
+        Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
+        Map<ShardRouting, String> routingToPath = new HashMap<>();
         InternalClusterInfoService.buildShardLevelInfo(stats, shardSizes, shardDataSetSizes, routingToPath, new HashMap<>());
         assertEquals(2, shardSizes.size());
         assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
@@ -141,8 +140,8 @@ public class DiskUsageTests extends ESTestCase {
     }
 
     public void testFillDiskUsage() {
-        ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages = ImmutableOpenMap.builder();
+        Map<String, DiskUsage> newLeastAvaiableUsages = new HashMap<>();
+        Map<String, DiskUsage> newMostAvaiableUsages = new HashMap<>();
         FsInfo.Path[] node1FSInfo = new FsInfo.Path[] {
             new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
             new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70),
@@ -229,8 +228,8 @@ public class DiskUsageTests extends ESTestCase {
     }
 
     public void testFillDiskUsageSomeInvalidValues() {
-        ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages = ImmutableOpenMap.builder();
+        Map<String, DiskUsage> newLeastAvailableUsages = new HashMap<>();
+        Map<String, DiskUsage> newMostAvailableUsages = new HashMap<>();
         FsInfo.Path[] node1FSInfo = new FsInfo.Path[] {
             new FsInfo.Path("/middle", "/dev/sda", 100, 90, 80),
             new FsInfo.Path("/least", "/dev/sdb", -1, -1, -1),

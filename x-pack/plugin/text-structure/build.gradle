@@ -16,5 +16,3 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
-
-tasks.named("testingConventions").configure { enabled = false }

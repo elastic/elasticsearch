@@ -137,7 +137,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             {"persistent" : {
                     "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
-                    "logger.org.elasticsearch.xpack.ml.process.logging" : null
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : null,
+                    "xpack.ml.max_lazy_ml_nodes": null
                 }}""");
         client().performRequest(loggingSettings);
 
@@ -330,8 +331,8 @@ public class PyTorchModelIT extends ESRestTestCase {
                 "deployment_stats.nodes",
                 stats.get(0)
             );
-            // 2 of the 3 nodes in the cluster are ML nodes
-            assertThat(nodes, hasSize(2));
+            // 2 of the 3 nodes in the cluster are ML nodes but we have asked for a single allocation
+            assertThat(nodes, hasSize(1));
             for (var node : nodes) {
                 assertThat(node.get("number_of_pending_requests"), notNullValue());
             }
@@ -408,12 +409,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 "deployment_stats.nodes",
                 stats.get(i)
             );
-            // 2 ml nodes
-            assertThat(nodes, hasSize(2));
-            for (int j : new int[] { 0, 1 }) {
-                Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
-                assertEquals("started", state);
-            }
+            // 2 ml nodes but we've asked a single allocation for each model
+            assertThat(nodes, hasSize(1));
+            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+            assertEquals("started", state);
         }
 
         stopDeployment(modelFoo);
@@ -425,17 +424,15 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(stats, hasSize(2));
         assertThat(stats.get(0), not(hasKey("deployment_stats")));
 
-        // check all nodes are started for the non-stopped deployment
+        // check a node is started for the non-stopped deployment
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "deployment_stats.nodes",
             stats.get(1)
         );
-        // 2 ml nodes
-        assertThat(nodes, hasSize(2));
-        for (int j : new int[] { 0, 1 }) {
-            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
-            assertEquals("started", state);
-        }
+        // 2 ml nodes but we've asked a single allocation
+        assertThat(nodes, hasSize(1));
+        Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+        assertEquals("started", state);
 
         stopDeployment(modelBar);
     }
@@ -691,6 +688,53 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThatTrainedModelAssignmentMetadataIsEmpty();
     }
 
+    public void testStoppingDeploymentShouldTriggerRebalance() throws Exception {
+        // We start 2 models. The first needs so many allocations it won't possibly
+        // get them all. This would leave no space to allocate the second model at all.
+        // We then stop the first model and should see the second one get allocations.
+
+        // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
+        // The setting is cleared in the cleanup method of these tests.
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(loggingSettings);
+
+        String modelId1 = "model_1";
+        createTrainedModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+
+        String modelId2 = "model_2";
+        createTrainedModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+
+        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1);
+        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1);
+
+        // Check second model did not get any allocations
+        assertAllocationCount(modelId2, 0);
+
+        stopDeployment(modelId1);
+
+        assertBusy(() -> assertAllocationCount(modelId2, 1));
+
+        stopDeployment(modelId2);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertAllocationCount(String modelId, int expectedAllocationCount) throws IOException {
+        Response response = getTrainedModelStats(modelId);
+        var responseMap = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        int allocations = (int) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
+        assertThat(allocations, equalTo(expectedAllocationCount));
+    }
+
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {
@@ -744,13 +788,21 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        return startDeployment(modelId, waitForState, 1, 1);
+    }
+
+    private Response startDeployment(String modelId, String waitForState, int numberOfAllocations, int threadsPerAllocation)
+        throws IOException {
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&threads_per_allocation=1&number_of_allocations=1"
+                + "&threads_per_allocation="
+                + threadsPerAllocation
+                + "&number_of_allocations="
+                + numberOfAllocations
         );
         return client().performRequest(request);
     }

@@ -99,7 +99,7 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
             );
         }, listener::onFailure);
 
-        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
+        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), null, configActionListener);
     }
 
     @Override

@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.NAME;
+import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.SLM_NOT_RUNNING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,7 +49,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "SLM is running",
+                    "Snapshot Lifecycle Management is running",
                     null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
@@ -70,7 +71,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     YELLOW,
-                    "SLM is not running",
+                    "Snapshot Lifecycle Management is not running",
                     SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
@@ -80,7 +81,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    Collections.emptyList()
+                    List.of(SLM_NOT_RUNNING)
                 )
             )
         );
@@ -98,7 +99,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No SLM policies configured",
+                    "No Snapshot Lifecycle Management policies configured",
                     null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
                     Collections.emptyList(),
@@ -119,7 +120,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No SLM policies configured",
+                    "No Snapshot Lifecycle Management policies configured",
                     null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),

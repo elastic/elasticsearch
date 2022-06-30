@@ -12,6 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -61,6 +63,36 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     @BeforeClass
     public static void maybeSkip() {
         assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
+
+    @Before
+    public void setUpLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
+                "logger.org.elasticsearch.xpack.ml.action": "TRACE"
+              }
+            }
+            """);
+        client().performRequest(request);
+    }
+
+    @After
+    public void removeLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.ml.inference": "INFO",
+                "logger.org.elasticsearch.xpack.ml.process": "INFO",
+                "logger.org.elasticsearch.xpack.ml.action": "INFO"
+              }
+            }
+            """);
+        client().performRequest(request);
     }
 
     public void testTrainedModelDeployment() throws Exception {
@@ -141,11 +173,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             var stat = stats.get(0);
-            assertThat(
-                stat.toString(),
-                XContentMapValues.extractValue("deployment_stats.allocation_status.state", stat),
-                equalTo("fully_allocated")
-            );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);
     }

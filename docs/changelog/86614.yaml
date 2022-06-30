@@ -1,5 +1,0 @@
-pr: 86614
-summary: "Refactor code to avoid JDK bug: JDK-8285835"
-area: Infra/Core
-type: bug
-issues: []

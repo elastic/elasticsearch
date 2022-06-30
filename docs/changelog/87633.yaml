@@ -1,7 +1,0 @@
-pr: 87633
-summary: Do not leak recover from snapshot file permits when recover from snapshot
-  is disabled
-area: Recovery
-type: bug
-issues:
- - 86705

@@ -212,7 +212,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(apiKeyId, not(emptyString()));
         assertThat(apiKeyEncoded, not(emptyString()));
 
-        final Request updateApiKeyRequest = new Request("POST", "_security/api_key/_update/" + apiKeyId);
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
         final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
@@ -222,9 +222,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
         assertTrue((Boolean) updateApiKeyResponseMap.get("updated"));
 
+        expectMetadata(apiKeyId, expectedApiKeyMetadata);
         // validate authentication still works after update
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
-        expectMetadata(apiKeyId, expectedApiKeyMetadata);
     }
 
     private void doTestAuthenticationWithApiKey(
@@ -232,7 +232,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final String actualApiKeyId,
         final String actualApiKeyEncoded
     ) throws IOException {
-        final Request authenticateRequest = new Request("GET", "_security/_authenticate");
+        final var authenticateRequest = new Request("GET", "_security/_authenticate");
         authenticateRequest.setOptions(
             authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + actualApiKeyEncoded)
         );

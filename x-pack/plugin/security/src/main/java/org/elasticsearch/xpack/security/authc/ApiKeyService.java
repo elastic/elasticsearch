@@ -378,7 +378,8 @@ public class ApiKeyService {
                 throw new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]");
             }
 
-            final VersionedApiKeyDoc currentApiKeyDoc = single(apiKeyId, versionedDocs);
+            final VersionedApiKeyDoc currentApiKeyDoc = singleDoc(apiKeyId, versionedDocs);
+
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, currentApiKeyDoc.doc());
 
             executeBulkRequest(
@@ -1217,7 +1218,7 @@ public class ApiKeyService {
         }
     }
 
-    private static VersionedApiKeyDoc single(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
+    private static VersionedApiKeyDoc singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
         if (elements.size() != 1) {
             final var message = "expected single API key doc with ID ["
                 + apiKeyId

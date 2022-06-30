@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.test.eql.EqlSampleTestCase;
 
+import java.util.List;
+
 public class EqlSampleIT extends EqlSampleTestCase {
 
-    public EqlSampleIT(String query, String name, long[] eventIds, String[] joinKeys) {
+    public EqlSampleIT(String query, String name, List<long[]> eventIds, String[] joinKeys) {
         super(query, name, eventIds, joinKeys);
     }
 

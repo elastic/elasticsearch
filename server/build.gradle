@@ -90,17 +90,10 @@ tasks.named('forbiddenApisTest').configure {
   addSignatureFiles 'hppc-signatures'
 }
 
-tasks.named("testingConventions").configure {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
-        }
-        IT {
-            baseClass "org.elasticsearch.test.ESIntegTestCase"
-            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
-        }
-    }
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
 }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')

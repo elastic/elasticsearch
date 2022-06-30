@@ -339,6 +339,29 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertPreviousAssignmentsAreSatisfied(previousModelsPlusNew, assignmentPlan);
     }
 
+    public void testGivenLargerModelWithPreviousAssignmentsAndSmallerModelWithoutAssignments() {
+        Node node1 = new Node("n_1", ByteSizeValue.ofGb(2).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofGb(2).getBytes(), 2);
+        Node node3 = new Node("n_3", ByteSizeValue.ofGb(2).getBytes(), 2);
+        Model model1 = new Model("m_1", ByteSizeValue.ofMb(1200).getBytes(), 3, 1, Map.of("n_1", 2, "n_2", 1));
+        Model model2 = new Model("m_2", ByteSizeValue.ofMb(1100).getBytes(), 2, 1, Map.of());
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(model1, model2)).computePlan();
+        {
+            assertThat(assignmentPlan.assignments(model1).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model1).get();
+            assertThat(assignments.get(node1), equalTo(2));
+            assertThat(assignments.get(node2), equalTo(1));
+            assertThat(assignments.get(node3), is(nullValue()));
+        }
+        {
+            assertThat(assignmentPlan.assignments(model2).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model2).get();
+            assertThat(assignments.get(node1), is(nullValue()));
+            assertThat(assignments.get(node2), is(nullValue()));
+            assertThat(assignments.get(node3), equalTo(2));
+        }
+    }
+
     private static void assertModelFullyAssignedToNode(AssignmentPlan plan, Model m, Node n) {
         Optional<Map<Node, Integer>> assignments = plan.assignments(m);
         assertThat(assignments.isPresent(), is(true));
@@ -382,18 +405,18 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     private static void assertPreviousAssignmentsAreSatisfied(List<Model> models, AssignmentPlan assignmentPlan) {
-        for (Model m : models.stream().filter(m -> m.currentAllocationByNodeId().isEmpty() == false).toList()) {
+        for (Model m : models.stream().filter(m -> m.currentAllocationsByNodeId().isEmpty() == false).toList()) {
             Map<Node, Integer> assignments = assignmentPlan.assignments(m).get();
             Set<String> assignedNodeIds = new HashSet<>();
             int allocations = 0;
             for (Map.Entry<Node, Integer> e : assignments.entrySet()) {
                 assignedNodeIds.add(e.getKey().id());
-                if (m.currentAllocationByNodeId().containsKey(e.getKey().id())) {
+                if (m.currentAllocationsByNodeId().containsKey(e.getKey().id())) {
                     assertThat(e.getValue(), greaterThanOrEqualTo(1));
                 }
                 allocations += e.getValue();
             }
-            assertThat(m.currentAllocationByNodeId().keySet(), everyItem(in(assignedNodeIds)));
+            assertThat(m.currentAllocationsByNodeId().keySet(), everyItem(in(assignedNodeIds)));
             assertThat(allocations, greaterThanOrEqualTo(m.getPreviouslyAssignedAllocations()));
         }
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -24,6 +25,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -270,7 +272,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
         private final long total;
-        private final HashSet<ShardId> shardIds;
+        private final Set<ShardId> shardIds;
 
         private ReservedSpace(long total, HashSet<ShardId> shardIds) {
             this.total = total;
@@ -280,7 +282,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         ReservedSpace(StreamInput in) throws IOException {
             total = in.readVLong();
             final int shardIdCount = in.readVInt();
-            shardIds = new HashSet<>(shardIdCount);
+            shardIds = Sets.newHashSetWithExpectedSize(shardIdCount);
             for (int i = 0; i < shardIdCount; i++) {
                 shardIds.add(new ShardId(in));
             }

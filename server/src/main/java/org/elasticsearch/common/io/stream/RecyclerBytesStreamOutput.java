@@ -144,7 +144,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    @Override
     public void reset() {
         Releasables.close(pages);
         pages.clear();

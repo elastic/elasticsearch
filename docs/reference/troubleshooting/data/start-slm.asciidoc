@@ -1,0 +1,12 @@
+[[start-slm]]
+== Start Snapshot Lifecycle Management
+
+Automatic snapshot lifecycle management is currently disabled. New backup
+snapshots will not be created automatically.
+
+In order to start the snapshot lifecycle management service, follow these steps:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/data/start-slm-widget.asciidoc[]
+
+
+

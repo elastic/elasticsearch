@@ -662,7 +662,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             // Given maxOpenJobs, could we scale down to just one node?
             // We have no way of saying "we need X nodes"
             if (nodeLoads.size() > 1) {
-                long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobs).sum();
+                long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobsAndModels).sum();
                 // one volatile read
                 long maxOpenJobsCopy = this.maxOpenJobs;
                 if (totalAssignedJobs > maxOpenJobsCopy) {
@@ -724,11 +724,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         AutoscalingCapacity newCapacity = new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.total().storage(),
-                ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes()))
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes())),
+                null
             ),
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.node().storage(),
-                ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes()))
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes())),
+                null
             )
         );
         if (scaleDownResult.node().memory().getBytes() - newCapacity.node().memory().getBytes() > ACCEPTABLE_DIFFERENCE
@@ -876,7 +878,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> modelCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAllocatedModels,
                 this::getAllocatedModelRequirement,
-                NodeLoad.Builder::incNumAssignedNativeInferenceJobs,
+                NodeLoad.Builder::incNumAssignedNativeInferenceModels,
                 0,
                 analyticsCapacityAndNewLoad.v2()
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, analyticsCapacityAndNewLoad.v2()));

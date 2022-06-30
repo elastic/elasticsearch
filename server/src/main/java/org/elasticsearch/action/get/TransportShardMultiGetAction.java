@@ -124,7 +124,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         item.version(),
                         item.versionType(),
                         item.fetchSourceContext(),
-                        false
+                        request.isForceSyntheticSource()
                     );
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (RuntimeException e) {

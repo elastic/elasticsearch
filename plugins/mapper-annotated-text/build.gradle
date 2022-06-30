@@ -22,6 +22,10 @@ if (BuildParams.isSnapshotBuild() == false) {
   }
 }
 
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.index.mapper.MapperTestCase'
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'search'

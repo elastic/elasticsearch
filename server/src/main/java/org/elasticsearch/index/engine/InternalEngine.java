@@ -2408,6 +2408,8 @@ public class InternalEngine extends Engine {
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
         iwc.setMergePolicy(mergePolicy);
+        // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
+        iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());

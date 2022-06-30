@@ -225,7 +225,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
                 if (startedShards != null && startedShards.isEmpty() == false) {
                     shardSnapshots.computeIfAbsent(snapshot, s -> new HashMap<>()).putAll(startedShards);
-                    startNewShards(entry, startedShards);
+                    startNewShardSnapshots(entry, startedShards);
                 }
             } else if (entryState == State.ABORTED) {
                 // Abort all running shards for this snapshot
@@ -248,9 +248,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void startNewShards(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
+    private void startNewShardSnapshots(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            final Snapshot snapshot = entry.snapshot();
             for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
                 final ShardId shardId = shardEntry.getKey();
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
@@ -261,7 +260,17 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     : "Found non-null, non-numeric shard generation ["
                         + snapshotStatus.generation()
                         + "] for snapshot with old-format compatibility";
-                snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
+                startShardSnapshot(entry, shardId, snapshotStatus);
+            }
+        });
+    }
+
+    private void startShardSnapshot(SnapshotsInProgress.Entry entry, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
+        final Snapshot snapshot = entry.snapshot();
+        final IndexId indexId = entry.indices().get(shardId.getIndexName());
+        threadPool.executor(ThreadPool.Names.SNAPSHOT)
+            .execute(
+                () -> snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
                     @Override
                     public void onResponse(ShardSnapshotResult shardSnapshotResult) {
                         final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
@@ -294,9 +303,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
                         notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
                     }
-                });
-            }
-        });
+                })
+            );
     }
 
     // package private for testing

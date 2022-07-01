@@ -34,14 +34,14 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 
-public class GeoMetricTests extends ESSingleNodeTestCase {
+public class TopMetricNoCountsTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(AnalyticsPlugin.class);
     }
 
-    public void testwithMatchAllQuery() throws Exception {
+    public void testWithMatchAllQuery() throws Exception {
         testWithquery(new MatchAllQueryBuilder());
     }
 
@@ -50,13 +50,13 @@ public class GeoMetricTests extends ESSingleNodeTestCase {
     }
 
     public void testWithQueryInMetric() throws Exception {
-        testWithquery(new RangeQueryBuilder("location").gt(0L).lt(Long.MAX_VALUE / 2));
+        testWithquery(new RangeQueryBuilder("metric1").gt(0L).lt(Long.MAX_VALUE / 2));
     }
 
     public void testWithQueryInDimensionAndMetric() throws Exception {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery();
         queryBuilder.filter(new TermsQueryBuilder("asset_id", "asset1", "asset9"));
-        queryBuilder.filter(new RangeQueryBuilder("location").gt(0L).lt(Long.MAX_VALUE / 2));
+        queryBuilder.filter(new RangeQueryBuilder("metric1").gt(0L).lt(Long.MAX_VALUE / 2));
         testWithquery(queryBuilder);
     }
 
@@ -71,9 +71,11 @@ public class GeoMetricTests extends ESSingleNodeTestCase {
             .field("type", "keyword")
             .field("time_series_dimension", true)
             .endObject()
-            .startObject("location")
+            .startObject("metric1")
             .field("type", "long")
-            // .field("time_series_metric", "position")
+            .endObject()
+            .startObject("metric2")
+            .field("type", "long")
             .endObject()
             .endObject()
             .endObject();
@@ -93,7 +95,8 @@ public class GeoMetricTests extends ESSingleNodeTestCase {
                         .startObject()
                         .field("asset_id", "asset" + i)
                         .field("@timestamp", (k * 20) + j)
-                        .field("location", randomLong())
+                        .field("metric1", rarely() ? null : randomLong())
+                        .field("metric2", rarely() ? null : randomLong())
                         .endObject();
                     client().prepareIndex("test").setSource(xcb).setRefreshPolicy(IMMEDIATE).get();
                 }
@@ -106,15 +109,15 @@ public class GeoMetricTests extends ESSingleNodeTestCase {
         ensureGreen();
 
         for (int size = 1; size < 10; size++) {
-            TimeSeriesAggregationBuilder builder = new TimeSeriesAggregationBuilder("by_time_series", true, size);
+            TimeSeriesAggregationBuilder builder = new TimeSeriesAggregationBuilder("by_time_series", true, false);
             FieldSortBuilder sortBuilder = new FieldSortBuilder("@timestamp").order(SortOrder.DESC);
             MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
-            metricField.setFieldName("location");
+            metricField.setFieldName("metric1");
 
             TopMetricsAggregationBuilder top = new TopMetricsAggregationBuilder(
                 "last_value",
                 List.of(sortBuilder),
-                1,
+                size,
                 List.of(metricField.build())
             );
             builder.subAggregation(top);

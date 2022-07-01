@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -50,9 +51,7 @@ public class TimeSeriesIndexSearcher {
     private final boolean tsidReverse;
     private final boolean timestampReverse;
 
-    private final int numDocsPerTSID;
-
-    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations, int numDocsPerTSID) {
+    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         this.searcher = searcher;
         this.cancellations = cancellations;
 
@@ -61,8 +60,6 @@ public class TimeSeriesIndexSearcher {
         assert TIME_SERIES_SORT[1].getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
         this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
-        assert numDocsPerTSID > 0;
-        this.numDocsPerTSID = numDocsPerTSID;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
@@ -107,19 +104,13 @@ public class TimeSeriesIndexSearcher {
         // we refill it with walkers positioned on the next TSID. Within the queue
         // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
-            int count = 0;
             do {
                 if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                     checkCancelled();
                 }
                 LeafWalker walker = queue.top();
                 walker.collectCurrent();
-                if (++count == numDocsPerTSID) {
-                    for (LeafWalker leafWalker : queue) {
-                        leafWalker.nextTsid();
-                    }
-                    queue.clear();
-                } else if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
+                if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
                     queue.pop();
                 } else {
                     queue.updateTop();
@@ -193,7 +184,12 @@ public class TimeSeriesIndexSearcher {
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
-            iterator = scorer.iterator();
+            DocIdSetIterator competitiveIterator = this.collector.competitiveIterator();
+            if (competitiveIterator == null) {
+                iterator = scorer.iterator();
+            } else {
+                iterator = ConjunctionUtils.intersectIterators(List.of(scorer.iterator(), competitiveIterator));
+            }
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         }
@@ -236,28 +232,6 @@ public class TimeSeriesIndexSearcher {
                 return true;
             } else {
                 return false;
-            }
-        }
-
-        // advance all the internal iterators to the next Tsid
-        void nextTsid() throws IOException {
-            if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                return;
-            }
-            do {
-                // if we could know efficiently the docId for the next Tsid, we could
-                // speed up this process enormously instead of manually advance the iterator
-                // until we find the position we want.
-                docId = tsids.advance(++docId);
-            } while (docId != DocIdSetIterator.NO_MORE_DOCS && tsidOrd == tsids.ordValue());
-            if (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                docId = iterator.advance(docId);
-                while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId)) {
-                    docId = iterator.nextDoc();
-                }
-            }
-            if (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                timestamp = timestamps.nextValue();
             }
         }
     }

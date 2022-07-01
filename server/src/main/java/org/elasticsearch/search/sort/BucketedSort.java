@@ -384,9 +384,9 @@ public abstract class BucketedSort implements Releasable {
         /**
          * Collect this doc, returning {@code true} if it is competitive.
          */
-        public final void collect(int doc, long bucket) throws IOException {
+        public final boolean collect(int doc, long bucket) throws IOException {
             if (false == advanceExact(doc)) {
-                return;
+                return false;
             }
             long rootIndex = bucket * bucketSize;
             if (inHeapMode(bucket)) {
@@ -396,7 +396,7 @@ public abstract class BucketedSort implements Releasable {
                     loader().loadFromDoc(rootIndex, doc);
                     downHeap(rootIndex, 0);
                 }
-                return;
+                return false;
             }
             // Gathering mode
             long requiredSize = rootIndex + bucketSize;
@@ -415,7 +415,7 @@ public abstract class BucketedSort implements Releasable {
             } else {
                 setNextGatherOffset(rootIndex, next - 1);
             }
-            return;
+            return true;
         }
 
         /**

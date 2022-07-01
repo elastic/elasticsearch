@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.timeseries;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -32,12 +33,14 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     protected final BytesKeyedBucketOrds bucketOrds;
     private final boolean keyed;
+    private final boolean needCounts;
 
     @SuppressWarnings("unchecked")
     public TimeSeriesAggregator(
         String name,
         AggregatorFactories factories,
         boolean keyed,
+        boolean needCounts,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
@@ -45,6 +48,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     ) throws IOException {
         super(name, factories, context, parent, bucketCardinality, metadata);
         this.keyed = keyed;
+        this.needCounts = needCounts;
         bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
     }
 
@@ -97,6 +101,14 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
         throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
+
+            @Override
+            public DocIdSetIterator competitiveIterator() throws IOException {
+                if (needCounts) {
+                    return null;
+                }
+                return sub.competitiveIterator();
+            }
 
             @Override
             public void collect(int doc, long bucket) throws IOException {

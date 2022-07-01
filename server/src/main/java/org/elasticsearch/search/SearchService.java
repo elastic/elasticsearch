@@ -1223,7 +1223,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context::isCancelled,
                 context::buildFilteredQuery,
                 enableRewriteAggsToFilterByFilter,
-                IndexSettings.isTimeSeriesModeEnabled() ? source.aggregations().numberOfDocumentsInSortOrderExecution() : -1
+                IndexSettings.isTimeSeriesModeEnabled() && source.aggregations().isInSortOrderExecutionRequired()
             );
             context.addReleasable(aggContext);
             try {

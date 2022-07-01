@@ -83,7 +83,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(), Integer.MAX_VALUE);
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
         BucketCollector collector = getBucketCollector(THREADS * DOC_COUNTS);
 
@@ -147,7 +147,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(), Integer.MAX_VALUE);
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
         BucketCollector collector = getBucketCollector(2 * DOC_COUNTS);
 

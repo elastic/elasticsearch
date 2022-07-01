@@ -43,11 +43,7 @@ public class AggregationPhase {
         }
         if (context.aggregations().factories().context() != null
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
-            TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(
-                context.searcher(),
-                getCancellationChecks(context),
-                context.aggregations().factories().context().numberOfDocumentsInSortOrderExecution()
-            );
+            TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
             try {
                 searcher.search(context.rewrittenQuery(), bucketCollector);
             } catch (IOException e) {

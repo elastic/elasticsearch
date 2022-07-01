@@ -294,14 +294,6 @@ public abstract class AggregationContext implements Releasable {
      */
     public abstract boolean isInSortOrderExecutionRequired();
 
-    /**
-     * Return a positive number if any of the child aggregations is a time series aggregation otherwise returns -1.
-     *
-     * If the aggregation requires to visit all documents, it should return Integer.MAX_VALUE, otherwise returns the number
-     * of documents required to be visited per tsid.
-     */
-    public abstract int numberOfDocumentsInSortOrderExecution();
-
     public abstract Set<String> sourcePath(String fullName);
 
     /**
@@ -344,7 +336,7 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
-        private final int numberOfDocumentsInSortOrderExecution;
+        private final boolean inSortOrderExecutionRequired;
         private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
@@ -364,7 +356,7 @@ public abstract class AggregationContext implements Releasable {
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
             boolean enableRewriteToFilterByFilter,
-            int numberOfDocumentsInSortOrderExecution
+            boolean inSortOrderExecutionRequired
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
@@ -397,7 +389,7 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
-            this.numberOfDocumentsInSortOrderExecution = numberOfDocumentsInSortOrderExecution;
+            this.inSortOrderExecutionRequired = inSortOrderExecutionRequired;
         }
 
         @Override
@@ -577,12 +569,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public boolean isInSortOrderExecutionRequired() {
-            return numberOfDocumentsInSortOrderExecution != -1;
-        }
-
-        @Override
-        public int numberOfDocumentsInSortOrderExecution() {
-            return numberOfDocumentsInSortOrderExecution;
+            return inSortOrderExecutionRequired;
         }
 
         @Override

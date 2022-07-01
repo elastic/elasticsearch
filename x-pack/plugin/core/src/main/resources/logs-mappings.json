@@ -137,6 +137,37 @@
               "type": "constant_keyword"
             }
           }
+        },
+        "trace": {
+          "type": "object"
+        },
+        "transaction": {
+          "type": "object"
+        },
+        "span": {
+          "type": "object"
+        },
+        "cloud": {
+          "type": "object"
+        },
+        "container": {
+          "type": "object"
+        },
+        "host": {
+          "type": "object"
+        },
+        "orchestrator": {
+          "properties": {
+            "resource": {
+              "type": "object"
+            }
+          }
+        },
+        "process": {
+          "type": "object"
+        },
+        "service": {
+          "type": "object"
         }
       }
     }

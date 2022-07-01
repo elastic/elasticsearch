@@ -48,9 +48,9 @@ public class ModuleSupport {
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
-                String separator = path.getFileSystem().getSeparator();
+                // separator = path.getFileSystem().getSeparator();
                 var scan = scan(jf);
-                scan.classFiles().stream().map(cf -> toPackageName(cf, separator)).flatMap(Optional::stream).forEach(pkgs::add);
+                scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
             }
         }
         builder.packages(pkgs);

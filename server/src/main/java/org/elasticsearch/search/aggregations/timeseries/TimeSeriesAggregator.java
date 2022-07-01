@@ -89,11 +89,6 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub) throws IOException {
-        // TODO: remove this method in a follow up PR
-        throw new UnsupportedOperationException("Shouldn't be here");
-    }
-
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
         throws IOException {
         return new LeafBucketCollectorBase(sub, null) {

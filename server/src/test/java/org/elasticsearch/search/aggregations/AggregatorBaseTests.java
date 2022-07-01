@@ -42,7 +42,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx) {
             throw new UnsupportedOperationException();
         }
 

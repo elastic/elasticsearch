@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.analytics.rate;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -40,7 +41,8 @@ public class NumericRateAggregator extends AbstractRateAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
+        throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         if (computeWithDocCount) {
             // No field or script has been set at the rate agg. So, rate will be computed based on the doc_counts.

@@ -15,6 +15,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -89,7 +90,8 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
      * @throws IOException when building the query or extracting docs fails
      */
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
+        throws IOException {
         // Certain leaf collectors can aggregate values without seeing any documents, even when sampled
         // To handle this, exit early if the sub collector is a no-op
         if (sub.isNoop()) {

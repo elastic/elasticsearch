@@ -33,7 +33,11 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
     }
 
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext reader, LeafBucketCollector sub) {
+    public final LeafBucketCollector getLeafCollector(
+        LeafReaderContext reader,
+        LeafBucketCollector sub,
+        AggregationExecutionContext aggCtx
+    ) {
         // the framework will automatically eliminate it
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }

@@ -138,24 +138,24 @@ public class RestLogsActionTest extends RestActionTestCase {
 
     @Test
     public void testRetryInGenericDataStreamOnMappingError() {
-        RestRequest req = createLogsRequest("/_logs/foo", Map.of("message", "Hello World"));
+        RestRequest req = createLogsRequest("/_logs/foo/bar", Map.of("message", "Hello World"));
         AtomicBoolean firstRequest = new AtomicBoolean(true);
         setBulkRequestVerifier((actionType, request) -> {
             if (firstRequest.get()) {
                 firstRequest.set(false);
                 assertEquals(1, request.requests().size());
-                assertDataStreamFields("foo", "default", request.requests().get(0));
+                assertDataStreamFields("foo", "bar", request.requests().get(0));
                 return createMockBulkFailureResponse(new MapperParsingException("bad foo"));
             } else {
                 assertEquals(1, request.requests().size());
                 IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-                assertDataStreamFields("generic", "default", indexRequest);
+                assertDataStreamFields("generic", "bar", indexRequest);
                 Map<String, Object> doc = indexRequest.sourceAsMap();
                 assertEquals("mapper_parsing_exception", getPath(doc, "_logs.error.type"));
                 assertEquals("bad foo", getPath(doc, "_logs.error.message"));
                 assertEquals("logs", getPath(doc, "_logs.data_stream.type"));
                 assertEquals("foo", getPath(doc, "_logs.data_stream.dataset"));
-                assertEquals("default", getPath(doc, "_logs.data_stream.namespace"));
+                assertEquals("bar", getPath(doc, "_logs.data_stream.namespace"));
                 return Mockito.mock(BulkResponse.class);
             }
         });

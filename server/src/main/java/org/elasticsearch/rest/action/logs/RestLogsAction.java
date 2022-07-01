@@ -123,9 +123,9 @@ public class RestLogsAction extends BaseRestHandler {
                     dataStream.put("type", "logs");
                     dataStream.putIfAbsent("dataset", "generic");
                     dataStream.putIfAbsent("namespace", "default");
-                    // TODO validate or sanitize dataset and namespace
-                    String index = "logs-" + dataStream.get("dataset") + "-" + dataStream.get("namespace");
-                    indexRequests.add(Requests.indexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc));
+                    indexRequests.add(Requests.indexRequest(routeToDataStream(dataStream))
+                        .opType(DocWriteRequest.OpType.CREATE)
+                        .source(doc));
                 }
             }
         }
@@ -152,11 +152,14 @@ public class RestLogsAction extends BaseRestHandler {
                             Exception cause = failure.getCause();
                             addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
                             addPath(doc, "_logs.error.message", cause.getMessage());
-                            addPath(doc, "_logs.data_stream", doc.remove("data_stream"));
-                            addPath(doc, "data_stream.type", "logs");
-                            addPath(doc, "data_stream.dataset", "generic");
-                            addPath(doc, "data_stream.namespace", "default");
-                            retryBulk.add(Requests.indexRequest("logs-generic-default").opType(DocWriteRequest.OpType.CREATE).source(doc));
+                            @SuppressWarnings("unchecked")
+                            Map<String, String> dataStream = (Map<String, String>) doc.get("data_stream");
+                            addPath(doc, "_logs.data_stream", new HashMap<>(dataStream));
+                            dataStream.put("type", "logs");
+                            dataStream.put("dataset", "generic");
+                            retryBulk.add(Requests.indexRequest(routeToDataStream(dataStream))
+                                .opType(DocWriteRequest.OpType.CREATE)
+                                .source(doc));
                         }
                     });
                     client.bulk(retryBulk, new RestActionListener<>(channel) {
@@ -180,6 +183,14 @@ public class RestLogsAction extends BaseRestHandler {
                 }
             });
         };
+    }
+
+    private String routeToDataStream(Map<String, String> dataStream) {
+        // TODO validate or sanitize dataset and namespace
+        return "logs-"
+            + dataStream.getOrDefault("dataset", "generic")
+            + "-"
+            + dataStream.getOrDefault("namespace", "default");
     }
 
     public void sendResponse(RestChannel channel, RestStatus status, Consumer<XContentBuilder> builderConsumer) throws IOException {

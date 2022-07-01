@@ -19,7 +19,7 @@ public class GeoPointDocValuesField extends PointDocValuesField<GeoPoint> {
     private ScriptDocValues.GeoPoints geoPoints = null;
 
     public GeoPointDocValuesField(MultiPointValues<GeoPoint> input, String name) {
-        super(input, name, GeoPoint::new, new GeoBoundingBox(new GeoPoint(), new GeoPoint()));
+        super(input, name, GeoPoint::new, new GeoBoundingBox(new GeoPoint(), new GeoPoint()), new GeoPoint[0]);
     }
 
     @Override

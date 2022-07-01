@@ -36,12 +36,13 @@ public abstract class PointDocValuesField<T extends ToXContentFragment> extends 
     protected final BoundingBox<T> boundingBox;
     private int labelIndex = 0;
 
-    public PointDocValuesField(MultiPointValues<T> input, String name, Supplier<T> pointMaker, BoundingBox<T> boundingBox) {
+    public PointDocValuesField(MultiPointValues<T> input, String name, Supplier<T> pointMaker, BoundingBox<T> boundingBox, T[] values) {
         this.input = input;
         this.name = name;
         this.pointMaker = pointMaker;
         this.centroid = pointMaker.get();
         this.boundingBox = boundingBox;
+        this.values = values;
     }
 
     @Override

@@ -16,7 +16,13 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 public class CartesianPointDocValuesField extends PointDocValuesField<CartesianPoint> {
 
     public CartesianPointDocValuesField(MultiPointValues<CartesianPoint> input, String name) {
-        super(input, name, CartesianPoint::new, new CartesianBoundingBox(new CartesianPoint(), new CartesianPoint()));
+        super(
+            input,
+            name,
+            CartesianPoint::new,
+            new CartesianBoundingBox(new CartesianPoint(), new CartesianPoint()),
+            new CartesianPoint[0]
+        );
     }
 
     @Override

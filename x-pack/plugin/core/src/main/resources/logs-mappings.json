@@ -9,6 +9,18 @@
           }
         },
         {
+          "log_level": {
+            "path_match": "log.level",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "log_logger": {
+            "path_match": "log.logger",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
           "trace_id": {
             "path_match": "trace.id",
             "mapping": { "type": "keyword" }
@@ -48,6 +60,30 @@
           "process_pid": {
             "path_match": "process.pid",
             "mapping": { "type": "long" }
+          }
+        },
+        {
+          "process_thread_name": {
+            "path_match": "process.thread.name",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "error_type": {
+            "path_match": "error.type",
+            "mapping": { "type": "keyword" }
+          }
+        },
+        {
+          "error_message": {
+            "path_match": "error.message",
+            "mapping": { "type": "match_only_text" }
+          }
+        },
+        {
+          "event_dataset": {
+            "path_match": "event.dataset",
+            "mapping": { "type": "keyword" }
           }
         },
         {
@@ -138,6 +174,15 @@
             }
           }
         },
+        "log": {
+          "type": "object"
+        },
+        "error": {
+          "type": "object"
+        },
+        "event": {
+          "type": "object"
+        },
         "trace": {
           "type": "object"
         },
@@ -164,7 +209,11 @@
           }
         },
         "process": {
-          "type": "object"
+          "properties": {
+            "thread": {
+              "type": "object"
+            }
+          }
         },
         "service": {
           "type": "object"

@@ -31,7 +31,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         given:
         buildFile << """
             apply plugin:'java'
-            version = "1.0-SNAPSHOT"
+            version = "$version"
 
             repositories {
                 mavenCentral() 
@@ -45,7 +45,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         def build = gradleRunner("generateSnykDependencyGraph").build()
         then:
         build.task(":generateSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
-        JSONAssert.assertEquals(file( "build/snyk/dependencies.json").text, """{
+        JSONAssert.assertEquals(file("build/snyk/dependencies.json").text, """{
             "meta": {
                 "method": "custom gradle",
                 "id": "gradle",
@@ -71,7 +71,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                                     "nodeId": "org.apache.lucene:lucene-monitor@9.2.0"
                                 }
                             ],
-                            "pkgId": "hello-world@1.0-SNAPSHOT"
+                            "pkgId": "hello-world@$version"
                         },
                         {
                             "nodeId": "org.apache.lucene:lucene-monitor@9.2.0",
@@ -117,10 +117,10 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                 },
                 "pkgs": [
                     {
-                        "id": "hello-world@1.0-SNAPSHOT",
+                        "id": "hello-world@$version",
                         "info": {
                             "name": "hello-world",
-                            "version": "1.0-SNAPSHOT"
+                            "version": "$version"
                         }
                     },
                     {
@@ -156,8 +156,19 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
             "target": {
                 "remoteUrl": "http://github.com/elastic/elasticsearch.git",
                 "branch": "unknown"
+            },
+            "targetReference": "$version",
+            "projectAttributes": {
+                "lifecycle": [
+                  "$expectedLifecycle"
+                ]
             }
         }""", true)
+
+        where:
+        version        | expectedLifecycle
+        '1.0-SNAPSHOT' | 'development'
+        '1.0'          | 'production'
     }
 
     def "upload fails with reasonable error message"() {
@@ -167,7 +178,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         """
         when:
         def result = withWireMock(PUT, "/api/v1/monitor/gradle/graph", "OK", HTTP_CREATED) { server ->
-            buildFile <<  """
+            buildFile << """
             tasks.named('uploadSnykDependencyGraph').configure {
                 getUrl().set('${server.baseUrl()}/api/v1/monitor/gradle/graph')
                 getToken().set("myToken")
@@ -181,7 +192,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
 
         when:
         result = withWireMock(PUT, GRADLE_GRAPH_ENDPOINT, "Internal Error", HTTP_INTERNAL_ERROR) { server ->
-            buildFile <<  """
+            buildFile << """
             tasks.named('uploadSnykDependencyGraph').configure {
                 getUrl().set('${server.baseUrl()}/api/v1/monitor/gradle/graph')
             }

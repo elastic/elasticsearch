@@ -156,7 +156,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(BuildParams.getRuntimeJavaHome());
             final String runtimeJvmVendorDetails = runtimeJvm.getVendor().getDisplayName();
             final String runtimeJvmImplementationVersion = runtimeJvm.getImplementationVersion();
-            LOGGER.quiet("  Runtime JDK Version   : " + runtimeJvmImplementationVersion + " (" + runtimeJvmVendorDetails + ")");
+            final String runtimeVersion = runtimeJvm.getRuntimeVersion();
+            final String runtimeExtraDetails = runtimeJvmVendorDetails + ", " + runtimeVersion;
+            LOGGER.quiet("  Runtime JDK Version   : " + runtimeJvmImplementationVersion + " (" + runtimeExtraDetails + ")");
             LOGGER.quiet("  Runtime java.home     : " + BuildParams.getRuntimeJavaHome());
             LOGGER.quiet("  Gradle JDK Version    : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  Gradle java.home      : " + gradleJvm.getJavaHome());

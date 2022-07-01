@@ -24,8 +24,11 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 public class SeqNoFieldMapperTests extends MapperServiceTestCase {
     private static final int MAX_SEQ_NO = 10_000;
@@ -45,6 +48,21 @@ public class SeqNoFieldMapperTests extends MapperServiceTestCase {
             TopFieldDocs docs = docs(context, ft.exactQuery(context.indexVersionCreated(), seqNo), 10);
             assertThat(docs.totalHits, equalTo(new TotalHits(1, TotalHits.Relation.EQUAL_TO)));
             assertThat(((FieldDoc) docs.scoreDocs[0]).fields[0], equalTo((long) seqNo));
+        });
+    }
+
+    public void testTermsQuery() throws IOException {
+        testCase((ft, context) -> {
+            int size = between(2, (int) (MAX_SEQ_NO * 0.05));
+            Set<Integer> seqNos = new HashSet<>();
+            while (seqNos.size() < size) {
+                seqNos.add(randomInt(MAX_SEQ_NO));
+            }
+            TopFieldDocs docs = docs(context, ft.termsQuery(seqNos, context), size + 100);
+            assertThat(docs.totalHits, equalTo(new TotalHits(size, TotalHits.Relation.EQUAL_TO)));
+            for (int i = 0; i < size; i++) {
+                assertThat(((Long) ((FieldDoc) docs.scoreDocs[i]).fields[0]).intValue(), in(seqNos));
+            }
         });
     }
 

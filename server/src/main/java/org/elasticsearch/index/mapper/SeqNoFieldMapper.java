@@ -11,10 +11,20 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
@@ -28,8 +38,11 @@ import org.elasticsearch.script.field.SeqNoDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -105,6 +118,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String TOMBSTONE_NAME = "_tombstone";
     public static final String POINTS_NAME = "_seq_no_points";
     private static final int POINTS_SHIFT = 24;
+    /**
+     * An estimate for the cost of rechecking the doc values for the
+     * {@code _seq_no} of a single document.
+     * See {@link TwoPhaseIterator#matchCost()} for units.
+     */
+    private static final float DV_RECHECK_COST = 1000f;
 
     public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
 
@@ -163,7 +182,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 // Before 8.4.0 we wrote the points as _seq_no and didn't shift them
                 return LongPoint.newExactQuery(NAME, seqNo);
             }
-            // TODO hand rolled query?
             // TODO negative values no shift?
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(LongPoint.newExactQuery(POINTS_NAME, seqNo >> POINTS_SHIFT), BooleanClause.Occur.MUST);
@@ -174,9 +192,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
-            // TODO recheck the doc values
-            throw new UnsupportedOperationException();
-            // return LongPoint.newSetQuery(name(), v);
+            if (context.indexVersionCreated().before(Version.V_8_4_0)) {
+                // Before 8.4.0 we wrote the points as _seq_no and didn't shift them
+                return LongPoint.newSetQuery(NAME, v);
+            }
+            return new SeqNoSetQuery(v);
         }
 
         @Override
@@ -270,5 +290,104 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     @Override
     public SeqNoFieldType fieldType() {
         return (SeqNoFieldType) mappedFieldType;
+    }
+
+    /**
+     * Query against a set of {@code _seq_no}s. Mostly delegates to a
+     * {@link LongPoint#newSetQuery set query} against the underlying
+     * points but double checks the match with doc values.
+     */
+    private static class SeqNoSetQuery extends Query {
+        private final long[] seqNos;
+        private final Query shiftedQuery;
+
+        SeqNoSetQuery(long[] seqNos) {
+            this.seqNos = seqNos.clone();
+            Arrays.sort(this.seqNos);
+            Set<Long> shifted = new HashSet<>();
+            for (long seqNo : this.seqNos) {
+                shifted.add(seqNo >> POINTS_SHIFT);
+            }
+            shiftedQuery = LongPoint.newSetQuery(POINTS_NAME, shifted);
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            Weight shiftedWeight = shiftedQuery.createWeight(searcher, scoreMode, boost);
+            return new ConstantScoreWeight(this, boost) {
+                @Override
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    Scorer shiftedScorer = shiftedWeight.scorer(context);
+                    NumericDocValues dv = context.reader().getNumericDocValues(NAME);
+                    if (shiftedScorer.twoPhaseIterator() != null) {
+                        throw new IllegalStateException("expected shifted query not to have two phase iterator");
+                    }
+                    return new ConstantScoreScorer(this, score(), scoreMode, new TwoPhaseIterator(shiftedScorer.iterator()) {
+                        @Override
+                        public boolean matches() throws IOException {
+                            if (false == dv.advanceExact(approximation.docID())) {
+                                return false;
+                            }
+                            long docSeqNo = dv.longValue();
+                            int idx = Arrays.binarySearch(seqNos, docSeqNo);
+                            return idx >= 0;
+                        }
+
+                        @Override
+                        public float matchCost() {
+                            return DV_RECHECK_COST;
+                        }
+                    });
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return shiftedWeight.isCacheable(ctx);
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            StringBuilder sb = new StringBuilder();
+            if (POINTS_NAME.equals(field) == false) {
+                sb.append(POINTS_NAME);
+                sb.append(':');
+            }
+
+            sb.append("{");
+
+            boolean first = true;
+            for (long seqNo : seqNos) {
+                if (first == false) {
+                    sb.append(" ");
+                }
+                first = false;
+                sb.append(seqNo);
+            }
+            sb.append("}");
+            return sb.toString();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            if (visitor.acceptField(POINTS_NAME)) {
+                visitor.visitLeaf(this);
+            }
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (sameClassAs(obj)) {
+                return false;
+            }
+            SeqNoSetQuery other = (SeqNoSetQuery) obj;
+            return Arrays.equals(seqNos, other.seqNos);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash() * 31 + Arrays.hashCode(seqNos);
+        }
     }
 }

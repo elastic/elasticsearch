@@ -91,7 +91,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     }
 
     private String cursor = "";
-
     /*
      * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or
      * binary parameter).

@@ -143,8 +143,11 @@ public class RestLogsAction extends BaseRestHandler {
                         IndexRequest originalRequest = indexRequests.get(failedRequest.getItemId());
                         Map<String, Object> doc = originalRequest.sourceAsMap();
                         BulkItemResponse.Failure failure = failedRequest.getFailure();
-                        if (failure.getStatus() == RestStatus.BAD_REQUEST) {
-                            // looks like an error with the document (such as a mapping issue);
+                        if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                            // looks like a transient error; re-try as-is
+                            retryBulk.add(Requests.indexRequest(originalRequest.index()).opType(DocWriteRequest.OpType.CREATE).source(doc));
+                        } else {
+                            // looks like a persistent error (such as a mapping issue);
                             // re-try in fallback data stream which has lenient mappings
                             Exception cause = failure.getCause();
                             addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
@@ -154,9 +157,6 @@ public class RestLogsAction extends BaseRestHandler {
                             addPath(doc, "data_stream.dataset", "generic");
                             addPath(doc, "data_stream.namespace", "default");
                             retryBulk.add(Requests.indexRequest("logs-generic-default").opType(DocWriteRequest.OpType.CREATE).source(doc));
-                        } else {
-                            // looks like a transient error; re-try as-is
-                            retryBulk.add(Requests.indexRequest(originalRequest.index()).opType(DocWriteRequest.OpType.CREATE).source(doc));
                         }
                     });
                     client.bulk(retryBulk, new RestActionListener<>(channel) {

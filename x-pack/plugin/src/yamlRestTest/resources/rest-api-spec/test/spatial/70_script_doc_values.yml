@@ -131,6 +131,10 @@ setup:
 
 ---
 "diagonal length":
+  - skip:
+      reason: "precision changed in 8.4.0"
+      version: "8.3.99 - "
+
   - do:
       search:
         rest_total_hits_as_int: true

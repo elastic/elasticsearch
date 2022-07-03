@@ -33,14 +33,17 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -77,7 +80,11 @@ public class RestLogsAction extends BaseRestHandler {
             .forEach(e -> addPath(globalMetadata, e.getKey(), request.param(e.getKey())));
 
         List<IndexRequest> indexRequests = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(request.content().streamInput()))) {
+        Charset charset = Optional.ofNullable(request.getParsedContentType())
+            .map(ct -> ct.getParameters().get("charset"))
+            .map(Charset::forName)
+            .orElse(UTF_8);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(request.content().streamInput(), charset))) {
             Map<String, Object> localMetadata = Map.of();
             int i = 0;
             for (String line = reader.readLine(); line != null; line = reader.readLine(), i++) {
@@ -123,9 +130,9 @@ public class RestLogsAction extends BaseRestHandler {
                     dataStream.put("type", "logs");
                     dataStream.putIfAbsent("dataset", "generic");
                     dataStream.putIfAbsent("namespace", "default");
-                    indexRequests.add(Requests.indexRequest(routeToDataStream(dataStream))
-                        .opType(DocWriteRequest.OpType.CREATE)
-                        .source(doc));
+                    indexRequests.add(
+                        Requests.indexRequest(routeToDataStream(dataStream)).opType(DocWriteRequest.OpType.CREATE).source(doc)
+                    );
                 }
             }
         }
@@ -157,9 +164,9 @@ public class RestLogsAction extends BaseRestHandler {
                             addPath(doc, "_logs.data_stream", new HashMap<>(dataStream));
                             dataStream.put("type", "logs");
                             dataStream.put("dataset", "generic");
-                            retryBulk.add(Requests.indexRequest(routeToDataStream(dataStream))
-                                .opType(DocWriteRequest.OpType.CREATE)
-                                .source(doc));
+                            retryBulk.add(
+                                Requests.indexRequest(routeToDataStream(dataStream)).opType(DocWriteRequest.OpType.CREATE).source(doc)
+                            );
                         }
                     });
                     client.bulk(retryBulk, new RestActionListener<>(channel) {
@@ -187,10 +194,7 @@ public class RestLogsAction extends BaseRestHandler {
 
     private String routeToDataStream(Map<String, String> dataStream) {
         // TODO validate or sanitize dataset and namespace
-        return "logs-"
-            + dataStream.getOrDefault("dataset", "generic")
-            + "-"
-            + dataStream.getOrDefault("namespace", "default");
+        return "logs-" + dataStream.getOrDefault("dataset", "generic") + "-" + dataStream.getOrDefault("namespace", "default");
     }
 
     public void sendResponse(RestChannel channel, RestStatus status, Consumer<XContentBuilder> builderConsumer) throws IOException {
@@ -226,28 +230,27 @@ public class RestLogsAction extends BaseRestHandler {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> addPath(Map<String, Object> doc, String path, Object value) {
+    private static void addPath(Map<String, Object> doc, String path, Object value) {
         Map<String, Object> parent = doc;
         String[] pathElements = path.split("\\.");
-        for (int i = 0; i < pathElements.length; i++) {
+        for (int i = 0; i < pathElements.length - 1; i++) {
             String pathElement = pathElements[i];
-            if (i == pathElements.length - 1) {
-                parent.put(pathElement, value);
+            if (parent.containsKey(pathElement) == false) {
+                parent.put(pathElement, new HashMap<>());
+            }
+            Object potentialParent = parent.get(pathElement);
+            if (potentialParent instanceof Map) {
+                // as this is a json object, if it's a map, it's guaranteed to be a Map<String, Object>
+                // that's because there can't be non-string keys in json objects
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mapParent = (Map<String, Object>) potentialParent;
+                parent = mapParent;
             } else {
-                if (parent.containsKey(pathElement) == false) {
-                    parent.put(pathElement, new HashMap<>());
-                }
-                Object potentialParent = parent.get(pathElement);
-                if (potentialParent instanceof Map) {
-                    parent = (Map<String, Object>) potentialParent;
-                } else {
-                    // conflict, put the dotted key back in
-                    doc.put(path, value);
-                    break;
-                }
+                // conflict, put the dotted key back in
+                doc.put(path, value);
+                return;
             }
         }
-        return doc;
+        parent.put(pathElements[pathElements.length - 1], value);
     }
 }

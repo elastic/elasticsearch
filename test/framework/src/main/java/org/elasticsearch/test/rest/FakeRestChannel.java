@@ -10,7 +10,6 @@ package org.elasticsearch.test.rest;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,7 +28,7 @@ public final class FakeRestChannel extends AbstractRestChannel {
     @Override
     public void sendResponse(RestResponse response) {
         this.capturedRestResponse = response;
-        if (response.status() == RestStatus.OK) {
+        if (response.status().getStatus() < 400) {
             responses.incrementAndGet();
         } else {
             errors.incrementAndGet();

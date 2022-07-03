@@ -9,8 +9,6 @@
 package org.elasticsearch.rest.action.logs;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -30,7 +28,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.junit.Test;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -53,10 +50,10 @@ public class RestLogsActionTest extends RestActionTestCase {
         controller().registerHandler(new RestLogsAction());
     }
 
-    @Test
     public void testIngestJsonLogs() {
         RestRequest req = createLogsRequest("/_logs", Map.of("message", "Hello World"), Map.of("foo", "bar"));
-        setBulkRequestVerifier((actionType, request) -> {
+
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(2, request.requests().size());
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             assertDataStreamFields("generic", "default", indexRequest);
@@ -65,13 +62,12 @@ public class RestLogsActionTest extends RestActionTestCase {
             assertEquals("bar", ((IndexRequest) request.requests().get(1)).sourceAsMap().get("foo"));
             return Mockito.mock(BulkResponse.class);
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    @Test
     public void testInvalidJson() {
         RestRequest req = createLogsRequest("/_logs/foo", "{\"message\": \"missing end quote}");
-        setBulkRequestVerifier((actionType, request) -> {
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(1, request.requests().size());
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             assertDataStreamFields("foo", "default", indexRequest);
@@ -80,10 +76,9 @@ public class RestLogsActionTest extends RestActionTestCase {
             assertEquals("json_e_o_f_exception", getPath(doc, "_logs.error.type"));
             return Mockito.mock(BulkResponse.class);
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    @Test
     public void testMetadata() {
         RestRequest req = createLogsRequest(
             "/_logs",
@@ -93,7 +88,7 @@ public class RestLogsActionTest extends RestActionTestCase {
             Map.of("_metadata", Map.of("local2", true)),
             Map.of("foo", "bar")
         );
-        setBulkRequestVerifier((actionType, request) -> {
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(2, request.requests().size());
             Map<String, Object> doc1 = ((IndexRequest) request.requests().get(0)).sourceAsMap();
             Map<String, Object> doc2 = ((IndexRequest) request.requests().get(1)).sourceAsMap();
@@ -103,20 +98,19 @@ public class RestLogsActionTest extends RestActionTestCase {
             assertEquals(true, doc2.get("local2"));
             return Mockito.mock(BulkResponse.class);
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    @Test
     public void testMergeGlobalAndEventMetadata() {
         RestRequest req = createLogsRequest("/_logs/foo", Map.of("data_stream.namespace", "bar"));
-        setBulkRequestVerifier((actionType, request) -> {
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(1, request.requests().size());
             Map<String, Object> doc = ((IndexRequest) request.requests().get(0)).sourceAsMap();
             assertEquals("foo", getPath(doc, "data_stream.dataset"));
             assertEquals("bar", getPath(doc, "data_stream.namespace"));
             return Mockito.mock(BulkResponse.class);
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
     }
 
     private void assertDataStreamFields(String dataset, String namespace, DocWriteRequest<?> docWriteRequest) {
@@ -125,22 +119,20 @@ public class RestLogsActionTest extends RestActionTestCase {
         assertEquals(Map.of("type", "logs", "dataset", dataset, "namespace", namespace), indexRequest.sourceAsMap().get("data_stream"));
     }
 
-    @Test
     public void testPathMetadata() {
         RestRequest req = createLogsRequest("/_logs/foo/bar", Map.of("message", "Hello World"));
-        setBulkRequestVerifier((actionType, request) -> {
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(1, request.requests().size());
             assertDataStreamFields("foo", "bar", request.requests().get(0));
             return Mockito.mock(BulkResponse.class);
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    @Test
     public void testRetryInGenericDataStreamOnMappingError() {
         RestRequest req = createLogsRequest("/_logs/foo/bar", Map.of("message", "Hello World"));
         AtomicBoolean firstRequest = new AtomicBoolean(true);
-        setBulkRequestVerifier((actionType, request) -> {
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             if (firstRequest.get()) {
                 firstRequest.set(false);
                 assertEquals(1, request.requests().size());
@@ -159,14 +151,13 @@ public class RestLogsActionTest extends RestActionTestCase {
                 return Mockito.mock(BulkResponse.class);
             }
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    @Test
     public void testRetryInSameDataStreamOnTransientError() {
         RestRequest req = createLogsRequest("/_logs/foo", Map.of("message", "Hello World"));
         AtomicBoolean firstRequest = new AtomicBoolean(true);
-        setBulkRequestVerifier((actionType, request) -> {
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             if (firstRequest.get()) {
                 firstRequest.set(false);
                 assertEquals(1, request.requests().size());
@@ -181,8 +172,17 @@ public class RestLogsActionTest extends RestActionTestCase {
                 return Mockito.mock(BulkResponse.class);
             }
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
+    }
 
+    public void testReturnErrorWhenRetryFails() {
+        RestRequest req = createLogsRequest("/_logs/foo", Map.of("message", "Hello World"));
+        verifyingClient.setExecuteVerifier(
+            (BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> createMockBulkFailureResponse(
+                new EsRejectedExecutionException()
+            )
+        );
+        assertEquals(1, dispatchRequest(req).errors().get());
     }
 
     private BulkResponse createMockBulkFailureResponse(Exception exception) {
@@ -202,12 +202,11 @@ public class RestLogsActionTest extends RestActionTestCase {
         return bulkResponse;
     }
 
-    @Test
     public void testIngestPlainTextLog() {
         RestRequest req = createLogsRequest("/_logs", """
             Hello World
             """);
-        setBulkRequestVerifier((actionType, request) -> {
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(1, request.requests().size());
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             assertDataStreamFields("generic", "default", indexRequest);
@@ -215,10 +214,9 @@ public class RestLogsActionTest extends RestActionTestCase {
             assertEquals("Hello World", indexRequest.sourceAsMap().get("message"));
             return Mockito.mock(BulkResponse.class);
         });
-        dispatchRequest(req);
+        assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    @Test
     public void testExpandDots() throws IOException {
         List<String> testScenarios = List.of("""
             {"foo.bar":"baz"}
@@ -238,6 +236,7 @@ public class RestLogsActionTest extends RestActionTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private RestRequest createLogsRequest(String path, Map<?, ?>... ndJson) {
         return createLogsRequest(
             path,
@@ -267,30 +266,17 @@ public class RestLogsActionTest extends RestActionTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> T getPath(Map<String, Object> doc, String path) {
         Map<String, Object> parent = doc;
         String[] pathElements = path.split("\\.");
-        for (int i = 0; i < pathElements.length; i++) {
+        for (int i = 0; i < pathElements.length - 1; i++) {
+            parent = (Map<String, Object>) parent.get(pathElements[i]);
             if (parent == null) {
                 return null;
             }
-            if (i < pathElements.length - 1) {
-                parent = (Map<String, Object>) parent.get(pathElements[i]);
-            } else {
-                return (T) parent.get(pathElements[i]);
-            }
         }
-        return null;
+        return (T) parent.get(pathElements[pathElements.length - 1]);
     }
 
-    private void setBulkRequestVerifier(BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse> verifier) {
-        verifyingClient.setExecuteVerifier(verifier);
-        BiFunction<?, ?, ?> dropTypeInfo = (BiFunction<?, ?, ?>) verifier;
-        @SuppressWarnings("unchecked")
-        BiFunction<ActionType<?>, ActionRequest, ActionResponse> pasteGenerics = (BiFunction<
-            ActionType<?>,
-            ActionRequest,
-            ActionResponse>) dropTypeInfo;
-        verifyingClient.setExecuteLocallyVerifier(pasteGenerics);
-    }
 }

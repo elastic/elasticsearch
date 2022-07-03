@@ -26,6 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.plugins.loader.UberModuleURLClassLoader;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
@@ -34,6 +35,8 @@ import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
+import java.lang.module.ResolvedModule;
 import java.lang.reflect.Constructor;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -62,6 +65,47 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
+
+    static Set<String> JDK_MODULES = ModuleLayer.boot()
+        .configuration()
+        .modules()
+        .stream()
+        .map(ResolvedModule::reference)
+        // assumption, only JDK modules are built into the image
+        .filter(mref -> mref.location().get().getScheme().equals("jrt"))
+        .map(ModuleReference::descriptor)
+        .map(ModuleDescriptor::name)
+        .collect(Collectors.toUnmodifiableSet());
+
+    // Elasticsearch components that should be loaded as Uber modules.
+    // Currently, just a static map of component/plugin name to set of required modules.
+    // This is a hack, just for experimentation purposes.
+    static Map<String, Set<String>> UBER_PLUGINS_MODULES = Map.of(
+        "x-pack-analytics",
+        Set.of(
+            "org.elasticsearch.base",
+            "org.elasticsearch.server",
+            "org.elasticsearch.xcore",
+            "org.elasticsearch.xcontent",
+            "org.apache.lucene.core"
+        ),
+        "x-pack-fleet",
+        Set.of(
+            "org.elasticsearch.base",
+            "org.elasticsearch.server",
+            "org.elasticsearch.xcore",
+            "org.elasticsearch.xcontent",
+            "org.apache.lucene.core"
+        ),
+        "repository-s3",
+        Set.of(
+            "org.elasticsearch.base",
+            "org.elasticsearch.server",
+            "org.elasticsearch.xcontent",
+            "org.apache.lucene.core",
+            "org.apache.logging.log4j"
+        )
+    );
 
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
@@ -472,18 +516,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    static Map<String, Set<String>> UBER_PLUGINS_MODULES = Map.of(
-        "x-pack-analytics",
-        Set.of(
-            // The set of accessible modules
-            "org.elasticsearch.base",
-            "org.elasticsearch.server",
-            "org.elasticsearch.xcore",
-            "org.elasticsearch.xcontent",
-            "org.apache.lucene.core"
-        )
-    );
-
     static LayerAndLoader createPlugin(
         PluginBundle bundle,
         ClassLoader pluginParentLoader,
@@ -504,7 +536,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
                 extendedPlugins.stream().map(LoadedPlugin::layer)
             ).toList();
-            return createSyntheticModuleLayer(bundle, pluginParentLoader, parentLayers, UBER_PLUGINS_MODULES.get(plugin.getName()));
+            var mods = Stream.concat(JDK_MODULES.stream(), UBER_PLUGINS_MODULES.get(plugin.getName()).stream())
+                .collect(Collectors.toUnmodifiableSet());
+            return createSyntheticModuleLayer(bundle, pluginParentLoader, parentLayers, mods);
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
@@ -659,7 +693,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             finder,
             Set.of(moduleName)
         );
-        ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
+        ClassLoader loader = UberModuleURLClassLoader.newInstance(moduleName, bundle.urls.toArray(new URL[0]), parentLoader);
         var controller = privilegedDefineModules(configuration, parentLayersOrBoot(parentLayers), loader);
         var pluginModule = controller.layer().findModule(moduleName).get();
         assert pluginModule.getName().equals(moduleName);

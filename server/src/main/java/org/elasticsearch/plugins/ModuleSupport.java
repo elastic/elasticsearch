@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.InvalidModuleDescriptorException;
@@ -39,6 +41,7 @@ public class ModuleSupport {
         }
     }
 
+    @SuppressForbidden(reason = "need access to the jar file")
     static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires) throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
@@ -97,6 +100,7 @@ public class ModuleSupport {
     // A scan result, which aggregates class and services files.
     record ScanResult(Set<String> classFiles, Set<String> serviceFiles) {}
 
+    @SuppressForbidden(reason = "need access to the jar file")
     static ScanResult scan(JarFile jarFile) {
         Map<Boolean, Set<String>> map = jarFile.versionedStream()
             .filter(e -> e.isDirectory() == false)

@@ -1830,6 +1830,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logs":
             case "logs-settings":
             case "logs-mappings":
+            case "logs-generic":
+            case "logs-generic-mappings":
             case "metrics":
             case "metrics-settings":
             case "metrics-mappings":

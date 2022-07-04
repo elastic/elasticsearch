@@ -35,6 +35,7 @@ import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -152,17 +153,21 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             doWrite(ctx, restResponse, promise);
             success = true;
             // see if we have any queued up responses that became writeable due to the above write
-            while (outboundHoldingQueue.isEmpty() == false && outboundHoldingQueue.peek().v1().getSequence() == writeSequence) {
-                final Tuple<? extends Netty4RestResponse, ChannelPromise> top = outboundHoldingQueue.poll();
-                assert top != null : "we know the outbound holding queue to not be empty at this point";
-                doWrite(ctx, top.v1(), top.v2());
-            }
+            drainQueuedNowWritable(ctx);
         } catch (IllegalStateException e) {
             ctx.channel().close();
         } finally {
             if (success == false) {
                 promise.setFailure(new ClosedChannelException());
             }
+        }
+    }
+
+    private void drainQueuedNowWritable(ChannelHandlerContext ctx) {
+        while (outboundHoldingQueue.isEmpty() == false && outboundHoldingQueue.peek().v1().getSequence() == writeSequence) {
+            final Tuple<? extends Netty4RestResponse, ChannelPromise> top = outboundHoldingQueue.poll();
+            assert top != null : "we know the outbound holding queue to not be empty at this point";
+            doWrite(ctx, top.v1(), top.v2());
         }
     }
 
@@ -198,6 +203,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) {
+        if (currentWrite != null) {
+            queuedWrites.add(new WriteOperation(readyResponse, promise));
+            return;
+        }
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
         currentWrite = new ChunkedWrite(combiner, promise, readyResponse);
         final ChannelPromise first = ctx.newPromise();
@@ -268,7 +277,30 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         }
         boolean needsFlush = true;
         while (channel.isWritable()) {
-            final WriteOperation currentWrite = queuedWrites.poll();
+            if (currentWrite != null) {
+                try {
+                    if (currentWrite.response.body().encode((done, bytes) -> {
+                        final ByteBuf content = Netty4Utils.toByteBuf(bytes);
+                        final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
+                        f.addListener(ignored -> bytes.close());
+                        currentWrite.combiner.add(f);
+                    }, Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler())) {
+                        currentWrite.combiner.finish(currentWrite.onDone);
+                        currentWrite = null;
+                        writeSequence++;
+                        continue;
+                    }
+                } catch (IOException e) {
+                    // TODO: this is weird but just failing everything for this connection in case of a serialization exception which
+                    // seems to always be a bug sounds about right?
+                    throw new UncheckedIOException(e);
+                }
+            }
+            WriteOperation currentWrite = queuedWrites.poll();
+            if (currentWrite == null) {
+                drainQueuedNowWritable(ctx);
+                currentWrite = queuedWrites.poll();
+            }
             if (currentWrite == null) {
                 break;
             }
@@ -298,6 +330,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
+        // TODO: handle current write
+        assert currentWrite == null;
         List<Tuple<? extends Netty4RestResponse, ChannelPromise>> inflightResponses = removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {

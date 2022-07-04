@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -201,20 +202,21 @@ public class TestClustersPlugin implements Plugin<Project> {
         }
 
         private static void configureStartClustersHook(Gradle gradle, TestClustersRegistry registry) {
-            gradle.addListener(new TaskActionListener() {
-                @Override
-                public void beforeActions(Task task) {
-                    if (task instanceof TestClustersAware == false) {
-                        return;
-                    }
-                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    TestClustersAware awareTask = (TestClustersAware) task;
-                    awareTask.beforeStart();
-                    awareTask.getClusters().forEach(c -> registry.maybeStartCluster(awareTask.getPath(), c));
-                }
-
-                @Override
-                public void afterActions(Task task) {}
+            gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
+                taskExecutionGraph.getAllTasks()
+                        .stream()
+                        .filter(task -> task instanceof TestClustersAware)
+                        .forEach(task -> {
+                            task.doFirst(new Action<Task>() {
+                                @Override
+                                public void execute(Task task) {
+                                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
+                                    TestClustersAware awareTask = (TestClustersAware) task;
+                                    awareTask.beforeStart();
+                                    awareTask.getClusters().forEach(c -> registry.maybeStartCluster(awareTask.getPath(), c));
+                                }
+                            });
+                        });
             });
         }
 

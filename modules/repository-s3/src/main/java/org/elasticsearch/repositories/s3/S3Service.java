@@ -385,7 +385,7 @@ class S3Service implements Closeable {
     static class CustomAWSCredentialsProviderChain implements AWSCredentialsProvider {
 
         private final List<AWSCredentialsProvider> credentialsProviders;
-        private AWSCredentialsProvider lastUsedProvider;
+        private volatile AWSCredentialsProvider lastUsedProvider;
 
         CustomAWSCredentialsProviderChain(List<AWSCredentialsProvider> credentialsProviders) {
             this.credentialsProviders = List.copyOf(credentialsProviders);

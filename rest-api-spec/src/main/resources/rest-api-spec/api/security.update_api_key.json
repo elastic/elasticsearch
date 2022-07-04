@@ -16,12 +16,17 @@
           "path":"/_security/api_key/{ids}",
           "methods":[
             "PUT"
-          ]
+          ],
+          "parts":{
+            "ids":{
+              "description":"The ID of the API key to update"
+            }
+          }
         }
       ]
     },
     "body":{
-      "description":"The api key request to update attributes of an API key",
+      "description":"The API key request to update attributes of an API key",
       "required":true
     }
   }

@@ -75,12 +75,24 @@ teardown:
         body: >
           {
             "name": "user1-api-key",
-            "expiration": "1d",
             "role_descriptors": {
             }
           }
   - match: { name: "user1-api-key" }
   - is_true: id
   - is_true: api_key
-  - is_true: expiration
   - set: { id: user1_key_id }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.update_api_key:
+        ids: "$user1_key_id"
+        body: >
+          {
+            "role_descriptors": {
+            },
+            "metadata": {
+            }
+          }
+  - match: { updated: true }

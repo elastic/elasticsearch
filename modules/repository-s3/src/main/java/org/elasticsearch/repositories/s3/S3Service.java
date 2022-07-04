@@ -405,7 +405,7 @@ class S3Service implements Closeable {
                         return credentials;
                     }
                 } catch (Exception e) {
-                    LOGGER.warn("Unable to load credentials from {}", provider, e);
+                    LOGGER.warn("Unable to load credentials from " + provider, e);
                 }
             }
             throw new SdkClientException("Unable to load AWS credentials from any provider in the chain");

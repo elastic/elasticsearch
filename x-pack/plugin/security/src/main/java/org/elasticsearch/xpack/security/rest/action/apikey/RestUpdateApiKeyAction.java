@@ -48,7 +48,7 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_security/api_key/{id}"));
+        return List.of(new Route(PUT, "/_security/api_key/{ids}"));
     }
 
     @Override
@@ -58,7 +58,7 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final var apiKeyId = request.param("id");
+        final var apiKeyId = request.param("ids");
         final var payload = PARSER.parse(request.contentParser(), null);
         return channel -> client.execute(
             UpdateApiKeyAction.INSTANCE,

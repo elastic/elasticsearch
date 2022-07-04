@@ -12,7 +12,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/api_key/{id}/_clear_cache",
+          "path":"/_security/api_key/{ids}/_clear_cache",
           "methods":[
             "POST"
           ],

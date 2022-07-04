@@ -43,7 +43,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.mockito.Mockito.when;
 
-public class RestLogsActionTest extends RestActionTestCase {
+public class RestLogsActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {

@@ -31,8 +31,8 @@ public class CartesianPointDocValuesField extends PointDocValuesField<CartesianP
     }
 
     @Override
-    protected void resetCentroidAndBounds(CartesianPoint centroid, CartesianPoint topLeft, CartesianPoint bottomRight) {
-        centroid.reset(centroid.getX() / count, centroid.getY() / count);
+    protected void resetCentroidAndBounds(CartesianPoint point, CartesianPoint topLeft, CartesianPoint bottomRight) {
+        centroid.reset(point.getX() / count, point.getY() / count);
         boundingBox.topLeft().reset(topLeft.getX(), topLeft.getY());
         boundingBox.bottomRight().reset(bottomRight.getX(), bottomRight.getY());
     }

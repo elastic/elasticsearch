@@ -28,8 +28,8 @@ public class GeoPointDocValuesField extends PointDocValuesField<GeoPoint> {
     }
 
     @Override
-    protected void resetCentroidAndBounds(GeoPoint centroid, GeoPoint topLeft, GeoPoint bottomRight) {
-        centroid.reset(centroid.lat() / count, centroid.lon() / count);
+    protected void resetCentroidAndBounds(GeoPoint point, GeoPoint topLeft, GeoPoint bottomRight) {
+        centroid.reset(point.lat() / count, point.lon() / count);
         boundingBox.topLeft().reset(topLeft.lat(), topLeft.lon());
         boundingBox.bottomRight().reset(bottomRight.lat(), bottomRight.lon());
     }

@@ -32,7 +32,7 @@ public abstract class PointDocValuesField<T extends ToXContentFragment> extends 
     protected int count;
 
     private final Supplier<T> pointMaker;
-    private final T centroid;
+    protected final T centroid;
     protected final BoundingBox<T> boundingBox;
     private int labelIndex = 0;
 

@@ -3,9 +3,9 @@
   <div role="tablist" aria-label="Restore from snapshot">
     <button role="tab"
             aria-selected="true"
-            aria-controls="ui-tab-restore-from-snapshot"
-            id="ui-restore-from-snapshot">
-      UI
+            aria-controls="kibana-tab-restore-from-snapshot"
+            id="kibana-restore-from-snapshot">
+      Kibana
     </button>
     <button role="tab"
             aria-selected="false"
@@ -17,11 +17,11 @@
   </div>
   <div tabindex="0"
        role="tabpanel"
-       id="ui-tab-restore-from-snapshot"
-       aria-labelledby="ui-restore-from-snapshot">
+       id="kibana-tab-restore-from-snapshot"
+       aria-labelledby="kibana-restore-from-snapshot">
 ++++
 
-include::restore-from-snapshot.asciidoc[tag=ui]
+include::restore-from-snapshot.asciidoc[tag=kibana]
 
 ++++
   </div>

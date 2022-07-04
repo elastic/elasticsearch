@@ -1,4 +1,4 @@
-// tag::ui[]
+// tag::kibana[]
 In order to restore the indices and data streams that are missing data:
 
 **Use {kib}**
@@ -66,7 +66,7 @@ For more guidance on creating and restoring snapshots see
 <<snapshot-restore, this guide>>.
 
 //end::kibana-api-ex[]
-// end::ui[]
+// end::kibana[]
 
 // tag::api[]
 In order to restore the indices that are missing shards:

@@ -22,7 +22,7 @@ import spock.lang.Unroll
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {
-        // used LoggedExec task is not configuration cache compatible and
+        // Cannot serialize BwcSetupExtension containing project object
         configurationCacheCompatible = false
         internalBuild()
         buildFile << """

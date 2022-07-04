@@ -34,51 +34,36 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
-          commandLine 'ls', '-lh'
+          getExecutable().set('ls')
+          getArgs().add('-lh')
           spoolOutput = $spooling
         }
         """
         when:
         def result = gradleRunner("loggedExec").build()
         then:
-//        assertOutputContains(result.getOutput(), "Configuration cache entry stored.")
         result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
-        file("build/buffered-output/loggedExec").exists() == false
-
-////
-//        when:
-//        result = gradleRunner("loggedExec").buildAndFail()
-//        then:
-//        result.task(':loggedExec').outcome == TaskOutcome.FAILED
-////        assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
-
+        file("build/buffered-output/loggedExec").exists() == spooling
         where:
         spooling << [false, true]
     }
 
-    @Unroll
-    @Ignore
-    def "can run #setup setup with configuration cache"() {
+    def "captures output"() {
         setup:
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
-          commandLine 'ls', '-lh'
-          $config
+          getExecutable().set('ls')
+          getArgs().add('-lh')
+          doLast {
+            println 'OUTPUT ' + output
+          }
         }
+       
         """
         when:
-        def result = gradleRunner("loggedExec", '--configuration-cache').build()
-        then:
-        assertOutputContains(result.getOutput(), "Configuration cache entry stored.")
-
-        when:
-        result = gradleRunner("loggedExec", '--configuration-cache').build()
+        def result = gradleRunner("loggedExec").build()
         then:
         result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
-        assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
-        where:
-        setup                   | config
-        "basic"                 | ""
     }
 }

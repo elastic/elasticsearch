@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
@@ -84,6 +85,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *      - repeat
  */
 @SuppressWarnings("removal")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88063")
 public class TransformContinuousIT extends TransformRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();

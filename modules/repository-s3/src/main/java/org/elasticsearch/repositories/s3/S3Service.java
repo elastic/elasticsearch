@@ -9,9 +9,9 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -223,7 +224,9 @@ class S3Service implements Closeable {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
                 return new PrivilegedAWSCredentialsProvider(
-                    new AWSCredentialsProviderChain(webIdentityTokenCredentialsProvider, new EC2ContainerCredentialsProviderWrapper())
+                    new CustomAWSCredentialsProviderChain(
+                        List.of(webIdentityTokenCredentialsProvider, new EC2ContainerCredentialsProviderWrapper())
+                    )
                 );
             } else {
                 logger.debug("Using instance profile credentials");
@@ -372,6 +375,45 @@ class S3Service implements Closeable {
             if (credentialsProvider != null) {
                 IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
             }
+        }
+    }
+
+    /**
+     * Customized {@link  com.amazonaws.auth.AWSCredentialsProviderChain} that logs
+     * unsuccessful authentication attempts as warnings instead of debug messages
+     */
+    static class CustomAWSCredentialsProviderChain implements AWSCredentialsProvider {
+
+        private final List<AWSCredentialsProvider> credentialsProviders;
+        private AWSCredentialsProvider lastUsedProvider;
+
+        public CustomAWSCredentialsProviderChain(List<AWSCredentialsProvider> credentialsProviders) {
+            this.credentialsProviders = List.copyOf(credentialsProviders);
+        }
+
+        @Override
+        public AWSCredentials getCredentials() {
+            if (lastUsedProvider != null) {
+                return lastUsedProvider.getCredentials();
+            }
+
+            for (AWSCredentialsProvider provider : credentialsProviders) {
+                try {
+                    AWSCredentials credentials = provider.getCredentials();
+                    if (credentials.getAWSAccessKeyId() != null && credentials.getAWSSecretKey() != null) {
+                        lastUsedProvider = provider;
+                        return credentials;
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("Unable to load credentials from {}", provider, e);
+                }
+            }
+            throw new SdkClientException("Unable to load AWS credentials from any provider in the chain");
+        }
+
+        @Override
+        public void refresh() {
+            credentialsProviders.forEach(AWSCredentialsProvider::refresh);
         }
     }
 

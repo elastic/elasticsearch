@@ -60,7 +60,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         );
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
         var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) credentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AWSCredentialsProviderChain.class));
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(S3Service.CustomAWSCredentialsProviderChain.class));
         AWSCredentials credentials = privilegedAWSCredentialsProvider.getCredentials();
         assertEquals("sts_access_key_id", credentials.getAWSAccessKeyId());
         assertEquals("sts_secret_key", credentials.getAWSSecretKey());

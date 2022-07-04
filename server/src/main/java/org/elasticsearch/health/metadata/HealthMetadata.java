@@ -275,6 +275,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             }
         }
 
+        /* Represents a disk space threshold in one of two ways:
+         * - Percent of maximum disk usage allowed, for example, if disk usage is more than 90% it's over the threshold
+         * - Minimum of free disk space allowed, for example free disk space is less than 10GB it's over the threshold
+         */
         public record Threshold(double maxUsedPercent, ByteSizeValue minFreeBytes) implements Writeable {
 
             public Threshold {

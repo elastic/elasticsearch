@@ -183,7 +183,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
         String javaToolchainHome = System.getenv("JAVA_TOOLCHAIN_HOME");
         if (javaToolchainHome != null) {
-            LOGGER.quiet("  JAVA TOOLCHAIN HOME   : " + javaToolchainHome);
+            LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
         LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());

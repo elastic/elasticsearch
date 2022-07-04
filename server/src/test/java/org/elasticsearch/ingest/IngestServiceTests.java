@@ -2231,7 +2231,7 @@ public class IngestServiceTests extends ESTestCase {
         public boolean matches(IngestDocument other) {
             // ingest metadata and IngestSourceAndMetadata will not be the same (timestamp differs every time)
             return Objects.equals(ingestDocument.getSource(), other.getSource())
-                && Objects.equals(ingestDocument.getMetadata(), other.getMetadata());
+                && Objects.equals(ingestDocument.getMetadataMap(), other.getMetadataMap());
         }
     }
 

@@ -92,6 +92,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -111,6 +112,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     // the timeout for the publication of each value
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.publish.timeout",
+        TimeValue.timeValueMillis(30000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.discovery_configuration_check.interval",
         TimeValue.timeValueMillis(30000),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
@@ -140,6 +148,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final SeedHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
     private final TimeValue publishInfoTimeout;
+    private final TimeValue singleNodeClusterSeedHostsCheckInterval;
+    @Nullable
+    private Scheduler.Cancellable singleNodeClusterChecker = null;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
@@ -218,6 +229,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinAccumulator = new InitialJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
+        this.singleNodeClusterSeedHostsCheckInterval = SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(
@@ -739,6 +751,38 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    private void cancelSingleNodeClusterChecker() {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        if (singleNodeClusterChecker != null) {
+            singleNodeClusterChecker.cancel();
+            singleNodeClusterChecker = null;
+        }
+    }
+
+    private void checkSingleNodeCluster() {
+        if (applierState.nodes().size() > 1) {
+            return;
+        }
+
+        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
+            if (DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()) {
+                // For a single-node cluster, the only acceptable setting is an empty list.
+                return;
+            } else {
+                logger.warn(
+                    """
+                        This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to \
+                        discover other nodes and form a multi-node cluster via the [{}] setting. Fully-formed clusters do not \
+                        attempt to discover other nodes, and nodes with different cluster UUIDs cannot belong to the same cluster. \
+                        The cluster UUID persists across restarts and can only be changed by deleting the contents of the node's \
+                        data path(s). Remove the discovery configuration to suppress this message.""",
+                    applierState.metadata().clusterUUID(),
+                    DISCOVERY_SEED_HOSTS_SETTING.getKey() + "=" + DISCOVERY_SEED_HOSTS_SETTING.get(settings)
+                );
+            }
+        }
+    }
+
     void becomeCandidate(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug(
@@ -748,6 +792,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             mode,
             lastKnownLeader
         );
+        cancelSingleNodeClusterChecker();
 
         if (mode != Mode.CANDIDATE) {
             final Mode prevMode = mode;
@@ -803,6 +848,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
         followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+
+        if (applierState.nodes().size() > 1) {
+            cancelSingleNodeClusterChecker();
+        } else if (singleNodeClusterChecker == null) {
+            singleNodeClusterChecker = transportService.getThreadPool()
+                .scheduleWithFixedDelay(() -> { checkSingleNodeCluster(); }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
+        }
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
@@ -822,6 +874,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 lastKnownLeader
             );
         }
+        cancelSingleNodeClusterChecker();
 
         final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
 
@@ -1028,6 +1081,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     : coordinationState.get().getLastAcceptedConfiguration()
                         + " != "
                         + coordinationState.get().getLastCommittedConfiguration();
+
+                if (coordinationState.get().getLastAcceptedState().nodes().size() == 1) {
+                    assert singleNodeClusterChecker != null;
+                }
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -1045,6 +1102,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;
+                assert singleNodeClusterChecker == null;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;

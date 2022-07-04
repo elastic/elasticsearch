@@ -1,5 +1,0 @@
-pr: 85959
-summary: Fix `null_value` for array-valued `geo_point` fields
-area: Geo
-type: bug
-issues: []

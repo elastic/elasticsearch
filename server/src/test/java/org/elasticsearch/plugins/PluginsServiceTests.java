@@ -12,14 +12,21 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugins.spi.TestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -27,8 +34,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -611,6 +620,70 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
+    }
+
+    private ClassLoader buildTestProviderPlugin(String name) throws Exception {
+        Map<String, CharSequence> sources = Map.of("r.FooPlugin", """
+            package r;
+            import org.elasticsearch.plugins.ActionPlugin;
+            import org.elasticsearch.plugins.Plugin;
+            public final class FooPlugin extends Plugin implements ActionPlugin { }
+            """, "r.FooTestService", Strings.format("""
+            package r;
+            import org.elasticsearch.plugins.spi.TestService;
+            public final class FooTestService implements TestService {
+                @Override
+                public String name() {
+                    return "%s";
+                }
+            }
+            """, name));
+
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("r/FooPlugin.class", classToBytes.get("r.FooPlugin"));
+        jarEntries.put("r/FooTestService.class", classToBytes.get("r.FooTestService"));
+        jarEntries.put("META-INF/services/org.elasticsearch.plugins.spi.TestService", "r.FooTestService".getBytes(StandardCharsets.UTF_8));
+
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve(Strings.format("custom_plugin_%s.jar", name));
+        JarUtils.createJarWithEntries(jar, jarEntries);
+        URL[] urls = new URL[] { jar.toUri().toURL() };
+
+        URLClassLoader loader = URLClassLoader.newInstance(urls, this.getClass().getClassLoader());
+        return loader;
+    }
+
+    public void testLoadServiceProviders() throws Exception {
+        ClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
+        @SuppressWarnings("unchecked")
+        Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.loadClass("r.FooPlugin");
+
+        ClassLoader fakeClassLoader1 = buildTestProviderPlugin("string");
+        @SuppressWarnings("unchecked")
+        Class<? extends Plugin> fakePluginClass1 = (Class<? extends Plugin>) fakeClassLoader1.loadClass("r.FooPlugin");
+
+        assertFalse(fakePluginClass.getClassLoader().equals(fakePluginClass1.getClassLoader()));
+
+        getClass().getModule().addUses(TestService.class);
+
+        PluginsService service = newMockPluginsService(List.of(fakePluginClass, fakePluginClass1));
+
+        List<? extends TestService> providers = service.loadServiceProviders(TestService.class);
+        assertEquals(2, providers.size());
+        assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("string", "integer"));
+
+        service = newMockPluginsService(List.of(fakePluginClass));
+        providers = service.loadServiceProviders(TestService.class);
+
+        assertEquals(1, providers.size());
+        assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("integer"));
+
+        service = newMockPluginsService(new ArrayList<>());
+        providers = service.loadServiceProviders(TestService.class);
+
+        assertEquals(0, providers.size());
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

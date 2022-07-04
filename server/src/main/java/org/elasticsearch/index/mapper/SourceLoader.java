@@ -43,13 +43,10 @@ public interface SourceLoader {
          */
         BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
 
-        Leaf EMPTY_OBJECT = new Leaf() {
-            @Override
-            public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                // TODO accept a requested xcontent type
-                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                    return BytesReference.bytes(b.startObject().endObject());
-                }
+        Leaf EMPTY_OBJECT = (fieldsVisitor, docId) -> {
+            // TODO accept a requested xcontent type
+            try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                return BytesReference.bytes(b.startObject().endObject());
             }
         };
     }
@@ -65,12 +62,7 @@ public interface SourceLoader {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
-            return new Leaf() {
-                @Override
-                public BytesReference source(FieldsVisitor fieldsVisitor, int docId) {
-                    return fieldsVisitor.source();
-                }
-            };
+            return (fieldsVisitor, docId) -> fieldsVisitor.source();
         }
     };
 
@@ -95,18 +87,15 @@ public interface SourceLoader {
             if (leaf.empty()) {
                 return Leaf.EMPTY_OBJECT;
             }
-            return new Leaf() {
-                @Override
-                public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    // TODO accept a requested xcontent type
-                    try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                        if (leaf.advanceToDoc(docId)) {
-                            leaf.write(b);
-                        } else {
-                            b.startObject().endObject();
-                        }
-                        return BytesReference.bytes(b);
+            return (fieldsVisitor, docId) -> {
+                // TODO accept a requested xcontent type
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                    if (leaf.advanceToDoc(docId)) {
+                        leaf.write(b);
+                    } else {
+                        b.startObject().endObject();
                     }
+                    return BytesReference.bytes(b);
                 }
             };
         }

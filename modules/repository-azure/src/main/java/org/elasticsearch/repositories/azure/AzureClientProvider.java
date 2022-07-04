@@ -33,7 +33,10 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.common.StorageSharedKeyCredential;
+import com.azure.storage.common.implementation.connectionstring.StorageAuthenticationSettings;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
+import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
@@ -180,18 +183,30 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 
         final String connectionString = settings.getConnectString();
+        final StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
+        final StorageEndpoint endpoint = storageConnectionString.getBlobEndpoint();
+        final StorageAuthenticationSettings authSettings = storageConnectionString.getStorageAuthSettings();
 
-        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().endpoint(endpoint.getPrimaryUri())
             .httpClient(httpClient)
             .retryOptions(retryOptions);
+
+        if (authSettings.getType() == StorageAuthenticationSettings.Type.ACCOUNT_NAME_KEY) {
+            builder.credential(
+                new StorageSharedKeyCredential(authSettings.getAccount().getName(), authSettings.getAccount().getAccessKey())
+            );
+        } else if (authSettings.getType() == StorageAuthenticationSettings.Type.SAS_TOKEN) {
+            // Notice that we used the SAS token as it is provided in settings,
+            // this avoids going through the SDK SAS token sanitation process
+            // which can provide an invalid signature (see #88140)
+            builder.sasToken(settings.getSasToken());
+        }
 
         if (successfulRequestConsumer != null) {
             builder.addPolicy(new SuccessfulRequestTracker(successfulRequestConsumer));
         }
 
         if (locationMode.isSecondary()) {
-            // TODO: maybe extract this logic so we don't need to have a client logger around?
-            StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
             String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
             if (secondaryUri == null) {
                 throw new IllegalArgumentException(

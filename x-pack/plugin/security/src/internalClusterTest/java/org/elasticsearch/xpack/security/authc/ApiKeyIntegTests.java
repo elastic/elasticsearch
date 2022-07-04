@@ -76,6 +76,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -92,6 +94,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1448,18 +1451,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
-        );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
-        final var response = listener.get();
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, listener);
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         final PlainActionFuture<GetApiKeyResponse> getListener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(apiKeyId, false), getListener);
-        GetApiKeyResponse getResponse = getListener.get();
+        client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        ).execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(apiKeyId, false), getListener);
+        final GetApiKeyResponse getResponse = getListener.get();
         assertEquals(1, getResponse.getApiKeyInfos().length);
         // When metadata for the update request is null (i.e., absent), we don't overwrite old metadata with it
         final var expectedMetadata = request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2();
@@ -1526,13 +1527,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Update API key
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(nativeRealmUser, TEST_PASSWORD_SECURE_STRING))
-        ).execute(UpdateApiKeyAction.INSTANCE, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), listener);
-        final var response = listener.get();
+        final UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), listener);
+
         assertNotNull(response);
         assertTrue(response.isUpdated());
-
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorAfterUpdate), getApiKeyDocument(apiKeyId));
     }
 
@@ -1544,11 +1542,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Validate can update own API key
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
-        );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
-        final var response = listener.get();
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, listener);
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -1584,11 +1578,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testInvalidUpdateApiKeyScenarios() throws ExecutionException, InterruptedException {
-        final var apiKeyClusterPrivilege = randomFrom("all", "manage_security", "manage_api_key", "manage_own_api_key");
-        final CreateApiKeyResponse createdApiKey = createApiKeys(TEST_USER_NAME, 1, null, apiKeyClusterPrivilege).v1().get(0);
+        final List<String> apiKeyPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+        // At a minimum include `manage_own_api_key` to ensure no 403
+        apiKeyPrivileges.add("manage_own_api_key");
+        final CreateApiKeyResponse createdApiKey = createApiKeys(TEST_USER_NAME, 1, null, apiKeyPrivileges.toArray(new String[0])).v1()
+            .get(0);
         final var apiKeyId = createdApiKey.getId();
 
-        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { apiKeyClusterPrivilege }, null, null);
+        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "manage_own_api_key" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
         PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
         client().filterWithHeader(
@@ -1738,7 +1735,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
             case 1 -> List.of(
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
-                RoleDescriptorTests.randomRoleDescriptor()
+                RoleDescriptorTests.randomRoleDescriptor(false)
             );
             case 2 -> null;
             default -> throw new IllegalStateException("unexpected case no");
@@ -2051,6 +2048,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 "user_with_manage_own_api_key_role"
             )
         );
+    }
+
+    private UpdateApiKeyResponse executeUpdateApiKey(
+        final String username,
+        final UpdateApiKeyRequest request,
+        final PlainActionFuture<UpdateApiKeyResponse> listener
+    ) throws InterruptedException, ExecutionException {
+        final Client client = client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING))
+        );
+        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
+        return listener.get();
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {

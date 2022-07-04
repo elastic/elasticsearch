@@ -165,11 +165,11 @@ public class IndexLifecycleService
     }
 
     // package private for testing
-    void onMaster(ClusterState clusterState) {
+    void onMaster() {
         maybeScheduleJob();
     }
 
-    private void onMasterFailOver(Exception e) {
+    private void onMasterFailOver(ClusterState clusterState) {
         final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentMetadata.getOperationMode();
@@ -212,7 +212,7 @@ public class IndexLifecycleService
                     } catch (Exception e) {
                         if (logger.isTraceEnabled()) {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
                                         + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
                                     idxMeta.getIndex().getName(),
@@ -224,7 +224,7 @@ public class IndexLifecycleService
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
                                         + " for index [{}] with policy [{}] in step [{}]",
                                     idxMeta.getIndex().getName(),
@@ -246,7 +246,6 @@ public class IndexLifecycleService
             }
         }
     }
-
 
     @Override
     public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
@@ -303,12 +302,12 @@ public class IndexLifecycleService
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
                 // we weren't the master, and now we are
-                onMaster(event.state());
+                onMaster();
             } else {
                 // we were the master, and now we aren't
                 final Exception e = new NotMasterException("no longer master");
                 if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-                    onMasterFailOver(e);
+                    onMasterFailOver(event.state());
                 }
                 cancelJob();
                 policyRegistry.clear();

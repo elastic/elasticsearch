@@ -1213,7 +1213,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.indices(indices.apply(part.indices));
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
-            builder.put(Collections.unmodifiableMap(immutableStateMetadata.apply(part.immutableStateMetadata)));
+            builder.put(immutableStateMetadata.apply(part.immutableStateMetadata));
             return builder.build();
         }
     }

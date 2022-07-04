@@ -195,6 +195,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
+    // NOTE: Only for use in tests
     public TransportService(
         Settings settings,
         Transport transport,
@@ -212,28 +213,6 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
-            new TaskManager(settings, threadPool, taskHeaders)
-        );
-    }
-
-    public TransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor transportInterceptor,
-        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders,
-        ConnectionManager connectionManager
-    ) {
-        this(
-            settings,
-            transport,
-            threadPool,
-            transportInterceptor,
-            localNodeFactory,
-            clusterSettings,
-            connectionManager,
             new TaskManager(settings, threadPool, taskHeaders)
         );
     }

@@ -7,7 +7,9 @@
  */
 package org.elasticsearch.index;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.core.Nullable;
 
 import java.time.Instant;
 
@@ -18,10 +20,12 @@ public class TimestampBounds {
     private final long startTime;
     private volatile long endTime;
 
-    TimestampBounds(IndexScopedSettings scopedSettings) {
-        startTime = scopedSettings.get(IndexSettings.TIME_SERIES_START_TIME).toEpochMilli();
-        endTime = scopedSettings.get(IndexSettings.TIME_SERIES_END_TIME).toEpochMilli();
-        scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, this::updateEndTime);
+    TimestampBounds(IndexMetadata indexMetadata, @Nullable IndexScopedSettings scopedSettings) {
+        startTime = indexMetadata.getTimeSeriesStart().toEpochMilli();
+        endTime = indexMetadata.getTimeSeriesEnd().toEpochMilli();
+        if (scopedSettings != null) {
+            scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, this::updateEndTime);
+        }
     }
 
     /**

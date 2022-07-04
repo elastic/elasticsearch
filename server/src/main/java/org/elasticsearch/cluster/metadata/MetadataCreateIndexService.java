@@ -368,7 +368,7 @@ public class MetadataCreateIndexService {
             // ignore all templates for all system indices that do not allow templates.
             // Essentially, all but .kibana indices, see KibanaPlugin.java.
             if (Objects.nonNull(descriptor) && descriptor.allowsTemplates() == false) {
-                return applyCreateIndexRequestForSystemIndex(currentState, request, silent, descriptor.getIndexPattern());
+                return applyCreateIndexRequestForSystemIndex(currentState, request, silent, descriptor.getIndexPattern(), rerouteListener);
             }
 
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
@@ -681,7 +681,8 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final String indexPattern
+        final String indexPattern,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request for system index [{}] matching pattern [{}]", request.index(), indexPattern);
 
@@ -719,7 +720,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            null
+            null,
+            rerouteListener
         );
     }
 

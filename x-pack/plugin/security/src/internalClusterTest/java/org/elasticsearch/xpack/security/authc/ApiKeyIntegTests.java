@@ -1508,7 +1508,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new String(HASHER.hash(TEST_PASSWORD_SECURE_STRING)),
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
         );
-        final RoleDescriptor roleDescriptorBeforeUpdate = putRoleWithClusterPrivileges(nativeRealmRole, "all");
+        final List<String> clusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+        // At a minimum include `manage_own_api_key` to ensure no 403
+        clusterPrivileges.add("manage_own_api_key");
+        final RoleDescriptor roleDescriptorBeforeUpdate = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            clusterPrivileges.toArray(new String[0])
+        );
 
         // Create api key
         final CreateApiKeyResponse createdApiKey = createApiKeys(
@@ -1520,8 +1526,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String apiKeyId = createdApiKey.getId();
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorBeforeUpdate), getApiKeyDocument(apiKeyId));
 
+        final List<String> newClusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+        // At a minimum include `manage_own_api_key` to ensure no 403
+        newClusterPrivileges.add("manage_own_api_key");
         // Update user role
-        final RoleDescriptor roleDescriptorAfterUpdate = putRoleWithClusterPrivileges(nativeRealmRole, "manage_own_api_key");
+        final RoleDescriptor roleDescriptorAfterUpdate = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            newClusterPrivileges.toArray(new String[0])
+        );
 
         // Update API key
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -2025,11 +2037,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(putUserResponse.created());
     }
 
-    private RoleDescriptor putRoleWithClusterPrivileges(final String nativeRealmRoleName, final String clusterPrivilege)
+    private RoleDescriptor putRoleWithClusterPrivileges(final String nativeRealmRoleName, String... clusterPrivileges)
         throws InterruptedException, ExecutionException {
         final PutRoleRequest putRoleRequest = new PutRoleRequest();
         putRoleRequest.name(nativeRealmRoleName);
-        putRoleRequest.cluster(clusterPrivilege);
+        for (final String clusterPrivilege : clusterPrivileges) {
+            putRoleRequest.cluster(clusterPrivilege);
+        }
         final PlainActionFuture<PutRoleResponse> roleListener = new PlainActionFuture<>();
         client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING)))
             .execute(PutRoleAction.INSTANCE, putRoleRequest, roleListener);

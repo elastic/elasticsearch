@@ -1234,7 +1234,7 @@ public class ApiKeyService {
     }
 
     private BulkRequest buildBulkRequestForUpdate(
-        final VersionedApiKeyDoc apiKeyDoc,
+        final VersionedApiKeyDoc versionedDoc,
         final Authentication authentication,
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles
@@ -1242,10 +1242,10 @@ public class ApiKeyService {
         logger.trace(
             "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
             request.getId(),
-            apiKeyDoc.seqNo(),
-            apiKeyDoc.primaryTerm()
+            versionedDoc.seqNo(),
+            versionedDoc.primaryTerm()
         );
-        final var currentDocVersion = Version.fromId(apiKeyDoc.doc().version);
+        final var currentDocVersion = Version.fromId(versionedDoc.doc().version);
         final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
@@ -1262,7 +1262,7 @@ public class ApiKeyService {
                 .setId(request.getId())
                 .setSource(
                     buildUpdatedDocument(
-                        apiKeyDoc.doc(),
+                        versionedDoc.doc(),
                         authentication,
                         userRoles,
                         request.getRoleDescriptors(),
@@ -1270,8 +1270,8 @@ public class ApiKeyService {
                         request.getMetadata()
                     )
                 )
-                .setIfSeqNo(apiKeyDoc.seqNo())
-                .setIfPrimaryTerm(apiKeyDoc.primaryTerm())
+                .setIfSeqNo(versionedDoc.seqNo())
+                .setIfPrimaryTerm(versionedDoc.primaryTerm())
                 .setOpType(DocWriteRequest.OpType.INDEX)
                 .request()
         );

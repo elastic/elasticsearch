@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -52,6 +53,9 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.action.compute.ComputeAction;
+import org.elasticsearch.xpack.sql.action.compute.ComputeRequest;
+import org.elasticsearch.xpack.sql.action.compute.ComputeResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
@@ -136,11 +140,40 @@ public class Querier {
         if (cfg.task() != null && cfg.task().isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
         } else if (query.isAggsOnly()) {
-            if (query.aggs().useImplicitGroupBy()) {
-                client.search(search, new ImplicitGroupActionListener(listener, client, cfg, output, query, search));
-            } else {
-                searchWithPointInTime(search, new CompositeActionListener(listener, client, cfg, output, query, search));
-            }
+            ActionListener<Page> finalListener = listener;
+            client.execute(
+                ComputeAction.INSTANCE,
+                new ComputeRequest(
+                    search.indices()[0],
+                    search.source().query() == null ? new MatchAllQueryBuilder() : search.source().query(),
+                    query.aggs()
+                ),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ComputeResponse computeResponse) {
+                        // fork to different thread to avoid blocking compute engine
+                        client.threadPool().generic().execute(() -> {
+                            Supplier<org.elasticsearch.xpack.sql.action.compute.Page> pageSupplier = computeResponse.getPageSupplier();
+                            // TODO: extract response stream and turn into pages stream
+                            for (org.elasticsearch.xpack.sql.action.compute.Page page = pageSupplier.get(); page != null;) {
+
+                            }
+                            // TODO: create meaningful responses
+                            finalListener.onResponse(Page.last(Rows.empty(Rows.schema(output))));
+                        });
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        finalListener.onFailure(e);
+                    }
+                }
+            );
+            // if (query.aggs().useImplicitGroupBy()) {
+            // client.search(search, new ImplicitGroupActionListener(listener, client, cfg, output, query, search));
+            // } else {
+            // searchWithPointInTime(search, new CompositeActionListener(listener, client, cfg, output, query, search));
+            // }
         } else {
             searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }

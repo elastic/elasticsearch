@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.action.compute.ComputeAction;
+import org.elasticsearch.xpack.sql.action.compute.TransportComputeAction;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
@@ -154,6 +156,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
             new ActionHandler<>(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
             new ActionHandler<>(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class),
+            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class),
             usageAction,
             infoAction
         );

@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -511,19 +511,26 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED)
                 .build()
         ).mappings(mapping);
-        clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return metadataCreateIndexService.applyCreateIndexRequest(
-                    currentState,
-                    createIndexClusterStateUpdateRequest,
-                    true,
-                    // Copy index metadata from source index to rollup index
-                    (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata)),
-                    DesiredBalanceShardsAllocator.REMOVE_ME
-                );
-            }
-        }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()), STATE_UPDATE_TASK_EXECUTOR);
+
+        var delegate = new AllocationActionListener<>(listener);
+        clusterService.submitStateUpdateTask(
+            "create-rollup-index [" + rollupIndexName + "]",
+            new RollupClusterStateUpdateTask(delegate.clusterStateUpdate()) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return metadataCreateIndexService.applyCreateIndexRequest(
+                        currentState,
+                        createIndexClusterStateUpdateRequest,
+                        true,
+                        // Copy index metadata from source index to rollup index
+                        (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata)),
+                        delegate.reroute()
+                    );
+                }
+            },
+            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
+            STATE_UPDATE_TASK_EXECUTOR
+        );
     }
 
     private void updateRollupMetadata(

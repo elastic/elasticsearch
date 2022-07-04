@@ -1,0 +1,97 @@
+---
+setup:
+  - skip:
+      features: [ headers, transform_and_set ]
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body: >
+          {
+            "cluster": ["manage_api_key"]
+          }
+
+  - do:
+      security.put_role:
+        name: "user_role"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_manager"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : ["admin_role"],
+            "full_name" : "API key manager"
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_user_1"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "user_role" ],
+            "full_name" : "API key user"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "use_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_user_1"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_manager"
+        ignore: 404
+
+---
+"Test update api key":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "user1-api-key",
+            "expiration": "1d",
+            "role_descriptors": {
+            }
+          }
+  - match: { name: "user1-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: user1_key_id }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.update_api_key:
+        body: >
+          {
+          }
+  - is_true: updated
+
+---

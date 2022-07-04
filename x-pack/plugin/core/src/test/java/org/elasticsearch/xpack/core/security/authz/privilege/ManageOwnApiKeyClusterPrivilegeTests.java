@@ -48,18 +48,20 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
     }
 
-    public void testAuthenticationWithApiKeyAllowsAllowsAccessForUpdateApiKey() {
+    public void testAuthenticationForUpdateApiKeyAllowsAll() {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();
-
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final User userJoe = new User("joe");
-        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
+        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
+        final Authentication authenticationWithUser = AuthenticationTests.randomAuthentication(new User("joe"), realmRef);
+        final Authentication apiKeyAuthentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
         final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(
             randomValueOtherThan(apiKeyId, () -> randomAlphaOfLengthBetween(4, 7))
         );
 
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, apiKeyAuthentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authenticationWithUser));
     }
 
     public void testAuthenticationWithApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {

@@ -64,7 +64,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 return true;
             } else if (request instanceof UpdateApiKeyRequest) {
                 // Note: we return `true` here even if the authenticated entity is an API key. API keys *cannot* update themselves
-                // however this is a "business-logic" restriction, rather than one related to privileges. We therefore enforce this
+                // however this is a business logic restriction, rather than one driven solely by privileges. We therefore enforce this
                 // limitation at the transport layer, in `TransportUpdateApiKeyAction`
                 return true;
             } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {

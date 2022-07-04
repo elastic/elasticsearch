@@ -132,6 +132,7 @@ setup:
   - skip:
       version: " - 8.3.99"
       reason: async is added in 8.4+
+      features: allowed_warnings
 
   - do:
       indices.disk_usage:
@@ -156,3 +157,5 @@ setup:
       delete:
         index: .tasks
         id: $task_id
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"

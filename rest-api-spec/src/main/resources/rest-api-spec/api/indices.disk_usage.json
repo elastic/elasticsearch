@@ -32,6 +32,10 @@
         "type": "boolean",
         "description": "Must be set to [true] in order for the task to be performed. Defaults to false."
       },
+      "wait_for_completion": {
+        "type": "boolean",
+        "description": "Should the request should block until the analyze is complete."
+      },
       "flush": {
         "type": "boolean",
         "description": "Whether flush or not before analyzing the index disk usage. Defaults to true"

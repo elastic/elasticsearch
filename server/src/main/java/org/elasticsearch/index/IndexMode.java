@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -103,6 +105,11 @@ public enum IndexMode {
         @Override
         public DocumentDimensions buildDocumentDimensions() {
             return new DocumentDimensions.OnlySingleValueAllowed();
+        }
+
+        @Override
+        public IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata) {
+            return null;
         }
     },
     TIME_SERIES("time_series") {
@@ -184,6 +191,13 @@ public enum IndexMode {
         @Override
         public DocumentDimensions buildDocumentDimensions() {
             return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        }
+
+        @Override
+        public IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata) {
+            long min = indexMetadata.getTimeSeriesStart().toEpochMilli();
+            long max = indexMetadata.getTimeSeriesEnd().toEpochMilli();
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max));
         }
     };
 
@@ -285,6 +299,14 @@ public enum IndexMode {
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
     public abstract DocumentDimensions buildDocumentDimensions();
+
+    /**
+     * @return the time range based on the provided index settings and index mode implementation.
+     *         Otherwise <code>null</code> is returned.
+     * @param indexMetadata
+     */
+    @Nullable
+    public abstract IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata);
 
     public static IndexMode fromString(String value) {
         return switch (value) {

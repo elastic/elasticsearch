@@ -143,4 +143,4 @@ setup:
               script:
                 source: "doc['geo_shape'].getMercatorHeight()"
   - match: { hits.hits.0.fields.width.0: 389.62170283915475 }
-  - match: { hits.hits.0.fields.height.0: 333.37976840604097 }
+  - match: { hits.hits.0.fields.height.0: 333.37976841442287 }

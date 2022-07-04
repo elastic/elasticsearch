@@ -142,7 +142,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           },
                           "index-graveyard": {
                             "tombstones": []
-                          }
+                          },
+                          "immutable_state":{}
                         },
                         "routing_table": {
                           "indices": {}
@@ -246,7 +247,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       },
                       "index-graveyard" : {
                         "tombstones" : [ ]
-                      }
+                      },
+                      "immutable_state":{}
                     }
                   }
                 }"""), XContentHelper.stripWhitespace(Strings.toString(builder)));

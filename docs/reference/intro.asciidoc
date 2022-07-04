@@ -1,5 +1,5 @@
 [[elasticsearch-intro]]
-== What is {es}?
+== 什么是Elasticsearch?
 _**You know, for search (and analysis)**_
 
 {es} is the distributed search and analytics engine at the heart of

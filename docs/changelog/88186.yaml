@@ -2,4 +2,4 @@ pr: 88186
 summary: Support updates of API key attributes (single operation route)
 area: Authentication
 type: feature
-issues: []
+issues: [87870]

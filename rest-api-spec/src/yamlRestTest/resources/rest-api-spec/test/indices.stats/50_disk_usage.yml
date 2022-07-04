@@ -126,3 +126,33 @@ setup:
   - gt: { testindex.all_fields.doc_values_in_bytes: 0 }
   - gt: { testindex.all_fields.points_in_bytes: 0 }
   - match: { testindex.all_fields.term_vectors_in_bytes: 0 }
+
+---
+"Async":
+  - skip:
+      version: " - 8.3.99"
+      reason: async is added in 8.4+
+
+  - do:
+      indices.disk_usage:
+        index: testindex
+        run_expensive_tasks: true
+        wait_for_completion: false
+  - set: { task: task_id }
+  - do:
+      tasks.get:
+        task_id: $task_id
+        wait_for_completion: true
+  # all_fields
+  - gt: { response.testindex.store_size_in_bytes: 100 }
+  - gt: { response.testindex.all_fields.total_in_bytes: 0 }
+  - gt: { response.testindex.all_fields.inverted_index.total_in_bytes: 0 }
+  - gt: { response.testindex.all_fields.stored_fields_in_bytes: 0 }
+  - gt: { response.testindex.all_fields.doc_values_in_bytes: 0 }
+  - gt: { response.testindex.all_fields.points_in_bytes: 0 }
+  - match: { response.testindex.all_fields.term_vectors_in_bytes: 0 }
+
+  - do:
+      delete:
+        index: .tasks
+        id: $task_id

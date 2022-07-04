@@ -8,17 +8,25 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
+import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.tasks.LoggingTaskListener;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,9 +57,38 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS);
         final boolean flush = request.paramAsBoolean("flush", true);
         final AnalyzeIndexDiskUsageRequest analyzeRequest = new AnalyzeIndexDiskUsageRequest(indices, indicesOptions, flush);
+        final boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
+        if (waitForCompletion) {
+            return channel -> {
+                final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                cancelClient.execute(AnalyzeIndexDiskUsageAction.INSTANCE, analyzeRequest, new RestToXContentListener<>(channel));
+            };
+        } else {
+            analyzeRequest.setShouldStoreResult(true);
+            /*
+             * Let's try and validate before forking so the user gets some error. The
+             * task can't totally validate until it starts but this is better than
+             * nothing.
+             */
+            ActionRequestValidationException validationException = analyzeRequest.validate();
+            if (validationException != null) {
+                throw validationException;
+            }
+            final var responseFuture = new ListenableActionFuture<AnalyzeIndexDiskUsageResponse>();
+            final var task = client.executeLocally(AnalyzeIndexDiskUsageAction.INSTANCE, analyzeRequest, responseFuture);
+            responseFuture.addListener(new LoggingTaskListener<>(task));
+            return sendTask(client.getLocalNodeId(), task);
+        }
+    }
+
+    private RestChannelConsumer sendTask(String localNodeId, Task task) {
         return channel -> {
-            final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(AnalyzeIndexDiskUsageAction.INSTANCE, analyzeRequest, new RestToXContentListener<>(channel));
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", localNodeId + ":" + task.getId());
+                builder.endObject();
+                channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+            }
         };
     }
 }

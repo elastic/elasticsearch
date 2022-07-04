@@ -25,6 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class AnalyzeIndexDiskUsageRequest extends BroadcastRequest<AnalyzeIndexDiskUsageRequest> {
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
     final boolean flush;
+    private boolean shouldStoreResult;
 
     public AnalyzeIndexDiskUsageRequest(String[] indices, IndicesOptions indicesOptions, boolean flush) {
         super(indices, indicesOptions);
@@ -64,6 +65,15 @@ public class AnalyzeIndexDiskUsageRequest extends BroadcastRequest<AnalyzeIndexD
                 return AnalyzeIndexDiskUsageRequest.this.getDescription();
             }
         };
+    }
+
+    public void setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
     }
 
     @Override

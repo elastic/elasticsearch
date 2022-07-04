@@ -78,7 +78,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
-    public static final String STATE_UPDATE_ACTION_NAME = "internal:cluster/coordination/update_state";
+    public static final String STATE_UPDATE_ACTION_NAME = "publish_cluster_state_update";
 
     ClusterStatePublisher clusterStatePublisher;
 

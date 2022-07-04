@@ -48,6 +48,20 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
     }
 
+    public void testAuthenticationWithApiKeyAllowsAllowsAccessForUpdateApiKey() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final User userJoe = new User("joe");
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
+        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(
+            randomValueOtherThan(apiKeyId, () -> randomAlphaOfLengthBetween(4, 7))
+        );
+
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
+    }
+
     public void testAuthenticationWithApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();

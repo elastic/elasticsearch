@@ -409,6 +409,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
 
                 private volatile boolean isUpdated;
+                private volatile boolean isChanged;
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -416,10 +417,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
                         isUpdated = true;
                         ClusterState updatedState = update(currentState, rebalancedMetadata);
-                        if (TrainedModelAssignmentMetadata.fromState(currentState)
-                            .equals(TrainedModelAssignmentMetadata.fromState(updatedState)) == false) {
-                            systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason));
-                        }
+                        isChanged = updatedState != currentState;
                         return updatedState;
                     }
                     rebalanceAssignments(currentState, modelToAdd, reason, listener);
@@ -434,6 +432,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (isUpdated) {
+                        if (isChanged) {
+                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                .execute(() -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason)));
+                        }
                         listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
                     }
                 }

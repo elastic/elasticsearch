@@ -61,6 +61,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
      * Verify that if we found a new copy where it can perform a no-op recovery,
      * then we will cancel the current recovery and allocate replica to the new copy.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
@@ -292,6 +293,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertNoOpRecoveries(indexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testPreferCopyWithHighestMatchingOperations() throws Exception {
         String indexName = "test";
         internalCluster().startMasterOnlyNode();
@@ -364,6 +366,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
     /**
      * Make sure that we do not repeatedly cancel an ongoing recovery for a noop copy on a broken node.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testDoNotCancelRecoveryForBrokenNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
@@ -418,6 +421,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         transportService.clearAllRules();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testPeerRecoveryForClosedIndices() throws Exception {
         String indexName = "peer_recovery_closed_indices";
         internalCluster().ensureAtLeastNumDataNodes(1);

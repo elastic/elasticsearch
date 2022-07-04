@@ -274,6 +274,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testWaitOnIndexCreated() throws Exception {
         String indexName = "not-yet-existing";
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(

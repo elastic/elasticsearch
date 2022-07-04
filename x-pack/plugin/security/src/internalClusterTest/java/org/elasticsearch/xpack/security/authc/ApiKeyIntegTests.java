@@ -1500,7 +1500,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUpdateApiKeyAutoSyncsUserRoles() throws IOException, ExecutionException, InterruptedException {
-        // Create native realm user and role
+        // Create separate native realm user and role for user role change test
         final var nativeRealmUser = "native_user";
         final var nativeRealmRole = "native_role";
         createNativeRealmUser(
@@ -1509,7 +1509,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new String(HASHER.hash(TEST_PASSWORD_SECURE_STRING)),
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
         );
-        putRoleWithClusterPrivileges(nativeRealmRole, "all");
+        final RoleDescriptor roleDescriptorBeforeUpdate = putRoleWithClusterPrivileges(nativeRealmRole, "all");
 
         // Create api key
         final CreateApiKeyResponse createdApiKey = createApiKeys(
@@ -1519,14 +1519,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             "all"
         ).v1().get(0);
         final String apiKeyId = createdApiKey.getId();
-        expectRoleDescriptorsForApiKey(
-            "limited_by_role_descriptors",
-            Set.of(new RoleDescriptor(nativeRealmRole, new String[] { "all" }, null, null)),
-            getApiKeyDocument(apiKeyId)
-        );
+        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorBeforeUpdate), getApiKeyDocument(apiKeyId));
 
         // Update user role
-        putRoleWithClusterPrivileges(nativeRealmRole, "manage_own_api_key");
+        final RoleDescriptor roleDescriptorAfterUpdate = putRoleWithClusterPrivileges(nativeRealmRole, "manage_own_api_key");
 
         // Update API key
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -1537,11 +1533,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
-        expectRoleDescriptorsForApiKey(
-            "limited_by_role_descriptors",
-            Set.of(new RoleDescriptor(nativeRealmRole, new String[] { "manage_own_api_key" }, null, null)),
-            getApiKeyDocument(apiKeyId)
-        );
+        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorAfterUpdate), getApiKeyDocument(apiKeyId));
     }
 
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
@@ -2038,8 +2030,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(putUserResponse.created());
     }
 
-    private void putRoleWithClusterPrivileges(final String nativeRealmRoleName, final String clusterPrivilege) throws InterruptedException,
-        ExecutionException {
+    private RoleDescriptor putRoleWithClusterPrivileges(final String nativeRealmRoleName, final String clusterPrivilege)
+        throws InterruptedException, ExecutionException {
         final PutRoleRequest putRoleRequest = new PutRoleRequest();
         putRoleRequest.name(nativeRealmRoleName);
         putRoleRequest.cluster(clusterPrivilege);
@@ -2047,6 +2039,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING)))
             .execute(PutRoleAction.INSTANCE, putRoleRequest, roleListener);
         assertNotNull(roleListener.get());
+        return putRoleRequest.roleDescriptor();
     }
 
     private Client getClientForRunAsUser() {

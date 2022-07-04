@@ -102,7 +102,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             } else if (request instanceof GrantApiKeyRequest) {
                 return false;
             }
-            final var message = "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")";
+            String message = "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")";
             assert false : message;
             throw new IllegalArgumentException(message);
         }

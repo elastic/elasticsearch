@@ -111,22 +111,34 @@ public class TopMetricNoCountsTests extends ESSingleNodeTestCase {
         for (int size = 1; size < 10; size++) {
             TimeSeriesAggregationBuilder builder = new TimeSeriesAggregationBuilder("by_time_series", true, false);
             FieldSortBuilder sortBuilder = new FieldSortBuilder("@timestamp").order(SortOrder.DESC);
-            MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
-            metricField.setFieldName("metric1");
+            MultiValuesSourceFieldConfig.Builder metric1Field = new MultiValuesSourceFieldConfig.Builder();
+            metric1Field.setFieldName("metric1");
 
-            TopMetricsAggregationBuilder top = new TopMetricsAggregationBuilder(
-                "last_value",
+            TopMetricsAggregationBuilder topMetric1 = new TopMetricsAggregationBuilder(
+                "metric1_last_value",
                 List.of(sortBuilder),
                 size,
-                List.of(metricField.build())
+                List.of(metric1Field.build())
             );
-            builder.subAggregation(top);
+
+            MultiValuesSourceFieldConfig.Builder metric2Field = new MultiValuesSourceFieldConfig.Builder();
+            metric2Field.setFieldName("metric2");
+
+            TopMetricsAggregationBuilder topMetric2 = new TopMetricsAggregationBuilder(
+                "metric2_last_value",
+                List.of(sortBuilder),
+                10 - size,
+                List.of(metric2Field.build())
+            );
+            builder.subAggregation(topMetric1);
+            builder.subAggregation(topMetric2);
 
             // query as time series
             SearchResponse searchResponse1 = client().prepareSearch("test").setQuery(queryBuilder).addAggregation(builder).setSize(0).get();
 
             TermsAggregationBuilder terms = new TermsAggregationBuilder("by_asset_id").size(1000).field("asset_id");
-            terms.subAggregation(top);
+            terms.subAggregation(topMetric1);
+            terms.subAggregation(topMetric2);
 
             // query as standard index
             SearchResponse searchResponse2 = client().prepareSearch("test").setQuery(queryBuilder).addAggregation(terms).setSize(0).get();
@@ -142,9 +154,16 @@ public class TopMetricNoCountsTests extends ESSingleNodeTestCase {
     private void assertBucket(StringTerms ts2, InternalTimeSeries.InternalBucket bucket) {
         for (StringTerms.Bucket bucket1 : ts2.getBuckets()) {
             if (bucket1.getKeyAsString().equals(bucket.getKey().get("asset_id"))) {
-                InternalTopMetrics itp1 = bucket.getAggregations().get("last_value");
-                InternalTopMetrics itp2 = bucket1.getAggregations().get("last_value");
-                assertEquals(itp1, itp2);
+                {
+                    InternalTopMetrics itp1 = bucket.getAggregations().get("metric1_last_value");
+                    InternalTopMetrics itp2 = bucket1.getAggregations().get("metric1_last_value");
+                    assertEquals(itp1, itp2);
+                }
+                {
+                    InternalTopMetrics itp1 = bucket.getAggregations().get("metric2_last_value");
+                    InternalTopMetrics itp2 = bucket1.getAggregations().get("metric2_last_value");
+                    assertEquals(itp1, itp2);
+                }
                 return;
             }
         }

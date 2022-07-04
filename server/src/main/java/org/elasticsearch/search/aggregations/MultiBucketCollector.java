@@ -10,11 +10,13 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.PriorityQueue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -220,6 +222,24 @@ public class MultiBucketCollector extends BucketCollector {
             }
         }
 
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            final PriorityQueue<DocIdSetIterator> priorityQueue = new PriorityQueue<>(collectors.length) {
+                @Override
+                protected boolean lessThan(DocIdSetIterator a, DocIdSetIterator b) {
+                    return a.docID() < b.docID();
+                }
+            };
+            for (LeafBucketCollector collector : collectors) {
+                final DocIdSetIterator iterator = collector.competitiveIterator();
+                if (iterator == null) {
+                    return null;
+                }
+                priorityQueue.add(iterator);
+            }
+            return new DisjunctionDocIdSetIterator(priorityQueue);
+        }
+
         private void removeCollector(int i) {
             System.arraycopy(collectors, i + 1, collectors, i, numCollectors - i - 1);
             --numCollectors;
@@ -243,6 +263,53 @@ public class MultiBucketCollector extends BucketCollector {
                     }
                 }
             }
+        }
+    }
+
+    /** Based on {@link org.apache.lucene.search.DisjunctionDISIApproximation} */
+    private static class DisjunctionDocIdSetIterator extends DocIdSetIterator {
+
+        private final PriorityQueue<DocIdSetIterator> subIterators;
+        private final long cost;
+
+        DisjunctionDocIdSetIterator(PriorityQueue<DocIdSetIterator> subIterators) {
+            this.subIterators = subIterators;
+            long cost = 0;
+            for (DocIdSetIterator w : subIterators) {
+                cost += w.cost();
+            }
+            this.cost = cost;
+        }
+
+        @Override
+        public long cost() {
+            return cost;
+        }
+
+        @Override
+        public int docID() {
+            return subIterators.top().docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            DocIdSetIterator top = subIterators.top();
+            final int doc = top.docID();
+            do {
+                top.nextDoc();
+                top = subIterators.updateTop();
+            } while (top.docID() == doc);
+            return top.docID();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            DocIdSetIterator top = subIterators.top();
+            do {
+                top.advance(target);
+                top = subIterators.updateTop();
+            } while (top.docID() < target);
+            return top.docID();
         }
     }
 }

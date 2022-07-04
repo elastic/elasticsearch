@@ -79,7 +79,12 @@ public class TransportKillProcessAction extends TransportTasksAction<
     }
 
     @Override
-    protected void taskOperation(KillProcessAction.Request request, JobTask jobTask, ActionListener<KillProcessAction.Response> listener) {
+    protected void taskOperation(
+        Task actionTask,
+        KillProcessAction.Request request,
+        JobTask jobTask,
+        ActionListener<KillProcessAction.Response> listener
+    ) {
         logger.info("[{}] Killing job", jobTask.getJobId());
         auditor.info(jobTask.getJobId(), Messages.JOB_AUDIT_KILLING);
         try {

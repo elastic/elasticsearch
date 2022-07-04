@@ -291,6 +291,7 @@ dependencies {
     exclude module: "groovy"
   }
   testImplementation buildLibs.spock.junit4
+  testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
 }
 

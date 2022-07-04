@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -1745,7 +1746,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
             case 1 -> List.of(
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
-                RoleDescriptorTests.randomRoleDescriptor(false)
+                randomValueOtherThanMany(
+                    rd -> RoleDescriptorRequestValidator.validate(rd) != null,
+                    () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                )
             );
             case 2 -> null;
             default -> throw new IllegalStateException("unexpected case no");

@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.sp.api.analysis.TokenFilterFactoryProvider;
 
 import java.io.IOException;
@@ -49,7 +50,6 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -72,12 +72,14 @@ public final class AnalysisModule {
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
+    private PluginsService pluginsService;
 
-    public AnalysisModule(Environment environment, List<AnalysisPlugin> plugins) throws IOException {
+    public AnalysisModule(Environment environment, List<AnalysisPlugin> plugins, PluginsService pluginsService) throws IOException {
+        this.pluginsService = pluginsService;
         NamedRegistry<AnalysisProvider<CharFilterFactory>> charFilters = setupCharFilters(plugins);
         NamedRegistry<org.apache.lucene.analysis.hunspell.Dictionary> hunspellDictionaries = setupHunspellDictionaries(plugins);
         hunspellService = new HunspellService(environment.settings(), environment, hunspellDictionaries.getRegistry());
-        NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService);
+        NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = setupTokenFilters(plugins, hunspellService, pluginsService);
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
@@ -123,8 +125,8 @@ public final class AnalysisModule {
 
     private static NamedRegistry<AnalysisProvider<TokenFilterFactory>> setupTokenFilters(
         List<AnalysisPlugin> plugins,
-        HunspellService hunspellService
-    ) {
+        HunspellService hunspellService,
+        PluginsService pluginsService) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
         // Add "standard" for old indices (bwc)
@@ -161,8 +163,9 @@ public final class AnalysisModule {
             )
         );
 
-        ServiceLoader<TokenFilterFactoryProvider> load = ServiceLoader.load(TokenFilterFactoryProvider.class
-        /*need to provide plugin's class loader otherwise no results??*/);
+        List<? extends TokenFilterFactoryProvider> load = pluginsService.loadServiceProviders(TokenFilterFactoryProvider.class);
+
+        /*need to provide plugin's class loader otherwise no results??*/
         // Optional<ServiceLoader.Provider<TokenFilterFactoryProvider>> first = load.stream().findFirst();
         List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect = load.stream()
             .map(AnalysisModule::mapToOldApi)
@@ -172,12 +175,12 @@ public final class AnalysisModule {
         return tokenFilters;
     }
 
-    static Map<String, AnalysisProvider<TokenFilterFactory>> mapToOldApi(ServiceLoader.Provider<TokenFilterFactoryProvider> provider) {
+    @SuppressWarnings("unchecked")
+    static Map<String, AnalysisProvider<TokenFilterFactory>> mapToOldApi(TokenFilterFactoryProvider provider) {
         // Map<String,Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> newApiMap) {
 
-        TokenFilterFactoryProvider tokenFilterFactoryProvider1 = provider.get();
         Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
-            tokenFilterFactoryProvider1.getTokenFilterFactories();
+            provider.getTokenFilterFactories();
 
         Map<String, AnalysisProvider<TokenFilterFactory>> res = new HashMap<>();
         for (Map.Entry<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> entry : tokenFilterFactories

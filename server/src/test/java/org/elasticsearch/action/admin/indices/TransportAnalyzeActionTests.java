@@ -138,7 +138,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 return singletonList(PreConfiguredCharFilter.singleton("append", false, reader -> new AppendCharFilter(reader, "foo")));
             }
         };
-        registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();
+        registry = new AnalysisModule(environment, singletonList(plugin), null).getAnalysisRegistry();
         indexAnalyzers = registry.build(this.indexSettings);
         maxTokenCount = IndexSettings.MAX_TOKEN_COUNT_SETTING.getDefault(settings);
         idxMaxTokenCount = this.indexSettings.getMaxTokenCount();

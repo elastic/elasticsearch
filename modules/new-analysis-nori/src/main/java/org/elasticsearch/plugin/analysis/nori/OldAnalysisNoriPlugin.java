@@ -15,6 +15,7 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
 
+//just to register a plugin with current infrastructure
 public class OldAnalysisNoriPlugin extends Plugin implements AnalysisPlugin {
 
 }

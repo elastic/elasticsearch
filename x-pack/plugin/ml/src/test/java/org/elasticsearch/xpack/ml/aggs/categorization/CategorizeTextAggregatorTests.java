@@ -45,8 +45,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
             ),
-            List.of(new MachineLearning(Settings.EMPTY))
-        );
+            List.of(new MachineLearning(Settings.EMPTY)),
+                null);
     }
 
     @Override

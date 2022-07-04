@@ -12,7 +12,7 @@ import org.apache.lucene.analysis.Tokenizer;
 
 import java.util.function.Supplier;
 
-public interface TokenizerFactory {
+public interface TokenizerFactory extends org.elasticsearch.sp.api.analysis.TokenizerFactory {
 
     String name();
 

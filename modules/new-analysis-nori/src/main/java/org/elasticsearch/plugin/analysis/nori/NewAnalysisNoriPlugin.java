@@ -10,13 +10,12 @@ package org.elasticsearch.plugin.analysis.nori;
 
 
 import org.elasticsearch.sp.api.analysis.AnalysisPlugin;
-import org.elasticsearch.sp.api.analysis.Analyzer;
 import org.elasticsearch.sp.api.analysis.TokenFilterFactory;
 import org.elasticsearch.sp.api.analysis.TokenizerFactory;
 
 import java.util.Map;
 
-public class NewAnalysisNoriPlugin /* extends Plugin*/ implements AnalysisPlugin {
+public class NewAnalysisNoriPlugin implements AnalysisPlugin {
     @Override
     public Map<String, Class<? extends TokenFilterFactory>> getTokenFilterFactories() {
         return Map.of(
@@ -25,7 +24,7 @@ public class NewAnalysisNoriPlugin /* extends Plugin*/ implements AnalysisPlugin
             "nori_number", NoriNumberFilterFactory.class);
     }
 
-//
+
     @Override
     public Map<String, Class<? extends TokenizerFactory>> getTokenizerFactories() {
         return Map.of("nori_tokenizer", NoriTokenizerFactory.class);

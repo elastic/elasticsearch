@@ -19,6 +19,9 @@ import org.elasticsearch.sp.api.analysis.TokenFilterFactory;
 public class NoriReadingFormFilterFactory /*extends AbstractTokenFilterFactory*/ implements TokenFilterFactory {
     private String name;
 
+    public NoriReadingFormFilterFactory() {
+    }
+
     public NoriReadingFormFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
 //        super(name, settings);
         this.name = name;

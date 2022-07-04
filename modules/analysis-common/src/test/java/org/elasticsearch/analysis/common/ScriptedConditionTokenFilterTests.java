@@ -59,7 +59,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null);
-        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
+        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin), null);
 
         IndexAnalyzers analyzers = module.getAnalysisRegistry().build(idxSettings);
 

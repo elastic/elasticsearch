@@ -91,7 +91,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         emptyRegistry = emptyAnalysisRegistry(settings);
         // Module loaded to register in-built normalizers for testing
-        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(new MockAnalysisPlugin()));
+        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(new MockAnalysisPlugin()), null);
         nonEmptyRegistry = module.getAnalysisRegistry();
     }
 
@@ -253,7 +253,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 return singletonMap("mock", MockFactory::new);
             }
         };
-        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin))
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin), null)
             .getAnalysisRegistry()
             .build(idxSettings);
 

@@ -41,8 +41,8 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())
-        ).getAnalysisRegistry().build(idxSettings);
+            Collections.singletonList(new CommonAnalysisPlugin()),
+                null).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
@@ -75,8 +75,8 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
 
         IndexAnalyzers indexAnalyzers = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())
-        ).getAnalysisRegistry().build(idxSettings);
+            Collections.singletonList(new CommonAnalysisPlugin()),
+                null).getAnalysisRegistry().build(idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);

@@ -85,7 +85,7 @@ public class CompoundAnalysisTests extends ESTestCase {
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
             }
-        }));
+        }), null);
     }
 
     private Settings getJsonSettings() throws IOException {

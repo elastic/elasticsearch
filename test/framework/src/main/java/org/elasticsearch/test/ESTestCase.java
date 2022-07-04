@@ -1648,7 +1648,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), null);
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),

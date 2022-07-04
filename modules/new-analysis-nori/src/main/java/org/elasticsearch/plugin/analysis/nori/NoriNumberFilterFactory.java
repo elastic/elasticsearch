@@ -10,19 +10,13 @@ package org.elasticsearch.plugin.analysis.nori;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ko.KoreanNumberFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.sp.api.analysis.TokenFilterFactory;
 
-public class NoriNumberFilterFactory /*extends AbstractTokenFilterFactory */implements TokenFilterFactory {
+public class NoriNumberFilterFactory implements TokenFilterFactory {
 
     private String name;
 
-    public NoriNumberFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-//        super(name, settings);
-        this.name = name;
+    public NoriNumberFilterFactory() {
     }
 
     @Override

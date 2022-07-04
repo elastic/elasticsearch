@@ -54,7 +54,7 @@ public class AnalysisTestsHelper {
             actualSettings = settings;
         }
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", actualSettings);
-        final AnalysisRegistry analysisRegistry = new AnalysisModule(new Environment(actualSettings, configPath), Arrays.asList(plugins))
+        final AnalysisRegistry analysisRegistry = new AnalysisModule(new Environment(actualSettings, configPath), Arrays.asList(plugins), null)
             .getAnalysisRegistry();
         return new ESTestCase.TestAnalysis(
             analysisRegistry.build(indexSettings),

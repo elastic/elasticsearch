@@ -49,6 +49,13 @@ public class PhoneticTokenFilterFactory
         return "phonetic2";
     }
 
+    public PhoneticTokenFilterFactory() {
+        this.encoder = null;
+        this.replace = true;
+        this.maxcodelength = 1;
+
+    }
+
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         // super(name, settings);
         this.languageset = null;

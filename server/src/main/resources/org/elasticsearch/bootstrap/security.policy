@@ -30,6 +30,9 @@ grant codeBase "${codebase.elasticsearch}" {
   // for module layer
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
+
+
+  permission java.lang.RuntimePermission "accessDeclaredMembers"; // needed to call getDeclaredConstructor().newInstance();
 };
 
 //// Very special jar permissions:

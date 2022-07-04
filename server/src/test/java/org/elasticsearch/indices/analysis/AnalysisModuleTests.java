@@ -92,7 +92,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
                     return AnalysisPlugin.super.getCharFilters();
                 }
-            })).getAnalysisRegistry();
+            }), null).getAnalysisRegistry();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -260,8 +260,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
-        ).getAnalysisRegistry();
+            }),
+                null).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -325,8 +325,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
-        ).getAnalysisRegistry();
+            }),
+                null).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -411,8 +411,8 @@ public class AnalysisModuleTests extends ESTestCase {
                         )
                     );
                 }
-            })
-        ).getAnalysisRegistry();
+            }),
+                null).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -457,7 +457,7 @@ public class AnalysisModuleTests extends ESTestCase {
             public Map<String, Dictionary> getHunspellDictionaries() {
                 return singletonMap("foo", dictionary);
             }
-        }));
+        }), null);
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
     }
 

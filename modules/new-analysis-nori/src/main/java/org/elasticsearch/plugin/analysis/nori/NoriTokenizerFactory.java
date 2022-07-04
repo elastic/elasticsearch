@@ -24,7 +24,7 @@ import java.io.StringReader;
 import java.util.List;
 import java.util.Locale;
 
-public class NoriTokenizerFactory /*extends AbstractTokenizerFactory*/ implements TokenizerFactory {
+public class NoriTokenizerFactory implements TokenizerFactory {
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
     private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
 
@@ -32,6 +32,12 @@ public class NoriTokenizerFactory /*extends AbstractTokenizerFactory*/ implement
     private String name;
     private final KoreanTokenizer.DecompoundMode decompoundMode;
     private final boolean discardPunctuation;
+
+    public NoriTokenizerFactory() {
+        this.userDictionary = null;
+        this.decompoundMode = null;
+        this.discardPunctuation = true;
+    }
 
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         this.name = name;

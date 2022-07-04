@@ -1,5 +1,5 @@
 {
-  "security.grant_api_key":{
+  "security.update_api_key":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-api-key.html",
       "description":"Updates attributes of an existing API key."
@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/api_key/{id}",
+          "path":"/_security/api_key/{ids}",
           "methods":[
             "PUT"
           ]

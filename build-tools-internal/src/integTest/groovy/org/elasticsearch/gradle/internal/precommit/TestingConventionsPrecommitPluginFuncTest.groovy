@@ -13,7 +13,6 @@ import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
-import org.junit.rules.TemporaryFolder
 import spock.lang.Shared
 import spock.lang.Unroll
 

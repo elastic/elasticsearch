@@ -47,6 +47,7 @@ public class HealthMetadataService {
     private final ClusterService clusterService;
     private final ClusterStateListener clusterStateListener;
     private final Settings settings;
+    private final ClusterStateTaskExecutor<UpsertHealthMetadataTask> executor = new UpsertHealthMetadataTask.Executor();
     private volatile boolean enabled;
 
     // Signifies that a node has been elected as master, but it was not able yet to publish its health metadata for
@@ -55,8 +56,6 @@ public class HealthMetadataService {
     // Allows us to know if this node is the elected master without checking the cluster state, effectively protecting
     // us from checking the cluster state before the cluster state is initialized
     private volatile boolean isMaster = false;
-
-    private final ClusterStateTaskExecutor<UpsertHealthMetadataTask> taskExecutor = new UpsertHealthMetadataTask.Executor();
 
     public HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
@@ -127,17 +126,17 @@ public class HealthMetadataService {
         if (isMaster && enabled) {
             ClusterState clusterState = clusterService.state();
             if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
-                var task = UpsertHealthMetadataTask.createUpdateTask(clusterState, setting, value);
+                var task = new UpdateHealthMetadata(setting, value);
                 var config = ClusterStateTaskConfig.build(Priority.NORMAL);
-                clusterService.submitStateUpdateTask("health-metadata-update", task, config, taskExecutor);
+                clusterService.submitStateUpdateTask("health-metadata-update", task, config, executor);
             }
         }
     }
 
     private void resetHealthMetadata(String source) {
-        var task = UpsertHealthMetadataTask.createInsertTask(settings);
+        var task = new InsertHealthMetadata(settings);
         var config = ClusterStateTaskConfig.build(Priority.NORMAL);
-        clusterService.submitStateUpdateTask(source, task, config, taskExecutor);
+        clusterService.submitStateUpdateTask(source, task, config, executor);
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
@@ -153,39 +152,56 @@ public class HealthMetadataService {
         );
     }
 
-    static class UpsertHealthMetadataTask implements ClusterStateTaskListener {
+    /**
+     * A base class for health metadata cluster state update tasks.
+     */
+    abstract static class UpsertHealthMetadataTask implements ClusterStateTaskListener {
 
-        private final HealthMetadata healthMetadata;
-
-        private UpsertHealthMetadataTask(HealthMetadata healthMetadata) {
-            this.healthMetadata = healthMetadata;
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "never called";
         }
 
-        static UpsertHealthMetadataTask createInsertTask(Settings settings) {
-            return new UpsertHealthMetadataTask(
-                new HealthMetadata(
-                    new HealthMetadata.Disk(
-                        HealthMetadata.Disk.Threshold.parse(
-                            CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings),
-                            CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
-                        ),
-                        HealthMetadata.Disk.Threshold.parse(
-                            CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
-                            CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
-                        ),
-                        HealthMetadata.Disk.Threshold.parse(
-                            CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
-                            CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
-                        ),
-                        new HealthMetadata.Disk.Threshold(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings)),
-                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
-                    )
-                )
-            );
+        @Override
+        public void onFailure(@Nullable Exception e) {
+            logger.error("failure during health metadata update", e);
         }
 
-        static UpsertHealthMetadataTask createUpdateTask(ClusterState clusterState, String setting, String value) {
-            final HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
+        abstract HealthMetadata execute(HealthMetadata initialHealthMetadata);
+
+        static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
+
+            @Override
+            public ClusterState execute(ClusterState currentState, List<TaskContext<UpsertHealthMetadataTask>> taskContexts)
+                throws Exception {
+                final HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(currentState);
+                HealthMetadata currentHealthMetadata = initialHealthMetadata;
+                for (TaskContext<UpsertHealthMetadataTask> taskContext : taskContexts) {
+                    currentHealthMetadata = taskContext.getTask().execute(currentHealthMetadata);
+                    taskContext.success(() -> {});
+                }
+                final var finalHealthMetadata = currentHealthMetadata;
+                return finalHealthMetadata == initialHealthMetadata
+                    ? currentState
+                    : currentState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+            }
+        }
+    }
+
+    /**
+     * A health metadata cluster state update task that updates a single setting with the new value.
+     */
+    static class UpdateHealthMetadata extends UpsertHealthMetadataTask {
+        private final String setting;
+        private final String value;
+
+        public UpdateHealthMetadata(String setting, String value) {
+            this.setting = setting;
+            this.value = value;
+        }
+
+        @Override
+        HealthMetadata execute(HealthMetadata initialHealthMetadata) {
             assert initialHealthMetadata != null : "health metadata should have been initialized";
             HealthMetadata.Disk.Builder builder = HealthMetadata.Disk.newBuilder(initialHealthMetadata.getDiskMetadata());
             if (CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
@@ -203,39 +219,42 @@ public class HealthMetadataService {
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
                 builder.frozenFloodStageMaxHeadroom(value, setting);
             }
-            return new UpsertHealthMetadataTask(new HealthMetadata(builder.build()));
+            return new HealthMetadata(builder.build());
+        }
+    }
+
+    /**
+     * A health metadata cluster state update task that reads the settings from the local node and resets the
+     * health metadata in the cluster state with these values.
+     */
+    static class InsertHealthMetadata extends UpsertHealthMetadataTask {
+
+        private final Settings settings;
+
+        public InsertHealthMetadata(Settings settings) {
+            this.settings = settings;
         }
 
         @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "never called";
-        }
-
-        @Override
-        public void onFailure(@Nullable Exception e) {
-            logger.error("failure during health metadata update", e);
-        }
-
-        HealthMetadata execute() {
-            return healthMetadata;
-        }
-
-        static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
-
-            @Override
-            public ClusterState execute(ClusterState currentState, List<TaskContext<UpsertHealthMetadataTask>> taskContexts)
-                throws Exception {
-                final HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(currentState);
-                HealthMetadata currentHealthMetadata = initialHealthMetadata;
-                for (TaskContext<UpsertHealthMetadataTask> taskContext : taskContexts) {
-                    currentHealthMetadata = taskContext.getTask().execute();
-                    taskContext.success(() -> {});
-                }
-                final var finalHealthMetadata = currentHealthMetadata;
-                return finalHealthMetadata == initialHealthMetadata
-                    ? currentState
-                    : currentState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
-            }
+        HealthMetadata execute(HealthMetadata ignored) {
+            return new HealthMetadata(
+                new HealthMetadata.Disk(
+                    HealthMetadata.Disk.Threshold.parse(
+                        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+                    ),
+                    HealthMetadata.Disk.Threshold.parse(
+                        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+                    ),
+                    HealthMetadata.Disk.Threshold.parse(
+                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
+                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
+                    ),
+                    new HealthMetadata.Disk.Threshold(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings)),
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
+                )
+            );
         }
     }
 }

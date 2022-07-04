@@ -243,6 +243,32 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
 
+    public void testGrantorCannotUpdateApiKeyOfGrantTarget() throws IOException {
+        final var request = new Request("POST", "_security/api_key/grant");
+        final var apiKeyName = "test_api_key_password";
+        final Map<String, Object> requestBody = Map.ofEntries(
+            Map.entry("grant_type", "password"),
+            Map.entry("username", MANAGE_OWN_API_KEY_USER),
+            Map.entry("password", END_USER_PASSWORD.toString()),
+            Map.entry("api_key", Map.of("name", apiKeyName))
+        );
+        request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+        final Response response = adminClient().performRequest(request);
+
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(response); // keys: id, name, api_key, encoded
+        final var apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        assertThat(apiKeyId, not(emptyString()));
+        assertThat(apiKeyEncoded, not(emptyString()));
+
+        final var updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(Map.of(), XContentType.JSON).utf8ToString());
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateApiKeyRequest));
+
+        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("no API key owned by requesting user found for ID"));
+    }
+
     private void doTestAuthenticationWithApiKey(
         final String expectedApiKeyName,
         final String actualApiKeyId,

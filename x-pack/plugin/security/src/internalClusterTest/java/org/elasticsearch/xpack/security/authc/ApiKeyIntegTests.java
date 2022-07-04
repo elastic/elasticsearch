@@ -1499,10 +1499,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUpdateApiKeyAutoSyncsUserRoles() throws IOException, ExecutionException, InterruptedException {
+    public void testUpdateApiKeyAutoUpdatesUserRoles() throws IOException, ExecutionException, InterruptedException {
         // Create separate native realm user and role for user role change test
-        final var nativeRealmUser = "native_user";
-        final var nativeRealmRole = "native_role";
+        final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);
+        final var nativeRealmRole = randomAlphaOfLengthBetween(5, 10);
         createNativeRealmUser(
             nativeRealmUser,
             nativeRealmRole,

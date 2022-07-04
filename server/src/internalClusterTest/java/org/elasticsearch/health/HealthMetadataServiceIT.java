@@ -85,6 +85,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             String updatedHighWatermark = percentageMode
                 ? randomIntBetween(60, 90) + "%"
                 : new ByteSizeValue(randomIntBetween(50, 100)).toString();
+            String updatedFloodStageWatermark = percentageMode
+                ? randomIntBetween(91, 95) + "%"
+                : new ByteSizeValue(randomIntBetween(5, 10)).toString();
 
             ensureStableCluster(numberOfNodes);
             {
@@ -106,15 +109,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                             )
                             .put(
                                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
-                                percentageMode ? "95%" : "1b"
-                            )
-                            .put(
-                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.getKey(),
-                                percentageMode ? "90%" : "5b"
-                            )
-                            .put(
-                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(),
-                                "5b"
+                                updatedFloodStageWatermark
                             )
                     )
                 )
@@ -128,6 +123,10 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                     internalCluster.clusterService().state()
                 ).getDiskMetadata().highWatermark();
                 assertThat(highWatermark.getStringRep(), equalTo(updatedHighWatermark));
+                HealthMetadata.Disk.Threshold floodStageWatermark = HealthMetadata.getHealthCustomMetadata(
+                    internalCluster.clusterService().state()
+                ).getDiskMetadata().floodStageWatermark();
+                assertThat(floodStageWatermark.getStringRep(), equalTo(updatedFloodStageWatermark));
             });
         }
     }

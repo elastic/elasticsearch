@@ -19,6 +19,8 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTest does nothing when there are no tests"() {
         given:
+        // RestIntegTestTask not cc compatible due to
+        configurationCacheCompatible = false
         buildFile << """
         plugins {
           id 'elasticsearch.internal-yaml-rest-test'
@@ -36,6 +38,8 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTest executes and copies api and tests to correct source set"() {
         given:
+        // RestIntegTestTask not cc compatible due to
+        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-yaml-rest-test'

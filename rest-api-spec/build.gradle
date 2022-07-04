@@ -38,8 +38,6 @@ testClusters.configureEach {
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
-tasks.named("test").configure { enabled = false }
-
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
   task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API")

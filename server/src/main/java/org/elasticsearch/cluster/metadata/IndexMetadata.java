@@ -1000,6 +1000,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return timestampRange;
     }
 
+    /**
+     * @return the time range this index represents if this index is in time series mode.
+     *         Otherwise <code>null</code> is returned.
+     */
+    @Nullable
+    public IndexLongFieldRange getTimeSeriesTimestampRange() {
+        return IndexSettings.MODE.get(settings).getConfiguredTimestampRange(this);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -1745,8 +1754,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
+            final String indexMode = settings.get(IndexSettings.MODE.getKey());
             final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
-                && IndexMode.TIME_SERIES.getName().equals(settings.get(IndexSettings.MODE.getKey()));
+                && indexMode != null
+                && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

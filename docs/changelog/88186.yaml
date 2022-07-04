@@ -1,0 +1,5 @@
+pr: 88186
+summary: "Support updates of API key attributes [REST and transport layers]"
+area: Authentication
+type: feature
+issues: []

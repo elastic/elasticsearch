@@ -47,6 +47,7 @@ setup:
   - do:
       index:
         index: logs-foo-bar
+        refresh: true
         body:
           "@timestamp": "2020-01-01"
           message: "test-log-message"
@@ -83,10 +84,29 @@ setup:
   - match: { .$idx0name.mappings.properties.data_stream.properties.namespace.value: "bar" }
   - is_true: .$idx0name.mappings.properties.message
   - match: { .$idx0name.mappings.properties.message.type: "match_only_text" }
-  - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
-  - match: { .$idx0name.mappings.properties.log.properties.file.properties.path.type: "keyword" }
   - match: { .$idx0name.data_stream: "logs-foo-bar" }
 
+  - do:
+      search:
+        index: logs-foo-bar
+        body:
+          query:
+            bool:
+              must:
+                - term:
+                    log.file.path: "/var/log/web/access.log"
+                - term:
+                    source.ip: "10.1.2.3"
+  - length: { hits.hits: 1 }
+  - match:
+      hits.hits.0._source:
+        "@timestamp": "2020-01-01"
+        message: "test-log-message"
+        source.ip: "10.1.2.3"
+        log.file.path: "/var/log/web/access.log"
+        data_stream.type: "logs"
+        data_stream.dataset: "foo"
+        data_stream.namespace: "bar"
   - do:
       indices.delete_data_stream:
         name: logs-foo-bar

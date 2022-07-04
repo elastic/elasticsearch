@@ -130,3 +130,31 @@ teardown:
             }
           }
   - match: { updated: true }
+
+  # Check updated privileges
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              {
+                "names" :[ "*", "index-a" ],
+                "privileges" : [ "read", "index", "write" ]
+              },
+              {
+                "names" :[ "index-a", "index-b" ],
+                "privileges" : [ "read", "write" ]
+              }
+            ],
+            "application": [
+              {
+                "application" : "myapp",
+                "resources" : [ "*", "some-other-res" ],
+                "privileges" : [ "data:read/me", "data:write/me" ]
+              }
+            ]
+          }
+  - match: { "has_all_requested": false }

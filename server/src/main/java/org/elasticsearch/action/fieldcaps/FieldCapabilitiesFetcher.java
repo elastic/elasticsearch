@@ -37,9 +37,11 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
+    private final IndexFieldCapabilities.Deduplicator fieldDeduplicator;
 
-    FieldCapabilitiesFetcher(IndicesService indicesService) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean dedupFields) {
         this.indicesService = indicesService;
+        this.fieldDeduplicator = dedupFields ? IndexFieldCapabilities.deduplicatorWithMap() : f -> f;
     }
 
     public FieldCapabilitiesIndexResponse fetch(final FieldCapabilitiesIndexRequest request) throws IOException {
@@ -80,7 +82,7 @@ class FieldCapabilitiesFetcher {
                         ft.isAggregatable(),
                         ft.meta()
                     );
-                    responseMap.put(field, fieldCap);
+                    responseMap.put(field, fieldDeduplicator.deduplicate(fieldCap));
                 } else {
                     continue;
                 }
@@ -111,7 +113,7 @@ class FieldCapabilitiesFetcher {
                                     false,
                                     Collections.emptyMap()
                                 );
-                                responseMap.put(parentField, fieldCap);
+                                responseMap.put(parentField, fieldDeduplicator.deduplicate(fieldCap));
                             }
                         }
                         dotIndex = parentField.lastIndexOf('.');

@@ -34,10 +34,10 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         this.originVersion = Version.CURRENT;
     }
 
-    FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
+    FieldCapabilitiesIndexResponse(StreamInput in, IndexFieldCapabilities.Deduplicator fieldDeduplicator) throws IOException {
         super(in);
         this.indexName = in.readString();
-        this.fields = readFields(in);
+        this.fields = readFields(in, fieldDeduplicator);
         this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
         this.originVersion = in.getVersion();
     }
@@ -60,7 +60,8 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         return fields;
     }
 
-    private static Collection<IndexFieldCapabilities> readFields(StreamInput in) throws IOException {
+    private static Collection<IndexFieldCapabilities> readFields(StreamInput in, IndexFieldCapabilities.Deduplicator fieldDeduplicator)
+        throws IOException {
         // Previously, we serialize fields as a map from field name to field-caps
         final int size = in.readVInt();
         if (size == 0) {
@@ -71,7 +72,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
             final String fieldName = in.readString(); // the fieldName will be discarded - it's used in assertions only
             final IndexFieldCapabilities fieldCaps = new IndexFieldCapabilities(in);
             assert fieldName.equals(fieldCaps.getName()) : fieldName + " != " + fieldCaps.getName();
-            fields.add(fieldCaps);
+            fields.add(fieldDeduplicator.deduplicate(fieldCaps));
         }
         return fields;
     }

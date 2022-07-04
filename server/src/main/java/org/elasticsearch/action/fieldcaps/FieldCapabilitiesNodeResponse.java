@@ -37,7 +37,8 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
 
     FieldCapabilitiesNodeResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
+        final IndexFieldCapabilities.Deduplicator fieldDeduplicator = IndexFieldCapabilities.deduplicatorWithMap();
+        this.indexResponses = in.readList(is -> new FieldCapabilitiesIndexResponse(is, fieldDeduplicator));
         this.failures = in.readMap(ShardId::new, StreamInput::readException);
         this.unmatchedShardIds = in.readSet(ShardId::new);
     }

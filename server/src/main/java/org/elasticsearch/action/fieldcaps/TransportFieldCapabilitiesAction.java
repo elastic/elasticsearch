@@ -54,7 +54,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private final FieldCapabilitiesFetcher fieldCapabilitiesFetcher;
+    private final IndicesService indicesService;
     private final Predicate<String> metadataFieldPred;
 
     @Inject
@@ -72,7 +72,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
 
-        this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
+        this.indicesService = indicesService;
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
 
@@ -337,6 +337,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
+                final FieldCapabilitiesFetcher fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(
+                    indicesService,
+                    groupedShardIds.size() > 1
+                );
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
@@ -375,6 +379,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         @Override
         public void messageReceived(FieldCapabilitiesIndexRequest request, TransportChannel channel, Task task) throws Exception {
             ActionListener<FieldCapabilitiesIndexResponse> listener = new ChannelActionListener<>(channel, ACTION_SHARD_NAME, request);
+            FieldCapabilitiesFetcher fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService, false);
             ActionListener.completeWith(listener, () -> fieldCapabilitiesFetcher.fetch(request));
         }
     }

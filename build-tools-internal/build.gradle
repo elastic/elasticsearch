@@ -236,6 +236,8 @@ dependencies {
   // for our ide tweaking
   api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
+  api buildLibs.httpclient
+  api buildLibs.httpcore
   api buildLibs.forbiddenApis
   api buildLibs.docker.compose
   api buildLibs.maven.model
@@ -283,6 +285,7 @@ dependencies {
     exclude module: "groovy"
   }
   testImplementation buildLibs.spock.junit4
+  testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
 }
 

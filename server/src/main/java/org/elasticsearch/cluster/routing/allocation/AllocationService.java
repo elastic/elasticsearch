@@ -14,13 +14,14 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 
 import java.util.ArrayList;
@@ -55,6 +57,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
 /**
@@ -168,7 +171,7 @@ public class AllocationService {
         }
         final ClusterState newState = newStateBuilder.build();
 
-        logClusterHealthStateChange(new ClusterStateHealth(oldState), new ClusterStateHealth(newState), reason);
+        logClusterHealthStateChange(oldState, newState, reason);
 
         return newState;
     }
@@ -495,13 +498,10 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
     }
 
-    private static void logClusterHealthStateChange(
-        ClusterStateHealth previousStateHealth,
-        ClusterStateHealth newStateHealth,
-        String reason
-    ) {
-        ClusterHealthStatus previousHealth = previousStateHealth.getStatus();
-        ClusterHealthStatus currentHealth = newStateHealth.getStatus();
+    private static void logClusterHealthStateChange(final ClusterState previousState, final ClusterState newState, String reason) {
+        ClusterHealthStatus previousHealth = getHealthStatus(previousState);
+        ClusterHealthStatus currentHealth = getHealthStatus(newState);
+
         if (previousHealth.equals(currentHealth) == false) {
             logger.info(
                 new ESLogMessage("Cluster health status changed from [{}] to [{}] (reason: [{}]).").argAndField(
@@ -511,6 +511,40 @@ public class AllocationService {
             );
 
         }
+    }
+
+    public static ClusterHealthStatus getHealthStatus(final ClusterState clusterState) {
+        if (clusterState.blocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {
+            return ClusterHealthStatus.RED;
+        }
+
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        for (String index : clusterState.metadata().getConcreteAllIndices()) {
+            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+            if (indexRoutingTable == null) {
+                continue;
+            }
+            if (indexRoutingTable.allShardsActive()) {
+                // GREEN index
+                continue;
+            }
+
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                ShardRouting primary = indexShardRoutingTable.primaryShard();
+                if (primary.active()) {
+                    // index has inactive replicas
+                    computeStatus = ClusterHealthStatus.YELLOW;
+                    continue;
+                }
+                computeStatus = getInactivePrimaryHealth(primary);
+                if (computeStatus == ClusterHealthStatus.RED) {
+                    logger.debug("One of inactive primary shard {} causes cluster state RED.", primary.shardId());
+                    return ClusterHealthStatus.RED;
+                }
+            }
+        }
+        return computeStatus;
     }
 
     private static boolean hasDeadNodes(RoutingAllocation allocation) {

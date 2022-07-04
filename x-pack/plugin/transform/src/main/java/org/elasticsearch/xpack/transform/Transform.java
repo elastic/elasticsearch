@@ -148,12 +148,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.Dynamic
     );
 
-    public static final TimeValue DEFAULT_SCHEDULER_FREQUENCY = TimeValue.timeValueMillis(500);
+    public static final TimeValue DEFAULT_SCHEDULER_FREQUENCY = TimeValue.timeValueSeconds(1);
     // How often does the transform scheduler process the tasks
     public static final Setting<TimeValue> SCHEDULER_FREQUENCY = Setting.timeSetting(
         "xpack.transform.transform_scheduler_frequency",
         DEFAULT_SCHEDULER_FREQUENCY,
-        TimeValue.timeValueMillis(500),
+        TimeValue.timeValueSeconds(1),
         TimeValue.timeValueMinutes(1),
         Setting.Property.NodeScope
     );

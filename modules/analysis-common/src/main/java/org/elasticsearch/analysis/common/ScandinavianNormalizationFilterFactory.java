@@ -21,7 +21,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class ScandinavianNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     ScandinavianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

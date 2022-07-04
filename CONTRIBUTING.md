@@ -698,6 +698,27 @@ If your changes affect only the documentation, run:
 For more information about testing code examples in the documentation, see
 https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
 
+### Only running failed tests
+
+When you open your pull-request it may be approved for review. If so, the full
+test suite is run within Elasticsearch's CI environment. If a test fails,
+you can see how to run that particular test by searching for the `REPRODUCE`
+string in the CI's console output.
+
+Elasticsearch's testing suite takes advantage of randomized testing. Consequently,
+a test that passes locally, may actually fail later due to random settings
+or data input. To make tests repeatable, a `REPRODUCE` line in CI will also include
+the `-Dtests.seed` parameter.
+
+When running locally, gradle does its best to take advantage of cached results.
+So, if the code is unchanged, running the same test with the same `-Dtests.seed`
+repeatedly may not actually run the test if it has passed with that seed
+ in the previous execution. A way around this is to pass a separate parameter
+to adjust the command options seen by gradle.
+A simple option may be to add the parameter `-Dtests.timestamp=$(date +%s)`
+which will give the current time stamp as a parameter, thus making the parameters
+sent to gradle unique and bypassing the cache.
+
 ### Project layout
 
 This repository is split into many top level directories. The most important

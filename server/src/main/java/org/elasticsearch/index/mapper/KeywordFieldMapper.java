@@ -1147,7 +1147,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private int ord;
+                private int idx = -1;
 
                 @Override
                 public boolean empty() {
@@ -1156,26 +1156,27 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 @Override
                 public boolean advanceToDoc(int docId) throws IOException {
-                    int idx = Arrays.binarySearch(docIdsInLeaf, docId);
-                    if (idx < 0) {
-                        throw new IllegalStateException(
-                            "received unexpected docId [" + docId + "]. Expected " + Arrays.toString(docIdsInLeaf)
+                    idx++;
+                    if (docIdsInLeaf[idx] != docId) {
+                        throw new IllegalArgumentException(
+                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
                         );
                     }
-                    ord = ords[idx];
-                    return ord >= 0;
+                    return ords[idx] >= 0;
                 }
 
                 @Override
                 public void write(XContentBuilder b) throws IOException {
-                    if (ord < 0) {
+                    if (ords[idx] < 0) {
                         return;
                     }
-                    int idx = Arrays.binarySearch(uniqueOrds, ord);
-                    if (idx < 0) {
-                        throw new IllegalStateException("received unexpected ord [" + ord + "]. Expected " + Arrays.toString(uniqueOrds));
+                    int convertedIdx = Arrays.binarySearch(uniqueOrds, ords[idx]);
+                    if (convertedIdx < 0) {
+                        throw new IllegalStateException(
+                            "received unexpected ord [" + ords[idx] + "]. Expected " + Arrays.toString(uniqueOrds)
+                        );
                     }
-                    BytesRef c = converted[idx];
+                    BytesRef c = converted[convertedIdx];
                     b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
                 }
             };

@@ -195,7 +195,7 @@ public class HealthMetadataService {
         private final String setting;
         private final String value;
 
-        public UpdateHealthMetadata(String setting, String value) {
+        UpdateHealthMetadata(String setting, String value) {
             this.setting = setting;
             this.value = value;
         }
@@ -231,7 +231,7 @@ public class HealthMetadataService {
 
         private final Settings settings;
 
-        public InsertHealthMetadata(Settings settings) {
+        InsertHealthMetadata(Settings settings) {
             this.settings = settings;
         }
 

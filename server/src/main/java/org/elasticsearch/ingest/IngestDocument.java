@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -27,7 +28,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,7 +49,7 @@ public final class IngestDocument {
 
     static final String TIMESTAMP = "timestamp";
 
-    private final Map<String, Object> sourceAndMetadata;
+    private final IngestSourceAndMetadata sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
@@ -58,42 +58,60 @@ public final class IngestDocument {
     private boolean doNoSelfReferencesCheck = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
-        // source + at max 5 extra fields
-        this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
-        this.sourceAndMetadata.putAll(source);
-        this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
-        this.sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
-        if (routing != null) {
-            this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (versionType != null) {
-            sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
-        }
+        this.sourceAndMetadata = new IngestSourceAndMetadata(
+            index,
+            id,
+            version,
+            routing,
+            versionType,
+            ZonedDateTime.now(ZoneOffset.UTC),
+            source
+        );
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
+        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
     }
 
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this(deepCopyMap(other.sourceAndMetadata), deepCopyMap(other.ingestMetadata));
+        this(
+            new IngestSourceAndMetadata(
+                deepCopyMap(other.sourceAndMetadata.getSource()),
+                deepCopyMap(other.sourceAndMetadata.getMetadata()),
+                other.getIngestSourceAndMetadata().timestamp,
+                other.getIngestSourceAndMetadata().validators
+            ),
+            deepCopyMap(other.ingestMetadata)
+        );
+    }
+
+    /**
+     * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
+     */
+    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
+        this.sourceAndMetadata = new IngestSourceAndMetadata(
+            sm.v1(),
+            sm.v2(),
+            IngestSourceAndMetadata.getTimestamp(ingestMetadata),
+            IngestSourceAndMetadata.VALIDATORS
+        );
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
+            if (v instanceof String) {
+                return this.sourceAndMetadata.getTimestamp();
+            }
+            return v;
+        });
     }
 
     /**
      * Constructor to create an IngestDocument from its constituent maps
      */
-    IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
-    }
-
-    /**
-     * Build an IngestDocument from values read via deserialization
-     */
-    public static IngestDocument of(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        return new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     /**
@@ -706,26 +724,38 @@ public final class IngestDocument {
     }
 
     /**
-     * one time operation that extracts the metadata fields from the ingest document and returns them.
-     * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
+     * Get source and metadata map
      */
-    public Map<Metadata, Object> extractMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.remove(metadata.getFieldName()));
-        }
-        return metadataMap;
+    public Map<String, Object> getSourceAndMetadata() {
+        return sourceAndMetadata;
     }
 
     /**
-     * Does the same thing as {@link #extractMetadata} but does not mutate the map.
+     * Get source and metadata map as {@link IngestSourceAndMetadata}
      */
-    public Map<Metadata, Object> getMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.get(metadata.getFieldName()));
-        }
-        return metadataMap;
+    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
+        return sourceAndMetadata;
+    }
+
+    /**
+     * Get all Metadata values in a Map
+     */
+    public Map<String, Object> getMetadataMap() {
+        return sourceAndMetadata.getMetadata();
+    }
+
+    /**
+     * Get the strongly typed metadata
+     */
+    public org.elasticsearch.script.Metadata getMetadata() {
+        return sourceAndMetadata;
+    }
+
+    /**
+     * Get all source values in a Map
+     */
+    public Map<String, Object> getSource() {
+        return sourceAndMetadata.getSource();
     }
 
     /**
@@ -734,15 +764,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
-    }
-
-    /**
-     * Returns the document including its metadata fields, unless {@link #extractMetadata()} has been called, in which case the
-     * metadata fields will not be present anymore.
-     * Modify the document instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return this.sourceAndMetadata;
     }
 
     @SuppressWarnings("unchecked")
@@ -756,6 +777,7 @@ public final class IngestDocument {
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
+            // TODO(stu): should this check for IngestSourceAndMetadata in addition to Map?
             return copy;
         } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());

@@ -40,7 +40,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String HELP_URL = "https://ela.st/fix-ilm";
     public static final UserAction ILM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("ilm-not-running", "Start ILM using [POST /_ilm/start].", HELP_URL),
+        new UserAction.Definition("ilm-not-running", "Start Index Lifecycle Management using [POST /_ilm/start].", HELP_URL),
         null
     );
 
@@ -71,7 +71,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No ILM policies configured",
+                "No Index Lifecycle Management policies configured",
                 createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -85,11 +85,17 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             );
-            return createIndicator(YELLOW, "ILM is not running", createDetails(explain, ilmMetadata), impacts, List.of(ILM_NOT_RUNNING));
+            return createIndicator(
+                YELLOW,
+                "Index Lifecycle Management is not running",
+                createDetails(explain, ilmMetadata),
+                impacts,
+                List.of(ILM_NOT_RUNNING)
+            );
         } else {
             return createIndicator(
                 GREEN,
-                "ILM is running",
+                "Index Lifecycle Management is running",
                 createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()

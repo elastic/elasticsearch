@@ -40,7 +40,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String HELP_URL = "https://ela.st/fix-slm";
     public static final UserAction SLM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("slm-not-running", "Start SLM using [POST /_slm/start].", HELP_URL),
+        new UserAction.Definition("slm-not-running", "Start Snapshot Lifecycle Management using [POST /_slm/start].", HELP_URL),
         null
     );
 
@@ -71,7 +71,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No SLM policies configured",
+                "No Snapshot Lifecycle Management policies configured",
                 createDetails(explain, slmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -84,11 +84,17 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.BACKUP)
                 )
             );
-            return createIndicator(YELLOW, "SLM is not running", createDetails(explain, slmMetadata), impacts, List.of(SLM_NOT_RUNNING));
+            return createIndicator(
+                YELLOW,
+                "Snapshot Lifecycle Management is not running",
+                createDetails(explain, slmMetadata),
+                impacts,
+                List.of(SLM_NOT_RUNNING)
+            );
         } else {
             return createIndicator(
                 GREEN,
-                "SLM is running",
+                "Snapshot Lifecycle Management is running",
                 createDetails(explain, slmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()

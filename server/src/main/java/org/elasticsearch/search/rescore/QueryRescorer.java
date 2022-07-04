@@ -113,12 +113,9 @@ public final class QueryRescorer implements Rescorer {
         return prim;
     }
 
-    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
-        @Override
-        public int compare(ScoreDoc o1, ScoreDoc o2) {
-            int cmp = Float.compare(o2.score, o1.score);
-            return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
-        }
+    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
+        int cmp = Float.compare(o2.score, o1.score);
+        return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
     };
 
     /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=

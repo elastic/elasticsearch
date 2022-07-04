@@ -993,6 +993,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
+    public static <T> Set<T> randomSet(int minSetSize, int maxSetSize, Supplier<T> valueConstructor) {
+        return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
+    }
+
     private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
 
     public static String randomTimeValue(int lower, int upper, String... suffixes) {

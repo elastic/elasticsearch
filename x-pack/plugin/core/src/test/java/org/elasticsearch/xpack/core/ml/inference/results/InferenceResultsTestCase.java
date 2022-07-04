@@ -55,14 +55,14 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             InferenceResults.writeResult(inferenceResult, document, parentField, modelId);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
-                Map<IngestDocument.Metadata, Object> metadataMap = document.getMetadata();
-                for (Map.Entry<IngestDocument.Metadata, Object> metadata : metadataMap.entrySet()) {
+                Map<String, Object> metadataMap = document.getMetadataMap();
+                for (Map.Entry<String, Object> metadata : metadataMap.entrySet()) {
                     if (metadata.getValue() != null) {
-                        builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
+                        builder.field(metadata.getKey(), metadata.getValue().toString());
                     }
                 }
                 Map<String, Object> source = IngestDocument.deepCopyMap(document.getSourceAndMetadata());
-                metadataMap.keySet().forEach(mD -> source.remove(mD.getFieldName()));
+                metadataMap.keySet().forEach(mD -> source.remove(mD));
                 builder.field("_source", source);
                 builder.field("_ingest", document.getIngestMetadata());
                 builder.endObject();

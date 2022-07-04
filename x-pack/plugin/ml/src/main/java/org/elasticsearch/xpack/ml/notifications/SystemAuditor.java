@@ -20,4 +20,34 @@ public class SystemAuditor extends AbstractMlAuditor<SystemAuditMessage> {
             clusterService
         );
     }
+
+    public void info(String message) {
+        info(null, message);
+    }
+
+    public void warning(String message) {
+        warning(null, message);
+    }
+
+    public void error(String message) {
+        error(null, message);
+    }
+
+    @Override
+    public void info(String resourceId, String message) {
+        assert resourceId == null;
+        super.info(null, message);
+    }
+
+    @Override
+    public void warning(String resourceId, String message) {
+        assert resourceId == null;
+        super.info(null, message);
+    }
+
+    @Override
+    public void error(String resourceId, String message) {
+        assert resourceId == null;
+        super.info(null, message);
+    }
 }

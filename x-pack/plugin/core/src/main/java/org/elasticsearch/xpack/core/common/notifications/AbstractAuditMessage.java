@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -64,7 +65,6 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         return PARSER;
     }
 
-    @Nullable
     private final String resourceId;
     private final String message;
     private final Level level;
@@ -103,8 +103,9 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (resourceId != null) {
-            builder.field(getResourceField(), resourceId);
+        Optional<String> resourceField = getResourceField();
+        if (resourceField.isPresent() && resourceId != null) {
+            builder.field(resourceField.get(), resourceId);
         }
 
         if (message.length() > MAX_AUDIT_MESSAGE_CHARS) {
@@ -157,8 +158,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     /**
      * @return resource id field name used when storing a new message
      */
-    @Nullable
-    protected abstract String getResourceField();
+    protected abstract Optional<String> getResourceField();
 
     /**
      * Truncate the message and append {@value #TRUNCATED_SUFFIX} so

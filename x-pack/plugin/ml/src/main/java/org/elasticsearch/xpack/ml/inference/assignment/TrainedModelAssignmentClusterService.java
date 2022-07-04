@@ -418,7 +418,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         ClusterState updatedState = update(currentState, rebalancedMetadata);
                         if (TrainedModelAssignmentMetadata.fromState(currentState)
                             .equals(TrainedModelAssignmentMetadata.fromState(updatedState)) == false) {
-                            systemAuditor.info(null, Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason));
+                            systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason));
                         }
                         return updatedState;
                     }

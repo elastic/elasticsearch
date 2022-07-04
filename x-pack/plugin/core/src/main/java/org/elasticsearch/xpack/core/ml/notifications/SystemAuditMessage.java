@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
+import java.util.Optional;
 
 public class SystemAuditMessage extends AbstractAuditMessage {
 
@@ -34,7 +35,7 @@ public class SystemAuditMessage extends AbstractAuditMessage {
     }
 
     @Override
-    protected String getResourceField() {
-        return null;
+    protected Optional<String> getResourceField() {
+        return Optional.empty();
     }
 }

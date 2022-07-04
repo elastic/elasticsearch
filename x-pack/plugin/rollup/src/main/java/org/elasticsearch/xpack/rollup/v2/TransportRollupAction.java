@@ -68,11 +68,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -459,28 +457,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endObject();
     }
 
-    private static void copyFieldMappings(
-        final List<String> dimensionFields,
-        final List<String> metricFields,
-        final List<String> labelFields,
-        final Map<String, ?> sourceIndexMappingProperties,
-        final XContentBuilder builder
-    ) throws IOException {
-        @SuppressWarnings("unchecked")
-        final Map<String, ?> properties = (Map<String, ?>) sourceIndexMappingProperties.get("properties");
-        for (final String field : Stream.concat(dimensionFields.stream(), Stream.concat(metricFields.stream(), labelFields.stream()))
-            .toList()) {
-            final Map<String, ?> fieldProperties = resolveFieldProperties(properties, Arrays.asList(field.split("\\.")));
-            if (fieldProperties.isEmpty() == false) {
-                if (dimensionFields.contains(field) || labelFields.contains(field)) {
-                    copyDimensionOrLabelFieldMapping(builder, field, fieldProperties);
-                } else if (metricFields.contains(field)) {
-                    addMetricFieldMapping(builder, field, fieldProperties);
-                } else throw new IllegalArgumentException("Field [" + field + "] is not a metric, a dimension or a label");
-            }
-        }
-    }
-
     private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
         throws IOException {
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.valueOf(
@@ -501,39 +477,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .field(TIME_SERIES_METRIC_PARAM, metricType)
                 .endObject();
         }
-    }
-
-    private static void copyDimensionOrLabelFieldMapping(
-        final XContentBuilder builder,
-        final String field,
-        final Map<String, ?> fieldProperties
-    ) throws IOException {
-        if (fieldProperties.isEmpty() == false) {
-            builder.startObject(field);
-            for (Map.Entry<String, ?> fieldProperty : fieldProperties.entrySet()) {
-                builder.field(fieldProperty.getKey(), fieldProperty.getValue());
-            }
-            builder.endObject();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, ?> resolveFieldProperties(final Map<String, ?> properties, final List<String> fieldPath) {
-        if (properties == null || properties.isEmpty()) {
-            throw new IllegalArgumentException("Empty properties");
-        }
-        if (fieldPath == null || fieldPath.isEmpty()) {
-            throw new IllegalArgumentException("Empty field path");
-        }
-        if (fieldPath.size() == 1) {
-            return ((Map<String, ?>) properties.get(fieldPath.get(0)));
-        }
-        for (final String field : fieldPath) {
-            final Map<String, ?> fieldMappings = (Map<String, ?>) properties.get(field);
-            return resolveFieldProperties((Map<String, ?>) fieldMappings.get("properties"), fieldPath.subList(1, fieldPath.size()));
-        }
-
-        return Collections.emptyMap();
     }
 
     /**

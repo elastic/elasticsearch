@@ -425,7 +425,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         boolean success = false;
         try {
-            IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
+            IndexCache indexCache = new IndexCache(DisabledQueryCache.INSTANCE, null);
             MapperService mapperService = MapperTestUtils.newMapperService(
                 xContentRegistry(),
                 createTempDir(),

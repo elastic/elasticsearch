@@ -13,9 +13,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.TestIngestDocument.replaceValidator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -74,7 +76,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         });
         source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", IngestSourceAndMetadata::longValidator));
         assertNull(map.getString("missing"));
         assertNull(map.getString("no key"));
         assertEquals("myToString()", map.getString("toStr"));
@@ -206,7 +208,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestSourceAndMetadata(source, metadata, null, null);
+        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", IngestSourceAndMetadata::longValidator));
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if ("foo".equals(entry.getKey())) {
@@ -317,6 +319,25 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             assertThat(IngestSourceAndMetadata.VALIDATORS, hasEntry(equalTo(m.getFieldName()), notNullValue()));
         }
         assertEquals(IngestDocument.Metadata.values().length, IngestSourceAndMetadata.VALIDATORS.size());
+    }
+
+    public void testHandlesAllVersionTypes() {
+        Map<String, Object> md = new HashMap<>();
+        md.put("_version", 1234);
+        map = new IngestSourceAndMetadata(new HashMap<>(), md, null, null);
+        assertNull(map.getVersionType());
+        for (VersionType vt : VersionType.values()) {
+            map.setVersionType(VersionType.toString(vt));
+            assertEquals(VersionType.toString(vt), map.get("_version_type"));
+        }
+
+        for (VersionType vt : VersionType.values()) {
+            map.put("_version_type", VersionType.toString(vt));
+            assertEquals(vt.toString().toLowerCase(Locale.ROOT), map.getVersionType());
+        }
+
+        map.setVersionType(null);
+        assertNull(map.getVersionType());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

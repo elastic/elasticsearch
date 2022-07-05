@@ -17,6 +17,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
@@ -76,7 +77,15 @@ public abstract class DisruptableMockTransport extends MockTransport {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+        return new TransportService(
+            settings,
+            this,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            new TaskManager(settings, threadPool, taskHeaders)
+        );
     }
 
     @Override

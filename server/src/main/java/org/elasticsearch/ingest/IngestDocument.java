@@ -733,15 +733,22 @@ public final class IngestDocument {
     /**
      * Get source and metadata map as {@link IngestSourceAndMetadata}
      */
-    IngestSourceAndMetadata getIngestSourceAndMetadata() {
+    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
         return sourceAndMetadata;
     }
 
     /**
      * Get all Metadata values in a Map
      */
-    public Map<String, Object> getMetadata() {
+    public Map<String, Object> getMetadataMap() {
         return sourceAndMetadata.getMetadata();
+    }
+
+    /**
+     * Get the strongly typed metadata
+     */
+    public org.elasticsearch.script.Metadata getMetadata() {
+        return sourceAndMetadata;
     }
 
     /**

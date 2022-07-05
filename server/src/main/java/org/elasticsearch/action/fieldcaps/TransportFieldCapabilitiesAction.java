@@ -337,10 +337,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(
-                    indicesService,
-                    groupedShardIds.size() > 1
-                );
+                final FieldCapabilitiesFetcher fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
@@ -379,7 +376,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         @Override
         public void messageReceived(FieldCapabilitiesIndexRequest request, TransportChannel channel, Task task) throws Exception {
             ActionListener<FieldCapabilitiesIndexResponse> listener = new ChannelActionListener<>(channel, ACTION_SHARD_NAME, request);
-            FieldCapabilitiesFetcher fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService, false);
+            FieldCapabilitiesFetcher fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
             ActionListener.completeWith(listener, () -> fieldCapabilitiesFetcher.fetch(request));
         }
     }

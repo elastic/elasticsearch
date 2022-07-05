@@ -39,9 +39,9 @@ class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
     private final IndexFieldCapabilities.Deduplicator fieldDeduplicator;
 
-    FieldCapabilitiesFetcher(IndicesService indicesService, boolean dedupFields) {
+    FieldCapabilitiesFetcher(IndicesService indicesService) {
         this.indicesService = indicesService;
-        this.fieldDeduplicator = dedupFields ? IndexFieldCapabilities.deduplicatorWithMap() : f -> f;
+        this.fieldDeduplicator = IndexFieldCapabilities.deduplicatorWithMap();
     }
 
     public FieldCapabilitiesIndexResponse fetch(final FieldCapabilitiesIndexRequest request) throws IOException {

@@ -27,6 +27,7 @@ import io.netty.util.concurrent.PromiseCombiner;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.Transports;
@@ -214,12 +215,14 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         enqueueWrite(ctx, readyResponse, first);
         while (ctx.channel().isWritable()) {
             try {
-                if (readyResponse.body().encode((done, bytes) -> {
-                    final ByteBuf content = Netty4Utils.toByteBuf(bytes);
-                    final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-                    f.addListener(ignored -> bytes.close());
-                    combiner.add(f);
-                }, Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler())) {
+                final ReleasableBytesReference bytes = readyResponse.body()
+                    .encodeChunk(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler());
+                final ByteBuf content = Netty4Utils.toByteBuf(bytes);
+                final boolean done = readyResponse.body().isDone();
+                final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
+                f.addListener(ignored -> bytes.close());
+                combiner.add(f);
+                if (done) {
                     currentWrite.combiner.finish(currentWrite.onDone);
                     currentWrite = null;
                     writeSequence++;
@@ -279,12 +282,14 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         while (channel.isWritable()) {
             if (currentWrite != null) {
                 try {
-                    if (currentWrite.response.body().encode((done, bytes) -> {
-                        final ByteBuf content = Netty4Utils.toByteBuf(bytes);
-                        final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-                        f.addListener(ignored -> bytes.close());
-                        currentWrite.combiner.add(f);
-                    }, Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler())) {
+                    final ReleasableBytesReference bytes = currentWrite.response.body()
+                        .encodeChunk(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler());
+                    final ByteBuf content = Netty4Utils.toByteBuf(bytes);
+                    final boolean done = currentWrite.response.body().isDone();
+                    final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
+                    f.addListener(ignored -> bytes.close());
+                    currentWrite.combiner.add(f);
+                    if (done) {
                         currentWrite.combiner.finish(currentWrite.onDone);
                         currentWrite = null;
                         writeSequence++;

@@ -43,12 +43,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
@@ -270,10 +270,15 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             private int remaining = chunkCount;
 
             @Override
-            public boolean encode(BiConsumer<Boolean, ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) {
-                final boolean result = --remaining == 0;
-                target.accept(result, ReleasableBytesReference.wrap(chunk));
-                return result;
+            public boolean isDone() {
+                return remaining == 0;
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                assertThat(remaining, greaterThan(0));
+                remaining--;
+                return ReleasableBytesReference.wrap(chunk);
             }
         };
     }

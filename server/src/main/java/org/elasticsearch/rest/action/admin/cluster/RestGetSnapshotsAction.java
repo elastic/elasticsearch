@@ -36,7 +36,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.client.internal.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -114,11 +113,12 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                                 private final Iterator<SnapshotInfo> snapshotInfoIterator = getSnapshotsResponse.getSnapshots().iterator();
 
                                 @Override
-                                public boolean encode(
-                                    BiConsumer<Boolean, ReleasableBytesReference> target,
-                                    int sizeHint,
-                                    Recycler<BytesRef> recycler
-                                ) throws IOException {
+                                public boolean isDone() {
+                                    return snapshotInfoIterator.hasNext() == false;
+                                }
+
+                                @Override
+                                public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
                                     final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
                                     out.newTarget(chunkStream);
                                     if (builder == null) {
@@ -133,15 +133,10 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                                         builder.close();
                                     }
                                     out.clearTarget();
-                                    boolean done = snapshotInfoIterator.hasNext() == false;
-                                    target.accept(
-                                        done,
-                                        new ReleasableBytesReference(
-                                            chunkStream.bytes(),
-                                            () -> IOUtils.closeWhileHandlingException(chunkStream)
-                                        )
+                                    return new ReleasableBytesReference(
+                                        chunkStream.bytes(),
+                                        () -> IOUtils.closeWhileHandlingException(chunkStream)
                                     );
-                                    return done;
                                 }
                             }
                         )

@@ -74,12 +74,22 @@ public class PageCollector extends SimpleCollector implements Operator {
     }
 
     @Override
+    public boolean needsInput() {
+        return false;
+    }
+
+    @Override
+    public void addInput(Page page) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Page getOutput() {
         return pages.poll();
     }
 
     @Override
     public boolean isFinished() {
-        return finished;
+        return finished && pages.isEmpty();
     }
 }

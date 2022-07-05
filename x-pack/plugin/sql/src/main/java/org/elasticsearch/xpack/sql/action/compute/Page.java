@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.action.compute;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 public class Page {
@@ -45,6 +46,24 @@ public class Page {
         }
 
         return blocks[0].getPositionCount();
+    }
+
+    public Block getBlock(int channel) {
+        return blocks[channel];
+    }
+
+    public Page appendColumn(Block block) {
+        if (positionCount != block.getPositionCount()) {
+            throw new IllegalArgumentException("Block does not have same position count");
+        }
+
+        Block[] newBlocks = Arrays.copyOf(blocks, blocks.length + 1);
+        newBlocks[blocks.length] = block;
+        return wrapBlocksWithoutCopy(positionCount, newBlocks);
+    }
+
+    static Page wrapBlocksWithoutCopy(int positionCount, Block[] blocks) {
+        return new Page(false, positionCount, blocks);
     }
 
 }

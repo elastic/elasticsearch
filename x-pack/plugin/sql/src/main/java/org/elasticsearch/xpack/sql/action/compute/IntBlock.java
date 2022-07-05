@@ -15,4 +15,9 @@ public class IntBlock extends Block {
         this.values = values;
     }
 
+    @Override
+    public int getInt(int position) {
+        return values[position];
+    }
+
 }

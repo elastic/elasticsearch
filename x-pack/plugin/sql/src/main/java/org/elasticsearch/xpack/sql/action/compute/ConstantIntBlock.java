@@ -14,4 +14,9 @@ public class ConstantIntBlock extends Block {
         super(positionCount);
         this.constant = constant;
     }
+
+    @Override
+    public int getInt(int position) {
+        return constant;
+    }
 }

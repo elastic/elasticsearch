@@ -22,4 +22,8 @@ public class Block {
     public int getPositionCount() {
         return positionCount;
     }
+
+    public int getInt(int position) {
+        throw new UnsupportedOperationException(getClass().getName());
+    }
 }

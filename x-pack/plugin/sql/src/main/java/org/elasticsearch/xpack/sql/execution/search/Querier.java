@@ -94,6 +94,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -146,22 +147,21 @@ public class Querier {
                 new ComputeRequest(
                     search.indices()[0],
                     search.source().query() == null ? new MatchAllQueryBuilder() : search.source().query(),
-                    query.aggs()
-                ),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(ComputeResponse computeResponse) {
-                        // fork to different thread to avoid blocking compute engine
-                        client.threadPool().generic().execute(() -> {
-                            Supplier<org.elasticsearch.xpack.sql.action.compute.Page> pageSupplier = computeResponse.getPageSupplier();
-                            // TODO: extract response stream and turn into pages stream
-                            org.elasticsearch.xpack.sql.action.compute.Page page;
-                            while ((page = pageSupplier.get()) != null) {
-
-                            }
+                    query.aggs(),
+                    page -> {
+                        System.out.println(page);
+                        // TODO: extract response stream and turn into pages stream
+                        if (page == null) {
                             // TODO: create meaningful responses
                             finalListener.onResponse(Page.last(Rows.empty(Rows.schema(output))));
-                        });
+                        }
+                    }
+                ),
+
+            new ActionListener<>() {
+                    @Override
+                    public void onResponse(ComputeResponse computeResponse) {
+                        // ok, ignore, above listener takes care of it
                     }
 
                     @Override

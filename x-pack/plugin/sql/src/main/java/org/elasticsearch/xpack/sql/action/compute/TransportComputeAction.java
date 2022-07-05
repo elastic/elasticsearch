@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
@@ -108,9 +109,12 @@ public class TransportComputeAction extends TransportSingleShardAction<ComputeRe
             Aggs aggs = request.aggs;
 
             // only release search context once driver actually completed
-            Driver driver = new Driver(pageCollector, () -> Releasables.close(context));
+            Driver driver = new Driver(List.of(pageCollector, new MaxOperator(0), new PageConsumerOperator(request.getPageConsumer())),
+                () -> Releasables.close(context));
 
-            listener.onResponse(new ComputeResponse(driver));
+            threadPool.generic().execute(() -> driver.run());
+
+            listener.onResponse(new ComputeResponse());
 
             context.parsedQuery(context.getSearchExecutionContext().toQuery(request.query()));
             context.size(0); // no hits needed

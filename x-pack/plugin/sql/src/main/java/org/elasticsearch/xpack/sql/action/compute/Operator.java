@@ -16,4 +16,8 @@ public interface Operator {
 
     void finish();
 
+    boolean needsInput();
+
+    void addInput(Page page);
+
 }

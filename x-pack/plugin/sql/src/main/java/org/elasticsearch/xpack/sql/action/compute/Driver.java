@@ -9,28 +9,60 @@ package org.elasticsearch.xpack.sql.action.compute;
 
 import org.elasticsearch.core.Releasable;
 
-import java.util.function.Supplier;
+import java.util.ArrayList;
+import java.util.List;
 
-public class Driver implements Supplier<Page> {
+public class Driver {
 
-    private final Operator operator;
+    private final List<Operator> activeOperators;
     private final Releasable releasable;
 
-    public Driver(Operator operator, Releasable releasable) {
-        this.operator = operator;
+    public Driver(List<Operator> operators, Releasable releasable) {
+        this.activeOperators = new ArrayList<>(operators);
         this.releasable = releasable;
     }
 
-    @Override
-    public Page get() {
-        do {
-            Page page = operator.getOutput();
-            if (page != null) {
-                return page;
-            }
-        } while (operator.isFinished() == false);
+    private boolean operatorsFinished() {
+        return activeOperators.isEmpty() || activeOperators.get(activeOperators.size() - 1).isFinished();
+    }
 
+    public void run() {
+        while (operatorsFinished() == false) {
+            runLoopIteration();
+        }
         releasable.close();
-        return null;
+    }
+
+    private void runLoopIteration() {
+        for (int i = 0; i < activeOperators.size() - 1; i++) {
+            Operator op = activeOperators.get(i);
+            Operator nextOp = activeOperators.get(i + 1);
+
+            if (op.isFinished() == false && nextOp.needsInput()) {
+                Page page = op.getOutput();
+                if (page != null) {
+                    nextOp.addInput(page);
+                }
+            }
+
+            if (op.isFinished()) {
+                nextOp.finish();
+            }
+        }
+
+        for (int index = activeOperators.size() - 1; index >= 0; index--) {
+            if (activeOperators.get(index).isFinished()) {
+                // close and remove this operator and all source operators
+                List<Operator> finishedOperators = this.activeOperators.subList(0, index + 1);
+                finishedOperators.clear();
+
+                // Finish the next operator, which is now the first operator.
+                if (activeOperators.isEmpty() == false) {
+                    Operator newRootOperator = activeOperators.get(0);
+                    newRootOperator.finish();
+                }
+                break;
+            }
+        }
     }
 }

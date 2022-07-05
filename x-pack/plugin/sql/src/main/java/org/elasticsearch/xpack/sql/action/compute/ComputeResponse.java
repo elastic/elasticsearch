@@ -12,22 +12,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public class ComputeResponse extends ActionResponse {
-    private final Supplier<Page> pageSupplier; // quick hack to stream responses back
-
     public ComputeResponse(StreamInput in) {
         throw new UnsupportedOperationException();
     }
 
-    public ComputeResponse(Supplier<Page> pageSupplier) {
+    public ComputeResponse() {
         super();
-        this.pageSupplier = pageSupplier;
-    }
-
-    public Supplier<Page> getPageSupplier() {
-        return pageSupplier;
     }
 
     @Override

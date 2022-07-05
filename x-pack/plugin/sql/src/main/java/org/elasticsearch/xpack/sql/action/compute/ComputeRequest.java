@@ -13,20 +13,25 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 
+import java.util.function.Consumer;
+
 public class ComputeRequest extends SingleShardRequest<ComputeRequest> {
 
     public QueryBuilder query; // FROM clause (+ additional pushed down filters)
     public Aggs aggs;
     public long nowInMillis;
 
+    private final Consumer<Page> pageConsumer; // quick hack to stream responses back
+
     public ComputeRequest(StreamInput in) {
         throw new UnsupportedOperationException();
     }
 
-    public ComputeRequest(String index, QueryBuilder query, Aggs aggs) {
+    public ComputeRequest(String index, QueryBuilder query, Aggs aggs, Consumer<Page> pageConsumer) {
         super(index);
         this.query = query;
         this.aggs = aggs;
+        this.pageConsumer = pageConsumer;
     }
 
     @Override
@@ -40,5 +45,9 @@ public class ComputeRequest extends SingleShardRequest<ComputeRequest> {
 
     public void query(QueryBuilder query) {
         this.query = query;
+    }
+
+    public Consumer<Page> getPageConsumer() {
+        return pageConsumer;
     }
 }

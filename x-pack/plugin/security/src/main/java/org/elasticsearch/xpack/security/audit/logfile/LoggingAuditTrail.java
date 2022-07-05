@@ -1221,7 +1221,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRequestBody(UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+        LogEntryBuilder withRequestBody(final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "update_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject();

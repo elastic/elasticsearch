@@ -13,9 +13,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.annotations.SettingsProxy;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
@@ -41,13 +43,17 @@ import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.sp.api.analysis.TokenFilterFactoryProvider;
+import org.elasticsearch.sp.api.analysis.settings.AnalysisSettings;
+import org.elasticsearch.sp.api.analysis.settings.ClusterSettings;
+import org.elasticsearch.sp.api.analysis.settings.NodeSettings;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -171,6 +177,18 @@ public final class AnalysisModule {
             .map(AnalysisModule::mapToOldApi)
             .collect(Collectors.toList());
         tokenFilters.register(collect);
+
+        List<? extends org.elasticsearch.sp.api.analysis.AnalysisPlugin> analysisPlugins =
+            pluginsService.loadServiceProviders(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class);
+        List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect2 = new ArrayList<>();
+        for (org.elasticsearch.sp.api.analysis.AnalysisPlugin analysisPlugin : analysisPlugins) {
+            Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories = analysisPlugin.getTokenFilterFactories();
+            Map<String, AnalysisProvider<TokenFilterFactory>> stringAnalysisProviderMap = getStringAnalysisProviderMap(tokenFilterFactories);
+            collect2.add(stringAnalysisProviderMap);
+        }
+        tokenFilters.register(collect2);
+
+
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
     }
@@ -182,6 +200,10 @@ public final class AnalysisModule {
         Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
             provider.getTokenFilterFactories();
 
+        return getStringAnalysisProviderMap(tokenFilterFactories);
+    }
+
+    private static Map<String, AnalysisProvider<TokenFilterFactory>> getStringAnalysisProviderMap(Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories) {
         Map<String, AnalysisProvider<TokenFilterFactory>> res = new HashMap<>();
         for (Map.Entry<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> entry : tokenFilterFactories
             .entrySet()) {
@@ -191,7 +213,7 @@ public final class AnalysisModule {
                     throws IOException {
                     Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> value = entry.getValue();
                     org.elasticsearch.sp.api.analysis.TokenFilterFactory tokenFilterFactory;
-                    tokenFilterFactory = createInstance(value);
+                    tokenFilterFactory = createInstance(value, indexSettings, environment.settings(), settings);
 
                     return new TokenFilterFactory() {
                         @Override
@@ -211,15 +233,47 @@ public final class AnalysisModule {
         return res;
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private static org.elasticsearch.sp.api.analysis.TokenFilterFactory createInstance(
-        Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> value
-    ) {
+        Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> value,
+        IndexSettings indexSettings, Settings nodeSettings, Settings analysisSettings) {
         try {
-            return value.getDeclaredConstructor().newInstance();
+            for(Constructor<?> constructor : value.getConstructors()){
+                org.elasticsearch.sp.api.analysis.settings.Inject inject =
+                    constructor.getAnnotation(org.elasticsearch.sp.api.analysis.settings.Inject.class);
+                if (inject != null) {
+                    Class<?>[] parameterTypes = constructor.getParameterTypes();
+                    Object[] parameters = new Object[parameterTypes.length];
+                    for (int i =0; i< parameterTypes.length; i++) {
+                        Object settings = createSettings(parameterTypes[i], indexSettings, nodeSettings, analysisSettings);
+                        parameters[i] = settings;
+                    }
+                    return (org.elasticsearch.sp.api.analysis.TokenFilterFactory) constructor.newInstance(parameters);
+                }
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
         return null;
+    }
+
+    private static <T> T createSettings(Class<T> settingsClass, IndexSettings indexSettings, Settings nodeSettings, Settings analysisSettings) {
+        if( settingsClass.getAnnotationsByType(NodeSettings.class) != null) {
+            return SettingsProxy.create(nodeSettings, settingsClass);
+        }
+        if(settingsClass.getAnnotationsByType(AnalysisSettings.class) != null) {
+            return  SettingsProxy.create(analysisSettings, settingsClass);
+
+        }
+        if(settingsClass.getAnnotationsByType(ClusterSettings.class) != null) {
+            return null;//SettingsProxy.create(clusterService, settingsClass);
+        }
+        if(settingsClass.getAnnotationsByType(org.elasticsearch.sp.api.analysis.settings.IndexSettings.class) != null) {
+            return   SettingsProxy.create(indexSettings, settingsClass);
+        }
+
+         throw new IllegalArgumentException("unsupported parameter");
     }
 
     static Map<String, PreBuiltAnalyzerProviderFactory> setupPreBuiltAnalyzerProviderFactories(List<AnalysisPlugin> plugins) {

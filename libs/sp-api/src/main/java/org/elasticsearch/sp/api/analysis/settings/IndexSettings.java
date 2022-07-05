@@ -6,10 +6,15 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.sp.api {
-    requires org.apache.lucene.core;
+package org.elasticsearch.sp.api.analysis.settings;
 
-    exports org.elasticsearch.sp.api.analysis;
-    exports org.elasticsearch.sp.api.analysis.settings;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface IndexSettings {
 
 }

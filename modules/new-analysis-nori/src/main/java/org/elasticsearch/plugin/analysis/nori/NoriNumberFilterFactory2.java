@@ -11,12 +11,15 @@ package org.elasticsearch.plugin.analysis.nori;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ko.KoreanNumberFilter;
 import org.elasticsearch.sp.api.analysis.TokenFilterFactory;
+import org.elasticsearch.sp.api.analysis.settings.Inject;
 
-public class NoriNumberFilterFactory implements TokenFilterFactory {
+public class NoriNumberFilterFactory2 implements TokenFilterFactory {
 
     private String name;
 
-    public NoriNumberFilterFactory() {
+    @Inject
+    public NoriNumberFilterFactory2(NoriAnalysisSettings noriAnalysisSettings) {
+        System.out.println("new nori "+noriAnalysisSettings.getDecompoundMode());
     }
 
     @Override

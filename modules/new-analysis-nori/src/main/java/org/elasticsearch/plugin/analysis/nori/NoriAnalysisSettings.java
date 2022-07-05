@@ -6,10 +6,14 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.sp.api {
-    requires org.apache.lucene.core;
+package org.elasticsearch.plugin.analysis.nori;
 
-    exports org.elasticsearch.sp.api.analysis;
-    exports org.elasticsearch.sp.api.analysis.settings;
+import org.elasticsearch.sp.api.analysis.settings.AnalysisSettings;
+import org.elasticsearch.sp.api.analysis.settings.StringSetting;
 
+@AnalysisSettings(prefix = "")
+public interface NoriAnalysisSettings {
+
+    @StringSetting(path = "decompoundMode")
+    String getDecompoundMode();
 }

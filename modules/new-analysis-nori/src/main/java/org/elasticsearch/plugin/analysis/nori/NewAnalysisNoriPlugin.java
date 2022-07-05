@@ -21,7 +21,7 @@ public class NewAnalysisNoriPlugin implements AnalysisPlugin {
         return Map.of(
             "nori_part_of_speech", NoriPartOfSpeechStopFilterFactory.class,
             "nori_readingform", NoriReadingFormFilterFactory.class,
-            "nori_number", NoriNumberFilterFactory.class);
+            "nori_number", NoriNumberFilterFactory2.class);
     }
 
 

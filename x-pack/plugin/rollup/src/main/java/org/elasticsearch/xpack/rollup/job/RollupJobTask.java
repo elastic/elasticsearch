@@ -169,6 +169,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 @Override
                 public void onResponse(RefreshResponse refreshResponse) {
                     logger.trace("refreshing rollup index {} successful for job {}", jobConfig.getRollupIndex(), jobConfig.getId());
+                    listener.onResponse(null);
                 }
 
                 @Override
@@ -179,10 +180,10 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                         jobConfig.getId(),
                         e
                     );
+                    listener.onResponse(null);
                 }
             };
             client.admin().indices().refresh(new RefreshRequest(jobConfig.getRollupIndex()), refreshResponseActionListener);
-            listener.onResponse(null);
         }
 
         @Override

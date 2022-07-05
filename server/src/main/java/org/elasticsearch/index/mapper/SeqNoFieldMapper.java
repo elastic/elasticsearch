@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.field.SeqNoDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -60,6 +61,7 @@ import java.util.function.Supplier;
 
  */
 public class SeqNoFieldMapper extends MetadataFieldMapper {
+    private static final Logger logger = LogManager.getLogger(SeqNoFieldMapper.class);
 
     /**
      * A sequence ID, which is made up of a sequence number (both the searchable
@@ -117,7 +119,13 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
     public static final String POINTS_NAME = "_seq_no_points";
-    private static final int POINTS_SHIFT = 2;
+    /**
+     * The number of bits of precision we throw away in the
+     * {@link LongPoint points} for the {@code _seq_no}. If queries need
+     * to make up for lost precision they double-check the {@code _seq_no}
+     * from doc values.
+     */
+    private static final int POINTS_SHIFT = 3;
     /**
      * An estimate for the cost of rechecking the doc values for the
      * {@code _seq_no} of a single document.
@@ -248,10 +256,10 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
             if (shiftedFrom == shiftedTo) {
                 if (from == unshiftedFrom && to == unshiftedTo) {
-                    System.err.println("pure point");
+                    logger.debug("pure point");
                     return LongPoint.newExactQuery(POINTS_NAME, shiftedFrom);
                 }
-                System.err.println("double check point");
+                logger.debug("double check point");
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 builder.add(LongPoint.newExactQuery(POINTS_NAME, shiftedFrom), BooleanClause.Occur.MUST);
                 builder.add(NumericDocValuesField.newSlowRangeQuery(NAME, from, to), BooleanClause.Occur.MUST);
@@ -261,26 +269,24 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             BooleanQuery.Builder disjunction = new BooleanQuery.Builder();
             disjunction.setMinimumNumberShouldMatch(1);
             if (from == unshiftedFrom) {
-                // this is wrong too?!
-                System.err.println("low is pure point");
+                logger.debug("low is pure point");
                 disjunction.add(LongPoint.newExactQuery(POINTS_NAME, shiftedFrom), BooleanClause.Occur.SHOULD);
             } else {
-                System.err.println("low is double check");
+                logger.debug("low is double check");
                 BooleanQuery.Builder conjunction = new BooleanQuery.Builder();
                 conjunction.add(LongPoint.newExactQuery(POINTS_NAME, shiftedFrom), BooleanClause.Occur.MUST);
                 conjunction.add(NumericDocValuesField.newSlowRangeQuery(NAME, from, to), BooleanClause.Occur.MUST);
                 disjunction.add(conjunction.build(), BooleanClause.Occur.SHOULD);
             }
             if (shiftedFrom + 1 != shiftedTo) {
-                System.err.println("require middle");
+                logger.debug("require middle");
                 disjunction.add(LongPoint.newRangeQuery(POINTS_NAME, shiftedFrom + 1, shiftedTo - 1), BooleanClause.Occur.SHOULD);
             }
-            if (to == unshiftedTo + (1 << POINTS_SHIFT) - 1) {
-                // this isn't right
-                System.err.println("high is pure point");
+            if (to == Long.MAX_VALUE || to == unshiftedTo + (1 << POINTS_SHIFT) - 1) {
+                logger.debug("high is pure point");
                 disjunction.add(LongPoint.newExactQuery(POINTS_NAME, shiftedTo), BooleanClause.Occur.SHOULD);
             } else {
-                System.err.println("high is double check");
+                logger.debug("high is double check");
                 BooleanQuery.Builder conjunction = new BooleanQuery.Builder();
                 conjunction.add(LongPoint.newExactQuery(POINTS_NAME, shiftedTo), BooleanClause.Occur.MUST);
                 conjunction.add(NumericDocValuesField.newSlowRangeQuery(NAME, from, to), BooleanClause.Occur.MUST);

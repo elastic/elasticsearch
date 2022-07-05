@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -68,7 +66,6 @@ public class SeqNoFieldMapperTests extends MapperServiceTestCase {
         });
     }
 
-    @Repeat(iterations=1000)
     public void testRangeQuery() throws IOException {
         testCase((ft, context) -> {
             int min = randomInt(MAX_SEQ_NO - 1);

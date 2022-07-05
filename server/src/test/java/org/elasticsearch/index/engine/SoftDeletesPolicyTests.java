@@ -8,10 +8,11 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -38,8 +39,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
+@Repeat(iterations=100)
 public class SoftDeletesPolicyTests extends ESTestCase {
 
     /**
@@ -95,7 +96,6 @@ public class SoftDeletesPolicyTests extends ESTestCase {
 
                 // getting the query has side effects, updating the internal state of the policy
                 final Query retentionQuery = policy.getRetentionQuery();
-                assertThat(retentionQuery, instanceOf(BooleanQuery.class));
 
                 // we only expose the minimum sequence number to the merge policy if the retention lock is not held
                 if (locks.isEmpty()) {

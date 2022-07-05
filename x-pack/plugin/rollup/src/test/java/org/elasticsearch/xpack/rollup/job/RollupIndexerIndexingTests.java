@@ -828,7 +828,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             MappedFieldType[] fieldTypes,
             MappedFieldType timestampField
         ) {
-            super(client, threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
+            super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
             this.searcher = searcher;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;

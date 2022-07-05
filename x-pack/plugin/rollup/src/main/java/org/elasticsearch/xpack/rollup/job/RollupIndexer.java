@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.rollup.job;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -62,7 +61,6 @@ import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
 public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, RollupIndexerJobStats> {
     static final String AGGREGATION_NAME = RollupField.NAME;
 
-    private final Client client;
     private final RollupJob job;
     private final CompositeAggregationBuilder compositeBuilder;
     private long maxBoundary;
@@ -74,14 +72,8 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      */
-    RollupIndexer(
-        Client client,
-        ThreadPool threadPool,
-        RollupJob job,
-        AtomicReference<IndexerState> initialState,
-        Map<String, Object> initialPosition
-    ) {
-        this(client, threadPool, job, initialState, initialPosition, new RollupIndexerJobStats());
+    RollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
+        this(threadPool, job, initialState, initialPosition, new RollupIndexerJobStats());
     }
 
     /**
@@ -93,7 +85,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      * @param jobStats jobstats instance for collecting stats
      */
     RollupIndexer(
-        Client client,
         ThreadPool threadPool,
         RollupJob job,
         AtomicReference<IndexerState> initialState,
@@ -101,7 +92,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         RollupIndexerJobStats jobStats
     ) {
         super(threadPool, initialState, initialPosition, jobStats);
-        this.client = client;
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
     }

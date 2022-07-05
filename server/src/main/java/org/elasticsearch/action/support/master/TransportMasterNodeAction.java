@@ -42,6 +42,9 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -140,6 +143,33 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 throw e;
             }
         }
+    }
+
+    /**
+     * Override this method if the master node action also has an {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler}
+     * interaction.
+     * <p>
+     * We need to check if certain settings or entities are allowed to be modified by the master node
+     * action, depending on if they are set as immutable in 'operator' mode (file based settings, modules, plugins).
+     *
+     * @return an Optional of the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} name
+     */
+    protected Optional<String> immutableStateHandlerName() {
+        return Optional.empty();
+    }
+
+    /**
+     * Override this method to return the keys of the cluster state or cluster entities that are modified by
+     * the Request object.
+     * <p>
+     * This method is used by the immutable state handler logic (see {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler})
+     * to verify if the keys don't conflict with an existing key set as immutable.
+     *
+     * @param request the TransportMasterNode request
+     * @return set of String keys intended to be modified/set/deleted by this request
+     */
+    protected Set<String> modifiedKeys(Request request) {
+        return Collections.emptySet();
     }
 
     @Override

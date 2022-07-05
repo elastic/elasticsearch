@@ -116,6 +116,10 @@ teardown:
                   }
                 ]
               }
+            },
+            "metadata": {
+               "letter": "a",
+               "number": 42
             }
           }
   - match: { updated: true }
@@ -150,7 +154,12 @@ teardown:
         id: "$user1_key_id"
         owner: true
   - length: { "api_keys" : 1 }
-  - is_true: "api_keys.0.metadata"
+  - match: {
+      "api_keys.0.metadata": {
+          "letter": "a",
+          "number": 42
+      }
+    }
 
   - do:
       security.clear_api_key_cache:

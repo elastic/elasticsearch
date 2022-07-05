@@ -103,11 +103,11 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                     "field",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup) -> null),
-                    DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()))
+                    DateFormatter.forPattern("epoch_millis")
                 );
-                DateFieldScript doubleFieldScript = leafFactory.newInstance(reader.leaves().get(0));
+                DateFieldScript dateFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Long> results = new ArrayList<>();
-                doubleFieldScript.runForDoc(0, results::add);
+                dateFieldScript.runForDoc(0, results::add);
                 assertEquals(numValues, results.size());
             }
         }

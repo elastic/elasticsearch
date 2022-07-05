@@ -23,6 +23,7 @@
           ],
           "parts": {
             "ids": {
+              "type": "string",
               "description": "The ID of the API key to update"
             }
           }

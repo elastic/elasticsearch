@@ -11,12 +11,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.immutablestate.TransformState;
 import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
 import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
+import org.elasticsearch.immutablestate.service.ImmutableStateUpdateStateTask;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,8 +53,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -276,6 +284,45 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
                 new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
             )
         );
+
+        doAnswer((Answer<Object>) invocation -> {
+            Object[] args = invocation.getArguments();
+
+            if ((args[3] instanceof ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor) == false) {
+                fail("Should have gotten a state update task to execute, instead got: " + args[3].getClass().getName());
+            }
+
+            ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor task =
+                (ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor) args[3];
+
+            ClusterStateTaskExecutor.TaskContext<ImmutableStateUpdateStateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
+                @Override
+                public ImmutableStateUpdateStateTask getTask() {
+                    return (ImmutableStateUpdateStateTask) args[1];
+                }
+
+                @Override
+                public void success(Runnable onPublicationSuccess) {}
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer) {}
+
+                @Override
+                public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void onFailure(Exception failure) {
+                    fail("Shouldn't fail here");
+                }
+            };
+
+            task.execute(state, List.of(context));
+
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
             controller.process("operator", parser, (e) -> {

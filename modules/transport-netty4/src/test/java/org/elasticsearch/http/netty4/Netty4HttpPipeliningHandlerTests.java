@@ -209,36 +209,13 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     public void testResumesChunkedMessage() {
-        final int chunks = randomIntBetween(2, 10);
-
         final List<Object> messagesSeen = new ArrayList<>();
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new ChannelDuplexHandler() {
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                assertTrue(ctx.channel().isWritable());
-                messagesSeen.add(msg);
-                super.write(ctx, msg, promise);
-            }
-        }, new Netty4HttpPipeliningHandler(logger, Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class)) {
-            @Override
-            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
-                ctx.fireChannelRead(pipelinedRequest);
-            }
-        });
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
         embeddedChannel.writeInbound(createHttpRequest("/chunked"));
         final Netty4HttpRequest request = embeddedChannel.readInbound();
         final BytesReference chunk = new BytesArray(randomByteArrayOfLength(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2));
-        final HttpResponse response = request.createResponse(RestStatus.OK, new ChunkedRestResponseBody() {
-
-            private int remaining = chunks;
-
-            @Override
-            public boolean encode(BiConsumer<Boolean, ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) {
-                final boolean result = --remaining == 0;
-                target.accept(result, ReleasableBytesReference.wrap(chunk));
-                return result;
-            }
-        });
+        final int chunks = randomIntBetween(2, 10);
+        final HttpResponse response = request.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks, chunk));
         final ChannelPromise promise = embeddedChannel.newPromise();
         embeddedChannel.write(response, promise);
         assertFalse("should not be fully flushed right away", promise.isDone());
@@ -252,20 +229,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testResumesAfterChunkedMessage() {
         final List<Object> messagesSeen = new ArrayList<>();
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new ChannelDuplexHandler() {
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                assertTrue(ctx.channel().isWritable());
-                messagesSeen.add(msg);
-                // TODO: assert response is correct
-                super.write(ctx, msg, promise);
-            }
-        }, new Netty4HttpPipeliningHandler(logger, Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class)) {
-            @Override
-            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
-                ctx.fireChannelRead(pipelinedRequest);
-            }
-        });
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
         embeddedChannel.writeInbound(createHttpRequest("/chunked"));
         embeddedChannel.writeInbound(createHttpRequest("/chunked2"));
         final Netty4HttpRequest request1 = embeddedChannel.readInbound();
@@ -274,28 +238,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final int chunks1 = randomIntBetween(2, 10);
         final int chunks2 = randomIntBetween(2, 10);
         final BytesReference chunk = new BytesArray(randomByteArrayOfLength(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2));
-        final HttpResponse response1 = request1.createResponse(RestStatus.OK, new ChunkedRestResponseBody() {
-
-            private int remaining = chunks1;
-
-            @Override
-            public boolean encode(BiConsumer<Boolean, ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) {
-                final boolean result = --remaining == 0;
-                target.accept(result, ReleasableBytesReference.wrap(chunk));
-                return result;
-            }
-        });
-        final HttpResponse response2 = request2.createResponse(RestStatus.OK, new ChunkedRestResponseBody() {
-
-            private int remaining = chunks2;
-
-            @Override
-            public boolean encode(BiConsumer<Boolean, ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) {
-                final boolean result = --remaining == 0;
-                target.accept(result, ReleasableBytesReference.wrap(chunk));
-                return result;
-            }
-        });
+        final HttpResponse response1 = request1.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks1, chunk));
+        final HttpResponse response2 = request2.createResponse(RestStatus.OK, getRepeatedChunkResponseBody(chunks2, chunk));
         final ChannelPromise promise1 = embeddedChannel.newPromise();
         embeddedChannel.write(response1, promise1);
         final ChannelPromise promise2 = embeddedChannel.newPromise();
@@ -309,6 +253,40 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(messagesSeen.get(chunks1), instanceOf(LastHttpContent.class));
         assertThat(messagesSeen.get(chunks1 + 1), instanceOf(Netty4ChunkedHttpResponse.class));
         assertThat(messagesSeen.get(chunks1 + chunks2 + 1), instanceOf(LastHttpContent.class));
+    }
+
+    private Netty4HttpPipeliningHandler getTestHttpHandler() {
+        return new Netty4HttpPipeliningHandler(logger, Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class)) {
+            @Override
+            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
+                ctx.fireChannelRead(pipelinedRequest);
+            }
+        };
+    }
+
+    private static ChunkedRestResponseBody getRepeatedChunkResponseBody(int chunkCount, BytesReference chunk) {
+        return new ChunkedRestResponseBody() {
+
+            private int remaining = chunkCount;
+
+            @Override
+            public boolean encode(BiConsumer<Boolean, ReleasableBytesReference> target, int sizeHint, Recycler<BytesRef> recycler) {
+                final boolean result = --remaining == 0;
+                target.accept(result, ReleasableBytesReference.wrap(chunk));
+                return result;
+            }
+        };
+    }
+
+    private static ChannelDuplexHandler capturingHandler(List<Object> messagesSeen) {
+        return new ChannelDuplexHandler() {
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                assertTrue(ctx.channel().isWritable());
+                messagesSeen.add(msg);
+                super.write(ctx, msg, promise);
+            }
+        };
     }
 
     private void assertReadHttpMessageHasContent(EmbeddedChannel embeddedChannel, String expectedContent) {

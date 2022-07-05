@@ -37,14 +37,17 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -62,6 +65,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeLoadDetector nodeLoadDetector;
+    private final SystemAuditor systemAuditor;
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
     private volatile int maxOpenJobs;
@@ -70,11 +74,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Settings settings,
         ClusterService clusterService,
         ThreadPool threadPool,
-        NodeLoadDetector nodeLoadDetector
+        NodeLoadDetector nodeLoadDetector,
+        SystemAuditor systemAuditor
     ) {
-        this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.nodeLoadDetector = nodeLoadDetector;
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.threadPool = Objects.requireNonNull(threadPool);
+        this.nodeLoadDetector = Objects.requireNonNull(nodeLoadDetector);
+        this.systemAuditor = Objects.requireNonNull(systemAuditor);
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
         this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
@@ -272,21 +278,16 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        rebalanceAssignments(
-            clusterService.state(),
-            Optional.of(params),
-            "model [" + params.getModelId() + "] started",
-            ActionListener.wrap(newMetadata -> {
-                TrainedModelAssignment assignment = newMetadata.getModelAssignment(params.getModelId());
-                if (assignment == null) {
-                    // If we could not allocate the model anywhere then it is possible the assignment
-                    // here is null. We should notify the listener of an empty assignment as the
-                    // handling of this is done elsewhere with the wait-to-start predicate.
-                    assignment = TrainedModelAssignment.Builder.empty(params).build();
-                }
-                listener.onResponse(assignment);
-            }, listener::onFailure)
-        );
+        rebalanceAssignments(clusterService.state(), Optional.of(params), "model deployment started", ActionListener.wrap(newMetadata -> {
+            TrainedModelAssignment assignment = newMetadata.getModelAssignment(params.getModelId());
+            if (assignment == null) {
+                // If we could not allocate the model anywhere then it is possible the assignment
+                // here is null. We should notify the listener of an empty assignment as the
+                // handling of this is done elsewhere with the wait-to-start predicate.
+                assignment = TrainedModelAssignment.Builder.empty(params).build();
+            }
+            listener.onResponse(assignment);
+        }, listener::onFailure));
     }
 
     public void setModelAssignmentToStopping(String modelId, ActionListener<AcknowledgedResponse> listener) {
@@ -327,7 +328,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 rebalanceAssignments(
                     newState,
                     Optional.empty(),
-                    "deployment for model [" + modelId + "] stopped",
+                    "model deployment stopped",
                     ActionListener.wrap(
                         metadataAfterRebalance -> logger.debug(
                             () -> format("Successfully rebalanced model deployments after deployment for model [%s] was stopped", modelId)
@@ -408,13 +409,16 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
 
                 private volatile boolean isUpdated;
+                private volatile boolean isChanged;
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
 
                     if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
                         isUpdated = true;
-                        return update(currentState, rebalancedMetadata);
+                        ClusterState updatedState = update(currentState, rebalancedMetadata);
+                        isChanged = updatedState != currentState;
+                        return updatedState;
                     }
                     rebalanceAssignments(currentState, modelToAdd, reason, listener);
                     return currentState;
@@ -428,6 +432,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (isUpdated) {
+                        if (isChanged) {
+                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                .execute(() -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason)));
+                        }
                         listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
                     }
                 }

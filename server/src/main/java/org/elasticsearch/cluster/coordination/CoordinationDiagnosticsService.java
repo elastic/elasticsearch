@@ -14,10 +14,14 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Collection;
@@ -412,13 +416,34 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         CoordinationDiagnosticsStatus status,
         String summary,
         CoordinationDiagnosticsDetails details
-    ) {}
+    ) implements Writeable {
 
-    public enum CoordinationDiagnosticsStatus {
+        public CoordinationDiagnosticsResult(StreamInput in) throws IOException {
+            this(CoordinationDiagnosticsStatus.fromStreamInput(in), in.readString(), new CoordinationDiagnosticsDetails(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            status.writeTo(out);
+            out.writeString(summary);
+            details.writeTo(out);
+        }
+    }
+
+    public enum CoordinationDiagnosticsStatus implements Writeable {
         GREEN,
         UNKNOWN,
         YELLOW,
         RED;
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        public static CoordinationDiagnosticsStatus fromStreamInput(StreamInput in) throws IOException {
+            return in.readEnum(CoordinationDiagnosticsStatus.class);
+        }
     }
 
     public record CoordinationDiagnosticsDetails(
@@ -427,7 +452,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         @Nullable String remoteExceptionMessage,
         @Nullable String remoteExceptionStackTrace,
         @Nullable String clusterFormationDescription
-    ) {
+    ) implements Writeable {
 
         public CoordinationDiagnosticsDetails(DiscoveryNode currentMaster, List<DiscoveryNode> recentMasters) {
             this(currentMaster, recentMasters, null, null, null);
@@ -435,6 +460,32 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
         public CoordinationDiagnosticsDetails(DiscoveryNode currentMaster, Exception remoteException) {
             this(currentMaster, null, remoteException == null ? null : remoteException.getMessage(), getStackTrace(remoteException), null);
+        }
+
+        public CoordinationDiagnosticsDetails(StreamInput in) throws IOException {
+            this(readCurrentMaster(in), readRecentMasters(in), in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+        }
+
+        private static DiscoveryNode readCurrentMaster(StreamInput in) throws IOException {
+            boolean hasCurrentMaster = in.readBoolean();
+            DiscoveryNode currentMaster;
+            if (hasCurrentMaster) {
+                currentMaster = new DiscoveryNode(in);
+            } else {
+                currentMaster = null;
+            }
+            return currentMaster;
+        }
+
+        private static List<DiscoveryNode> readRecentMasters(StreamInput in) throws IOException {
+            boolean hasRecentMasters = in.readBoolean();
+            List<DiscoveryNode> recentMasters;
+            if (hasRecentMasters) {
+                recentMasters = in.readImmutableList(DiscoveryNode::new);
+            } else {
+                recentMasters = null;
+            }
+            return recentMasters;
         }
 
         private static String getStackTrace(Exception e) {
@@ -447,5 +498,25 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }
 
         public static final CoordinationDiagnosticsDetails EMPTY = new CoordinationDiagnosticsDetails(null, null, null, null, null);
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (currentMaster == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                currentMaster.writeTo(out);
+            }
+            if (recentMasters == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeList(recentMasters);
+            }
+            out.writeOptionalString(remoteExceptionMessage);
+            out.writeOptionalString(remoteExceptionStackTrace);
+            out.writeOptionalString(clusterFormationDescription);
+        }
+
     }
 }

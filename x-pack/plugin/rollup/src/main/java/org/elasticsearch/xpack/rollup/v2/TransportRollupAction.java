@@ -214,9 +214,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             final List<String> metricFields = new ArrayList<>();
             final List<String> labelFields = new ArrayList<>();
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-                if (isDimensionField(field, mapping)) {
+                if (isDimensionField(mapping)) {
                     dimensionFields.add(field);
-                } else if (isMetricField(field, mapping)) {
+                } else if (isMetricField(mapping)) {
                     metricFields.add(field);
                 } else if (isLabelField(field, request.getRollupConfig().getTimestampField(), mapperService)) {
                     labelFields.add(field);
@@ -375,13 +375,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             && (mapperService.isMetadataField(field) == false);
     }
 
-    private static boolean isMetricField(final String field, final Map<String, ?> mapping) {
+    private static boolean isMetricField(final Map<String, ?> mapping) {
         final String metricType = (String) mapping.get(TIME_SERIES_METRIC_PARAM);
         return metricType != null
             && Arrays.asList(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricType));
     }
 
-    private static boolean isDimensionField(final String field, final Map<String, ?> mapping) {
+    private static boolean isDimensionField(final Map<String, ?> mapping) {
         return Boolean.TRUE.equals(mapping.get(TIME_SERIES_DIMENSION_PARAM));
     }
 
@@ -432,7 +432,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         final XContentBuilder builder
     ) {
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-            if (isMetricField(field, mapping)) {
+            if (isMetricField(mapping)) {
                 try {
                     addMetricFieldMapping(builder, field, mapping);
                 } catch (IOException e) {

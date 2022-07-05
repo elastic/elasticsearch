@@ -12,6 +12,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.tasks.Internal
 import org.gradle.process.ExecOperations
 
@@ -23,8 +24,8 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
     AntFixture fixture
 
     @Inject
-    AntFixtureStop(ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
-       super(execOperations, fileSystemOperations)
+    AntFixtureStop(ProjectLayout projectLayout, ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
+       super(projectLayout, execOperations, fileSystemOperations)
     }
 
     void setFixture(AntFixture fixture) {
@@ -38,7 +39,7 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
 
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             getExecutable().set('Taskkill')
-            args('/PID', pid, '/F')
+            getArgs().addAll('/PID', pid, '/F')
         } else {
             getExecutable().set('kill')
             getArgs().addAll('-9', pid)

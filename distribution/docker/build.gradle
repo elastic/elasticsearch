@@ -469,12 +469,13 @@ subprojects { Project subProject ->
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
-      executable 'docker'
+      getExecutable().set('docker')
       outputs.file(tarFile)
-      args "save",
+      getArgs().addAll("save",
         "-o",
         tarFile,
         "elasticsearch${base.suffix}:test"
+      )
 
       dependsOn(parent.path + ":" + buildTaskName)
       onlyIf { Architecture.current() == architecture }

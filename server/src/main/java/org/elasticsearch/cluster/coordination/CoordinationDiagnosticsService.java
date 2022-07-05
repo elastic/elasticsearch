@@ -460,6 +460,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 .stream()
                 .map(
                     entry -> String.format(
+                        Locale.ROOT,
                         "%s reports that a quorum " + "cannot be formed: [%s]",
                         entry.getKey().getName(),
                         entry.getValue()

@@ -1,0 +1,6 @@
+pr: 88262
+summary: Change UBI docker user to `elasticsearch`
+area: Packaging
+type: enhancement
+issues:
+ - 88218

@@ -140,17 +140,18 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         createIndex(
             "myindex",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
         );
 
         putNodeShutdown(node0Id, SingleNodeShutdownMetadata.Type.REPLACE, node1);
         assertNodeShutdownStatus(node0Id, STALLED);
 
-        node1 = internalCluster().startNode();// node_t1
+        internalCluster().startNode();// node_t1
         String node1Id = getNodeId(node1);
 
-        assertBusy(() -> assertAllIndexShardsAreAllocatedOnNode("myindex", node1Id));
         assertBusy(() -> assertNodeShutdownStatus(node0Id, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1Id);
+        assertIndexReplicaShardsAreUnAllocated("myindex");
 
         node2 = internalCluster().startNode();// node_t2
         String node2Id = getNodeId(node2);
@@ -160,7 +161,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             "other",
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        assertAllIndexShardsAreAllocatedOnNode("other", node2Id);
+        assertIndexPrimaryShardsAreAllocatedOnNode("other", node2Id);
     }
 
     public void testNodeReplacementOverridesFilters() throws Exception {
@@ -185,8 +186,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         node1 = internalCluster().startNode();// node_t1
         String node1Id = getNodeId(node1);
 
-        assertBusy(() -> assertAllIndexShardsAreAllocatedOnNode("myindex", node1Id));
         assertBusy(() -> assertNodeShutdownStatus(node0Id, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1Id);
     }
 
     public void testNodeReplacementMovesDataOnlyToTheTarget() throws Exception {
@@ -206,8 +207,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().startNode();// node_t2
         String node1Id = getNodeId(node1);
 
-        assertBusy(() -> assertAllIndexShardsAreAllocatedOnNode("myindex", node1Id));
         assertBusy(() -> assertNodeShutdownStatus(node0Id, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1Id);
     }
 
     public void testReallocationForReplicaDuringNodeReplace() throws Exception {
@@ -410,21 +411,33 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(response.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(status));
     }
 
-    private void assertAllIndexShardsAreAllocatedOnNode(String indexName, String nodeId) {
-        ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
-        for (ShardRouting sr : state.routingTable().allShards(indexName)) {
+    private void assertIndexPrimaryShardsAreAllocatedOnNode(String indexName, String nodeId) {
+        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var indexRoutingTable = state.routingTable().index(indexName);
+        for (int p = 0; p < indexRoutingTable.size(); p++) {
+            var primaryShard = indexRoutingTable.shard(p).primaryShard();
             assertThat(
                 "expected all shards for index ["
                     + indexName
                     + "] to be on node ["
                     + nodeId
                     + "] but "
-                    + sr.toString()
+                    + primaryShard.toString()
                     + " is on "
-                    + sr.currentNodeId(),
-                sr.currentNodeId(),
+                    + primaryShard.currentNodeId(),
+                primaryShard.currentNodeId(),
                 equalTo(nodeId)
             );
+        }
+    }
+
+    private void assertIndexReplicaShardsAreUnAllocated(String indexName) {
+        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var indexRoutingTable = state.routingTable().index(indexName);
+        for (int p = 0; p < indexRoutingTable.size(); p++) {
+            for (ShardRouting replicaShard : indexRoutingTable.shard(p).replicaShards()) {
+                assertThat(replicaShard.unassigned(), equalTo(true));
+            }
         }
     }
 }

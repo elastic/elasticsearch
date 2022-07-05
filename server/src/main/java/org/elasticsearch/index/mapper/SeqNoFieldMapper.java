@@ -125,7 +125,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
      * to make up for lost precision they double-check the {@code _seq_no}
      * from doc values.
      */
-    private static final int POINTS_SHIFT = 3;
+    private static final int POINTS_SHIFT = 10;
     /**
      * An estimate for the cost of rechecking the doc values for the
      * {@code _seq_no} of a single document.

@@ -89,8 +89,8 @@ final class SettingsUpdater {
             Settings persistentFinalSettings = persistentSettings.build();
             // both transient and persistent settings must be consistent by itself we can't allow dependencies to be
             // in either of them otherwise a full cluster restart will break the settings validation
-            clusterSettings.validate(transientFinalSettings, true);
-            clusterSettings.validate(persistentFinalSettings, true);
+            clusterSettings.validate(transientFinalSettings, true, false, true);
+            clusterSettings.validate(persistentFinalSettings, true, false, true);
 
             Metadata.Builder metadata = Metadata.builder(currentState.metadata())
                 .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())

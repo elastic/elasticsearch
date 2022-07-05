@@ -248,6 +248,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
             assertThat(responseMap.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
+            assertThat(XContentMapValues.extractValue("inference_stats", stats.get(0)), is(not(nullValue())));
 
             Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
             assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
@@ -340,6 +341,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
             assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
 
+            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(2));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(2));
         }

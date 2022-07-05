@@ -918,9 +918,20 @@ public class DockerTests extends PackagingTestCase {
 
         final String[] fields = processes.get(0).trim().split("\\s+", 4);
 
+        String expectedUid;
+        switch (distribution.packaging) {
+            case DOCKER_IRON_BANK:
+            case DOCKER_UBI:
+                expectedUid = "1000";
+                break;
+            default:
+                expectedUid = "0";
+                break;
+        }
+
         assertThat(fields, arrayWithSize(4));
         assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo(distribution.packaging == Packaging.DOCKER_IRON_BANK ? "1000" : "0"));
+        assertThat("Incorrect UID", fields[1], equalTo(expectedUid));
         assertThat("Incorrect GID", fields[2], equalTo("0"));
         assertThat("Incorrect init command", fields[3], startsWith("/bin/tini"));
     }

@@ -88,7 +88,8 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 assertThat(
                     e.getMessage(),
                     equalTo(
-                        "Runtime field [composite.leaf] is emitting [1310720] characters while the maximum number of values allowed is [1048576]"
+                        "Runtime field [composite.leaf] is emitting [1310720] characters " +
+                            "while the maximum number of values allowed is [1048576]"
                     )
                 );
             }

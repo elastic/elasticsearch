@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -48,6 +49,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
+    public static Version VERSION_SUPPORTING_SILENT_PARAMETER = Version.V_8_4_0;
     private boolean silent = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
@@ -84,7 +86,11 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        silent = in.readBoolean();
+        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_SILENT_PARAMETER)) {
+            silent = in.readBoolean();
+        } else {
+            silent = true;
+        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
@@ -104,7 +110,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        out.writeBoolean(silent);
+        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_SILENT_PARAMETER)) {
+            out.writeBoolean(silent);
+        }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
@@ -528,8 +536,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
                 includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
-            } else if (name.equals("silent")) {
-                silent = nodeBooleanValue(entry.getValue(), "silent");
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
@@ -598,7 +604,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
-        builder.field("silent", silent);
         if (indexSettings != null) {
             builder.startObject("index_settings");
             if (indexSettings.isEmpty() == false) {

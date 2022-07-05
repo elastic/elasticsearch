@@ -376,9 +376,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     private static boolean isMetricField(final String field, final Map<String, ?> mapping) {
-        final String metricTYpe = (String) mapping.get(TIME_SERIES_METRIC_PARAM);
-        return metricTYpe != null
-            && Arrays.asList(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricTYpe));
+        final String metricType = (String) mapping.get(TIME_SERIES_METRIC_PARAM);
+        return metricType != null
+            && Arrays.asList(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricType));
     }
 
     private static boolean isDimensionField(final String field, final Map<String, ?> mapping) {

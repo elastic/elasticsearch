@@ -725,6 +725,27 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId2);
     }
 
+    public void testNotifications() throws IOException {
+        String modelId1 = "test_notifications_1";
+        createTrainedModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+        startDeployment(modelId1);
+
+        String modelId2 = "test_notifications_2";
+        createTrainedModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+        startDeployment(modelId2);
+
+        stopDeployment(modelId1);
+        stopDeployment(modelId2);
+
+        assertNotificationsContain(modelId1, "Started deployment", "Stopped deployment");
+        assertNotificationsContain(modelId2, "Started deployment", "Stopped deployment");
+        assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment started]");
+    }
+
     @SuppressWarnings("unchecked")
     private void assertAllocationCount(String modelId, int expectedAllocationCount) throws IOException {
         Response response = getTrainedModelStats(modelId);
@@ -874,5 +895,48 @@ public class PyTorchModelIT extends ESRestTestCase {
         getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
         getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
         assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
+    }
+
+    private void assertNotificationsContain(String modelId, String... auditMessages) throws IOException {
+        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+        Request search = new Request("POST", ".ml-notifications-*/_search");
+        search.setJsonEntity("""
+            {
+                "size": 100,
+                "query": {
+                  "bool": {
+                    "filter": [
+                      {"term": {"job_id": "%s"}},
+                      {"term": {"job_type": "inference"}}
+                    ]
+                  }
+                }
+            }
+            """.formatted(modelId));
+        String response = EntityUtils.toString(client().performRequest(search).getEntity());
+        for (String msg : auditMessages) {
+            assertThat(response, containsString(msg));
+        }
+    }
+
+    private void assertSystemNotificationsContain(String... auditMessages) throws IOException {
+        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+        Request search = new Request("POST", ".ml-notifications-*/_search");
+        search.setJsonEntity("""
+            {
+                "size": 100,
+                "query": {
+                  "bool": {
+                    "filter": [
+                      {"term": {"job_type": "system"}}
+                    ]
+                  }
+                }
+            }
+            """);
+        String response = EntityUtils.toString(client().performRequest(search).getEntity());
+        for (String msg : auditMessages) {
+            assertThat(response, containsString(msg));
+        }
     }
 }

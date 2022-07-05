@@ -1214,7 +1214,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
             builder.put(Collections.unmodifiableMap(immutableStateMetadata.apply(part.immutableStateMetadata)));
-            return builder.build();
+            return builder.build(true);
         }
     }
 
@@ -1842,6 +1842,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
          * @return a new <code>Metadata</code> instance
          */
         public Metadata build() {
+            return build(false);
+        }
+
+        private Metadata build(boolean skipNameCollisionChecks) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
@@ -1893,7 +1897,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
-            } else {
+            } else if (skipNameCollisionChecks == false) {
                 // we have changes to the the entity names so we ensure we have no naming collisions
                 ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
             }

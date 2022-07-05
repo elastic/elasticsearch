@@ -250,7 +250,7 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-<% if (docker_base == 'iron_bank') { %>
+<% if (docker_base == 'ubi' || docker_base == 'iron_bank') { %>
 USER elasticsearch:root
 <% } %>
 

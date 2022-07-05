@@ -200,6 +200,21 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds }
 
+  # Give user new cluster privilege to test auto update
+  - do:
+      security.put_role:
+        name: "user_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": "index-a",
+                "privileges": ["all"]
+              }
+            ]
+          }
+
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
@@ -223,7 +238,7 @@ teardown:
     }
   }
 
-  # Check privileges did not change
+  # Check privileges auto-updated to owner user's
   - do:
       headers:
         Authorization: ApiKey ${login_creds}
@@ -231,7 +246,7 @@ teardown:
         user: null
         body: >
           {
-            "cluster": ["manage_own_api_key"],
+            "cluster": ["all"],
             "index": [
               {
                 "names": ["index-a"],
@@ -279,6 +294,21 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds }
 
+  # Give user new cluster privilege to test auto update
+  - do:
+      security.put_role:
+        name: "user_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": "index-a",
+                "privileges": ["all"]
+              }
+            ]
+          }
+
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
@@ -291,7 +321,6 @@ teardown:
           }
   - match: { updated: true }
 
-  # Check metadata empty
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
@@ -303,7 +332,7 @@ teardown:
     "api_keys.0.metadata": {}
   }
 
-  # Check privileges match owner user's
+  # Check privileges auto-updated to owner user's
   - do:
       headers:
         Authorization: ApiKey ${login_creds}
@@ -311,7 +340,7 @@ teardown:
         user: null
         body: >
           {
-            "cluster": ["manage_own_api_key"],
+            "cluster": ["all"],
             "index": [
               {
                 "names": ["index-a"],

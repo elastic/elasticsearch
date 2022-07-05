@@ -35,7 +35,7 @@ setup:
 teardown:
   - do:
       security.delete_role:
-        name: "use_role"
+        name: "user_role"
         ignore: 404
 
   - do:

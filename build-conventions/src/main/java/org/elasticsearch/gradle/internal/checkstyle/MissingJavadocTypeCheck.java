@@ -59,7 +59,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
     private Pattern ignorePattern = Pattern.compile("^$");
 
     /**
-     * Specify the list of annotations that allow missed documentation.
+     * Specify the set of annotations that allow missed documentation.
      * Only short names are allowed, e.g. {@code Generated}.
      */
     private Set<String> skipAnnotations = Set.of("Generated");

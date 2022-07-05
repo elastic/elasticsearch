@@ -920,8 +920,8 @@ public class DockerTests extends PackagingTestCase {
 
         String expectedUid;
         switch (distribution.packaging) {
-            case Packaging.DOCKER_IRON_BANK:
-            case Packaging.DOCKER_UBI:
+            case DOCKER_IRON_BANK:
+            case DOCKER_UBI:
                 expectedUid = "1000";
                 break;
             default:

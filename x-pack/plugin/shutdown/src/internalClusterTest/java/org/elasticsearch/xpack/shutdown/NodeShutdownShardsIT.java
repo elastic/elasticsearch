@@ -30,6 +30,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
@@ -51,18 +52,17 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      */
     public void testShardStatusStaysCompleteAfterNodeLeaves() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
-        final String nodeToRestartName = internalCluster().startNode();
-        final String nodeToRestartId = getNodeId(nodeToRestartName);
-        internalCluster().startNode();
+        var nodeToRestart = createNode("node_t0", internalCluster()::startNode);
+        createNode("node_t1", internalCluster()::startNode);
 
-        putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+        putNodeShutdown(nodeToRestart.id, SingleNodeShutdownMetadata.Type.REMOVE, null);
 
-        internalCluster().stopNode(nodeToRestartName);
+        internalCluster().stopNode(nodeToRestart.name);
 
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
+        assertNodeShutdownStatus(nodeToRestart.id, COMPLETE);
     }
 
     /**
@@ -72,26 +72,25 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76689")
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
-        final String nodeToRestartName = internalCluster().startNode();
-        final String nodeToRestartId = getNodeId(nodeToRestartName);
-        internalCluster().startNode();
+        var nodeToRestart = createNode("node_t0", internalCluster()::startNode);
+        createNode("node_t1", internalCluster()::startNode);
 
         // Stop the node we're going to shut down and mark it as shutting down while it's offline. This checks that the cluster state
         // listener is working correctly.
-        internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(nodeToRestart.name, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+                putNodeShutdown(nodeToRestart.id, SingleNodeShutdownMetadata.Type.REMOVE, null);
                 return super.onNodeStopped(nodeName);
             }
         });
 
-        internalCluster().stopNode(nodeToRestartName);
+        internalCluster().stopNode(nodeToRestart.name);
 
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
+        assertNodeShutdownStatus(nodeToRestart.id, COMPLETE);
     }
 
     /**
@@ -100,13 +99,12 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      */
     public void testShardStatusIsCompleteOnNonDataNodes() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
-        final String nodeToRestartName = internalCluster().startMasterOnlyNode();
-        final String nodeToRestartId = getNodeId(nodeToRestartName);
+        var nodeToRestart = createNode("node_t0", () -> internalCluster().startMasterOnlyNode());
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node
 
-        putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+        putNodeShutdown(nodeToRestart.id, SingleNodeShutdownMetadata.Type.REMOVE, null);
 
-        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
+        assertNodeShutdownStatus(nodeToRestart.id, COMPLETE);
     }
 
     /**
@@ -133,87 +131,78 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
-        String node0 = internalCluster().startNode();// node_t0
-        String node0Id = getNodeId(node0);
-        String node1 = "node_t1";
-        String node2 = "node_t2";
+        var node0 = createNode("node_t0", internalCluster()::startNode);
 
         createIndex(
             "myindex",
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
         );
 
-        putNodeShutdown(node0Id, SingleNodeShutdownMetadata.Type.REPLACE, node1);
-        assertNodeShutdownStatus(node0Id, STALLED);
+        putNodeShutdown(node0.id, SingleNodeShutdownMetadata.Type.REPLACE, "node_t1");
+        assertNodeShutdownStatus(node0.id, STALLED);
 
-        internalCluster().startNode();// node_t1
-        String node1Id = getNodeId(node1);
+        var node1 = createNode("node_t1", internalCluster()::startNode);
 
-        assertBusy(() -> assertNodeShutdownStatus(node0Id, COMPLETE));
-        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1Id);
+        assertBusy(() -> assertNodeShutdownStatus(node0.id, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1.id);
         assertIndexReplicaShardsAreUnAllocated("myindex");
 
-        node2 = internalCluster().startNode();// node_t2
-        String node2Id = getNodeId(node2);
+        var node2 = createNode("node_t2", internalCluster()::startNode);
 
         // newly created index should be allocated elsewhere as `node1` is "reserved" for data migrated from `node0`
         createIndex(
             "other",
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        assertIndexPrimaryShardsAreAllocatedOnNode("other", node2Id);
+        assertIndexPrimaryShardsAreAllocatedOnNode("other", node2.id);
     }
 
     public void testNodeReplacementOverridesFilters() throws Exception {
-        String node0 = internalCluster().startNode();// node_t0
-        String node0Id = getNodeId(node0);
-        String node1 = "node_t1";
+        var node0 = createNode("node_t0", internalCluster()::startNode);
 
         // Create an index and pin it to node0, when we replace it with node1,
         // it'll move the data, overridding the `_name` allocation filter
         createIndex(
             "myindex",
             Settings.builder()
-                .put("index.routing.allocation.require._name", node0)
+                .put("index.routing.allocation.require._name", node0.name)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()
         );
 
-        putNodeShutdown(node0Id, SingleNodeShutdownMetadata.Type.REPLACE, node1);
-        assertNodeShutdownStatus(node0Id, STALLED);
+        putNodeShutdown(node0.id, SingleNodeShutdownMetadata.Type.REPLACE, "node_t1");
+        assertNodeShutdownStatus(node0.id, STALLED);
 
-        node1 = internalCluster().startNode();// node_t1
-        String node1Id = getNodeId(node1);
+        var node1 = createNode("node_t1", internalCluster()::startNode);
 
-        assertBusy(() -> assertNodeShutdownStatus(node0Id, COMPLETE));
-        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1Id);
+        assertBusy(() -> assertNodeShutdownStatus(node0.id, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1.id);
     }
 
     public void testNodeReplacementMovesDataOnlyToTheTarget() throws Exception {
-        String node0 = internalCluster().startNode(Settings.builder().put("cluster.routing.rebalance.enable", "none"));// node_t0
-        String node0Id = getNodeId(node0);
-        String node1 = "node_t1";
+        var node0 = createNode(
+            "node_t0",
+            () -> internalCluster().startNode(Settings.builder().put("cluster.routing.rebalance.enable", "none"))
+        );
 
         createIndex(
             "myindex",
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
-        putNodeShutdown(node0Id, SingleNodeShutdownMetadata.Type.REPLACE, node1);
-        assertNodeShutdownStatus(node0Id, STALLED);
+        putNodeShutdown(node0.id, SingleNodeShutdownMetadata.Type.REPLACE, "node_t1");
+        assertNodeShutdownStatus(node0.id, STALLED);
 
-        node1 = internalCluster().startNode();// node_t1
-        internalCluster().startNode();// node_t2
-        String node1Id = getNodeId(node1);
+        var node1 = createNode("node_t1", internalCluster()::startNode);
+        createNode("node_t2", internalCluster()::startNode);
 
-        assertBusy(() -> assertNodeShutdownStatus(node0Id, COMPLETE));
-        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1Id);
+        assertBusy(() -> assertNodeShutdownStatus(node0.id, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1.id);
     }
 
     public void testReallocationForReplicaDuringNodeReplace() throws Exception {
-        String node0 = internalCluster().startNode();// node_t0
-        String node0Id = getNodeId(node0);
+        var node0 = createNode("node_t0", internalCluster()::startNode);
 
         createIndex(
             "myindex",
@@ -222,44 +211,41 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureYellow("myindex");
 
         // Start a second node, so the replica will be on node1
-        internalCluster().startNode();// node_t1
+        createNode("node_t1", internalCluster()::startNode);
         ensureGreen("myindex");
 
-        String node2 = internalCluster().startNode();
+        var node2 = createNode("node_t2", internalCluster()::startNode);
 
         // Register a replacement for node0, with node2 as the target
-        putNodeShutdown(node0Id, SingleNodeShutdownMetadata.Type.REPLACE, node2);
+        putNodeShutdown(node0.id, SingleNodeShutdownMetadata.Type.REPLACE, node2.name);
 
-        assertBusy(() -> assertNodeShutdownStatus(node0Id, COMPLETE));
+        assertBusy(() -> assertNodeShutdownStatus(node0.id, COMPLETE));
 
         // Remove node0 from the cluster (it's been terminated)
-        internalCluster().stopNode(node0);
+        internalCluster().stopNode(node0.name);
 
         // Restart node2, the replica on node1 will be flipped to primary and
         // when node2 comes back up, it should have the replica assigned to it
-        internalCluster().restartNode(node2);
+        internalCluster().restartNode(node2.name);
 
         // All shards for the index should be allocated
         ensureGreen("myindex");
     }
 
     public void testAllocationExplainForReplacementNode() throws Exception {
-        String node0 = internalCluster().startNode();// node_t0
-        String node0Id = getNodeId(node0);
-        String node2 = "node_t2";
+        var node0 = createNode("node_t0", internalCluster()::startNode);
 
-        putNodeShutdown(node0Id, SingleNodeShutdownMetadata.Type.REPLACE, node2);
+        putNodeShutdown(node0.id, SingleNodeShutdownMetadata.Type.REPLACE, "node_t2");
 
-        internalCluster().startNode();// node_t1
-        internalCluster().startNode();// node_t2
-        String node1Id = getNodeId(node2);
+        createNode("node_t1", internalCluster()::startNode);
+        var node2 = createNode("node_t2", internalCluster()::startNode);
 
         createIndex(
             "other",
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
         );
         ensureYellow("other");
-        assertCanNotAllocateReplicaDueToReplacement("other", node1Id);
+        assertCanNotAllocateReplicaDueToReplacement("other", node2.id);
     }
 
     private void assertCanNotAllocateReplicaDueToReplacement(String index, String nodeId) {
@@ -307,8 +293,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * index unavailable.
      */
     public void testAutoExpandDuringRestart() throws Exception {
-        final String primaryNode = internalCluster().startNode();
-        final String primaryNodeId = getNodeId(primaryNode);
+        var primaryNode = createNode("node_t0", internalCluster()::startNode);
         createIndex(
             "myindex",
             Settings.builder()
@@ -317,7 +302,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 .build()
         );
 
-        internalCluster().startNode();
+        createNode("node_t1", internalCluster()::startNode);
         assertBusy(() -> {
             assertThat(
                 client().admin()
@@ -331,7 +316,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
         ensureGreen("myindex");
 
-        putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
+        putNodeShutdown(primaryNode.id, SingleNodeShutdownMetadata.Type.RESTART, null);
 
         // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
         // that auto-expansion has run.
@@ -351,7 +336,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         indexRandomData("myindex");
 
-        internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(primaryNode.name, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 ensureYellow("myindex");
@@ -440,4 +425,12 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             }
         }
     }
+
+    private NodeNameAndId createNode(String nodeName, Supplier<String> nodeStarter) {
+        var name = nodeStarter.get();
+        assertThat(name, equalTo(nodeName));
+        return new NodeNameAndId(name, getNodeId(name));
+    }
+
+    private record NodeNameAndId(String name, String id) {}
 }

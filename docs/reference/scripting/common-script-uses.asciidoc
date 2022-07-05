@@ -77,7 +77,7 @@ grok pattern that extracts structured fields out of the `message` field.
 
 The script matches on the `%{COMMONAPACHELOG}` log pattern, which understands
 the structure of Apache logs. If the pattern matches (`clientip != null`), the
-script emits the value of the matching the IP address. If the pattern doesn't match,
+script emits the value of the matching IP address. If the pattern doesn't match,
 the script just returns the field value without crashing.
 
 [source,console]

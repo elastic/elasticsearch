@@ -11,8 +11,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class PageCollector extends SimpleCollector implements Operator {
 
@@ -21,9 +21,9 @@ public class PageCollector extends SimpleCollector implements Operator {
     private int[] currentPage;
     private int currentPos;
     private LeafReaderContext lastContext;
-    private boolean finished;
+    private volatile boolean finished;
 
-    public final List<Page> pages = new ArrayList<>(); // TODO: use queue
+    public final BlockingQueue<Page> pages = new LinkedBlockingQueue<>(2);
 
     PageCollector() {}
 
@@ -48,10 +48,14 @@ public class PageCollector extends SimpleCollector implements Operator {
         lastContext = context;
     }
 
-    private synchronized void createPage() {
+    private void createPage() {
         if (currentPos > 0) {
-            Page page = new Page(currentPos, new IntBlock(currentPage, currentPos));
-            pages.add(page);
+            Page page = new Page(currentPos, new IntBlock(currentPage, currentPos), new ConstantIntBlock(currentPos, lastContext.ord));
+            try {
+                pages.put(page);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         currentPage = null;
         currentPos = 0;
@@ -63,21 +67,19 @@ public class PageCollector extends SimpleCollector implements Operator {
     }
 
     @Override
-    public synchronized void finish() {
+    public void finish() {
+        assert finished == false;
         createPage();
         finished = true;
     }
 
     @Override
-    public synchronized Page getOutput() {
-        if (pages.isEmpty()) {
-            return null;
-        }
-        return pages.remove(0);
+    public Page getOutput() {
+        return pages.poll();
     }
 
     @Override
-    public synchronized boolean isFinished() {
+    public boolean isFinished() {
         return finished;
     }
 }

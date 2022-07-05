@@ -28,11 +28,6 @@ public class Driver implements Supplier<Page> {
             if (page != null) {
                 return page;
             }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
         } while (operator.isFinished() == false);
 
         releasable.close();

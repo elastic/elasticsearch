@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.sql.action.compute;
 
-public class IntBlock extends Block {
-    private final int[] values;
+public class ConstantIntBlock extends Block {
+    private final int constant;
 
-    public IntBlock(int[] values, int positionCount) {
+    ConstantIntBlock(int positionCount, int constant) {
         super(positionCount);
-        this.values = values;
+        this.constant = constant;
     }
-
 }

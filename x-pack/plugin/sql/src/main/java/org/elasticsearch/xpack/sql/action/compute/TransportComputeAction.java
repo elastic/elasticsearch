@@ -60,7 +60,7 @@ public class TransportComputeAction extends TransportSingleShardAction<ComputeRe
             actionFilters,
             indexNameExpressionResolver,
             ComputeRequest::new,
-            ThreadPool.Names.GENERIC
+            ThreadPool.Names.SEARCH
         );
         this.searchService = searchService;
     }

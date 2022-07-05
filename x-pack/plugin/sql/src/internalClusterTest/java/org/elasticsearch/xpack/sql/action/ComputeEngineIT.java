@@ -20,11 +20,13 @@ public class ComputeEngineIT extends AbstractSqlIntegTestCase {
 
     public void testComputeEngine() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
-        client().prepareBulk()
-            .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
-            .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        for (int i = 0; i < 10; i++) {
+            client().prepareBulk()
+                .add(new IndexRequest("test").id("1" + i).source("data", "bar", "count", 42))
+                .add(new IndexRequest("test").id("2" + i).source("data", "baz", "count", 43))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
         ensureYellow("test");
 
         SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(

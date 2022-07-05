@@ -155,7 +155,8 @@ public class Querier {
                         client.threadPool().generic().execute(() -> {
                             Supplier<org.elasticsearch.xpack.sql.action.compute.Page> pageSupplier = computeResponse.getPageSupplier();
                             // TODO: extract response stream and turn into pages stream
-                            for (org.elasticsearch.xpack.sql.action.compute.Page page = pageSupplier.get(); page != null;) {
+                            org.elasticsearch.xpack.sql.action.compute.Page page;
+                            while ((page = pageSupplier.get()) != null) {
 
                             }
                             // TODO: create meaningful responses

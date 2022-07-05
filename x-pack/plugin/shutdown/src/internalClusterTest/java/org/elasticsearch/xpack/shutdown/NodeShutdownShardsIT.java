@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Strings;
@@ -178,6 +180,28 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         assertBusy(() -> assertNodeShutdownStatus(node0.id, COMPLETE));
         assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1.id);
+        assertIndexSetting("myindex", "index.routing.allocation.require._name", equalTo(node0.name));
+    }
+
+    public void testNodeReplacementAcceptIndexThatCouldNotBeAllocatedAnywhere() throws Exception {
+        var node0 = createNode("node_t0", internalCluster()::startNode);
+
+        // Create an index and then make it un-allocatable in the entire cluster
+        createIndex(
+            "myindex",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        var fakeNodeName = UUIDs.randomBase64UUID();
+        updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.require._name", fakeNodeName));
+
+        putNodeShutdown(node0.id, SingleNodeShutdownMetadata.Type.REPLACE, "node_t1");
+        assertNodeShutdownStatus(node0.id, STALLED);
+
+        var node1 = createNode("node_t1", internalCluster()::startNode);
+
+        assertBusy(() -> assertNodeShutdownStatus(node0.id, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", node1.id);
+        assertIndexSetting("myindex", "index.routing.allocation.require._name", equalTo(fakeNodeName));
     }
 
     public void testNodeReplacementMovesDataOnlyToTheTarget() throws Exception {
@@ -424,6 +448,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 assertThat(replicaShard.unassigned(), equalTo(true));
             }
         }
+    }
+
+    private void assertIndexSetting(String index, String setting, org.hamcrest.Matcher<String> matcher) {
+        var response = client().admin().indices().getSettings(new GetSettingsRequest().indices(index)).actionGet();
+        assertThat(response.getSetting(index, setting), matcher);
     }
 
     private NodeNameAndId createNode(String nodeName, Supplier<String> nodeStarter) {

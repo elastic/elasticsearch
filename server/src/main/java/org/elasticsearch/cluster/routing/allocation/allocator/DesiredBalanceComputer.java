@@ -210,9 +210,6 @@ public class DesiredBalanceComputer {
             // TODO what if we never converge?
             // TODO maybe expose interim desired balances computed here
 
-            if (i % 100 == 0) {
-                logger.trace("desired balance computation is still not completed after {} iterations", i);
-            }
             if (hasChanges == false) {
                 logger.trace("desired balance computation converged after {} iterations", i);
                 break;
@@ -222,6 +219,9 @@ public class DesiredBalanceComputer {
                 // then publish the interim state and restart the calculation
                 logger.trace("newer cluster state received, publishing incomplete desired balance and restarting computation");
                 break;
+            }
+            if (i > 0 && i % 100 == 0) {
+                logger.warn("desired balance computation is still not converged after {} iterations", i);
             }
         }
 

@@ -12,7 +12,7 @@ import org.elasticsearch.core.Releasable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Driver {
+public class Driver implements Runnable {
 
     private final List<Operator> activeOperators;
     private final Releasable releasable;

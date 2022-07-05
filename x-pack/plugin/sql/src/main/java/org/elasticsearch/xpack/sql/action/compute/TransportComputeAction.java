@@ -109,10 +109,13 @@ public class TransportComputeAction extends TransportSingleShardAction<ComputeRe
             Aggs aggs = request.aggs;
 
             // only release search context once driver actually completed
-            Driver driver = new Driver(List.of(pageCollector, new MaxOperator(0), new PageConsumerOperator(request.getPageConsumer())),
+            Driver driver = new Driver(List.of(pageCollector,
+                new IntTransformer(0, i -> i + 1),
+                new MaxOperator(0),
+                new PageConsumerOperator(request.getPageConsumer())),
                 () -> Releasables.close(context));
 
-            threadPool.generic().execute(() -> driver.run());
+            threadPool.generic().execute(driver);
 
             listener.onResponse(new ComputeResponse());
 

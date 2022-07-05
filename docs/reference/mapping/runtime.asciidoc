@@ -110,9 +110,9 @@ against runtime fields.
 You map runtime fields by adding a `runtime` section under the mapping
 definition and defining
 <<modules-scripting-using,a Painless script>>. This script has access to the
-entire context of a document, including the original `_source` and any mapped
-fields plus their values. At query time, the script runs and generates values
-for each scripted field that is required for the query.
+entire context of a document, including the original `_source` via `params._source`
+and any mapped fields plus their values. At query time, the script runs and 
+generates values for each scripted field that is required for the query.
 
 .Emitting runtime field values
 ****

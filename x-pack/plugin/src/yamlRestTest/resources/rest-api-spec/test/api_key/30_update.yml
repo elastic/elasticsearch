@@ -9,20 +9,6 @@ setup:
 
   - do:
       security.put_role:
-        name: "admin_role"
-        body: >
-          {
-            "cluster": ["manage_api_key"],
-            "indices": [
-              {
-                "names": "*",
-                "privileges": ["all"]
-              }
-            ]
-          }
-
-  - do:
-      security.put_role:
         name: "user_role"
         body: >
           {
@@ -33,16 +19,6 @@ setup:
                 "privileges": ["all"]
               }
             ]
-          }
-
-  - do:
-      security.put_user:
-        username: "api_key_manager"
-        body: >
-          {
-            "password" : "x-pack-test-password",
-            "roles" : ["admin_role"],
-            "full_name" : "API key manager"
           }
 
   - do:
@@ -59,22 +35,12 @@ setup:
 teardown:
   - do:
       security.delete_role:
-        name: "admin_role"
-        ignore: 404
-
-  - do:
-      security.delete_role:
         name: "use_role"
         ignore: 404
 
   - do:
       security.delete_user:
         username: "api_key_user_1"
-        ignore: 404
-
-  - do:
-      security.delete_user:
-        username: "api_key_manager"
         ignore: 404
 
 ---
@@ -106,6 +72,29 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds }
 
+  # Check API key does not have requested privileges
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage_own_api_key"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["write"]
+              },
+              {
+                "names": ["index-b"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": false }
+
+  # Update API key to above privileges
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
@@ -152,3 +141,19 @@ teardown:
             ]
           }
   - match: { "has_all_requested": true }
+
+  # Check that metadata was updated
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        id: "$user1_key_id"
+        owner: true
+  - length: { "api_keys" : 1 }
+  - is_true: "api_keys.0.metadata"
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "*"
+
+  - match: { _nodes.failed: 0 }

@@ -14,6 +14,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyOperation;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
@@ -56,6 +57,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -383,8 +385,9 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     public static SignedJWT buildUnsignedJwt(
+        final String alg,
+        final String kid,
         final String type,
-        final String signatureAlgorithm,
         final String jwtId,
         final String issuer,
         final List<String> audiences,
@@ -400,7 +403,10 @@ public abstract class JwtTestCase extends ESTestCase {
         final String nonce,
         final Map<String, Object> otherClaims
     ) {
-        final JWSHeader.Builder jwsHeaderBuilder = new JWSHeader.Builder(JWSAlgorithm.parse(signatureAlgorithm));
+        final JWSHeader.Builder jwsHeaderBuilder = new JWSHeader.Builder(JWSAlgorithm.parse(alg));
+        if (kid != null) {
+            jwsHeaderBuilder.keyID(kid);
+        }
         if (type != null) {
             jwsHeaderBuilder.type(new JOSEObjectType(type));
         }
@@ -447,20 +453,22 @@ public abstract class JwtTestCase extends ESTestCase {
         if (otherClaims != null) {
             for (final Map.Entry<String, Object> entry : otherClaims.entrySet()) {
                 if (Strings.hasText(entry.getKey()) == false) {
-                    throw new IllegalArgumentException("Null or blank other claim key allowed.");
+                    throw new IllegalArgumentException("Null or blank other claim key not allowed.");
                 } else if (entry.getValue() == null) {
-                    throw new IllegalArgumentException("Null other claim value allowed.");
+                    throw new IllegalArgumentException("Null other claim value not allowed.");
                 }
                 jwtClaimsSetBuilder.claim(entry.getKey(), entry.getValue());
             }
         }
         final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
         LOGGER.info(
-            "CLAIMS: alg=["
-                + jwtHeader.getAlgorithm().getName()
-                + "], jwtId=["
-                + jwtClaimsSet.getJWTID()
-                + "], iss=["
+            "JWT: HEADER{alg=["
+                + jwtHeader.getAlgorithm()
+                + "], kid=["
+                + jwtHeader.getKeyID()
+                + "], typ=["
+                + jwtHeader.getType()
+                + "]}. CLAIMS: {iss=["
                 + jwtClaimsSet.getIssuer()
                 + "], aud="
                 + jwtClaimsSet.getAudience()
@@ -474,19 +482,21 @@ public abstract class JwtTestCase extends ESTestCase {
                 + groupsClaimName
                 + "="
                 + jwtClaimsSet.getClaim(groupsClaimName)
-                + "], nbf=["
-                + jwtClaimsSet.getNotBeforeTime()
                 + "], auth_time=["
                 + jwtClaimsSet.getClaim("auth_time")
                 + "], iat=["
                 + jwtClaimsSet.getIssueTime()
+                + "], nbf=["
+                + jwtClaimsSet.getNotBeforeTime()
                 + "], exp=["
                 + jwtClaimsSet.getExpirationTime()
                 + "], nonce=["
                 + jwtClaimsSet.getClaim("nonce")
+                + "], jid=["
+                + jwtClaimsSet.getJWTID()
                 + "], other=["
                 + otherClaims
-                + "]"
+                + "]}."
         );
         return JwtValidateUtil.buildUnsignedJwt(jwtHeader, jwtClaimsSet);
     }
@@ -494,8 +504,9 @@ public abstract class JwtTestCase extends ESTestCase {
     public static SecureString randomBespokeJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            randomBoolean() ? null : JOSEObjectType.JWT.toString(),
             signatureAlgorithm, // alg
+            randomBoolean() ? null : jwk.getKeyID(), // kid
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // typ
             randomAlphaOfLengthBetween(10, 20), // jwtID
             randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
             randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),
@@ -504,10 +515,10 @@ public abstract class JwtTestCase extends ESTestCase {
             "principal1", // principal claim value
             randomBoolean() ? null : randomFrom("groups", "roles", "other"),
             randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1")),
-            Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time
-            Date.from(now), // iat
-            Date.from(now.minusSeconds(randomLongBetween(5, 10))), // nbf
-            Date.from(now.plusSeconds(randomLongBetween(3600, 7200))), // exp
+            Date.from(now.minusSeconds(60 * randomLongBetween(10, 20))), // auth_time
+            Date.from(now.minusSeconds(randomBoolean() ? 0 : 60 * randomLongBetween(5, 10))), // iat
+            Date.from(now), // nbf
+            Date.from(now.plusSeconds(60 * randomLongBetween(3600, 7200))), // exp
             randomBoolean() ? null : new Nonce(32).toString(),
             randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
         );
@@ -573,9 +584,9 @@ public abstract class JwtTestCase extends ESTestCase {
         return IntStream.rangeClosed(1, minToMaxInclusive).mapToObj(i -> randomFrom(collection)).toList(); // 1..N inclusive
     }
 
-    public String saveToTempFile(final String prefix, final String suffix, final byte[] content) throws IOException {
+    public String saveToTempFile(final String prefix, final String suffix, final String content) throws IOException {
         final Path path = Files.createTempFile(PathUtils.get(this.pathHome), prefix, suffix);
-        Files.write(path, content);
+        Files.writeString(path, content);
         return path.toString();
     }
 
@@ -606,5 +617,21 @@ public abstract class JwtTestCase extends ESTestCase {
             throw new IllegalArgumentException("resource not found: " + relativePath, e);
         }
         return null;
+    }
+
+    protected void printJwt(final String signedJwtContents, final boolean includeClaimsWithNullValues) throws ParseException {
+        this.printJwt(signedJwtContents == null ? null : SignedJWT.parse(signedJwtContents), includeClaimsWithNullValues);
+    }
+
+    protected void printJwt(final SignedJWT signedJwt, final boolean includeClaimsWithNullValues) throws ParseException {
+        LOGGER.info("JWT: {}\n{}", signedJwt.getHeader(), signedJwt.getJWTClaimsSet().toJSONObject(includeClaimsWithNullValues));
+    }
+
+    protected void printJwkSet(final String jwkSetContents, final boolean publicKeysOnly) throws ParseException {
+        this.printJwkSet(jwkSetContents == null ? null : JWKSet.parse(jwkSetContents), publicKeysOnly);
+    }
+
+    protected void printJwkSet(final JWKSet jwkSet, boolean publicKeysOnly) throws ParseException {
+        LOGGER.info("JWKSet: {}", jwkSet.toJSONObject(publicKeysOnly));
     }
 }

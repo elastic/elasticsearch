@@ -546,6 +546,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         if (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false) {
                             return; // Try reload before. Reload failed, or succeeded but no changes. Helper handles listener and logs.
                         }
+                        this.verifyNonEmptyHmacAndPkcJwksAlgs(); // throws SettingsException if reload causes filtered PKC+HMAC JWKs and
+                                                                 // Algs to drop to 0
                     }
                     // Throws Exception (no JWKs after filtering) or AllVerifiesFailedException (all available JWKs failed)
                     final ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgs = isJwtSignatureAlgHmac
@@ -553,10 +555,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         : this.contentAndFilteredJwksAlgsPkc;
                     JwtValidateUtil.validateSignature(jwt, contentAndFilteredJwksAlgs.filteredJwksAlgs.jwks);
                     // Fall through means success, exception will be caught by inner or outer catch
-                } catch (JwtValidateUtil.AllVerifiesFailedException e) {
+                } catch (JwtValidateUtil.VerifySignatureNoJwksProvidedException
+                    | JwtValidateUtil.VerifySignatureRemainingJwksFailedException e) {
                     if (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false) {
                         return; // Try reload before. Reload failed, or succeeded but no changes. Helper handles listener and logs.
                     }
+                    this.verifyNonEmptyHmacAndPkcJwksAlgs(); // throws SettingsException if reload causes filtered PKC+HMAC JWKs and Algs to
+                                                             // drop to 0
                     // Throws Exception (no JWKs after filtering) or AllVerifiesFailedException (all available JWKs failed)
                     final ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgs = isJwtSignatureAlgHmac
                         ? this.contentAndFilteredJwksAlgsHmac
@@ -675,7 +680,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         try {
             if (this.reloadJwks(isJwtAlgHmac) == false) {
                 // Reload failed, or no JWK content changes found, so realm still has no JWKs and Algs to verify JWT
-                final String msg = "Realm [" + super.name() + "] has no old JWKs to verify JWT for token=[" + tokenPrincipal + "].";
+                final String msg = "Realm [" + super.name() + "] had no JWKs to verify JWT for token=[" + tokenPrincipal + "].";
                 LOGGER.error(msg);
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return false;
@@ -684,7 +689,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             return true;
         } catch (Exception e) {
             // Reload succeeded, but no JWKs and Algs remain
-            final String msg = "Realm [" + super.name() + "] has no new JWKs to verify JWT for token=[" + tokenPrincipal + "].";
+            final String msg = "Realm [" + super.name() + "] had no new JWKs to verify JWT for token=[" + tokenPrincipal + "].";
             LOGGER.error(msg, e);
             listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
             return false;
@@ -745,7 +750,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // Enhancement idea: Separate HMAC and PKC entries into separate caches, since only HMAC or PKC entries need to be invalidated.
         // Enhancement idea: Identify which JWKs were removed, and only invalidate affected entries. Entries using retained keys remain.
         this.invalidateJwtCache();
-        this.verifyNonEmptyHmacAndPkcJwksAlgs(); // throws SettingsException if reload causes filtered PKC+HMAC JWKs and Algs to drop to 0
         return true;
     }
 }

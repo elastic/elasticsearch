@@ -211,7 +211,7 @@ public class JwtUtil {
     }
 
     public static String serializeJwkSet(final JWKSet jwkSet, final boolean publicKeysOnly) {
-        if ((jwkSet == null) || (jwkSet.getKeys().isEmpty())) {
+        if (jwkSet == null) {
             return null;
         }
         return JSONObjectUtils.toJSONString(jwkSet.toJSONObject(publicKeysOnly));

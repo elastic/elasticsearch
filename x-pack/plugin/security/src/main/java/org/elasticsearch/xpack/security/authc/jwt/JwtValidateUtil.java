@@ -228,7 +228,9 @@ public class JwtValidateUtil {
      * @throws Exception Error if JWKs fail to validate the Signed JWT.
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
-        assert jwks != null && jwks.isEmpty() == false : "Caller must provide a non-empty JWK list";
+        if (jwks == null || jwks.isEmpty()) {
+            throw new VerifySignatureNoJwksProvidedException("Verify requires a non-empty JWK list.");
+        }
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
         LOGGER.trace("JWKs [{}], JWT KID [{}], and JWT Algorithm [{}] before filters.", jwks.size(), id, alg.getName());
@@ -258,18 +260,36 @@ public class JwtValidateUtil {
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
         if (jwksStrength.isEmpty()) {
-            throw new Exception("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
+            throw new VerifySignatureAllJwksFilteredException("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
         }
 
         for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
-                LOGGER.trace("JWT signature validation succeeded");
+                LOGGER.info(
+                    "JWT signature validation succeeded with JWK kty=[{}], alg=[{}], kid=[{}], use=[{}], ops=[{}]",
+                    jwk.getKeyType(),
+                    jwk.getAlgorithm(),
+                    jwk.getKeyID(),
+                    jwk.getKeyUse(),
+                    jwk.getKeyOperations()
+                );
                 return;
+            } else {
+                LOGGER.info(
+                    "JWT signature validation failed with JWK kty=[{}], alg=[{}], kid=[{}], use=[{}], ops=[{}]",
+                    jwk.getKeyType(),
+                    jwk.getAlgorithm(),
+                    jwk.getKeyID(),
+                    jwk.getKeyUse(),
+                    jwk.getKeyOperations()
+                );
             }
         }
 
         // At least one JWK passed the kid, alg, and strength checks, but none successfully verified the JWT signature
-        throw new AllVerifiesFailedException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+        throw new VerifySignatureRemainingJwksFailedException(
+            "Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs."
+        );
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {
@@ -331,10 +351,21 @@ public class JwtValidateUtil {
         return new SecureString(signedJwt.serialize().toCharArray());
     }
 
-    public static class AllVerifiesFailedException extends Exception {
-        public AllVerifiesFailedException(String errorMessage) {
+    public static class VerifySignatureNoJwksProvidedException extends Exception {
+        public VerifySignatureNoJwksProvidedException(String errorMessage) {
             super(errorMessage);
         }
     }
 
+    public static class VerifySignatureAllJwksFilteredException extends Exception {
+        public VerifySignatureAllJwksFilteredException(String errorMessage) {
+            super(errorMessage);
+        }
+    }
+
+    public static class VerifySignatureRemainingJwksFailedException extends Exception {
+        public VerifySignatureRemainingJwksFailedException(String errorMessage) {
+            super(errorMessage);
+        }
+    }
 }

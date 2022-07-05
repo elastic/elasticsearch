@@ -69,20 +69,21 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            null, // type
-            signatureAlgorithm,
+            signatureAlgorithm, // alg
+            randomBoolean() ? null : jwk.getKeyID(), // kid
+            null, // typ
             null, // jwtID
-            issuer,
-            List.of(audience),
+            issuer, // iss
+            List.of(audience), // aud
             null, // sub claim value
             principalClaimName, // principal claim name
             principalClaimValue, // principal claim value
             null, // groups claim
             List.of(), // groups
-            Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time
-            Date.from(now), // iat
-            Date.from(now.minusSeconds(randomLongBetween(5, 10))), // nbf
-            Date.from(now.plusSeconds(randomLongBetween(3600, 7200))), // exp
+            Date.from(now.minusSeconds(60 * randomLongBetween(10, 20))), // auth_time
+            Date.from(now.minusSeconds(randomBoolean() ? 0 : 60 * randomLongBetween(5, 10))), // iat
+            Date.from(now), // nbf
+            Date.from(now.plusSeconds(60 * randomLongBetween(3600, 7200))), // exp
             null, // nonce
             Map.of() // other claims
         );

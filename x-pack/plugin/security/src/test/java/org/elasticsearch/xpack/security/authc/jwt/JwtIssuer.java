@@ -7,22 +7,24 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 /**
  * Test class with settings for a JWT issuer to sign JWTs for users.
@@ -38,85 +40,82 @@ public class JwtIssuer implements Closeable {
     final List<String> audiencesClaimValue; // claim name is hard-coded to `aud` for OIDC ID Token compatibility
     final String principalClaimName; // claim name is configurable, EX: Users (sub, oid, email, dn, uid), Clients (azp, appid, client_id)
     final Map<String, User> principals; // principals with roles, for sending encoded JWTs into JWT realms for authc/authz verification
+    final JwtIssuerHttpsServer httpsServer;
+
+    List<String> algorithms;
+
+    // Computed values
     List<AlgJwkPair> algAndJwksPkc;
     List<AlgJwkPair> algAndJwksHmac;
     AlgJwkPair algAndJwkHmacOidc;
-
-    // Computed values
     List<AlgJwkPair> algAndJwksAll;
-    Set<String> algorithmsAll;
     String encodedJwkSetPkcPublicPrivate;
     String encodedJwkSetPkcPublicOnly;
     String encodedJwkSetHmac;
     String encodedKeyHmacOidc;
-    final JwtIssuerHttpsServer httpsServer;
 
     JwtIssuer(
         final String issuerClaimValue,
         final List<String> audiencesClaimValue,
         final String principalClaimName,
         final Map<String, User> principals,
-        final List<AlgJwkPair> algAndJwksPkc,
-        final List<AlgJwkPair> algAndJwksHmac,
-        final AlgJwkPair algAndJwkHmacOidc,
         final boolean createHttpsServer
     ) throws Exception {
         this.issuerClaimValue = issuerClaimValue;
         this.audiencesClaimValue = audiencesClaimValue;
         this.principalClaimName = principalClaimName;
         this.principals = principals;
-        this.httpsServer = this.initializeJwksAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc, createHttpsServer);
+        this.httpsServer = createHttpsServer ? new JwtIssuerHttpsServer(null) : null;
     }
 
-    private JwtIssuerHttpsServer initializeJwksAlgs(
-        final List<AlgJwkPair> algAndJwksPkc,
-        final List<AlgJwkPair> algAndJwksHmac,
-        final AlgJwkPair algAndJwkHmacOidc,
-        final boolean createHttpsServer
-    ) throws Exception {
-        this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
-        if ((Strings.hasText(this.encodedJwkSetPkcPublicOnly) == false) || (createHttpsServer == false)) {
-            return null; // no PKC JWKSet, or skip HTTPS server because caller will use local file instead
+    void generateJwks(final List<String> algorithms) throws JOSEException {
+        final List<AlgJwkPair> algAndJwks = JwtTestCase.randomJwks(algorithms);
+
+        // randomly condition none, some, or all HMAC JWKs for OIDC UTF8 encoding safety
+        final long numHmac = algAndJwks.stream().filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(e.alg)).count();
+        final AtomicInteger numHmacOidcSafe = new AtomicInteger(0);
+        final List<AlgJwkPair> algAndJwksSafe = algAndJwks.stream().map(e -> {
+            if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(e.alg)) && (randomBoolean())) {
+                numHmacOidcSafe.incrementAndGet();
+                return new AlgJwkPair(e.alg, JwkValidateUtilTests.conditionJwkHmacForOidc(e.jwk().toOctetSequenceKey()));
+            }
+            return e;
+        }).toList();
+        setJwks(algAndJwksSafe, (numHmac == numHmacOidcSafe.get()));
+    }
+
+    // The flag areHmacJwksOidcSafe indicates if all provided HMAC JWKs are UTF8, for HMAC OIDC JWK encoding compatibility.
+    void setJwks(final List<AlgJwkPair> algAndJwks, final boolean areHmacJwksOidcSafe) throws JOSEException {
+        this.algorithms = algAndJwks.stream().map(e -> e.alg).toList();
+        this.algAndJwksAll = algAndJwks;
+        this.algAndJwksPkc = this.algAndJwksAll.stream()
+            .filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(e.alg))
+            .toList();
+        this.algAndJwksHmac = this.algAndJwksAll.stream()
+            .filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(e.alg))
+            .toList();
+        if ((this.algAndJwksHmac.size() == 1) && (areHmacJwksOidcSafe) && (randomBoolean())) {
+            this.algAndJwkHmacOidc = this.algAndJwksHmac.get(0);
+            this.algAndJwksHmac = Collections.emptyList();
+        } else {
+            this.algAndJwkHmacOidc = null;
         }
-        return new JwtIssuerHttpsServer(this.encodedJwkSetPkcPublicOnly.getBytes(StandardCharsets.UTF_8));
-    }
 
-    public void updateJwksAlgs(
-        final List<AlgJwkPair> algAndJwksPkc,
-        final List<AlgJwkPair> algAndJwksHmac,
-        final AlgJwkPair algAndJwkHmacOidc
-    ) {
-        this.setJwksAndAlgs(algAndJwksPkc, algAndJwksHmac, algAndJwkHmacOidc);
+        // Encode PKC JWKSet (key material bytes are wrapped in Base64URL, and then wraps in JSON)
+        final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
+        this.encodedJwkSetPkcPublicPrivate = JwtUtil.serializeJwkSet(jwkSetPkc, false);
+        this.encodedJwkSetPkcPublicOnly = JwtUtil.serializeJwkSet(jwkSetPkc, true);
+
+        // Encode HMAC JWKSet (key material bytes are wrapped in Base64URL, and then wraps in JSON)
+        final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
+        this.encodedJwkSetHmac = JwtUtil.serializeJwkSet(jwkSetHmac, false);
+
+        // Encode HMAC OIDC JWK (key material bytes are decoded from UTF8 to UNICODE String)
+        this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
+
         if (this.httpsServer != null) {
             this.httpsServer.updateJwkSetPkcContents(this.encodedJwkSetPkcPublicOnly.getBytes(StandardCharsets.UTF_8));
         }
-
-    }
-
-    private void setJwksAndAlgs(
-        final List<AlgJwkPair> algAndJwksPkc,
-        final List<AlgJwkPair> algAndJwksHmac,
-        final AlgJwkPair algAndJwkHmacOidc
-    ) {
-        this.algAndJwksPkc = algAndJwksPkc;
-        this.algAndJwksHmac = algAndJwksHmac;
-        this.algAndJwkHmacOidc = algAndJwkHmacOidc;
-
-        this.algAndJwksAll = new ArrayList<>(this.algAndJwksPkc.size() + this.algAndJwksHmac.size() + 1);
-        this.algAndJwksAll.addAll(this.algAndJwksPkc);
-        this.algAndJwksAll.addAll(this.algAndJwksHmac);
-        if (this.algAndJwkHmacOidc != null) {
-            this.algAndJwksAll.add(this.algAndJwkHmacOidc);
-        }
-        this.algorithmsAll = this.algAndJwksAll.stream().map(p -> p.alg).collect(Collectors.toSet());
-
-        final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
-        final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
-
-        this.encodedJwkSetPkcPublicPrivate = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, false);
-        this.encodedJwkSetPkcPublicOnly = jwkSetPkc.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetPkc, true);
-        this.encodedJwkSetHmac = jwkSetHmac.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetHmac, false);
-        this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
     }
 
     @Override

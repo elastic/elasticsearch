@@ -81,7 +81,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
 
     private void getModelSnapshots(
         GetModelSnapshotsAction.Request request,
-        TaskId parenTaskId,
+        TaskId parentTaskId,
         ActionListener<GetModelSnapshotsAction.Response> listener
     ) {
         jobResultsProvider.modelSnapshots(
@@ -93,7 +93,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
             request.getSort(),
             request.getDescOrder(),
             request.getSnapshotId(),
-            parenTaskId,
+            parentTaskId,
             page -> listener.onResponse(new GetModelSnapshotsAction.Response(page)),
             listener::onFailure
         );

@@ -130,8 +130,8 @@ public class JobManager {
         this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
-    public void jobExists(String jobId, @Nullable TaskId parenTaskId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, parenTaskId, listener);
+    public void jobExists(String jobId, @Nullable TaskId parentTaskId, ActionListener<Boolean> listener) {
+        jobConfigProvider.jobExists(jobId, true, parentTaskId, listener);
     }
 
     /**

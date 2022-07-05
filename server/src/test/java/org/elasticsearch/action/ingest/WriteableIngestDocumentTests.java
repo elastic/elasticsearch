@@ -148,7 +148,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
-        Map<String, Object> metadataMap = ingestDocument.getMetadata();
+        Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
         for (Map.Entry<String, Object> metadata : metadataMap.entrySet()) {
             String fieldName = metadata.getKey();
             if (metadata.getValue() == null) {

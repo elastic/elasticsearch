@@ -13,24 +13,16 @@ import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
-import org.junit.rules.TemporaryFolder
-import spock.lang.IgnoreIf
 import spock.lang.Shared
 import spock.lang.Unroll
 
-// see https://github.com/elastic/elasticsearch/issues/87913
-@IgnoreIf({ os.windows })
 class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
 
-    @ClassRule
-    @Shared
-    public TemporaryFolder repoFolder = new TemporaryFolder()
-
     @Shared
     @ClassRule
-    public LocalRepositoryFixture repository = new LocalRepositoryFixture(repoFolder)
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setupSpec() {
         repository.generateJar('org.apache.lucene', 'tests.util', "1.0",
@@ -45,7 +37,6 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
     }
 
     def setup() {
-        configurationCacheCompatible = true
         repository.configureBuild(buildFile)
     }
 

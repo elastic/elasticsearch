@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -70,6 +72,14 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
             this.request = request;
         }
 
+        /**
+         * Used by the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} for ILM
+         * {@link ImmutableLifecycleAction}
+         */
+        DeleteLifecyclePolicyTask(String policyName) {
+            this(new Request(policyName), null);
+        }
+
         @Override
         public ClusterState execute(ClusterState currentState) {
             String policyToDelete = request.getPolicyName();
@@ -106,5 +116,15 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected Optional<String> immutableStateHandlerName() {
+        return Optional.of(ImmutableLifecycleAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(Request request) {
+        return Set.of(request.getPolicyName());
     }
 }

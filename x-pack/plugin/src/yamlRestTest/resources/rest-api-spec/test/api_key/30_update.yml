@@ -168,7 +168,7 @@ teardown:
   - match: { _nodes.failed: 0 }
 
 ---
-"Test update api key without request fields keeps existing values":
+"Test update api key without request fields":
 
   - do:
       headers:
@@ -224,6 +224,86 @@ teardown:
   }
 
   # Check privileges did not change
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage_own_api_key"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": true }
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "*"
+  - match: { _nodes.failed: 0 }
+
+---
+"Test update api key with empty request fields":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "user1-api-key",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["none"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["none"]
+                  }
+                ]
+              }
+            },
+            "metadata": {
+              "letter": "a",
+              "number": 42
+            }
+          }
+  - match: { name: "user1-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: user1_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.update_api_key:
+        ids: "$user1_key_id"
+        body: >
+          {
+            "role_descriptors": {},
+            "metadata": {}
+          }
+  - match: { updated: true }
+
+  # Check metadata empty
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        id: "$user1_key_id"
+        owner: true
+  - length: { "api_keys": 1 }
+  - match: {
+    "api_keys.0.metadata": {}
+  }
+
+  # Check privileges match owner user's
   - do:
       headers:
         Authorization: ApiKey ${login_creds}

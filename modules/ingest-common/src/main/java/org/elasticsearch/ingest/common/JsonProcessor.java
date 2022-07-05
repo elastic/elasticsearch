@@ -145,7 +145,7 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootConflictStrategy);
+            apply(document.getIngestContext(), field, allowDuplicateKeys, addToRootConflictStrategy);
         } else {
             document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys));
         }

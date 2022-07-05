@@ -49,7 +49,7 @@ public final class IngestDocument {
 
     static final String TIMESTAMP = "timestamp";
 
-    private final IngestSourceAndMetadata sourceAndMetadata;
+    private final IngestSourceAndMetadata ingestContext;
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
@@ -58,7 +58,7 @@ public final class IngestDocument {
     private boolean doNoSelfReferencesCheck = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
-        this.sourceAndMetadata = new IngestSourceAndMetadata(
+        this.ingestContext = new IngestSourceAndMetadata(
             index,
             id,
             version,
@@ -68,7 +68,7 @@ public final class IngestDocument {
             source
         );
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
+        this.ingestMetadata.put(TIMESTAMP, ingestContext.getTimestamp());
     }
 
     /**
@@ -77,8 +77,8 @@ public final class IngestDocument {
     public IngestDocument(IngestDocument other) {
         this(
             new IngestSourceAndMetadata(
-                deepCopyMap(other.sourceAndMetadata.getSource()),
-                deepCopyMap(other.sourceAndMetadata.getMetadata()),
+                deepCopyMap(other.ingestContext.getSource()),
+                deepCopyMap(other.ingestContext.getMetadata()),
                 other.getIngestSourceAndMetadata().timestamp,
                 other.getIngestSourceAndMetadata().validators
             ),
@@ -89,9 +89,9 @@ public final class IngestDocument {
     /**
      * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
-        this.sourceAndMetadata = new IngestSourceAndMetadata(
+    public IngestDocument(Map<String, Object> ingestContext, Map<String, Object> ingestMetadata) {
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(ingestContext);
+        this.ingestContext = new IngestSourceAndMetadata(
             sm.v1(),
             sm.v2(),
             IngestSourceAndMetadata.getTimestamp(ingestMetadata),
@@ -100,7 +100,7 @@ public final class IngestDocument {
         this.ingestMetadata = new HashMap<>(ingestMetadata);
         this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
             if (v instanceof String) {
-                return this.sourceAndMetadata.getTimestamp();
+                return this.ingestContext.getTimestamp();
             }
             return v;
         });
@@ -109,8 +109,8 @@ public final class IngestDocument {
     /**
      * Constructor to create an IngestDocument from its constituent maps
      */
-    IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        this.sourceAndMetadata = sourceAndMetadata;
+    IngestDocument(IngestSourceAndMetadata ingestContext, Map<String, Object> ingestMetadata) {
+        this.ingestContext = ingestContext;
         this.ingestMetadata = ingestMetadata;
     }
 
@@ -714,8 +714,8 @@ public final class IngestDocument {
 
     private Map<String, Object> createTemplateModel() {
         return new LazyMap<>(() -> {
-            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
+            Map<String, Object> model = new HashMap<>(ingestContext);
+            model.put(SourceFieldMapper.NAME, ingestContext);
             // If there is a field in the source with the name '_ingest' it gets overwritten here,
             // if access to that field is required then it get accessed via '_source._ingest'
             model.put(INGEST_KEY, ingestMetadata);
@@ -726,36 +726,36 @@ public final class IngestDocument {
     /**
      * Get source and metadata map
      */
-    public Map<String, Object> getSourceAndMetadata() {
-        return sourceAndMetadata;
+    public Map<String, Object> getIngestContext() {
+        return ingestContext;
     }
 
     /**
      * Get source and metadata map as {@link IngestSourceAndMetadata}
      */
     public IngestSourceAndMetadata getIngestSourceAndMetadata() {
-        return sourceAndMetadata;
+        return ingestContext;
     }
 
     /**
      * Get all Metadata values in a Map
      */
     public Map<String, Object> getMetadataMap() {
-        return sourceAndMetadata.getMetadata();
+        return ingestContext.getMetadata();
     }
 
     /**
      * Get the strongly typed metadata
      */
-    public org.elasticsearch.script.Metadata getMetadata() {
-        return sourceAndMetadata;
+    public org.elasticsearch.script.Metadata getContextMetadata() {
+        return ingestContext;
     }
 
     /**
      * Get all source values in a Map
      */
     public Map<String, Object> getSource() {
-        return sourceAndMetadata.getSource();
+        return ingestContext.getSource();
     }
 
     /**
@@ -899,17 +899,17 @@ public final class IngestDocument {
         }
 
         IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(sourceAndMetadata, other.sourceAndMetadata) && Objects.equals(ingestMetadata, other.ingestMetadata);
+        return Objects.equals(ingestContext, other.ingestContext) && Objects.equals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceAndMetadata, ingestMetadata);
+        return Objects.hash(ingestContext, ingestMetadata);
     }
 
     @Override
     public String toString() {
-        return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
+        return "IngestDocument{" + " sourceAndMetadata=" + ingestContext + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
     public enum Metadata {
@@ -956,7 +956,7 @@ public final class IngestDocument {
                 initialContext = ingestMetadata;
                 newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
             } else {
-                initialContext = sourceAndMetadata;
+                initialContext = ingestContext;
                 if (path.startsWith(SOURCE_PREFIX)) {
                     newPath = path.substring(SOURCE_PREFIX.length(), path.length());
                 } else {

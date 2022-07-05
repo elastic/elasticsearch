@@ -56,14 +56,14 @@ public class RenameProcessorTests extends ESTestCase {
 
         Processor processor = createRenameProcessor("list.0", "item", false);
         processor.execute(ingestDocument);
-        Object actualObject = ingestDocument.getSourceAndMetadata().get("list");
+        Object actualObject = ingestDocument.getIngestContext().get("list");
         assertThat(actualObject, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<String> actualList = (List<String>) actualObject;
         assertThat(actualList.size(), equalTo(2));
         assertThat(actualList.get(0), equalTo("item2"));
         assertThat(actualList.get(1), equalTo("item3"));
-        actualObject = ingestDocument.getSourceAndMetadata().get("item");
+        actualObject = ingestDocument.getIngestContext().get("item");
         assertThat(actualObject, instanceOf(String.class));
         assertThat(actualObject, equalTo("item1"));
 
@@ -151,8 +151,8 @@ public class RenameProcessorTests extends ESTestCase {
             fail("processor execute should have failed");
         } catch (UnsupportedOperationException e) {
             // the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
+            assertThat(ingestDocument.getIngestContext().containsKey("list"), equalTo(true));
+            assertThat(ingestDocument.getIngestContext().containsKey("new_field"), equalTo(false));
         }
     }
 
@@ -171,8 +171,8 @@ public class RenameProcessorTests extends ESTestCase {
             fail("processor execute should have failed");
         } catch (UnsupportedOperationException e) {
             // the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
+            assertThat(ingestDocument.getIngestContext().containsKey("list"), equalTo(true));
+            assertThat(ingestDocument.getIngestContext().containsKey("new_field"), equalTo(false));
         }
     }
 

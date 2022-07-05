@@ -166,7 +166,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
-            UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
+            UpdateScript.Factory factory = (parameters, ctx, md) -> new UpdateScript(parameters, ctx, md) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();

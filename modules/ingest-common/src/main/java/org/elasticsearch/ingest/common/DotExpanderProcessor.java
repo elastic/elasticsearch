@@ -45,7 +45,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
             map = ingestDocument.getFieldValue(this.path, Map.class);
         } else {
             pathToExpand = field;
-            map = ingestDocument.getSourceAndMetadata();
+            map = ingestDocument.getIngestContext();
         }
 
         if (this.field.equals("*")) {

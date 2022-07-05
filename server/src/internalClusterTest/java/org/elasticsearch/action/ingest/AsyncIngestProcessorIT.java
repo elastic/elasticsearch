@@ -108,7 +108,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
                 @Override
                 public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                     threadPool.generic().execute(() -> {
-                        String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
+                        String id = (String) ingestDocument.getIngestContext().get("_id");
                         if (usually()) {
                             try {
                                 Thread.sleep(10);
@@ -134,7 +134,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
             }, "test", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                    String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
+                    String id = (String) ingestDocument.getIngestContext().get("_id");
                     ingestDocument.setFieldValue("bar", "baz-" + id);
                     return ingestDocument;
                 }

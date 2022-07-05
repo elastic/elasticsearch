@@ -524,7 +524,7 @@ public class IngestServiceTests extends ESTestCase {
             ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
             assertThat(exceptionHolder[0], notNullValue());
             assertThat(exceptionHolder[0].getMessage(), containsString("reload me"));
-            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), nullValue());
+            assertThat(ingestDocument.getIngestContext().get("_field"), nullValue());
         }
 
         externalProperty[0] = true;
@@ -535,7 +535,7 @@ public class IngestServiceTests extends ESTestCase {
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
             ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
             assertThat(holder[0], nullValue());
-            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), equalTo("_value"));
+            assertThat(ingestDocument.getIngestContext().get("_field"), equalTo("_value"));
         }
     }
 

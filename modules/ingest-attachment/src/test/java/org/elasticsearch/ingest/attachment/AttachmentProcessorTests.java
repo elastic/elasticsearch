@@ -326,7 +326,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
         assertThat(attachmentData.get("language"), is("en"));
@@ -443,7 +443,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentProcessor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
         return attachmentData;
     }
 

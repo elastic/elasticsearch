@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.SourceAndMetadataMap;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -76,7 +77,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         });
         source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", IngestSourceAndMetadata::longValidator));
+        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", SourceAndMetadataMap::longValidator));
         assertNull(map.getString("missing"));
         assertNull(map.getString("no key"));
         assertEquals("myToString()", map.getString("toStr"));
@@ -143,11 +144,11 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         String canRemove = "canRemove";
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(cannotRemove, "value");
-        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, Map.of(cannotRemove, (k, v) -> {
+        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, Map.of(cannotRemove, (o, k, v) -> {
             if (v == null) {
                 throw new IllegalArgumentException(k + " cannot be null or removed");
             }
-        }, canRemove, (k, v) -> {}));
+        }, canRemove, (o, k, v) -> {}));
         String msg = "cannotRemove cannot be null or removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());

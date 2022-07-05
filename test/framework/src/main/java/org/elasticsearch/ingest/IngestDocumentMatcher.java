@@ -21,7 +21,7 @@ public class IngestDocumentMatcher {
      */
     public static void assertIngestDocument(IngestDocument docA, IngestDocument docB) {
         if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true)
-            && deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
+            && deepEquals(docA.getIngestContext(), docB.getIngestContext(), false)) == false) {
             throw new AssertionError("Expected [" + docA + "] but received [" + docB + "].");
         }
     }

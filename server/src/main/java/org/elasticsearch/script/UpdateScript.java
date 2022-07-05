@@ -12,7 +12,7 @@ package org.elasticsearch.script;
 import java.util.Map;
 
 /**
- * An update script.
+ * A script used in the update API
  */
 public abstract class UpdateScript {
 
@@ -24,12 +24,14 @@ public abstract class UpdateScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** The update context for the script. */
+    private final Metadata metadata;
+
     private final Map<String, Object> ctx;
 
-    public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
+    public UpdateScript(Map<String, Object> params, Map<String, Object> ctx, Metadata metadata) {
         this.params = params;
         this.ctx = ctx;
+        this.metadata = metadata;
     }
 
     /** Return the parameters for this script. */
@@ -42,9 +44,14 @@ public abstract class UpdateScript {
         return ctx;
     }
 
+    /** Return the update metadata for this script */
+    public Metadata metadata() {
+        return metadata;
+    }
+
     public abstract void execute();
 
     public interface Factory {
-        UpdateScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
+        UpdateScript newInstance(Map<String, Object> params, Map<String, Object> ctx, Metadata metadata);
     }
 }

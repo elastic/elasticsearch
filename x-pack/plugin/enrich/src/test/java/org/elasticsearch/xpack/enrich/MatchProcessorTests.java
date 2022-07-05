@@ -112,7 +112,7 @@ public class MatchProcessorTests extends ESTestCase {
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
-        int numProperties = ingestDocument.getSourceAndMetadata().size();
+        int numProperties = ingestDocument.getIngestContext().size();
         // Run
         IngestDocument[] holder = new IngestDocument[1];
         processor.execute(ingestDocument, (result, e) -> holder[0] = result);
@@ -133,7 +133,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
         assertThat(termQueryBuilder.value(), equalTo("elastic.com"));
         // Check result
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(numProperties));
+        assertThat(ingestDocument.getIngestContext().size(), equalTo(numProperties));
     }
 
     public void testSearchFailure() throws Exception {
@@ -204,11 +204,11 @@ public class MatchProcessorTests extends ESTestCase {
             );
             IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
 
-            assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+            assertThat(ingestDocument.getIngestContext().size(), equalTo(5));
             IngestDocument[] holder = new IngestDocument[1];
             processor.execute(ingestDocument, (result, e) -> holder[0] = result);
             assertThat(holder[0], notNullValue());
-            assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+            assertThat(ingestDocument.getIngestContext().size(), equalTo(5));
         }
         {
             MatchProcessor processor = new MatchProcessor(

@@ -42,16 +42,36 @@ public interface Metadata {
 
     void setVersion(long version);
 
+    default boolean hasVersion() {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * The version type of the document, {@link org.elasticsearch.index.VersionType} as a lower-case string.
      */
-    String getVersionType();
+    default String getVersionType() {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Set the version type of the document.
      * @param versionType {@link org.elasticsearch.index.VersionType} as a lower-case string
      */
-    void setVersionType(String versionType);
+    default void setVersionType(String versionType) {
+        throw new UnsupportedOperationException();
+    }
+
+    default String getOp() {
+        throw new UnsupportedOperationException();
+    }
+
+    default void setOp(String op) {
+        throw new UnsupportedOperationException();
+    }
+
+    default String getType() {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Timestamp of this ingestion or update

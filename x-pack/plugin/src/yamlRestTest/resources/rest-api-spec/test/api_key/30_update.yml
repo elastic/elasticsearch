@@ -89,7 +89,7 @@ teardown:
             "name": "user1-api-key",
             "role_descriptors": {
               "role-a": {
-                "cluster": ["all"],
+                "cluster": ["none"],
                 "index": [
                   {
                     "names": ["index-a"],
@@ -139,22 +139,16 @@ teardown:
         user: null
         body: >
           {
+            "cluster": ["manage_own_api_key"],
             "index": [
               {
-                "names" :[ "*", "index-a" ],
-                "privileges" : [ "read", "index", "write" ]
+                "names": ["index-a"],
+                "privileges": ["write"]
               },
               {
-                "names" :[ "index-a", "index-b" ],
-                "privileges" : [ "read", "write" ]
-              }
-            ],
-            "application": [
-              {
-                "application" : "myapp",
-                "resources" : [ "*", "some-other-res" ],
-                "privileges" : [ "data:read/me", "data:write/me" ]
+                "names": ["index-b"],
+                "privileges": ["read"]
               }
             ]
           }
-  - match: { "has_all_requested": false }
+  - match: { "has_all_requested": true }

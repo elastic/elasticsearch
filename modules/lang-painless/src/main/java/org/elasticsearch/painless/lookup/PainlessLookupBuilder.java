@@ -2224,48 +2224,13 @@ public final class PainlessLookupBuilder {
             try {
                 for (int typeParameterCount = 0; typeParameterCount < javaMethod.getParameterTypes().length; ++typeParameterCount) {
                     Class<?> typeParameter = javaMethod.getParameterTypes()[typeParameterCount];
+                    MethodHandle castMethodHandle = Def.DEF_TO_BOXED_TYPE_IMPLICIT_CAST.get(typeParameter);
 
-                    if (typeParameter == Byte.class) {
+                    if (castMethodHandle != null) {
                         filteredMethodHandle = MethodHandles.filterArguments(
                             filteredMethodHandle,
                             typeParameterCount + filteredTypeParameterOffset,
-                            Def.DEF_TO_B_BYTE_IMPLICIT_HANDLE
-                        );
-                    } else if (typeParameter == Short.class) {
-                        filteredMethodHandle = MethodHandles.filterArguments(
-                            filteredMethodHandle,
-                            typeParameterCount + filteredTypeParameterOffset,
-                            Def.DEF_TO_B_SHORT_IMPLICIT_HANDLE
-                        );
-                    } else if (typeParameter == Character.class) {
-                        filteredMethodHandle = MethodHandles.filterArguments(
-                            filteredMethodHandle,
-                            typeParameterCount + filteredTypeParameterOffset,
-                            Def.DEF_TO_B_CHARACTER_IMPLICIT_HANDLE
-                        );
-                    } else if (typeParameter == Integer.class) {
-                        filteredMethodHandle = MethodHandles.filterArguments(
-                            filteredMethodHandle,
-                            typeParameterCount + filteredTypeParameterOffset,
-                            Def.DEF_TO_B_INTEGER_IMPLICIT_HANDLE
-                        );
-                    } else if (typeParameter == Long.class) {
-                        filteredMethodHandle = MethodHandles.filterArguments(
-                            filteredMethodHandle,
-                            typeParameterCount + filteredTypeParameterOffset,
-                            Def.DEF_TO_B_LONG_IMPLICIT_HANDLE
-                        );
-                    } else if (typeParameter == Float.class) {
-                        filteredMethodHandle = MethodHandles.filterArguments(
-                            filteredMethodHandle,
-                            typeParameterCount + filteredTypeParameterOffset,
-                            Def.DEF_TO_B_FLOAT_IMPLICIT_HANDLE
-                        );
-                    } else if (typeParameter == Double.class) {
-                        filteredMethodHandle = MethodHandles.filterArguments(
-                            filteredMethodHandle,
-                            typeParameterCount + filteredTypeParameterOffset,
-                            Def.DEF_TO_B_DOUBLE_IMPLICIT_HANDLE
+                            castMethodHandle
                         );
                     }
                 }

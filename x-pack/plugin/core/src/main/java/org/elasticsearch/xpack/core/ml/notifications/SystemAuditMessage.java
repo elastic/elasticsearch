@@ -4,10 +4,10 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.core.ml.notifications;
 
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -15,26 +15,27 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import java.util.Date;
 import java.util.Optional;
 
-public class AnomalyDetectionAuditMessage extends AbstractAuditMessage {
+public class SystemAuditMessage extends AbstractAuditMessage {
 
-    private static final ParseField JOB_ID = Job.ID;
-    public static final ConstructingObjectParser<AnomalyDetectionAuditMessage, Void> PARSER = createParser(
-        "ml_audit_message",
-        AnomalyDetectionAuditMessage::new,
-        JOB_ID
+    private static final String SYSTEM = "system";
+
+    public static final ConstructingObjectParser<SystemAuditMessage, Void> PARSER = createParser(
+        "ml_system_audit_message",
+        (resourceId, message, level, timestamp, nodeName) -> new SystemAuditMessage(message, level, timestamp, nodeName),
+        Job.ID
     );
 
-    public AnomalyDetectionAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
-        super(resourceId, message, level, timestamp, nodeName);
+    public SystemAuditMessage(String message, Level level, Date timestamp, String nodeName) {
+        super(null, message, level, timestamp, nodeName);
     }
 
     @Override
-    public final String getJobType() {
-        return Job.ANOMALY_DETECTOR_JOB_TYPE;
+    public String getJobType() {
+        return SYSTEM;
     }
 
     @Override
     protected Optional<String> getResourceField() {
-        return Optional.of(JOB_ID.getPreferredName());
+        return Optional.empty();
     }
 }

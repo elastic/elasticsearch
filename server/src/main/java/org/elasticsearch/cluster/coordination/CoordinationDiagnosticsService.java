@@ -305,12 +305,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         Collection<DiscoveryNode> masterEligibleNodes = getMasterEligibleNodes();
         final CoordinationDiagnosticsResult result;
         boolean leaderHasBeenElected = coordinator.getPeerFinder().getLeader().isPresent();
-        if (masterEligibleNodes.isEmpty() && leaderHasBeenElected == false) {
+        boolean noLeaderElectedAndNoMasterEligibleNodes = leaderHasBeenElected == false && masterEligibleNodes.isEmpty();
+        boolean localNodeIsMasterEligible = clusterService.localNode().isMasterNode();
+        if (noLeaderElectedAndNoMasterEligibleNodes) {
             result = getResultOnNoMasterEligibleNodes(localMasterHistory, explain);
         } else if (leaderHasBeenElected) {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
             result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
-        } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
+        } else if (localNodeIsMasterEligible == false) { // none is elected master and we aren't master eligible
             // NOTE: The logic in this block will be implemented in a future PR
             result = new CoordinationDiagnosticsResult(
                 CoordinationDiagnosticsStatus.RED,
@@ -355,7 +357,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             nodeToClusterFormationStateOrExceptionMapCopy.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
-        if (hasDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)) {
+        if (anyNodeInClusterReportsDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)) {
             result = new CoordinationDiagnosticsResult(
                 CoordinationDiagnosticsStatus.RED,
                 String.format(
@@ -367,7 +369,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
             );
         } else {
-            if (hasQuorumProblems(nodeClusterFormationStateMap)) {
+            if (anyNodeInClusterReportsQuorumProblems(nodeClusterFormationStateMap)) {
                 result = new CoordinationDiagnosticsResult(
                     CoordinationDiagnosticsStatus.RED,
                     String.format(
@@ -400,7 +402,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param nodeToClusterFormationStateMap A map of each master node to its ClusterFormationState
      * @return true if there are discovery problems, false otherwise
      */
-    private boolean hasDiscoveryProblems(
+    private boolean anyNodeInClusterReportsDiscoveryProblems(
         Collection<DiscoveryNode> masterEligibleNodes,
         Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeToClusterFormationStateMap
     ) {
@@ -409,10 +411,29 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             .entrySet()) {
             Set<DiscoveryNode> foundPeersOnNode = new HashSet<>(entry.getValue().foundPeers());
             if (foundPeersOnNode.containsAll(masterEligibleNodes) == false) {
-                return true;
+                Collection<DiscoveryNode> nodesNotDiscovered = masterEligibleNodes.stream()
+                    .filter(node -> foundPeersOnNode.contains(node) == false)
+                    .toList();
+                nodesNotDiscoveredMap.put(entry.getKey(), nodesNotDiscovered);
             }
         }
-        return false;
+        if (nodesNotDiscoveredMap.isEmpty()) {
+            return false;
+        } else {
+            String nodeDiscoveryProblemsMessage = nodesNotDiscoveredMap.entrySet()
+                .stream()
+                .map(
+                    entry -> String.format(
+                        Locale.ROOT,
+                        "%s cannot discover [%s]",
+                        entry.getKey().getName(),
+                        entry.getValue().stream().map(DiscoveryNode::getName).collect(Collectors.joining(", "))
+                    )
+                )
+                .collect(Collectors.joining("; "));
+            logger.info("The following nodes report discovery problems: {}", nodeDiscoveryProblemsMessage);
+            return true;
+        }
     }
 
     /**
@@ -421,17 +442,33 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param nodeToClusterFormationStateMap A map of each master node to its ClusterFormationState
      * @return True if any nodes in nodeToClusterFormationStateMap report a problem forming a quorum, false otherwise.
      */
-    private boolean hasQuorumProblems(
+    private boolean anyNodeInClusterReportsQuorumProblems(
         Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeToClusterFormationStateMap
     ) {
+        Map<DiscoveryNode, String> quorumProblems = new HashMap<>();
         for (Map.Entry<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> entry : nodeToClusterFormationStateMap
             .entrySet()) {
             ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = entry.getValue();
             if (clusterFormationState.hasDiscoveredQuorum() == false) {
-                return true;
+                quorumProblems.put(entry.getKey(), clusterFormationState.getDescription());
             }
         }
-        return false;
+        if (quorumProblems.isEmpty()) {
+            return false;
+        } else {
+            String quorumProblemsMessage = quorumProblems.entrySet()
+                .stream()
+                .map(
+                    entry -> String.format(
+                        "%s reports that a quorum " + "cannot be formed: [%s]",
+                        entry.getKey().getName(),
+                        entry.getValue()
+                    )
+                )
+                .collect(Collectors.joining("; "));
+            logger.info("Some master eligible nodes report that a quorum cannot be formed: {}", quorumProblemsMessage);
+            return true;
+        }
     }
 
     /**

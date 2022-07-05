@@ -67,8 +67,9 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
     }
 
     public void testSharedFieldsBetweenIndexResponses() throws IOException {
-        List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
-        final FieldCapabilitiesIndexResponse firstResponse = randomIndexResponse();
+        List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
+        FieldCapabilitiesIndexResponse firstResponse = randomIndexResponse();
+        indexResponses.add(firstResponse);
         int extraResponses = randomIntBetween(2, 10);
         for (int i = 0; i < extraResponses; i++) {
             final List<IndexFieldCapabilities> fields = new ArrayList<>();
@@ -86,22 +87,23 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                 fields,
                 firstResponse.canMatch()
             );
-            responses.add(indexResponse);
+            indexResponses.add(indexResponse);
         }
         int numUnmatched = randomIntBetween(0, 3);
         Set<ShardId> shardIds = new HashSet<>();
         for (int i = 0; i < numUnmatched; i++) {
             shardIds.add(new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), between(0, 10)));
         }
-        FieldCapabilitiesNodeResponse origResp = new FieldCapabilitiesNodeResponse(responses, Collections.emptyMap(), shardIds);
-        FieldCapabilitiesNodeResponse serializedResp = copyInstance(origResp);
-        assertThat(serializedResp, equalTo(origResp));
+        FieldCapabilitiesNodeResponse originalResp = new FieldCapabilitiesNodeResponse(indexResponses, Collections.emptyMap(), shardIds);
+        FieldCapabilitiesNodeResponse serializedResp = copyInstance(originalResp);
+        assertThat(serializedResp, equalTo(originalResp));
         final Map<String, IndexFieldCapabilities> sharedFields = new HashMap<>();
-        for (IndexFieldCapabilities f : origResp.getIndexResponses().get(0).getFields()) {
+        assertThat(serializedResp.getIndexResponses().get(0), equalTo(firstResponse));
+        for (IndexFieldCapabilities f : serializedResp.getIndexResponses().get(0).getFields()) {
             sharedFields.putIfAbsent(f.getName(), f);
         }
-        for (int i = 1; i < origResp.getIndexResponses().size(); i++) {
-            for (IndexFieldCapabilities f : origResp.getIndexResponses().get(i).getFields()) {
+        for (int i = 1; i < serializedResp.getIndexResponses().size(); i++) {
+            for (IndexFieldCapabilities f : serializedResp.getIndexResponses().get(i).getFields()) {
                 assertSame(sharedFields.get(f.getName()), f);
             }
         }

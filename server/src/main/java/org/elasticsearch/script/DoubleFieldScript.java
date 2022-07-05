@@ -124,7 +124,6 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
     }
 
     public final void emit(double v) {
-        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
@@ -139,6 +138,7 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         }
 
         public void emit(double v) {
+            script.checkMaxSize(script.count());
             script.emit(v);
         }
     }

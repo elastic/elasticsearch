@@ -17,3 +17,7 @@ testClusters.configureEach {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("stack/10_basic/Test logs index auto creation", "Strict assertions on the mapping of the default logs-*-* index template prevents making any improvements in a non-breaking way.")
+}

@@ -74,10 +74,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
     private int relocatingShards = 0;
 
-    private int activeShardCount = 0;
-
-    private int totalShardCount = 0;
-
     private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
@@ -97,26 +93,29 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
-        this.assignedShards = new HashMap<>();
+        final int indexCount = routingTable.indicesRouting().size();
+        this.assignedShards = Maps.newMapWithExpectedSize(indexCount);
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = new HashMap<>();
 
         nodesToShards = Maps.newMapWithExpectedSize(discoveryNodes.getDataNodes().size());
         // fill in the nodeToShards with the "live" nodes
+        var dataNodes = discoveryNodes.getDataNodes().keySet();
+        // best guess for the number of shards per data node
+        final int sizeGuess = dataNodes.isEmpty() ? indexCount : 2 * indexCount / dataNodes.size();
         for (var node : discoveryNodes.getDataNodes().keySet()) {
-            nodesToShards.put(node, new RoutingNode(node, discoveryNodes.get(node)));
+            nodesToShards.put(node, new RoutingNode(node, discoveryNodes.get(node), sizeGuess));
         }
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
-        final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k));
+        final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k), sizeGuess);
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
                 assert indexShard.primary != null;
                 for (int copy = 0; copy < indexShard.size(); copy++) {
                     final ShardRouting shard = indexShard.shard(copy);
-                    totalShardCount++;
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
                     // by the ShardId, as this is common for primary and replicas.
@@ -125,9 +124,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                         // LinkedHashMap to preserve order
                         nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).add(shard);
                         assignedShardsAdd(shard);
-                        if (shard.active()) {
-                            activeShardCount++;
-                        }
                         if (shard.relocating()) {
                             relocatingShards++;
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
@@ -169,8 +165,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
         this.relocatingShards = routingNodes.relocatingShards;
-        this.activeShardCount = routingNodes.activeShardCount;
-        this.totalShardCount = routingNodes.totalShardCount;
         this.attributeValuesByAttribute = Maps.newMapWithExpectedSize(routingNodes.attributeValuesByAttribute.size());
         for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
             this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
@@ -321,14 +315,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
     public int getRelocatingShardCount() {
         return relocatingShards;
-    }
-
-    public int getActiveShardCount() {
-        return activeShardCount;
-    }
-
-    public int getTotalShardCount() {
-        return totalShardCount;
     }
 
     /**
@@ -870,8 +856,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             && inactivePrimaryCount == that.inactivePrimaryCount
             && inactiveShardCount == that.inactiveShardCount
             && relocatingShards == that.relocatingShards
-            && activeShardCount == that.activeShardCount
-            && totalShardCount == that.totalShardCount
             && nodesToShards.equals(that.nodesToShards)
             && unassignedShards.equals(that.unassignedShards)
             && assignedShards.equals(that.assignedShards)
@@ -889,8 +873,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             inactivePrimaryCount,
             inactiveShardCount,
             relocatingShards,
-            activeShardCount,
-            totalShardCount,
             attributeValuesByAttribute,
             recoveriesPerNode
         );

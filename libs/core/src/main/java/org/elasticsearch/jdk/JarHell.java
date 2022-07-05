@@ -74,7 +74,7 @@ public class JarHell {
      * @param output A {@link String} {@link Consumer} to which debug output will be sent
      * @throws IllegalStateException if jar hell was found
      */
-    public static void checkJarHell(Consumer<String> output) throws IOException, URISyntaxException {
+    public static void checkJarHell(Consumer<String> output) throws IOException {
         ClassLoader loader = JarHell.class.getClassLoader();
         output.accept("java.class.path: " + System.getProperty("java.class.path"));
         output.accept("sun.boot.class.path: " + System.getProperty("sun.boot.class.path"));
@@ -198,7 +198,7 @@ public class JarHell {
      * @throws IllegalStateException if jar hell was found
      */
     @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
-    public static void checkJarHell(Set<URL> urls, Consumer<String> output) throws URISyntaxException, IOException {
+    public static void checkJarHell(Set<URL> urls, Consumer<String> output) throws IOException {
         // we don't try to be sneaky and use deprecated/internal/not portable stuff
         // like sun.boot.class.path, and with jigsaw we don't yet have a way to get
         // a "list" at all. So just exclude any elements underneath the java home
@@ -207,7 +207,7 @@ public class JarHell {
         final Map<String, Path> clazzes = new HashMap<>(32768);
         Set<Path> seenJars = new HashSet<>();
         for (final URL url : urls) {
-            final Path path = PathUtils.get(url.toURI());
+            final Path path = toPath(url);
             // exclude system resources
             if (path.startsWith(javaHome)) {
                 output.accept("excluding system resource: " + path);
@@ -237,7 +237,7 @@ public class JarHell {
             } else {
                 output.accept("examining directory: " + path);
                 // case for tests: where we have class files in the classpath
-                final Path root = PathUtils.get(url.toURI());
+                final Path root = toPath(url);
                 final String sep = root.getFileSystem().getSeparator();
 
                 // don't try and walk class or resource directories that don't exist
@@ -324,6 +324,14 @@ public class JarHell {
         try {
             return uri.toURL();
         } catch (MalformedURLException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static Path toPath(URL url) {
+        try {
+            return PathUtils.get(url.toURI());
+        } catch (URISyntaxException e) {
             throw new AssertionError(e);
         }
     }

@@ -907,10 +907,10 @@ public class PersistedClusterStateService {
             }
 
             final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(previouslyWrittenMetadata.indices().size());
-            for (IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
+            previouslyWrittenMetadata.indices().forEach((name, indexMetadata) -> {
                 final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                 assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
-            }
+            });
 
             int numIndicesAdded = 0;
             int numIndicesUpdated = 0;

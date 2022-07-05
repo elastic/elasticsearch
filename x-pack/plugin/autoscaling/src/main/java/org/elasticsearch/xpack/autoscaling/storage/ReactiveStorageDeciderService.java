@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -121,8 +121,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         assert maxShardSize >= 0;
         String message = message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
-            .node(maxShardSize, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .node(maxShardSize, null, null)
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,
@@ -176,7 +176,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             .stream()
             .filter(single -> single.type() == Decision.Type.NO)
             .filter(predicate)
-            .collect(Collectors.toList());
+            .toList();
 
         if (nos.size() == 1) {
             return Optional.ofNullable(nos.get(0).label());
@@ -402,7 +402,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return allocation.metadata().getIndexSafe(shard.index());
         }
 
-        private Optional<String> highestPreferenceTier(List<String> preferredTiers, DiscoveryNodes unused) {
+        private Optional<String> highestPreferenceTier(List<String> preferredTiers, DiscoveryNodes unused, DesiredNodes desiredNodes) {
             assert preferredTiers.isEmpty() == false;
             return Optional.of(preferredTiers.get(0));
         }
@@ -432,8 +432,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         long unmovableSize(String nodeId, Collection<ShardRouting> shards) {
-            ClusterInfo clusterInfo = this.info;
-            DiskUsage diskUsage = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeId);
+            DiskUsage diskUsage = this.info.getNodeMostAvailableDiskUsages().get(nodeId);
             if (diskUsage == null) {
                 // do not want to scale up then, since this should only happen when node has just joined (clearly edge case).
                 return 0;
@@ -456,7 +455,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes) {
-            return nodeIds.stream().map(n -> routingNodes.node(n));
+            return nodeIds.stream().map(routingNodes::node);
         }
 
         private static class SingleForecast {
@@ -477,7 +476,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 metadataBuilder.put(updatedDataStream);
             }
 
-            public void applySize(ImmutableOpenMap.Builder<String, Long> builder, RoutingTable updatedRoutingTable) {
+            public void applySize(Map<String, Long> builder, RoutingTable updatedRoutingTable) {
                 for (Map.Entry<IndexMetadata, Long> entry : additionalIndices.entrySet()) {
                     List<ShardRouting> shardRoutings = updatedRoutingTable.allShards(entry.getKey().getIndex().getName());
                     long size = entry.getValue() / shardRoutings.size();
@@ -502,19 +501,19 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .map(IndexAbstraction.DataStream.class::cast)
                 .map(ds -> forecast(state.metadata(), ds, forecastWindow, now))
                 .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                .toList();
             if (singleForecasts.isEmpty()) {
                 return this;
             }
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
             RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
-            ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
+            Map<String, Long> sizeBuilder = new HashMap<>();
             singleForecasts.forEach(p -> p.applyMetadata(metadataBuilder));
             singleForecasts.forEach(p -> p.applyRouting(routingTableBuilder));
             RoutingTable routingTable = routingTableBuilder.build();
             singleForecasts.forEach(p -> p.applySize(sizeBuilder, routingTable));
             ClusterState forecastClusterState = ClusterState.builder(state).metadata(metadataBuilder).routingTable(routingTable).build();
-            ClusterInfo forecastInfo = new ExtendedClusterInfo(sizeBuilder.build(), AllocationState.this.info);
+            ClusterInfo forecastInfo = new ExtendedClusterInfo(Collections.unmodifiableMap(sizeBuilder), AllocationState.this.info);
 
             return new AllocationState(
                 forecastClusterState,

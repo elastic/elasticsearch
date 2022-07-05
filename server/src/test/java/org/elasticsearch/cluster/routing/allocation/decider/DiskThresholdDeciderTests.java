@@ -1249,7 +1249,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
 
         final SnapshotShard snapshotShard = new SnapshotShard(snapshot, indexId, shardId);
-        final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder();
+        final Map<SnapshotShard, Long> snapshotShardSizes = new HashMap<>();
 
         final boolean shouldAllocate;
         if (randomBoolean()) {
@@ -1263,7 +1263,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             logger.info("--> shard is always allocated when its size could not be retrieved");
             shouldAllocate = true;
         }
-        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes.build()));
+        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes));
 
         // reroute uses the previous snapshot shard size
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);

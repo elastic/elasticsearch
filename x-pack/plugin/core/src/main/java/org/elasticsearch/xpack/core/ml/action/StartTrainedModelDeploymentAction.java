@@ -66,6 +66,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             AllocationStatus.State.STARTED,
             AllocationStatus.State.STARTING,
             AllocationStatus.State.FULLY_ALLOCATED };
+
+        private static final int MAX_THREADS_PER_ALLOCATION = 32;
+
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField WAIT_FOR = new ParseField("wait_for");
@@ -209,10 +212,19 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (threadsPerAllocation < 1) {
                 validationException.addValidationError("[" + THREADS_PER_ALLOCATION + "] must be a positive integer");
             }
+            if (threadsPerAllocation > MAX_THREADS_PER_ALLOCATION || isPowerOf2(threadsPerAllocation) == false) {
+                validationException.addValidationError(
+                    "[" + THREADS_PER_ALLOCATION + "] must be a power of 2 less than or equal to " + MAX_THREADS_PER_ALLOCATION
+                );
+            }
             if (queueCapacity < 1) {
                 validationException.addValidationError("[" + QUEUE_CAPACITY + "] must be a positive integer");
             }
             return validationException.validationErrors().isEmpty() ? null : validationException;
+        }
+
+        private static boolean isPowerOf2(int value) {
+            return Integer.bitCount(value) == 1;
         }
 
         @Override

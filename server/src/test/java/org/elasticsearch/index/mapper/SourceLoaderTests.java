@@ -15,11 +15,20 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SourceLoaderTests extends MapperServiceTestCase {
+    public void testNonSynthetic() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").field("type", "object").endObject();
+            b.startObject("kwd").field("type", "keyword").endObject();
+        }));
+        assertFalse(mapper.mappers().newSourceLoader().reordersFieldValues());
+    }
+
     public void testEmptyObject() throws IOException {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
         }));
+        assertTrue(mapper.mappers().newSourceLoader().reordersFieldValues());
         assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
             {"kwd":"foo"}"""));
     }

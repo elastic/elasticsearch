@@ -44,7 +44,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      */
     public abstract static class AdapterBuilder<T> {
         private final String name;
-        private final List<QueryToFilterAdapter<?>> filters = new ArrayList<>();
+        private final List<QueryToFilterAdapter> filters = new ArrayList<>();
         private final boolean keyed;
         private final AggregationContext context;
         private final Aggregator parent;
@@ -95,11 +95,11 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             add(QueryToFilterAdapter.build(context.searcher(), key, query));
         }
 
-        final void add(QueryToFilterAdapter<?> filter) throws IOException {
+        final void add(QueryToFilterAdapter filter) throws IOException {
             if (valid == false) {
                 return;
             }
-            QueryToFilterAdapter<?> mergedFilter = filter.union(rewrittenTopLevelQuery);
+            QueryToFilterAdapter mergedFilter = filter.union(rewrittenTopLevelQuery);
             if (mergedFilter.isInefficientUnion()) {
                 /*
                  * For now any complex union kicks us out of filter by filter
@@ -199,7 +199,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     private FilterByFilterAggregator(
         String name,
         AggregatorFactories factories,
-        List<QueryToFilterAdapter<?>> filters,
+        List<QueryToFilterAdapter> filters,
         boolean keyed,
         AggregationContext context,
         Aggregator parent,

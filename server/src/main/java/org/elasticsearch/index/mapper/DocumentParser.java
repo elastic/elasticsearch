@@ -403,8 +403,8 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
-        if (mapper instanceof ObjectMapper) {
-            parseObjectOrNested(context, (ObjectMapper) mapper);
+        if (mapper instanceof ObjectMapper objectMapper) {
+            parseObjectOrNested(context, objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMapper.parse(context);
             if (context.isWithinCopyTo() == false) {
@@ -447,9 +447,10 @@ public final class DocumentParser {
         );
     }
 
-    private static void parseObject(final DocumentParserContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
+    private static void parseObject(final DocumentParserContext context, ObjectMapper parentObjectMapper, String currentFieldName)
+        throws IOException {
         assert currentFieldName != null;
-        Mapper objectMapper = getMapper(context, mapper, currentFieldName);
+        Mapper objectMapper = getMapper(context, parentObjectMapper, currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             if (objectMapper instanceof ObjectMapper objMapper) {
@@ -461,16 +462,17 @@ public final class DocumentParser {
             context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
-            parseObjectDynamic(context, mapper, currentFieldName);
+            parseObjectDynamic(context, parentObjectMapper, currentFieldName);
         }
     }
 
-    private static void parseObjectDynamic(DocumentParserContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
-        ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
+    private static void parseObjectDynamic(DocumentParserContext context, ObjectMapper parentObjectMapper, String currentFieldName)
+        throws IOException {
+        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentObjectMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
+            throw new StrictDynamicMappingException(parentObjectMapper.fullPath(), currentFieldName);
         } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            failIfMatchesRoutingPath(context, mapper, currentFieldName);
+            failIfMatchesRoutingPath(context, parentObjectMapper, currentFieldName);
             // not dynamic, read everything up to end object
             context.parser().skipChildren();
         } else {
@@ -482,6 +484,26 @@ public final class DocumentParser {
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
                 context.addDynamicMapper(dynamicObjectMapper);
+            }
+            if (parentObjectMapper.subobjects() == false) {
+                if (dynamicObjectMapper instanceof NestedObjectMapper) {
+                    throw new MapperParsingException(
+                        "Tried to add nested object ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + parentObjectMapper.name()
+                            + "] which does not support subobjects"
+                    );
+                }
+                if (dynamicObjectMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Tried to add subobject ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + parentObjectMapper.name()
+                            + "] which does not support subobjects"
+                    );
+                }
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);

@@ -43,7 +43,9 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
@@ -449,14 +451,13 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
     private static class TestSnapshotsInfoService implements SnapshotsInfoService {
 
-        private volatile ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.of();
+        private volatile Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = Map.of();
 
         synchronized void addSnapshotShardSize(Snapshot snapshot, IndexId index, ShardId shard, Long size) {
-            final ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes = ImmutableOpenMap
-                .builder(snapshotShardSizes);
+            final Map<InternalSnapshotsInfoService.SnapshotShard, Long> newSnapshotShardSizes = new HashMap<>(snapshotShardSizes);
             boolean added = newSnapshotShardSizes.put(new InternalSnapshotsInfoService.SnapshotShard(snapshot, index, shard), size) == null;
             assert added : "cannot add snapshot shard size twice";
-            this.snapshotShardSizes = newSnapshotShardSizes.build();
+            this.snapshotShardSizes = Collections.unmodifiableMap(newSnapshotShardSizes);
         }
 
         @Override

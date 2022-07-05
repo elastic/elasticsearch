@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -27,11 +25,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -60,6 +60,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause;
@@ -163,8 +164,7 @@ public class ModelLoadingService implements ClusterStateListener {
         this.localModelCache = CacheBuilder.<String, ModelAndConsumer>builder()
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, modelAndConsumer) -> modelAndConsumer.model.ramBytesUsed())
-            // explicit declaration of the listener lambda necessary for Eclipse IDE 4.14
-            .removalListener(notification -> cacheEvictionListener(notification))
+            .removalListener(this::cacheEvictionListener)
             .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
             .build();
         clusterService.addListener(this);
@@ -203,8 +203,8 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForPipeline(String modelId, ActionListener<LocalModel> modelActionListener) {
-        getModel(modelId, Consumer.PIPELINE, modelActionListener);
+    public void getModelForPipeline(String modelId, TaskId parentTaskId, ActionListener<LocalModel> modelActionListener) {
+        getModel(modelId, Consumer.PIPELINE, parentTaskId, modelActionListener);
     }
 
     /**
@@ -214,7 +214,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
     public void getModelForInternalInference(String modelId, ActionListener<LocalModel> modelActionListener) {
-        getModel(modelId, Consumer.INTERNAL, modelActionListener);
+        getModel(modelId, Consumer.INTERNAL, null, modelActionListener);
     }
 
     /**
@@ -224,7 +224,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
     public void getModelForSearch(String modelId, ActionListener<LocalModel> modelActionListener) {
-        getModel(modelId, Consumer.SEARCH, modelActionListener);
+        getModel(modelId, Consumer.SEARCH, null, modelActionListener);
     }
 
     /**
@@ -249,11 +249,12 @@ public class ModelLoadingService implements ClusterStateListener {
      * The main difference being that models for search are always cached whereas pipeline models
      * are only cached if they are referenced by an ingest pipeline
      *
-     * @param modelIdOrAlias       the model id or model alias to get
+     * @param modelIdOrAlias      the model id or model alias to get
      * @param consumer            which feature is requesting the model
+     * @param parentTaskId        The parent task id
      * @param modelActionListener the listener to alert when the model has been retrieved.
      */
-    private void getModel(String modelIdOrAlias, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
+    private void getModel(String modelIdOrAlias, Consumer consumer, TaskId parentTaskId, ActionListener<LocalModel> modelActionListener) {
         final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
         ModelAndConsumer cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
@@ -269,7 +270,7 @@ public class ModelLoadingService implements ClusterStateListener {
             return;
         }
 
-        if (loadModelIfNecessary(modelIdOrAlias, consumer, modelActionListener)) {
+        if (loadModelIfNecessary(modelIdOrAlias, consumer, parentTaskId, modelActionListener)) {
             logger.trace(
                 () -> format("[%s] (model_alias [%s]) is loading or loaded, added new listener to queue", modelId, modelIdOrAlias)
             );
@@ -284,10 +285,16 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelIdOrAlias The model to get
      * @param consumer The model consumer
      * @param modelActionListener The listener
+     * @param parentTaskId The parent task id
      * @return If the model is cached or currently being loaded true is returned. If a new load is started
      * false is returned to indicate a new load event
      */
-    private boolean loadModelIfNecessary(String modelIdOrAlias, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
+    private boolean loadModelIfNecessary(
+        String modelIdOrAlias,
+        Consumer consumer,
+        TaskId parentTaskId,
+        ActionListener<LocalModel> modelActionListener
+    ) {
         synchronized (loadingListeners) {
             final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
             ModelAndConsumer cachedModel = localModelCache.get(modelId);
@@ -320,7 +327,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 logger.trace(
                     () -> format("[%s] (model_alias [%s]) not actively loading, eager loading without cache", modelId, modelIdOrAlias)
                 );
-                loadWithoutCaching(modelId, consumer, modelActionListener);
+                loadWithoutCaching(modelId, consumer, parentTaskId, modelActionListener);
             } else {
                 logger.trace(() -> format("[%s] (model_alias [%s]) attempting to load and cache", modelId, modelIdOrAlias));
                 loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
@@ -331,7 +338,10 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId, Consumer consumer) {
-        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(trainedModelConfig -> {
+        // We cannot use parentTaskId here as multiple listeners may be wanting this model to be loaded
+        // We don't want to cancel the loading if only ONE of them stops listening or closes connection
+        // TODO Is there a way to only signal a cancel if all the listener tasks cancel???
+        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), null, ActionListener.wrap(trainedModelConfig -> {
             if (trainedModelConfig.isAllocateOnly()) {
                 if (consumer == Consumer.SEARCH) {
                     handleLoadFailure(
@@ -377,10 +387,15 @@ public class ModelLoadingService implements ClusterStateListener {
         }));
     }
 
-    private void loadWithoutCaching(String modelId, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
+    private void loadWithoutCaching(
+        String modelId,
+        Consumer consumer,
+        TaskId parentTaskId,
+        ActionListener<LocalModel> modelActionListener
+    ) {
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
-        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(trainedModelConfig -> {
+        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), parentTaskId, ActionListener.wrap(trainedModelConfig -> {
             // If the model should be allocated, we should fail here
             if (trainedModelConfig.isAllocateOnly()) {
                 if (consumer == Consumer.SEARCH) {
@@ -565,10 +580,10 @@ public class ModelLoadingService implements ClusterStateListener {
     private void cacheEvictionListener(RemovalNotification<String, ModelAndConsumer> notification) {
         try {
             if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
-                MessageSupplier msg = () -> new ParameterizedMessage(
+                Supplier<String> msg = () -> Strings.format(
                     "model cache entry evicted."
-                        + "current cache [{}] current max [{}] model size [{}]. "
-                        + "If this is undesired, consider updating setting [{}] or [{}].",
+                        + "current cache [%s] current max [%s] model size [%s]. "
+                        + "If this is undesired, consider updating setting [%s] or [%s].",
                     ByteSizeValue.ofBytes(localModelCache.weight()).getStringRep(),
                     maxCacheSize.getStringRep(),
                     ByteSizeValue.ofBytes(notification.getValue().model.ramBytesUsed()).getStringRep(),
@@ -781,14 +796,14 @@ public class ModelLoadingService implements ClusterStateListener {
         return changedAliases;
     }
 
-    private void auditIfNecessary(String modelId, MessageSupplier msg) {
+    private void auditIfNecessary(String modelId, Supplier<String> msg) {
         if (shouldNotAudit.contains(modelId)) {
-            logger.trace(() -> format("[%s] %s", modelId, msg.get().getFormattedMessage()));
+            logger.trace(() -> format("[%s] %s", modelId, msg.get()));
             return;
         }
-        auditor.info(modelId, msg.get().getFormattedMessage());
+        auditor.info(modelId, msg.get());
         shouldNotAudit.add(modelId);
-        logger.info("[{}] {}", modelId, msg.get().getFormattedMessage());
+        logger.info("[{}] {}", modelId, msg.get());
     }
 
     private void loadModelsForPipeline(Set<String> modelIds) {

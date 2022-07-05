@@ -17,8 +17,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -38,13 +36,13 @@ import java.util.function.IntPredicate;
  * {@link FiltersAggregator}. In general we try to delegate to {@linkplain Query}
  * when we don't have a special optimization.
  */
-public class QueryToFilterAdapter<Q extends Query> {
+public class QueryToFilterAdapter {
     /**
      * Build a filter for the query against the provided searcher.
      * <p>
      * Note: This method rewrites the query against the {@link IndexSearcher}
      */
-    public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
+    public static QueryToFilterAdapter build(IndexSearcher searcher, String key, Query query) throws IOException {
         // Wrapping with a ConstantScoreQuery enables a few more rewrite
         // rules as of Lucene 9.2
         query = searcher.rewrite(new ConstantScoreQuery(query));
@@ -57,18 +55,12 @@ public class QueryToFilterAdapter<Q extends Query> {
              */
             query = ((ConstantScoreQuery) query).getQuery();
         }
-        if (query instanceof MatchAllDocsQuery) {
-            return new MatchAllQueryToFilterAdapter(searcher, key, (MatchAllDocsQuery) query);
-        }
-        if (query instanceof MatchNoDocsQuery) {
-            return new MatchNoneQueryToFilterAdapter(searcher, key, (MatchNoDocsQuery) query);
-        }
-        return new QueryToFilterAdapter<>(searcher, key, query);
+        return new QueryToFilterAdapter(searcher, key, query);
     }
 
     private final IndexSearcher searcher;
     private final String key;
-    private final Q query;
+    private final Query query;
     /**
      * The weight for the query or {@code null} if we haven't built it. Use
      * {@link #weight()} to build it when needed.
@@ -76,7 +68,7 @@ public class QueryToFilterAdapter<Q extends Query> {
     private Weight weight;
     protected int segmentsCountedInConstantTime;
 
-    QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
+    QueryToFilterAdapter(IndexSearcher searcher, String key, Query query) {
         this.searcher = searcher;
         this.key = key;
         this.query = query;
@@ -88,7 +80,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Subclasses should use this to fetch the query when making query
      * specific optimizations.
      */
-    Q query() {
+    Query query() {
         return query;
     }
 
@@ -121,7 +113,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * <p>
      * Note: This method rewrites the query against the {@link IndexSearcher}.
      */
-    QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
+    QueryToFilterAdapter union(Query extraQuery) throws IOException {
         /*
          * Wrapping with a ConstantScoreQuery enables a few more rewrite
          * rules as of Lucene 9.2.
@@ -134,23 +126,26 @@ public class QueryToFilterAdapter<Q extends Query> {
          */
         extraQuery = searcher().rewrite(new ConstantScoreQuery(extraQuery));
         Query unwrappedExtraQuery = unwrap(extraQuery);
-        if (unwrappedExtraQuery instanceof MatchAllDocsQuery) {
-            return this;
-        }
         Query unwrappedQuery = unwrap(query);
         if (unwrappedQuery instanceof PointRangeQuery && unwrappedExtraQuery instanceof PointRangeQuery) {
             Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedQuery, (PointRangeQuery) unwrappedExtraQuery);
             if (merged != null) {
                 // Should we rewrap here?
-                return new QueryToFilterAdapter<>(searcher(), key(), merged);
+                return new QueryToFilterAdapter(searcher(), key(), merged);
             }
         }
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.FILTER);
         builder.add(extraQuery, BooleanClause.Occur.FILTER);
-        return new QueryToFilterAdapter<>(searcher(), key(), builder.build()) {
+        Query rewrittenUnion = searcher().rewrite(new ConstantScoreQuery(builder.build()));
+        if (rewrittenUnion instanceof ConstantScoreQuery) {
+            rewrittenUnion = ((ConstantScoreQuery) rewrittenUnion).getQuery();
+        }
+        // This union is inefficient if Lucene cannot merge clauses of the boolean query through a rewrite.
+        final boolean inefficientUnion = rewrittenUnion instanceof BooleanQuery;
+        return new QueryToFilterAdapter(searcher(), key(), rewrittenUnion) {
             public boolean isInefficientUnion() {
-                return true;
+                return inefficientUnion;
             }
         };
     }

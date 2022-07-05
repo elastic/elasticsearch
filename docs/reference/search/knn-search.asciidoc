@@ -75,6 +75,9 @@ that sacrifices result accuracy for improved search speed. This means the
 results returned are not always the true _k_ closest neighbors.
 //end::hnsw-algorithm[]
 
+The kNN search API supports <<knn-search-api-filter-example, restricting the search using a filter>>.
+The search will return the top `k` documents that also match the filter query.
+
 [[knn-search-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -153,6 +156,8 @@ candidates considered, which is `num_candidates * num_shards`. The
 [[knn-search-api-example]]
 ==== {api-examples-title}
 
+===== Basic kNN search
+
 The following requests create a `dense_vector` field with indexing enabled and
 add sample documents:
 
@@ -192,6 +197,9 @@ PUT my-index/_doc/2?refresh
   "file_type": "svg"
 }
 ----
+
+[[knn-search-api-filter-example]]
+===== Filtered kNN search
 
 The next request performs a kNN search filtered by the `file_type` field:
 

@@ -63,6 +63,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -73,8 +74,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -115,7 +114,6 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             CommonAnalysisPlugin.class,
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
-            DenseVectorPlugin.class,
             SpatialPlugin.class,
             PercolatorPlugin.class
         );

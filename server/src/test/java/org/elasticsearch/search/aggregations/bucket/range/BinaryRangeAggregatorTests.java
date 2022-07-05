@@ -48,7 +48,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
 
         @Override
-        public long docValueCount() {
+        public int docValueCount() {
             return ords.length;
         }
 

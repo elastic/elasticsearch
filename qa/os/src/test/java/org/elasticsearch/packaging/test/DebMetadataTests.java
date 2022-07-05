@@ -27,13 +27,20 @@ public class DebMetadataTests extends PackagingTestCase {
         assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88090")
     public void test05CheckLintian() {
         String extraArgs = "";
         final String helpText = sh.run("lintian --help").stdout();
-        if (helpText.contains("fail-on-warnings")) {
+        if (helpText.contains("--fail-on-warnings")) {
             extraArgs = "--fail-on-warnings";
         } else if (helpText.contains("--fail-on error")) {
             extraArgs = "--fail-on warning";
+            // Recent lintian versions are picky about malformed or mismatched overrides.
+            // Unfortunately override syntax changes between lintian versions in a non-backwards compatible
+            // way, so we have to tolerate these (or maintain separate override files per lintian version).
+            if (helpText.contains("--suppress-tags")) {
+                extraArgs += " --suppress-tags malformed-override,mismatched-override";
+            }
         }
         sh.run("lintian %s %s".formatted(extraArgs, FileUtils.getDistributionFile(distribution())));
     }

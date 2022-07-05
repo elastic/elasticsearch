@@ -136,22 +136,6 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(Reader reader, char[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
     public static int readFully(InputStream reader, byte[] dest) throws IOException {
         return readFully(reader, dest, 0, dest.length);
     }
@@ -260,11 +244,6 @@ public abstract class Streams {
         @Override
         public void close() throws IOException {
             flush();
-        }
-
-        @Override
-        public void reset() throws IOException {
-            delegate.reset();
         }
 
         @Override

@@ -2006,6 +2006,18 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testRecoveringShardFailsIfStartedTooSoon() throws IOException {
+        final IndexShard shard = newShard(false);
+        final ShardRouting originalRouting = shard.routingEntry();
+        final ShardRouting startedRouting = ShardRoutingHelper.moveToStarted(originalRouting);
+        assertThat(
+            expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, startedRouting))
+                .getMessage(),
+            containsString("stale shard-started event")
+        );
+        closeShards(shard);
+    }
+
     public void testShardCanNotBeMarkedAsRelocatedIfRelocationCancelled() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();

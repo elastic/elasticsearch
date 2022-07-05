@@ -1056,6 +1056,13 @@ adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
 
+tag::transform-settings-num-failure-retries[]
+Defines the number of retries on a recoverable failure before the {transform} task is marked as `failed`.
+The minimum value is `0` and the maximum is `100`.
+`-1` can be used to denote infinity. In this case, the {transform} never gives up on retrying a recoverable failure.
+The default value is the cluster-level setting `num_transform_failure_retries`.
+end::transform-settings-num-failure-retries[]
+
 tag::transform-sort[]
 Specifies the date field that is used to identify the latest documents.
 end::transform-sort[]

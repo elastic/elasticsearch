@@ -159,6 +159,7 @@ public final class DatafeedManager {
         datafeedConfigProvider.expandDatafeedConfigs(
             request.getDatafeedId(),
             request.allowNoMatch(),
+            null,
             ActionListener.wrap(datafeedBuilders ->
 
             // Build datafeeds
@@ -297,10 +298,7 @@ public final class DatafeedManager {
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),
             headers,
-            ActionListener.wrap(
-                indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
-                listener::onFailure
-            )
+            ActionListener.wrap(response -> listener.onResponse(new PutDatafeedAction.Response(response.v1())), listener::onFailure)
         );
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {

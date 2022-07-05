@@ -44,6 +44,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
     private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
     private static final Version MODULE_NAME_SUPPORT = Version.V_8_3_0;
+    private static final Version BOOTSTRAP_SUPPORT_REMOVED = Version.V_8_4_0;
 
     private final String name;
     private final String description;
@@ -54,25 +55,21 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final String moduleName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
-    private final PluginType type;
-    private final String javaOpts;
     private final boolean isLicensed;
 
     /**
      * Construct plugin info.
      *
-     * @param name                  the name of the plugin
-     * @param description           a description of the plugin
-     * @param version               an opaque version identifier for the plugin
-     * @param elasticsearchVersion  the version of Elasticsearch the plugin was built for
-     * @param javaVersion           the version of Java the plugin was built with
-     * @param classname             the entry point to the plugin
-     * @param moduleName            the module name to load the plugin class from, or null if not in a module
-     * @param extendedPlugins       other plugins this plugin extends through SPI
-     * @param hasNativeController   whether or not the plugin has a native controller
-     * @param type                  the type of the plugin. Expects "bootstrap" or "isolated".
-     * @param javaOpts              any additional JVM CLI parameters added by this plugin
-     * @param isLicensed            whether is this a licensed plugin
+     * @param name                 the name of the plugin
+     * @param description          a description of the plugin
+     * @param version              an opaque version identifier for the plugin
+     * @param elasticsearchVersion the version of Elasticsearch the plugin was built for
+     * @param javaVersion          the version of Java the plugin was built with
+     * @param classname            the entry point to the plugin
+     * @param moduleName           the module name to load the plugin class from, or null if not in a module
+     * @param extendedPlugins      other plugins this plugin extends through SPI
+     * @param hasNativeController  whether or not the plugin has a native controller
+     * @param isLicensed           whether is this a licensed plugin
      */
     public PluginDescriptor(
         String name,
@@ -84,8 +81,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String moduleName,
         List<String> extendedPlugins,
         boolean hasNativeController,
-        PluginType type,
-        String javaOpts,
         boolean isLicensed
     ) {
         this.name = name;
@@ -97,8 +92,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.moduleName = moduleName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
-        this.type = type;
-        this.javaOpts = javaOpts;
         this.isLicensed = isLicensed;
     }
 
@@ -124,12 +117,12 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         hasNativeController = in.readBoolean();
 
         if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            type = PluginType.valueOf(in.readString());
-            javaOpts = in.readOptionalString();
+            if (in.getVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+                in.readString(); // plugin type
+                in.readOptionalString(); // java opts
+            }
             isLicensed = in.readBoolean();
         } else {
-            type = PluginType.ISOLATED;
-            javaOpts = null;
             isLicensed = false;
         }
     }
@@ -149,8 +142,10 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeBoolean(hasNativeController);
 
         if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            out.writeString(type.name());
-            out.writeOptionalString(javaOpts);
+            if (out.getVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+                out.writeString("ISOLATED");
+                out.writeOptionalString(null);
+            }
             out.writeBoolean(isLicensed);
         }
     }
@@ -208,20 +203,10 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         final boolean hasNativeController = parseBooleanValue(name, "has.native.controller", propsMap.remove("has.native.controller"));
 
-        final PluginType type = getPluginType(name, propsMap.remove("type"));
-
-        final String classname = getClassname(name, type, propsMap.remove("classname"));
+        final String classname = getClassname(name, propsMap.remove("classname"));
         String modulename = propsMap.remove("modulename");
         if (modulename != null && modulename.isBlank()) {
             modulename = null;
-        }
-
-        final String javaOpts = propsMap.remove("java.opts");
-
-        if (type != PluginType.BOOTSTRAP && Strings.isNullOrEmpty(javaOpts) == false) {
-            throw new IllegalArgumentException(
-                "[java.opts] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
-            );
         }
 
         boolean isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
@@ -240,36 +225,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             modulename,
             extendedPlugins,
             hasNativeController,
-            type,
-            javaOpts,
             isLicensed
         );
     }
 
-    private static PluginType getPluginType(String name, String rawType) {
-        if (Strings.isNullOrEmpty(rawType)) {
-            return PluginType.ISOLATED;
-        }
-
-        try {
-            return PluginType.valueOf(rawType.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                "[type] must be unspecified or one of [isolated, bootstrap] but found [" + rawType + "] for plugin [" + name + "]"
-            );
-        }
-    }
-
-    private static String getClassname(String name, PluginType type, String classname) {
-        if (type == PluginType.BOOTSTRAP) {
-            if (Strings.isNullOrEmpty(classname) == false) {
-                throw new IllegalArgumentException(
-                    "property [classname] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
-                );
-            }
-            return "";
-        }
-
+    private static String getClassname(String name, String classname) {
         if (classname == null) {
             throw new IllegalArgumentException("property [classname] is missing for plugin [" + name + "]");
         }
@@ -374,26 +334,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns the type of this plugin. Can be "isolated" for regular sandboxed plugins, or "bootstrap"
-     * for plugins that affect how Elasticsearch's JVM runs.
-     *
-     * @return the type of the plugin
-     */
-    public PluginType getType() {
-        return type;
-    }
-
-    /**
-     * Returns any additional JVM command-line options that this plugin adds. Only applies to
-     * plugins whose <code>type</code> is "bootstrap".
-     *
-     * @return any additional JVM options.
-     */
-    public String getJavaOpts() {
-        return javaOpts;
-    }
-
-    /**
      * Whether this plugin is subject to the Elastic License.
      */
     public boolean isLicensed() {
@@ -418,10 +358,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         builder.field("extended_plugins", extendedPlugins);
         builder.field("has_native_controller", hasNativeController);
         builder.field("licensed", isLicensed);
-        builder.field("type", type);
-        if (type == PluginType.BOOTSTRAP) {
-            builder.field("java_opts", javaOpts);
-        }
 
         return builder;
     }
@@ -457,12 +393,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Java Version: ", javaVersion);
         appendLine(lines, prefix, "Native Controller: ", hasNativeController);
         appendLine(lines, prefix, "Licensed: ", isLicensed);
-        appendLine(lines, prefix, "Type: ", type);
-
-        if (type == PluginType.BOOTSTRAP) {
-            appendLine(lines, prefix, "Java Opts: ", javaOpts);
-        }
-
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
 

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -358,7 +359,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             uuid = in.readString();
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
-            boolean silent = in.readBoolean();
+            boolean silent = true;
+            if (in.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_SILENT_PARAMETER)) {
+                silent = in.readBoolean();
+            }
             List<String> indices = in.readImmutableList(StreamInput::readString);
             entriesBuilder.put(
                 uuid,
@@ -381,7 +385,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             o.writeString(entry.uuid);
             entry.snapshot().writeTo(o);
             o.writeByte(entry.state().value());
-            o.writeBoolean(entry.silent());
+            if (out.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_SILENT_PARAMETER)) {
+                o.writeBoolean(entry.silent());
+            }
             o.writeStringCollection(entry.indices);
             o.writeMap(entry.shards);
         });
@@ -408,7 +414,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
         builder.field("repository", entry.snapshot().getRepository());
         builder.field("state", entry.state());
-        builder.field("silent", entry.silent());
         builder.startArray("indices");
         {
             for (String index : entry.indices()) {

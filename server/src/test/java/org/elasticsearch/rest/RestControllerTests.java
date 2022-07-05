@@ -297,6 +297,26 @@ public class RestControllerTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
     }
 
+    public void testRegisterSecondMethodWithDifferentNamedWildcardAndDifferentSuffix() {
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
+
+        RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
+        RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
+
+        final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
+
+        RestHandler handler = (request, channel, client) -> {};
+
+        restController.registerHandler(new Route(firstMethod, path + "/{wildcard1}"), handler);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> restController.registerHandler(new Route(secondMethod, path + "/{wildcard2}/more"), handler)
+        );
+
+        assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
+    }
+
     public void testRestHandlerWrapper() throws Exception {
         AtomicBoolean handlerCalled = new AtomicBoolean(false);
         AtomicBoolean wrapperCalled = new AtomicBoolean(false);

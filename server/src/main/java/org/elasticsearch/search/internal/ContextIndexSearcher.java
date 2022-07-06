@@ -163,6 +163,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        weight = wrapWeight(weight);
+        collector.setWeight(weight);
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }
@@ -176,7 +178,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
-        weight = wrapWeight(weight);
         final LeafCollector leafCollector;
         try {
             leafCollector = collector.getLeafCollector(ctx);

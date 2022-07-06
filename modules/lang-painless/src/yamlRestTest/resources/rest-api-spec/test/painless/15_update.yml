@@ -155,7 +155,7 @@
         id:       "2"
         body:
           script:
-            source: "metadata().op = Op.DELETE"
+            source: "metadata().op = 'delete'"
             lang: "painless"
           upsert: {}
           scripted_upsert: true

@@ -45,16 +45,16 @@ public class UpsertSourceAndMetadata extends UpdateSourceAndMetadata {
 
     @Override
     public String getRouting() {
-        throw new IllegalStateException("routing is unavailable for insert");
+        throw new IllegalArgumentException("routing is unavailable for insert");
     }
 
     @Override
     public long getVersion() {
-        throw new IllegalStateException("version is unavailable for insert");
+        throw new IllegalArgumentException("version is unavailable for insert");
     }
 
     @Override
     public boolean hasVersion() {
-        throw new IllegalStateException("version is unavailable for insert");
+        throw new IllegalArgumentException("version is unavailable for insert");
     }
 }

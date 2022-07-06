@@ -101,7 +101,7 @@
       reason: "update metadata introduced in 8.4.0"
 
   - do:
-      catch: /routing unavailable for insert/
+      catch: /routing is unavailable for insert/
       update:
         index:    test_1
         id:       "1"
@@ -186,4 +186,4 @@
         index: test_1
         id: "2"
 
-  - match: { _source.bar: _doc-extra }
+  - match: { _source.bar: index-extra }

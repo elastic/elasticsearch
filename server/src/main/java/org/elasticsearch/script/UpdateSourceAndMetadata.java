@@ -104,7 +104,7 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
 
     @Override
     public String getOp() {
-        String op = super.getOp();
+        String op = getString(OP);
         if (LEGACY_NOOP_STRING.equals(op)) {
             return "noop";
         }
@@ -116,7 +116,7 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         if (LEGACY_NOOP_STRING.equals(op)) {
             throw new IllegalArgumentException(LEGACY_NOOP_STRING + " is deprecated, use 'noop' instead");
         }
-        super.setOp(op);
+        put(OP, op);
     }
 
     @Override

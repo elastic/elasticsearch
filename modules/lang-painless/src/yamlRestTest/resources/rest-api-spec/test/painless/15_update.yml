@@ -136,7 +136,7 @@
         id:       "2"
         body:
           script:
-            source: "ctx._source.bar = meta().id + '-extra'"
+            source: "ctx._source.bar = metadata().id + '-extra'"
             lang: "painless"
           upsert: {}
           scripted_upsert: true
@@ -155,7 +155,7 @@
         id:       "2"
         body:
           script:
-            source: "meta().op = Op.DELETE"
+            source: "metadata().op = Op.DELETE"
             lang: "painless"
           upsert: {}
           scripted_upsert: true

@@ -227,17 +227,6 @@ public abstract class SourceAndMetadataMap extends AbstractMap<String, Object> i
     }
 
     /**
-     * Puts the {@link ZonedDateTime} as a long representing milliseconds from epoch.
-     */
-    public void putEpochMilli(String key, ZonedDateTime value) {
-        if (value == null) {
-            put(key, null);
-            return;
-        }
-        put(key, value.toInstant().toEpochMilli());
-    }
-
-    /**
      * Set of entries of the wrapped map that calls the appropriate validator before changing an entries value or removing an entry.
      *
      * Inherits {@link AbstractSet#removeAll(Collection)}, which calls the overridden {@link #remove(Object)} which performs validation.
@@ -486,7 +475,7 @@ public abstract class SourceAndMetadataMap extends AbstractMap<String, Object> i
     /**
      * A "TriConsumer" that tests if the {@link MapOperation}, the metadata key and value are valid.
      *
-     * @throws IllegalArgumentException if the given triple is invalid
+     * throws IllegalArgumentException if the given triple is invalid
      */
     @FunctionalInterface
     public interface Validator {

@@ -101,13 +101,13 @@
       reason: "update metadata introduced in 8.4.0"
 
   - do:
-      catch: /type unavailable for insert/
+      catch: /routing unavailable for insert/
       update:
         index:    test_1
         id:       "1"
         body:
           script:
-            source: "ctx._source.foo = meta().type"
+            source: "ctx._source.foo = metadata().routing"
             lang: "painless"
           upsert: {}
           scripted_upsert: true
@@ -118,7 +118,7 @@
         id:       "2"
         body:
           script:
-            source: "ctx._source.foo = meta().index + '_1'; ctx._source.bar = 'nothing'"
+            source: "ctx._source.foo = metadata().index + '_1'; ctx._source.bar = 'nothing'"
             lang: "painless"
           upsert: {}
           scripted_upsert: true
@@ -137,7 +137,7 @@
         id:       "3"
         body:
           script:
-            source: "meta().op = Op.NOOP; ctx._source.bar = 'skipped?'"
+            source: "metadata().op = 'noop'; ctx._source.bar = 'skipped?'"
             lang: "painless"
           upsert: {}
           scripted_upsert: true
@@ -156,7 +156,7 @@
         id:       "3"
         body:
           script:
-            source: "meta().op = Op.CREATE; ctx._source.bar = 'skipped?'"
+            source: "metadata().op = 'create'; ctx._source.bar = 'skipped?'"
             lang: "painless"
           upsert: {}
           scripted_upsert: true
@@ -176,7 +176,7 @@
         id:       "2"
         body:
           script:
-            source: "ctx._source.bar = meta().type + '-extra'"
+            source: "ctx._source.bar = metadata().op + '-extra'"
             lang: "painless"
           upsert: {}
           scripted_upsert: true

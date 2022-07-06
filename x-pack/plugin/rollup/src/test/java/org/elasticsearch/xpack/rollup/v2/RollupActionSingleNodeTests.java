@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -23,8 +24,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -45,6 +44,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -85,6 +85,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,6 +93,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 
@@ -328,7 +330,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString(rollupIndex));
     }
 
-    public void testRollupEmptyIndex() {
+    public void testRollupEmptyIndex() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex);
@@ -504,11 +506,29 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(String sourceIndex, String rollupIndex, RollupActionConfig config) {
+    private void assertRollupIndex(String sourceIndex, String rollupIndex, RollupActionConfig config) throws IOException {
         // Retrieve field information for the metric fields
-        FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndex).setFields("*").get();
-        Map<String, TimeSeriesParams.MetricType> metricFields = getMetricFields(fieldCapsResponse);
-        Map<String, String> labelFields = getLabelFields(fieldCapsResponse);
+        final GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIndex).get();
+        final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
+            .entrySet()
+            .stream()
+            .filter(entry -> sourceIndex.equals(entry.getKey()))
+            .findFirst()
+            .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
+            .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndex + "]"));
+
+        IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
+        FieldTypeHelper helper = new FieldTypeHelpers.Builder(getInstanceFromNode(IndicesService.class), sourceIndexMappings, indexMetadata)
+            .timeseriesHelper(config.getTimestampField());
+        Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
+        Map<String, String> labelFields = new HashMap<>();
+        MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
+            if (helper.isTimeSeriesMetric(field, fieldMapping)) {
+                metricFields.put(field, TimeSeriesParams.MetricType.valueOf(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+            } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
+                labelFields.put(field, fieldMapping.get("type").toString());
+            }
+        });
 
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
         Aggregations origResp = aggregate(sourceIndex, aggregations);
@@ -690,23 +710,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .filter(entry -> labelFields.containsKey(entry.getKey()))
             .toList());
         assertEquals(labelFieldRollupIndexCloneProperties, labelFieldSourceIndexProperties);
-    }
-
-    private Map<String, String> getLabelFields(FieldCapabilitiesResponse fieldCapsResponse) {
-        return fieldCapsResponse.get().entrySet().stream().filter(e -> {
-            FieldCapabilities fieldCapabilities = e.getValue().values().iterator().next();
-            return fieldCapabilities.getMetricType() == null
-                && fieldCapabilities.isLabel()
-                && fieldCapabilities.getName().equals("@timestamp") == false;
-        }).collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().values().iterator().next().getType()));
-    }
-
-    private Map<String, TimeSeriesParams.MetricType> getMetricFields(FieldCapabilitiesResponse fieldCapsResponse) {
-        return fieldCapsResponse.get()
-            .entrySet()
-            .stream()
-            .filter(e -> e.getValue().values().iterator().next().getMetricType() != null)
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().values().iterator().next().getMetricType()));
     }
 
     private AggregationBuilder buildAggregations(

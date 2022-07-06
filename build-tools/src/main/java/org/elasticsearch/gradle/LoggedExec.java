@@ -81,9 +81,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     @Optional
     abstract public Property<Boolean> getCaptureOutput();
 
-    @Internal
-    abstract public Property<OutputStream> getOutputStream();
-
     @Input
     abstract public Property<File> getWorkingDir();
 
@@ -95,6 +92,8 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         this.execOperations = execOperations;
         this.fileSystemOperations = fileSystemOperations;
         getWorkingDir().convention(projectLayout.getProjectDirectory().getAsFile());
+        // For now mimic default behaviour of Gradle Exec task here
+        getEnvironment().putAll(System.getenv());
         getCaptureOutput().convention(false);
     }
 
@@ -133,14 +132,12 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                     : effectiveOutStream
             );
             execSpec.setExecutable(getExecutable().get());
+            execSpec.setEnvironment(getEnvironment().get());
             if (getArgs().isPresent()) {
                 execSpec.setArgs(getArgs().get());
             }
             if (getWorkingDir().isPresent()) {
                 execSpec.setWorkingDir(getWorkingDir().get());
-            }
-            if (getEnvironment().isPresent()) {
-                execSpec.setEnvironment(getEnvironment().get());
             }
             if (getStandardInput().isPresent()) {
                 try {

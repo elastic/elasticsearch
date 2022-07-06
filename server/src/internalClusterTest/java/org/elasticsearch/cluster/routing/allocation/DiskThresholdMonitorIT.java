@@ -173,5 +173,21 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 .get()
                 .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
         );
+
+        // re-enable and the blocks should be back!
+        updateClusterSettings(
+            Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
+        );
+        refreshClusterInfo();
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareGetSettings(indexName)
+                .setNames(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+                .get()
+                .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE),
+            equalTo("true")
+        );
     }
 }

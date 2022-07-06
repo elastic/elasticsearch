@@ -1007,7 +1007,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public IndexLongFieldRange getTimeSeriesTimestampRange() {
-        var bounds = indexMode != null ? indexMode.getTimestampBound(this, null) : null;
+        var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
         if (bounds != null) {
             return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
         } else {

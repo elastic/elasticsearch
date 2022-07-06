@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -80,7 +79,7 @@ public enum IndexMode {
         }
 
         @Override
-        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata, IndexScopedSettings settings) {
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
             return null;
         }
 
@@ -158,8 +157,8 @@ public enum IndexMode {
         }
 
         @Override
-        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata, IndexScopedSettings settings) {
-            return new TimestampBounds(indexMetadata, settings);
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return new TimestampBounds(indexMetadata.getTimeSeriesStart(), indexMetadata.getTimeSeriesEnd());
         }
 
         private static String routingRequiredBad() {
@@ -275,7 +274,7 @@ public enum IndexMode {
      *         Otherwise <code>null</code> is returned.
      */
     @Nullable
-    public abstract TimestampBounds getTimestampBound(IndexMetadata indexMetadata, IndexScopedSettings settings);
+    public abstract TimestampBounds getTimestampBound(IndexMetadata indexMetadata);
 
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates

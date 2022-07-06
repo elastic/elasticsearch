@@ -7,10 +7,6 @@
  */
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.core.Nullable;
-
 import java.time.Instant;
 
 /**
@@ -18,14 +14,22 @@ import java.time.Instant;
  */
 public class TimestampBounds {
     private final long startTime;
-    private volatile long endTime;
+    private final long endTime;
 
-    TimestampBounds(IndexMetadata indexMetadata, @Nullable IndexScopedSettings scopedSettings) {
-        startTime = indexMetadata.getTimeSeriesStart().toEpochMilli();
-        endTime = indexMetadata.getTimeSeriesEnd().toEpochMilli();
-        if (scopedSettings != null) {
-            scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, this::updateEndTime);
+    public TimestampBounds(Instant startTime, Instant endTime) {
+        this.startTime = startTime.toEpochMilli();
+        this.endTime = endTime.toEpochMilli();
+    }
+
+    public TimestampBounds(TimestampBounds previous, Instant newEndTime) {
+        long newEndTimeMillis = newEndTime.toEpochMilli();
+        if (previous.endTime > newEndTimeMillis) {
+            throw new IllegalArgumentException(
+                "index.time_series.end_time must be larger than current value [" + previous.endTime + "] but was [" + newEndTime + "]"
+            );
         }
+        this.startTime = previous.startTime();
+        this.endTime = newEndTimeMillis;
     }
 
     /**
@@ -40,16 +44,6 @@ public class TimestampBounds {
      */
     public long endTime() {
         return endTime;
-    }
-
-    private void updateEndTime(Instant endTimeInstant) {
-        long newEndTime = endTimeInstant.toEpochMilli();
-        if (this.endTime > newEndTime) {
-            throw new IllegalArgumentException(
-                "index.time_series.end_time must be larger than current value [" + this.endTime + "] but was [" + newEndTime + "]"
-            );
-        }
-        this.endTime = newEndTime;
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -217,8 +218,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         if (first == null) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
-        TimestampBounds bounds = context.indexSettings().getTimestampBounds();
-        if (bounds != null) {
+        var indexMode = context.indexSettings().getMode();
+        if (indexMode == IndexMode.TIME_SERIES) {
+            TimestampBounds bounds = context.indexSettings().getTimestampBounds();
             validateTimestamp(bounds, first, context);
         }
     }

@@ -72,12 +72,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeToRestartId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
 
     /**
@@ -115,12 +110,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeToRestartId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
 
     /**
@@ -144,12 +134,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeToRestartId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
 
     /**
@@ -179,14 +164,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response getResp = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeToStopId)
-            ).get();
-
-            assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertNodeShutdownStatus(nodeToStopId, COMPLETE));
     }
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
@@ -207,12 +185,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeAId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+        assertNodeShutdownStatus(nodeAId, STALLED);
 
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
         final String nodeBId = getNodeId(nodeB);
@@ -236,13 +209,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             assertThat("expected all 3 of the primary shards to be allocated", active, equalTo(3));
         });
 
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
         final String nodeC = internalCluster().startNode();
 
@@ -310,12 +277,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeAId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+        assertNodeShutdownStatus(nodeAId, STALLED);
 
         final String nodeC = internalCluster().startNode();
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
@@ -335,13 +297,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             }
         });
 
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
         createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
 
@@ -405,12 +361,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
 
-        GetShutdownStatusAction.Response getResp = client().execute(
-            GetShutdownStatusAction.INSTANCE,
-            new GetShutdownStatusAction.Request(nodeAId)
-        ).get();
-
-        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+        assertNodeShutdownStatus(nodeAId, STALLED);
 
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
         internalCluster().startNode(Settings.builder().put("node.name", nodeC));
@@ -432,13 +383,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             }
         });
 
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
     }
 
     public void testReallocationForReplicaDuringNodeReplace() throws Exception {
@@ -464,13 +409,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         client().execute(PutShutdownNodeAction.INSTANCE, shutdownRequest).get();
 
         // Wait for the node replace shutdown to be complete
-        assertBusy(() -> {
-            GetShutdownStatusAction.Response shutdownStatus = client().execute(
-                GetShutdownStatusAction.INSTANCE,
-                new GetShutdownStatusAction.Request(nodeAId)
-            ).get();
-            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
-        });
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
         // Remove nodeA from the cluster (it's been terminated)
         internalCluster().stopNode(nodeA);
@@ -582,5 +521,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .map(DiscoveryNode::getId)
             .findFirst()
             .orElseThrow();
+    }
+
+    private void assertNodeShutdownStatus(String nodeId, SingleNodeShutdownMetadata.Status status) throws Exception {
+        var response = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(nodeId)).get();
+        assertThat(response.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(status));
     }
 }

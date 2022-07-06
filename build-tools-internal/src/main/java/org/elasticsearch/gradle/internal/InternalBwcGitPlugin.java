@@ -70,7 +70,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
             createClone.onlyIf(task -> this.gitExtension.getCheckoutDir().get().exists() == false);
             createClone.setExecutable("git");
-            createClone.getArgs().set(asList("clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get()));
+            createClone.args("clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
@@ -92,7 +92,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
                 .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
             addRemote.setExecutable("git");
-            addRemote.getArgs().set(asList("remote", "add", remoteRepo, remoteRepoUrl));
+            addRemote.args("remote", "add", remoteRepo, remoteRepoUrl);
         });
 
         boolean isOffline = project.getGradle().getStartParameter().isOffline();
@@ -110,7 +110,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir().get());
             fetchLatest.setExecutable("git");
-            fetchLatest.getArgs().set(asList("fetch", "--all"));
+            fetchLatest.args("fetch", "--all");
         });
 
         String projectPath = project.getPath();

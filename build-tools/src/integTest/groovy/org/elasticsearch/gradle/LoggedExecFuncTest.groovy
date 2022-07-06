@@ -34,8 +34,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
-          executable = 'ls'
-          getArgs().add('-lh')
+          commandLine 'ls', '-lh'
           spoolOutput = $spooling
         }
         """
@@ -48,13 +47,13 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         spooling << [false, true]
     }
 
-    def "captures output"() {
+    def "can capture output"() {
         setup:
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
-          executable = 'ls'
-          getArgs().add('-lh')
+          commandLine 'echo', 'HELLO'
+          getCaptureOutput().set(true)
           doLast {
             println 'OUTPUT ' + output
           }
@@ -65,5 +64,57 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("loggedExec").build()
         then:
         result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
+        result.getOutput().contains("OUTPUT HELLO")
+    }
+
+    def "can configure output indenting"() {
+        setup:
+        buildFile << """
+        import org.elasticsearch.gradle.LoggedExec
+        tasks.register('loggedExec', LoggedExec) {
+          getOutputIndenting().set("CUSTOM")
+          commandLine('echo', '''
+            HELLO
+            Darkness
+            my old friend''')
+        }
+        """
+        when:
+        def result = gradleRunner("loggedExec", '-q').build()
+        then:
+        result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
+        normalized(result.output) == '''
+          [CUSTOM]             HELLO
+          [CUSTOM]             Darkness
+          [CUSTOM]             my old friend'''.stripIndent(9)
+    }
+
+    def "can provide standard input"() {
+        setup:
+        file('script.sh') << """
+#!/bin/bash  
+  
+# Read the user input   
+  
+echo "Enter the user name: "  
+read userInput  
+echo "The Current User Input is \$userInput"  
+"""
+        buildFile << """
+        import org.elasticsearch.gradle.LoggedExec
+        tasks.register('loggedExec', LoggedExec) {
+          commandLine 'bash', 'script.sh'
+          getStandardInput().set('FooBar')
+          getCaptureOutput().set(true)
+          doLast {
+            println 'OUTPUT ' + output
+          }
+        }
+        """
+        when:
+        def result = gradleRunner("loggedExec").build()
+        then:
+        result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
+        result.getOutput().contains("The Current User Input is FooBar")
     }
 }

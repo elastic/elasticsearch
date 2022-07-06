@@ -227,7 +227,10 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @Internal
     public String getOutput() {
-        assert getCaptureOutput().get() == true;
+        if(getCaptureOutput().get() == false) {
+            throw new GradleException("Capturing output was not enabled. Use " + getName() +
+                    ".getCapturedOutput.set(true) to enable output capturing");
+        }
         return output;
     }
 

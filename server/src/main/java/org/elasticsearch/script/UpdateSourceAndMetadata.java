@@ -27,7 +27,7 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
     // AbstractAsyncBulkByScrollAction.OpType uses 'noop' rather than 'none', so unify on 'noop' but allow 'none' in
     // the ctx map
     protected static final String LEGACY_NOOP_STRING = "none";
-    protected static final Set<String> VALID_OPS = Set.of("noop", "index", "delete", LEGACY_NOOP_STRING);
+    protected static final Set<String> VALID_OPS = Set.of("noop", "create", "index", "delete", LEGACY_NOOP_STRING);
 
     public static Map<String, Validator> VALIDATORS = Map.of(
         INDEX,

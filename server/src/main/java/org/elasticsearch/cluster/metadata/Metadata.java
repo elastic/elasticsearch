@@ -1328,8 +1328,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final Map<String, ImmutableStateMetadata> immutableStateMetadata;
 
         // If this is set to false we can skip checking #mappingsByHash for unused entries in #build(). Used as an optimization to save
-        // the rather expensive call to #purgeUnusedEntries when building from another instance and we know that no mappings can have
-        // become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
+        // the rather expensive logic for removing unused mappings when building from another instance and we know that no mappings can
+        // have become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
         // #mappingsByHash.
         private boolean checkForUnusedMappings = true;
 
@@ -1864,6 +1864,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             final String[] allIndicesArray = new String[indicesMap.size()];
             int i = 0;
+            final Set<String> sha256HashesInUse = checkForUnusedMappings ? Sets.newHashSetWithExpectedSize(mappingsByHash.size()) : null;
             for (var entry : indicesMap.entrySet()) {
                 allIndicesArray[i++] = entry.getKey();
                 final IndexMetadata indexMetadata = entry.getValue();
@@ -1886,6 +1887,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     }
                 }
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
+                if (sha256HashesInUse != null) {
+                    final var mapping = indexMetadata.mapping();
+                    if (mapping != null) {
+                        sha256HashesInUse.add(mapping.getSha256());
+                    }
+                }
             }
 
             var aliasedIndices = this.aliasedIndices.build();
@@ -1904,8 +1911,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
-            if (checkForUnusedMappings) {
-                purgeUnusedEntries(indicesMap);
+            if (sha256HashesInUse != null) {
+                mappingsByHash.keySet().retainAll(sha256HashesInUse);
             }
 
             // build all concrete indices arrays:
@@ -2357,23 +2364,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 indexMetadataBuilder.putMapping(entry);
             } else {
                 mappingsByHash.put(digest, indexMetadataBuilder.mapping());
-            }
-        }
-
-        private void purgeUnusedEntries(ImmutableOpenMap<String, IndexMetadata> indices) {
-            final Set<String> sha256HashesInUse = Sets.newHashSetWithExpectedSize(mappingsByHash.size());
-            for (var im : indices.values()) {
-                if (im.mapping() != null) {
-                    sha256HashesInUse.add(im.mapping().getSha256());
-                }
-            }
-
-            final var iterator = mappingsByHash.entrySet().iterator();
-            while (iterator.hasNext()) {
-                final var cacheKey = iterator.next().getKey();
-                if (sha256HashesInUse.contains(cacheKey) == false) {
-                    iterator.remove();
-                }
             }
         }
 

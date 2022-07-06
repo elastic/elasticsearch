@@ -46,7 +46,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
@@ -67,12 +66,10 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
 /**
@@ -205,20 +202,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
                 .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
 
-            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
-            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
-
             // 2. Extract rollup config from index mappings
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
             final List<String> labelFields = new ArrayList<>();
+            final FieldTypeHelper helper = new FieldTypeHelpers.Builder(indicesService, sourceIndexMappings, sourceIndexMetadata)
+                .timeseriesHelper(request.getRollupConfig().getTimestampField());
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-                if (isDimensionField(mapping)) {
+                if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
-                } else if (isMetricField(mapping)) {
+                } else if (helper.isTimeSeriesMetric(field, mapping)) {
                     metricFields.add(field);
-                } else if (isLabelField(field, request.getRollupConfig().getTimestampField(), mapperService)) {
+                } else if (helper.isTimeSeriesLabel(field, mapping)) {
                     labelFields.add(field);
                 }
             });
@@ -236,9 +231,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 return;
             }
 
+            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
+            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+
             final String mapping;
             try {
-                mapping = createRollupIndexMapping(request.getRollupConfig(), mapperService, sourceIndexMappings, listener::onFailure);
+                mapping = createRollupIndexMapping(
+                    helper,
+                    request.getRollupConfig(),
+                    mapperService,
+                    sourceIndexMappings,
+                    listener::onFailure
+                );
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
@@ -366,25 +371,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }, listener::onFailure));
     }
 
-    private boolean isLabelField(final String field, final String timestampField, final MapperService mapperService) {
-        final MappedFieldType fieldType = mapperService.mappingLookup().getFieldType(field);
-        return fieldType != null
-            && (timestampField.equals(field) == false)
-            && (fieldType.isAggregatable())
-            && (fieldType.isDimension() == false)
-            && (mapperService.isMetadataField(field) == false);
-    }
-
-    private static boolean isMetricField(final Map<String, ?> mapping) {
-        final String metricType = (String) mapping.get(TIME_SERIES_METRIC_PARAM);
-        return metricType != null
-            && Arrays.asList(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricType));
-    }
-
-    private static boolean isDimensionField(final Map<String, ?> mapping) {
-        return Boolean.TRUE.equals(mapping.get(TIME_SERIES_DIMENSION_PARAM));
-    }
-
     @Override
     protected ClusterBlockException checkBlock(RollupAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
@@ -400,6 +386,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      * @return the mapping of the rollup index
      */
     public static String createRollupIndexMapping(
+        final FieldTypeHelper helper,
         final RollupActionConfig config,
         final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings,
@@ -412,7 +399,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         builder.startObject("properties");
 
         addTimestampField(config, builder);
-        addMetricFields(sourceIndexMappings, failureHandler, builder);
+        addMetricFields(helper, sourceIndexMappings, failureHandler, builder);
 
         builder.endObject(); // match initial startObject
         builder.endObject(); // match startObject("properties")
@@ -427,12 +414,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     private static void addMetricFields(
+        final FieldTypeHelper helper,
         final Map<String, Object> sourceIndexMappings,
         final Consumer<Exception> failureHandler,
         final XContentBuilder builder
     ) {
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-            if (isMetricField(mapping)) {
+            if (helper.isTimeSeriesMetric(field, mapping)) {
                 try {
                     addMetricFieldMapping(builder, field, mapping);
                 } catch (IOException e) {

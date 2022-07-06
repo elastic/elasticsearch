@@ -1,5 +1,0 @@
-pr: 88312
-summary: Replace usages of deprecated specialized field exists queries
-area: Search
-type: tech debt
-issues: []

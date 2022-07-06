@@ -38,6 +38,7 @@ import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Stat
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.STALLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class NodeShutdownShardsIT extends ESIntegTestCase {
@@ -148,19 +149,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
 
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
-            int active = 0;
-            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                if (sr.active()) {
-                    active++;
-                    assertThat(
-                        "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
-                        sr.currentNodeId(),
-                        equalTo(nodeBId)
-                    );
-                }
-            }
-            assertThat("expected all 3 of the primary shards to be allocated", active, equalTo(3));
+            assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId);
+            assertIndexReplicaShardsAreNotAllocated("myindex");
         });
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
@@ -481,12 +471,33 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                     + "] to be on node ["
                     + nodeId
                     + "] but "
-                    + primaryShard.toString()
+                    + primaryShard
                     + " is on "
                     + primaryShard.currentNodeId(),
                 primaryShard.currentNodeId(),
                 equalTo(nodeId)
             );
+        }
+    }
+
+    private void assertIndexReplicaShardsAreNotAllocated(String indexName) {
+        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var indexRoutingTable = state.routingTable().index(indexName);
+        for (int p = 0; p < indexRoutingTable.size(); p++) {
+            for (ShardRouting replicaShard : indexRoutingTable.shard(p).replicaShards()) {
+                assertThat(replicaShard.unassigned(), equalTo(true));
+
+                assertThat(
+                    "expected all replica shards for index ["
+                        + indexName
+                        + "] to be unallocated but "
+                        + replicaShard
+                        + " is on "
+                        + replicaShard.currentNodeId(),
+                    replicaShard.currentNodeId(),
+                    nullValue()
+                );
+            }
         }
     }
 

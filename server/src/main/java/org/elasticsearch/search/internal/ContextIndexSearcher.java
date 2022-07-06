@@ -162,6 +162,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         weight = wrapWeight(weight);
         collector.setWeight(weight);

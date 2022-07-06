@@ -60,18 +60,18 @@ public final class UberModuleURLClassLoader extends URLClassLoader {
         return ucl;
     }
 
-    @SuppressWarnings("removal")
-    @Override
-    public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            int i = name.lastIndexOf('.');
-            if (i != -1) {
-                sm.checkPackageAccess(name.substring(0, i));
-            }
-        }
-        return super.loadClass(name, resolve);
-    }
+    // @SuppressWarnings("removal")
+    // @Override
+    // public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+    // SecurityManager sm = System.getSecurityManager();
+    // if (sm != null) {
+    // int i = name.lastIndexOf('.');
+    // if (i != -1) {
+    // sm.checkPackageAccess(name.substring(0, i));
+    // }
+    // }
+    // return super.loadClass(name, resolve);
+    // }
 
     @Override
     protected URL findResource(String moduleName, String name) {

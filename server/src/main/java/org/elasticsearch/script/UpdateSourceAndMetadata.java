@@ -62,7 +62,12 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         validOps = VALID_UPDATE_OPS;
     }
 
-    protected UpdateSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, Map<String, Validator> validators, Set<String> validOps) {
+    protected UpdateSourceAndMetadata(
+        Map<String, Object> source,
+        Map<String, Object> metadata,
+        Map<String, Validator> validators,
+        Set<String> validOps
+    ) {
         super(wrapSource(source), metadata, validators);
         this.validOps = validOps;
     }

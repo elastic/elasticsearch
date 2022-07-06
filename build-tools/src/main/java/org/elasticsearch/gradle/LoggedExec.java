@@ -8,7 +8,6 @@
 package org.elasticsearch.gradle;
 
 import org.apache.commons.io.output.TeeOutputStream;
-import org.elasticsearch.gradle.util.SerializableConsumer;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -40,6 +39,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -54,7 +54,6 @@ import javax.inject.Inject;
 public abstract class LoggedExec extends DefaultTask implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
-    private SerializableConsumer<Logger> outputLogger;
     protected FileSystemOperations fileSystemOperations;
     private ProjectLayout projectLayout;
     private ExecOperations execOperations;
@@ -101,6 +100,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @TaskAction
     public void run() {
+        Consumer<Logger> outputLogger;
         OutputStream out = getCaptureOutput().get() ? new ByteArrayOutputStream() : System.out;
         OutputStream effectiveOutputStream = out;
         if (spoolOutput) {

@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -61,6 +62,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -705,6 +707,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .put(
                                     IndexMetadata.builder(indexName)
                                         .version(1L)
+                                        .putMapping(randomMappingString())
                                         .settings(
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -775,6 +778,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .put(
                                     IndexMetadata.builder("test")
                                         .version(indexMetadataVersion - 1) // -1 because it's incremented in .put()
+                                        .putMapping(randomMappingString())
                                         .settings(
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -803,6 +807,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             Metadata.builder(clusterState.metadata())
                                 .put(
                                     IndexMetadata.builder(indexMetadata)
+                                        .putMapping(indexMetadata.mapping())
                                         .settings(
                                             Settings.builder()
                                                 .put(indexMetadata.getSettings())
@@ -830,6 +835,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             Metadata.builder(clusterState.metadata())
                                 .put(
                                     IndexMetadata.builder(indexMetadata)
+                                        .putMapping(randomMappingString())
                                         .settings(
                                             Settings.builder()
                                                 .put(indexMetadata.getSettings())
@@ -860,6 +866,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 )
                                 .put(
                                     IndexMetadata.builder(indexMetadata)
+                                        .putMapping(randomMappingString())
                                         .settings(
                                             Settings.builder()
                                                 .put(indexMetadata.getSettings())
@@ -904,6 +911,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .coordinationMetadata(CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(term).build())
                                 .put(
                                     IndexMetadata.builder("updated")
+                                        .putMapping(randomMappingString())
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .settings(
                                             Settings.builder()
@@ -915,6 +923,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 )
                                 .put(
                                     IndexMetadata.builder("deleted")
+                                        .putMapping(randomMappingString())
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .settings(
                                             Settings.builder()
@@ -952,6 +961,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .remove("deleted")
                                 .put(
                                     IndexMetadata.builder("updated")
+                                        .putMapping(randomMappingString())
                                         .settings(
                                             Settings.builder()
                                                 .put(clusterState.metadata().index("updated").getSettings())
@@ -961,6 +971,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .put(
                                     IndexMetadata.builder("added")
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
+                                        .putMapping(randomMappingString())
                                         .settings(
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
@@ -1010,6 +1021,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                     .version(i + 2)
                                     .put(
                                         IndexMetadata.builder(index.getName())
+                                            .putMapping(randomMappingString())
                                             .settings(
                                                 Settings.builder()
                                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -1043,6 +1055,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             for (int i = between(5, 20); i >= 0; i--) {
                 metadata.put(
                     IndexMetadata.builder("test-" + i)
+                        .putMapping(randomMappingString())
                         .settings(
                             Settings.builder()
                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -1258,14 +1271,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             .version(clusterState.version())
                             .put(
                                 IndexMetadata.builder("test")
-                                    .putMapping("""
-                                        {
-                                          "_doc": {
-                                            "properties": {
-                                              "somefield": { "type": "text" }
-                                            }
-                                          }
-                                        }""")
+                                    .putMapping(randomMappingString())
                                     .settings(
                                         Settings.builder()
                                             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -1380,6 +1386,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .version(i + 2)
                                 .put(
                                     IndexMetadata.builder("index-" + i)
+                                        .putMapping(randomMappingString())
                                         .settings(
                                             Settings.builder()
                                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -1511,6 +1518,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         for (Version indexVersion : indexVersions) {
             String indexUUID = UUIDs.randomBase64UUID(random());
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
+                .putMapping(randomMappingString())
                 .settings(settings(indexVersion).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -1654,6 +1662,24 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).toList())
                 .build()
         );
+    }
+
+    private String randomMappingString() {
+        int i = randomIntBetween(0, 3);
+        try {
+            return Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .field("field" + i, "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static ClusterState loadPersistedClusterState(PersistedClusterStateService persistedClusterStateService) throws IOException {

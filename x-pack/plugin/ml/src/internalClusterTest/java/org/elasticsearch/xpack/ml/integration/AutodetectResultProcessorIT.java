@@ -161,7 +161,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
@@ -281,7 +281,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // 1. one related to creating model snapshot
         // 2. one for {@link Annotation} result
         List<Annotation> annotations = getAnnotations();
-        assertThat("Annotations were: " + annotations.toString(), annotations, hasSize(2));
+        assertThat("Annotations were: " + annotations, annotations, hasSize(2));
         assertThat(
             annotations.stream().map(Annotation::getAnnotation).collect(toList()),
             containsInAnyOrder("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored", annotation.getAnnotation())
@@ -664,6 +664,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 errorHolder.set(e);
                 latch.countDown();
             },
+            null,
+            null,
             client()
         );
         latch.await();

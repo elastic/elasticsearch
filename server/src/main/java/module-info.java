@@ -358,4 +358,6 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
+
+    uses org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
 }

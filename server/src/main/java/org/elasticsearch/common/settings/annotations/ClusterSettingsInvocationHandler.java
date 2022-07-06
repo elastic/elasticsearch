@@ -27,31 +27,37 @@ public class ClusterSettingsInvocationHandler implements InvocationHandler {
     private final Class<?> settingsClass;
     private final ClusterService clusterService;
 
-    private final ConcurrentMap<String,Object> settings = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Object> settings = new ConcurrentHashMap<>();
 
     public ClusterSettingsInvocationHandler(Class<?> settingsClass, ClusterService clusterService) {
         this.settingsClass = settingsClass;
         this.clusterService = clusterService;
     }
 
-
     public void init() {
         for (Method method : settingsClass.getMethods()) {
             Annotation annotation = method.getAnnotations()[0];
             if (annotation instanceof LongSetting) {
                 LongSetting setting = (LongSetting) annotation;
-                Setting<Long> longSetting = Setting.longSetting(setting.path(), setting.defaultValue(), 0, Setting.Property.NodeScope,
-                    Setting.Property.Dynamic);
-                clusterService.getClusterSettings()
-                    .addSettingsUpdateConsumer(longSetting, (value)-> settings.put(setting.path(), value));
+                Setting<Long> longSetting = Setting.longSetting(
+                    setting.path(),
+                    setting.defaultValue(),
+                    0,
+                    Setting.Property.NodeScope,
+                    Setting.Property.Dynamic
+                );
+                clusterService.getClusterSettings().addSettingsUpdateConsumer(longSetting, (value) -> settings.put(setting.path(), value));
 
             } else if (annotation instanceof BooleanSetting) {
                 BooleanSetting setting = (BooleanSetting) annotation;
 
-                Setting<Boolean> booleanSetting = Setting.boolSetting(setting.path(), setting.defaultValue(), Setting.Property.NodeScope,
-                    Setting.Property.Dynamic);
-                clusterService.getClusterSettings()
-                    .addSettingsUpdateConsumer(booleanSetting, value -> settings.put(setting.path(), value));
+                Setting<Boolean> booleanSetting = Setting.boolSetting(
+                    setting.path(),
+                    setting.defaultValue(),
+                    Setting.Property.NodeScope,
+                    Setting.Property.Dynamic
+                );
+                clusterService.getClusterSettings().addSettingsUpdateConsumer(booleanSetting, value -> settings.put(setting.path(), value));
             } else {
                 throw new IllegalArgumentException();
             }
@@ -62,8 +68,8 @@ public class ClusterSettingsInvocationHandler implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         LOGGER.info("Invoked method: {}", method.getName());
-//        LongSetting annotation = method.getAnnotation(LongSetting.class);
-//        assert method.getAnnotations().length == 1;
+        // LongSetting annotation = method.getAnnotation(LongSetting.class);
+        // assert method.getAnnotations().length == 1;
         Annotation annotation = method.getAnnotations()[0];
         if (annotation instanceof LongSetting) {
             LongSetting setting = (LongSetting) annotation;

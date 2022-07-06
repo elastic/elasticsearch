@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -182,8 +181,10 @@ public final class AnalysisModule {
             pluginsService.loadServiceProviders(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class);
         List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect2 = new ArrayList<>();
         for (org.elasticsearch.sp.api.analysis.AnalysisPlugin analysisPlugin : analysisPlugins) {
-            Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories = analysisPlugin.getTokenFilterFactories();
-            Map<String, AnalysisProvider<TokenFilterFactory>> stringAnalysisProviderMap = getStringAnalysisProviderMap(tokenFilterFactories);
+            Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
+                analysisPlugin.getTokenFilterFactories();
+            Map<String, AnalysisProvider<TokenFilterFactory>> stringAnalysisProviderMap =
+                getStringAnalysisProviderMap(tokenFilterFactories);
             collect2.add(stringAnalysisProviderMap);
         }
         tokenFilters.register(collect2);
@@ -203,7 +204,8 @@ public final class AnalysisModule {
         return getStringAnalysisProviderMap(tokenFilterFactories);
     }
 
-    private static Map<String, AnalysisProvider<TokenFilterFactory>> getStringAnalysisProviderMap(Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories) {
+    private static Map<String, AnalysisProvider<TokenFilterFactory>>
+    getStringAnalysisProviderMap(Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories) {
         Map<String, AnalysisProvider<TokenFilterFactory>> res = new HashMap<>();
         for (Map.Entry<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> entry : tokenFilterFactories
             .entrySet()) {
@@ -253,12 +255,13 @@ public final class AnalysisModule {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            // e.printStackTrace();
         }
         return null;
     }
 
-    private static <T> T createSettings(Class<T> settingsClass, IndexSettings indexSettings, Settings nodeSettings, Settings analysisSettings) {
+    private static <T> T createSettings(Class<T> settingsClass, IndexSettings indexSettings, Settings nodeSettings,
+                                        Settings analysisSettings) {
         if( settingsClass.getAnnotationsByType(NodeSettings.class) != null) {
             return SettingsProxy.create(nodeSettings, settingsClass);
         }

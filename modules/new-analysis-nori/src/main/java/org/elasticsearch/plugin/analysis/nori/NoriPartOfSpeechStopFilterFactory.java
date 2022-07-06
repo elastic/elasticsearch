@@ -17,7 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class NoriPartOfSpeechStopFilterFactory  implements TokenFilterFactory {
+public class NoriPartOfSpeechStopFilterFactory implements TokenFilterFactory {
     private final Set<POS.Tag> stopTags;
     private String name;
 

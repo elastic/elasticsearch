@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.settings.annotations;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
@@ -37,11 +36,10 @@ public class SettingsInvocationHandler implements InvocationHandler {
     }
 
     @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         LOGGER.info("Invoked method: {}", method.getName());
-//        LongSetting annotation = method.getAnnotation(LongSetting.class);
-//        assert method.getAnnotations().length == 1;
+        // LongSetting annotation = method.getAnnotation(LongSetting.class);
+        // assert method.getAnnotations().length == 1;
         Annotation annotation = method.getAnnotations()[0];
         if (annotation instanceof LongSetting) {
             LongSetting setting = (LongSetting) annotation;

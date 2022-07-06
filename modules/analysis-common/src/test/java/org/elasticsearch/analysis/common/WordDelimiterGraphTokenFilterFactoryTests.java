@@ -194,7 +194,8 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 IndexAnalyzers indexAnalyzers = new AnalysisModule(
                     TestEnvironment.newEnvironment(settings),
                     Collections.singletonList(new CommonAnalysisPlugin()),
-                        null).getAnalysisRegistry().build(idxSettings)
+                    null
+                ).getAnalysisRegistry().build(idxSettings)
             ) {
 
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
@@ -218,7 +219,8 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 IndexAnalyzers indexAnalyzers = new AnalysisModule(
                     TestEnvironment.newEnvironment(settings),
                     Collections.singletonList(new CommonAnalysisPlugin()),
-                        null).getAnalysisRegistry().build(idxSettings)
+                    null
+                ).getAnalysisRegistry().build(idxSettings)
             ) {
 
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");

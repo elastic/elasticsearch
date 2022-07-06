@@ -26,3 +26,7 @@ tasks.named('forbiddenApisMain').configure {
   // :libs:elasticsearch-logging does not depend on server
   replaceSignatureFiles 'jdk-signatures'
 }
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+}

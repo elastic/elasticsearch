@@ -8,5 +8,4 @@
 
 package org.elasticsearch.sp.api.analysis;
 
-public interface Analyzer {
-}
+public interface Analyzer {}

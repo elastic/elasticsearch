@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.sp.api.analysis.settings;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -18,6 +19,5 @@ public @interface StringSetting {
     String path();
 
     String defaultValue() default "";
-
 
 }

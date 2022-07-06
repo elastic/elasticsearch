@@ -41,7 +41,7 @@ public class NoriTokenizerFactory implements TokenizerFactory {
 
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         this.name = name;
-//        super(indexSettings, settings, name);
+        // super(indexSettings, settings, name);
         decompoundMode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
@@ -78,7 +78,7 @@ public class NoriTokenizerFactory implements TokenizerFactory {
     }
 
     @Override
-    public String name(){
+    public String name() {
         return name;
     }
 

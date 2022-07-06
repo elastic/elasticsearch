@@ -8,14 +8,10 @@
 
 package org.elasticsearch.sp.api.analysis.settings;
 
-
-import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.Map;
-import java.util.function.Function;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

@@ -8,11 +8,9 @@
 
 package org.elasticsearch.common.settings.annotations;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.sp.api.analysis.settings.BooleanSetting;
 import org.elasticsearch.sp.api.analysis.settings.LongSetting;
@@ -20,7 +18,6 @@ import org.elasticsearch.sp.api.analysis.settings.LongSetting;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.util.function.Function;
 
 public class IndexSettingsInvocationHandler implements InvocationHandler {
 
@@ -32,29 +29,23 @@ public class IndexSettingsInvocationHandler implements InvocationHandler {
         this.settings = settings;
     }
 
-
     @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         LOGGER.info("Invoked method: {}", method.getName());
         Annotation annotation = method.getAnnotations()[0];
         if (annotation instanceof LongSetting) {
             LongSetting setting = (LongSetting) annotation;
             Setting<Long> longSetting = Setting.longSetting(
                 setting.path(),
-                setting.defaultValue(),//this easily can be different than in IndexSettings.
-                setting.max(),//should be min..
+                setting.defaultValue(),// this easily can be different than in IndexSettings.
+                setting.max(),// should be min..
                 Setting.Property.IndexScope
             );
             return settings.getValue(longSetting);
 
         } else if (annotation instanceof BooleanSetting) {
             BooleanSetting setting = (BooleanSetting) annotation;
-            Setting<Boolean> booleanSetting = Setting.boolSetting(
-                setting.path(),
-                setting.defaultValue(),
-                Setting.Property.IndexScope
-            );
+            Setting<Boolean> booleanSetting = Setting.boolSetting(setting.path(), setting.defaultValue(), Setting.Property.IndexScope);
             return settings.getValue(booleanSetting);
         } else {
             throw new IllegalArgumentException();

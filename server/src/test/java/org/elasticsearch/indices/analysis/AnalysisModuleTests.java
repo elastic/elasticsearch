@@ -261,7 +261,8 @@ public class AnalysisModuleTests extends ESTestCase {
                     );
                 }
             }),
-                null).getAnalysisRegistry();
+            null
+        ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -326,7 +327,8 @@ public class AnalysisModuleTests extends ESTestCase {
                     );
                 }
             }),
-                null).getAnalysisRegistry();
+            null
+        ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
@@ -412,7 +414,8 @@ public class AnalysisModuleTests extends ESTestCase {
                     );
                 }
             }),
-                null).getAnalysisRegistry();
+            null
+        ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(

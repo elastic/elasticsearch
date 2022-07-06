@@ -8,12 +8,8 @@
 
 package org.elasticsearch.plugin.analysis.nori;
 
-
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-
-
-import java.util.Map;
 
 //just to register a plugin with current infrastructure
 public class OldAnalysisNoriPlugin extends Plugin implements AnalysisPlugin {

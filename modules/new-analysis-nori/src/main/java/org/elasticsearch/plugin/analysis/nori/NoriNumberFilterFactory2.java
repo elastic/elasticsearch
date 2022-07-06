@@ -19,7 +19,7 @@ public class NoriNumberFilterFactory2 implements TokenFilterFactory {
 
     @Inject
     public NoriNumberFilterFactory2(NoriAnalysisSettings noriAnalysisSettings) {
-        System.out.println("new nori "+noriAnalysisSettings.getDecompoundMode());
+        // System.out.println("new nori " + noriAnalysisSettings.getDecompoundMode());
     }
 
     @Override

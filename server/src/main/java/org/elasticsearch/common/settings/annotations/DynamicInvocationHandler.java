@@ -8,11 +8,9 @@
 
 package org.elasticsearch.common.settings.annotations;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.sp.api.analysis.settings.BooleanSetting;
 import org.elasticsearch.sp.api.analysis.settings.LongSetting;
 
@@ -36,14 +34,11 @@ public class DynamicInvocationHandler implements InvocationHandler {
         this.settings = settings;
     }
 
-
-
     @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         LOGGER.info("Invoked method: {}", method.getName());
-//        LongSetting annotation = method.getAnnotation(LongSetting.class);
-//        assert method.getAnnotations().length == 1;
+        // LongSetting annotation = method.getAnnotation(LongSetting.class);
+        // assert method.getAnnotations().length == 1;
         Annotation annotation = method.getAnnotations()[0];
         if (annotation instanceof LongSetting) {
             LongSetting setting = (LongSetting) annotation;

@@ -12,16 +12,16 @@ import java.util.Collections;
 import java.util.Map;
 
 public interface AnalysisPlugin {
+
     default Map<String, Class<? extends TokenFilterFactory>> getTokenFilterFactories() {
         return Collections.emptyMap();
     }
-
 
     default Map<String, Class<? extends TokenizerFactory>> getTokenizerFactories() {
         return Collections.emptyMap();
     }
 
-    default Map<String, Class< ? extends Analyzer>> getAnalyzers() {
+    default Map<String, Class<? extends Analyzer>> getAnalyzers() {
         return Collections.emptyMap();
     }
 }

@@ -390,7 +390,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                  * avoids having to wait 10 seconds.
                  */
                 if (node.getLocalNode().isMasterNode()) {
-                    node.coordinationDiagnosticsService.nodeToClusterFormationStateOrExceptionMap.put(
+                    node.coordinationDiagnosticsService.clusterFormationResponses.put(
                         node.getLocalNode(),
                         new CoordinationDiagnosticsService.ClusterFormationStateOrException(node.coordinator.getClusterFormationState())
                     );
@@ -449,7 +449,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 if (node.getLocalNode().isMasterNode()) {
                     // This is artificially forcing a discovery problem:
-                    node.coordinationDiagnosticsService.nodeToClusterFormationStateOrExceptionMap = clusterFormationStates;
+                    node.coordinationDiagnosticsService.clusterFormationResponses = clusterFormationStates;
                 }
                 CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
                     .diagnoseMasterStability(true);

@@ -87,8 +87,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * This field holds the results of the tasks in the clusterFormationInfoTasks field above. The field is accessed (reads/writes) from
      * multiple threads, but is only ever replaced on the cluster change event thread.
      */
-    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateOrExceptionMap =
-        new ConcurrentHashMap<>(); // Non-private for testing
+    // Non-private for testing
+    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -304,12 +304,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         Collection<DiscoveryNode> masterEligibleNodes = getMasterEligibleNodes();
         final CoordinationDiagnosticsResult result;
-        boolean leaderHasBeenElected = coordinator.getPeerFinder().getLeader().isPresent();
-        boolean noLeaderElectedAndNoMasterEligibleNodes = leaderHasBeenElected == false && masterEligibleNodes.isEmpty();
+        boolean clusterHasLeader = coordinator.getPeerFinder().getLeader().isPresent();
+        boolean noLeaderAndNoMasters = clusterHasLeader == false && masterEligibleNodes.isEmpty();
         boolean localNodeIsMasterEligible = clusterService.localNode().isMasterNode();
-        if (noLeaderElectedAndNoMasterEligibleNodes) {
+        if (noLeaderAndNoMasters) {
             result = getResultOnNoMasterEligibleNodes(localMasterHistory, explain);
-        } else if (leaderHasBeenElected) {
+        } else if (clusterHasLeader) {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
             result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
         } else if (localNodeIsMasterEligible == false) { // none is elected master and we aren't master eligible
@@ -336,7 +336,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * while we're copying it, which is why this is not synchronized. We only care that once we have a copy it is not changed.
          */
         final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateOrExceptionMapCopy = Map.copyOf(
-            nodeToClusterFormationStateOrExceptionMap
+            clusterFormationResponses
         );
         for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateOrExceptionMapCopy.entrySet()) {
             Exception remoteException = entry.getValue().exception();
@@ -431,7 +431,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     )
                 )
                 .collect(Collectors.joining("; "));
-            logger.info("The following nodes report discovery problems: {}", nodeDiscoveryProblemsMessage);
+            logger.debug("The following nodes report discovery problems: {}", nodeDiscoveryProblemsMessage);
             return true;
         }
     }
@@ -467,7 +467,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     )
                 )
                 .collect(Collectors.joining("; "));
-            logger.info("Some master eligible nodes report that a quorum cannot be formed: {}", quorumProblemsMessage);
+            logger.debug("Some master eligible nodes report that a quorum cannot be formed: {}", quorumProblemsMessage);
             return true;
         }
     }
@@ -585,7 +585,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private void beginPollingClusterFormationInfo() {
         cancelPollingClusterFormationInfo();
         clusterFormationInfoTasks = getMasterEligibleNodes().stream()
-            .map(masterNode -> beginPollingClusterFormationInfo(masterNode, nodeToClusterFormationStateOrExceptionMap))
+            .map(masterNode -> beginPollingClusterFormationInfo(masterNode, clusterFormationResponses))
             .collect(Collectors.toList());
     }
 
@@ -595,12 +595,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * Recreates the map so that we don't read old information, or worse get stuck with information about a node that has been
          * removed from the cluster.
          */
-        nodeToClusterFormationStateOrExceptionMap = new ConcurrentHashMap<>();
+        clusterFormationResponses = new ConcurrentHashMap<>();
     }
 
     private Scheduler.Cancellable beginPollingClusterFormationInfo(
         DiscoveryNode node,
-        final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMapCopy
+        final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
     ) {
         return Scheduler.wrapAsCancellable(transportService.getThreadPool().scheduler().scheduleAtFixedRate(() -> {
             Version minSupportedVersion = Version.V_8_4_0;
@@ -638,7 +638,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                                             node,
                                             TimeValue.timeValueNanos(endTime - startTime)
                                         );
-                                        nodeToClusterFormationStateMapCopy.put(
+                                        nodeToClusterFormationStateMap.put(
                                             node,
                                             new ClusterFormationStateOrException(response.getClusterFormationState())
                                         );
@@ -647,7 +647,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                                     @Override
                                     public void onFailure(Exception e) {
                                         logger.warn("Exception in cluster coordination info request to master node", e);
-                                        nodeToClusterFormationStateMapCopy.put(node, new ClusterFormationStateOrException(e));
+                                        nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
                                     }
                                 }, () -> Releasables.close(releasable)), ClusterFormationInfoAction.Response::new)
                             );
@@ -656,7 +656,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn("Exception connecting to master node", e);
-                            nodeToClusterFormationStateMapCopy.put(node, new ClusterFormationStateOrException(e));
+                            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
                         }
                     }
                 );

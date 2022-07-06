@@ -10,6 +10,7 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -65,6 +66,8 @@ public interface HttpRequest {
      * Create an http response from this request and the supplied status and content.
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
+
+    HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content);
 
     @Nullable
     Exception getInboundException();

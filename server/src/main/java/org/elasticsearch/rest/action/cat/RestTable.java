@@ -110,7 +110,7 @@ public class RestTable {
             out.append("\n");
         }
         out.close();
-        return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes(), null);
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {

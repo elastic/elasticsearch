@@ -165,11 +165,20 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("snapshots");
+        toXContentStart(builder);
         for (SnapshotInfo snapshotInfo : snapshots) {
             snapshotInfo.toXContentExternal(builder, params);
         }
+        toXContentEnd(builder);
+        return builder;
+    }
+
+    public static void toXContentStart(XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.startArray("snapshots");
+    }
+
+    public void toXContentEnd(XContentBuilder builder) throws IOException {
         builder.endArray();
         if (failures.isEmpty() == false) {
             builder.startObject("failures");
@@ -193,7 +202,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             builder.field("remaining", remaining);
         }
         builder.endObject();
-        return builder;
     }
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {

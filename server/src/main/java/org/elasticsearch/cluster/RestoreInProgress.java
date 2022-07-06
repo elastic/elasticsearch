@@ -109,7 +109,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         String uuid,
         Snapshot snapshot,
         State state,
-        boolean silent,
+        boolean quiet,
         List<String> indices,
         Map<ShardId, ShardRestoreStatus> shards
     ) {
@@ -119,7 +119,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @param uuid     uuid of the restore
          * @param snapshot snapshot
          * @param state    current state of the restore process
-         * @param silent   boolean for whether logging should be at a lower or higher level
+         * @param quiet    {@code true} if logging of the start and completion of the snapshot restore should be at {@code DEBUG} log
+         *                 level, else it should be at {@code INFO} log level
          * @param indices  list of indices being restored
          * @param shards   map of shards being restored to their current restore status
          */
@@ -127,13 +128,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             String uuid,
             Snapshot snapshot,
             State state,
-            boolean silent,
+            boolean quiet,
             List<String> indices,
             Map<ShardId, ShardRestoreStatus> shards
         ) {
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
-            this.silent = Objects.requireNonNull(silent);
+            this.quiet = Objects.requireNonNull(quiet);
             this.indices = Objects.requireNonNull(indices);
             if (shards == null) {
                 this.shards = Map.of();
@@ -359,9 +360,12 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             uuid = in.readString();
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
-            boolean silent = true;
-            if (in.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_SILENT_PARAMETER)) {
-                silent = in.readBoolean();
+            boolean quiet;
+            if (in.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+                quiet = in.readBoolean();
+            } else {
+                // Backwards compatibility: previously there was no logging of the start or completion of a snapshot restore
+                quiet = true;
             }
             List<String> indices = in.readImmutableList(StreamInput::readString);
             entriesBuilder.put(
@@ -370,7 +374,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                     uuid,
                     snapshot,
                     state,
-                    silent,
+                    quiet,
                     indices,
                     in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
                 )
@@ -385,8 +389,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             o.writeString(entry.uuid);
             entry.snapshot().writeTo(o);
             o.writeByte(entry.state().value());
-            if (out.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_SILENT_PARAMETER)) {
-                o.writeBoolean(entry.silent());
+            if (out.getVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+                o.writeBoolean(entry.quiet());
             }
             o.writeStringCollection(entry.indices);
             o.writeMap(entry.shards);

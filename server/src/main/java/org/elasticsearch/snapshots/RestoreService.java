@@ -736,7 +736,7 @@ public class RestoreService implements ClusterStateApplier {
                         entry.uuid(),
                         entry.snapshot(),
                         overallState(RestoreInProgress.State.STARTED, shards),
-                        entry.silent(),
+                        entry.quiet(),
                         entry.indices(),
                         shards
                     )
@@ -874,7 +874,7 @@ public class RestoreService implements ClusterStateApplier {
                         Map<ShardId, ShardRestoreStatus> shards = Map.copyOf(shardsBuilder);
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
                         builder.add(
-                            new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.silent(), entry.indices(), shards)
+                            new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.quiet(), entry.indices(), shards)
                         );
                     } else {
                         builder.add(entry);
@@ -1053,7 +1053,7 @@ public class RestoreService implements ClusterStateApplier {
                 boolean changed = false;
                 for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
                     if (entry.state().completed()) {
-                        logger.log(entry.silent() ? Level.DEBUG : Level.INFO, "restore of snapshot [{}] completed", entry.snapshot());
+                        logger.log(entry.quiet() ? Level.DEBUG : Level.INFO, "restore of snapshot [{}] completed", entry.snapshot());
                         changed = true;
                     } else {
                         restoreInProgressBuilder.add(entry);
@@ -1376,7 +1376,7 @@ public class RestoreService implements ClusterStateApplier {
                             restoreUUID,
                             snapshot,
                             overallState(RestoreInProgress.State.INIT, shards),
-                            request.silent(),
+                            request.quiet(),
                             List.copyOf(indicesToRestore.keySet()),
                             Map.copyOf(shards)
                         )
@@ -1574,7 +1574,7 @@ public class RestoreService implements ClusterStateApplier {
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             logger.log(
-                request.silent() ? Level.DEBUG : Level.INFO,
+                request.quiet() ? Level.DEBUG : Level.INFO,
                 "restore of snapshot [{}] started for indices {}",
                 snapshot,
                 snapshotInfo.indices()

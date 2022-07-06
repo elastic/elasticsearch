@@ -195,7 +195,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .renameReplacement(request.getFollowerIndex())
             .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings)
-            .silent(true);
+            .quiet(true);
 
         final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
             this.client,

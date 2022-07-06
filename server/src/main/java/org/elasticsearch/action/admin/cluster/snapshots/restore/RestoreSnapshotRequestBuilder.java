@@ -163,17 +163,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     }
 
     /**
-     * If set to true the logging should be at a lower level
-     *
-     * @param silent true if logging should be at a lower level
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSilent(boolean silent) {
-        request.silent(silent);
-        return this;
-    }
-
-    /**
      * Sets index settings that should be added or replaced during restore
      *
      * @param settings index settings

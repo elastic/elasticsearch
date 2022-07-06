@@ -158,7 +158,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
             .masterNodeTimeout(TimeValue.MAX_VALUE)
-            .silent(true);
+            .quiet(true);
     }
 
     public void testRetentionLeaseIsTakenAtTheStartOfRecovery() throws Exception {

@@ -49,8 +49,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    public static Version VERSION_SUPPORTING_SILENT_PARAMETER = Version.V_8_4_0;
-    private boolean silent = false;
+    public static Version VERSION_SUPPORTING_QUIET_PARAMETER = Version.V_8_4_0;
+    private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
@@ -86,10 +86,10 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_SILENT_PARAMETER)) {
-            silent = in.readBoolean();
+        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            quiet = in.readBoolean();
         } else {
-            silent = true;
+            quiet = true;
         }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
@@ -110,8 +110,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_SILENT_PARAMETER)) {
-            out.writeBoolean(silent);
+        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            out.writeBoolean(quiet);
         }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
@@ -395,23 +395,24 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * If set to true the logging should be at a lower level
+     * If {@code false}, report the start and completion of the restore at {@code INFO} log level.
+     * If {@code true}, report the start and completion of the restore at {@code DEBUG} log level.
      *
-     * @param silent true if logging should be at a lower level
+     * @param quiet
      * @return this request
      */
-    public RestoreSnapshotRequest silent(boolean silent) {
-        this.silent = silent;
+    public RestoreSnapshotRequest quiet(boolean quiet) {
+        this.quiet = quiet;
         return this;
     }
 
     /**
-     * Returns a boolean for whether logging should be at a lower or higher level
      *
-     * @return true if logging should be at a lower level
+     * @return {@code true}  if logging of the start and completion of the restore should happen at {@code DEBUG} log level, else it
+     * happens at {@code INFO} log level.
      */
-    public boolean silent() {
-        return silent;
+    public boolean quiet() {
+        return quiet;
     }
 
     /**
@@ -632,7 +633,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && includeGlobalState == that.includeGlobalState
             && partial == that.partial
             && includeAliases == that.includeAliases
-            && silent == that.silent
+            && quiet == that.quiet
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(repository, that.repository)
             && Arrays.equals(indices, that.indices)
@@ -658,7 +659,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             includeGlobalState,
             partial,
             includeAliases,
-            silent,
+            quiet,
             indexSettings,
             snapshotUuid,
             skipOperatorOnlyState

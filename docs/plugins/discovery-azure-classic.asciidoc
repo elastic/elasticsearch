@@ -331,7 +331,7 @@ scp /tmp/azurekeystore.pkcs12 azure-elasticsearch-cluster.cloudapp.net:/home/ela
 ssh azure-elasticsearch-cluster.cloudapp.net
 ----
 
-Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
+Once connected,  {ref}/install-elasticsearch.html[install {es}].
 
 Check that Elasticsearch is running:
 

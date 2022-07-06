@@ -23,7 +23,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -169,14 +168,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
             // TODO: make index_mode, start and end time fields in IndexMetadata class.
             // (this to avoid the overhead that occurs when reading a setting)
-            if (IndexSettings.MODE.get(im.getSettings()) != IndexMode.TIME_SERIES) {
+            if (im.getIndexMode() != IndexMode.TIME_SERIES) {
                 // Not a tsdb backing index, so skip.
-                // (This can happen is this is a migrated tsdb data stream)
+                // (This can happen if this is a migrated tsdb data stream)
                 continue;
             }
 
-            Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-            Instant end = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+            Instant start = im.getTimeSeriesStart();
+            Instant end = im.getTimeSeriesEnd();
             // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
             if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
                 return index;
@@ -203,12 +202,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             })
                 .filter(
                     // Migrated tsdb data streams have non tsdb backing indices:
-                    im -> IndexSettings.TIME_SERIES_START_TIME.exists(im.getSettings())
-                        && IndexSettings.TIME_SERIES_END_TIME.exists(im.getSettings())
+                    im -> im.getTimeSeriesStart() != null && im.getTimeSeriesEnd() != null
                 )
                 .map(im -> {
-                    Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-                    Instant end = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+                    Instant start = im.getTimeSeriesStart();
+                    Instant end = im.getTimeSeriesEnd();
                     assert end.isAfter(start); // This is also validated by TIME_SERIES_END_TIME setting.
                     return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
                 })

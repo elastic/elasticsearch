@@ -584,7 +584,7 @@ public class SecurityTests extends ESTestCase {
             )
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
-        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
     }
 
     public void testValidateForFipsMultipleValidationErrors() {
@@ -604,7 +604,7 @@ public class SecurityTests extends ESTestCase {
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
         assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
-        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
     }
 
     public void testValidateForFipsNoErrorsOrLogs() throws IllegalAccessException {
@@ -619,7 +619,13 @@ public class SecurityTests extends ESTestCase {
                 )
             )
             .put(
-                XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                )
+            )
+            .put(
+                ApiKeyService.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
                     Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
                 )
@@ -637,16 +643,25 @@ public class SecurityTests extends ESTestCase {
         expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
     }
 
-    public void testValidateForFipsNonFipsCompliantHashAlgoWarningLog() throws IllegalAccessException {
+    public void testValidateForFipsNonFipsCompliantCacheHashAlgoWarningLog() throws IllegalAccessException {
         String key = randomCacheHashSetting();
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(key, randomNonFipsCompliantCacheHash())
             .build();
-        expectLogs(Security.class, List.of(logEventForNonCompliantHash(key)), () -> Security.validateForFips(settings));
+        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(key)), () -> Security.validateForFips(settings));
     }
 
-    public void testValidateForMultipleNonFipsCompliantHashAlgoWarningLogs() throws IllegalAccessException {
+    public void testValidateForFipsNonFipsCompliantStoredHashAlgoWarningLog() throws IllegalAccessException {
+        String key = randomFrom(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).getKey();
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(key, randomNonFipsCompliantStoredHash())
+            .build();
+        expectLogs(Security.class, List.of(logEventForNonCompliantStoredHash(key)), () -> Security.validateForFips(settings));
+    }
+
+    public void testValidateForMultipleNonFipsCompliantCacheHashAlgoWarningLogs() throws IllegalAccessException {
         String firstKey = randomCacheHashSetting();
         String secondKey = randomValueOtherThan(firstKey, this::randomCacheHashSetting);
         final Settings settings = Settings.builder()
@@ -656,7 +671,7 @@ public class SecurityTests extends ESTestCase {
             .build();
         expectLogs(
             Security.class,
-            List.of(logEventForNonCompliantHash(firstKey), logEventForNonCompliantHash(secondKey)),
+            List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)),
             () -> Security.validateForFips(settings)
         );
     }
@@ -670,7 +685,7 @@ public class SecurityTests extends ESTestCase {
             .put(secondKey, randomNonFipsCompliantCacheHash())
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
             .build();
-        expectLogs(Security.class, List.of(logEventForNonCompliantHash(firstKey), logEventForNonCompliantHash(secondKey)), () -> {
+        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)), () -> {
             final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
             assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
         });
@@ -835,15 +850,33 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation logEventForNonCompliantHash(String settingKey) {
+    private String randomNonFipsCompliantStoredHash() {
+        return randomFrom(
+            Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())
+        );
+    }
+
+    private MockLogAppender.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
         return new MockLogAppender.SeenEventExpectation(
-            "hash not fips compliant",
+            "cache hash not fips compliant",
             Security.class.getName(),
             Level.WARN,
             "[*] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
                 + "The recommended hasher for ["
                 + settingKey
                 + "] is SSHA256."
+        );
+    }
+
+    private MockLogAppender.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
+        return new MockLogAppender.SeenEventExpectation(
+            "stored hash not fips compliant",
+            Security.class.getName(),
+            Level.WARN,
+            "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                + "Please set the appropriate value for ["
+                + settingKey
+                + "] setting."
         );
     }
 

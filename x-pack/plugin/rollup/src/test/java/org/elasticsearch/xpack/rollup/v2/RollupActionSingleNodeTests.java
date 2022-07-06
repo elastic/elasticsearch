@@ -15,8 +15,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -94,7 +92,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
 
-    private String sourceIndex, sourceIndexClone, rollupIndex;
+    private String sourceIndex, rollupIndex;
     private long startTime;
     private int docCount, numOfShards, numOfReplicas;
     private List<String> dimensionValues;
@@ -112,13 +110,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        sourceIndexClone = sourceIndex + "-clone";
-        rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        sourceIndex = getTestName().toLowerCase(Locale.ROOT) + "-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);
         numOfShards = randomIntBetween(1, 4);
-        numOfReplicas = randomIntBetween(0, 3);
+        numOfReplicas = 0; // Since this is a single node, we cannot have replicas
 
         // Values for keyword dimensions
         dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
@@ -170,7 +167,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testNullSourceIndexName() {
@@ -218,7 +215,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
@@ -239,13 +236,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupIndexWithNoMetrics() {
         // Create a source index that contains no metric fields in its mapping
-        sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        sourceIndexClone = sourceIndex + "-clone";
+        String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         client().admin()
             .indices()
             .prepareCreate(sourceIndex)
@@ -270,7 +266,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .get();
 
         RollupActionConfig config = new RollupActionConfig(randomInterval());
-        // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex);
         Exception exception = expectThrows(RollupActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
@@ -325,20 +320,19 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         bulkIndex(dataStreamName, sourceSupplier);
 
-        this.sourceIndex = rollover(dataStreamName).getOldIndex();
-        this.sourceIndexClone = sourceIndex + "-clone";
-        this.rollupIndex = ".rollup-" + sourceIndex;
+        String sourceIndex = rollover(dataStreamName).getOldIndex();
         prepareSourceIndex(sourceIndex);
+        String rollupIndex = "rollup-" + sourceIndex;
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
 
         var r = client().execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName })).get();
         assertEquals(1, r.getDataStreams().size());
         List<Index> indices = r.getDataStreams().get(0).getDataStream().getIndices();
-        // Assert that the rollup index is a member of the data stream
-        assertFalse(indices.stream().filter(i -> i.getName().equals(rollupIndex)).toList().isEmpty());
-        // Assert that the source index is not a member of the data stream
-        assertTrue(indices.stream().filter(i -> i.getName().equals(sourceIndex)).toList().isEmpty());
+        // Assert that the rollup index has not been added to the data stream
+        assertTrue(indices.stream().filter(i -> i.getName().equals(rollupIndex)).toList().isEmpty());
+        // Assert that the source index is still a member of the data stream
+        assertFalse(indices.stream().filter(i -> i.getName().equals(sourceIndex)).toList().isEmpty());
     }
 
     private DateHistogramInterval randomInterval() {
@@ -352,18 +346,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private String randomDateForRange(long start, long end) {
         return DATE_FORMATTER.formatMillis(randomLongBetween(start, end));
-    }
-
-    private void cloneSourceIndex(String sourceIndex, String sourceIndexClone) {
-        ResizeResponse r = client().admin()
-            .indices()
-            .prepareResizeIndex(sourceIndex, sourceIndexClone)
-            .setResizeType(ResizeType.CLONE)
-            .setSettings(
-                Settings.builder().put("index.number_of_shards", numOfShards).put("index.number_of_replicas", numOfReplicas).build()
-            )
-            .get();
-        assertTrue(r.isAcknowledged());
     }
 
     private void bulkIndex(SourceSupplier sourceSupplier) throws IOException {
@@ -386,7 +368,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
                     // A duplicate event was created by random generator. We should not fail for this
                     // reason.
-                    logger.info("We tried to insert a duplicate: " + response.getFailureMessage());
+                    logger.debug("We tried to insert a duplicate: [{}]", response.getFailureMessage());
                     duplicates++;
                 } else {
                     fail("Failed to index data: " + bulkResponse.buildFailureMessage());
@@ -394,7 +376,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             }
         }
         int docsIndexed = docCount - duplicates;
-        logger.info("Indexed [" + docsIndexed + "] documents");
+        logger.info("Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
     }
 
@@ -406,11 +388,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
             .get();
         assertTrue(r.isAcknowledged());
-
-        // The source index is deleted at the end of the rollup process.
-        // We clone the source index, so that we validate rollup results against the
-        // source index clone.
-        cloneSourceIndex(sourceIndex, sourceIndexClone);
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
@@ -426,9 +403,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String sourceIndexClone, String rollupIndex) {
+    private void assertRollupIndex(String sourceIndex, String rollupIndex, RollupActionConfig config) {
         // Retrieve field information for the metric fields
-        FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndexClone).setFields("*").get();
+        FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndex).setFields("*").get();
         Map<String, TimeSeriesParams.MetricType> metricFields = fieldCapsResponse.get()
             .entrySet()
             .stream()
@@ -437,17 +414,13 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config, metricFields);
         long numBuckets = 0;
-        InternalComposite origResp = client().prepareSearch(sourceIndexClone)
-            .addAggregation(aggregation)
-            .get()
-            .getAggregations()
-            .get("resp");
+        InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
             assertEquals(origResp, rollupResp);
             aggregation.aggregateAfter(origResp.afterKey());
-            origResp = client().prepareSearch(sourceIndexClone).addAggregation(aggregation).get().getAggregations().get("resp");
+            origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
             rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         }
         assertEquals(origResp, rollupResp);
@@ -455,36 +428,33 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
         assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndexClone, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         // Assert rollup metadata are set in index settings
         assertEquals("success", indexSettingsResp.getSetting(rollupIndex, "index.rollup.status"));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndexClone, "index.resize.source.uuid"),
+            indexSettingsResp.getSetting(sourceIndex, "index.uuid"),
             indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid")
         );
+        assertEquals(sourceIndex, indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name"));
+        assertEquals(indexSettingsResp.getSetting(sourceIndex, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndexClone, "index.resize.source.name"),
-            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name")
-        );
-        assertEquals(indexSettingsResp.getSetting(sourceIndexClone, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndexClone, "time_series.start_time"),
+            indexSettingsResp.getSetting(sourceIndex, "time_series.start_time"),
             indexSettingsResp.getSetting(rollupIndex, "time_series.start_time")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndexClone, "time_series.end_time"),
+            indexSettingsResp.getSetting(sourceIndex, "time_series.end_time"),
             indexSettingsResp.getSetting(rollupIndex, "time_series.end_time")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndexClone, "index.routing_path"),
+            indexSettingsResp.getSetting(sourceIndex, "index.routing_path"),
             indexSettingsResp.getSetting(rollupIndex, "index.routing_path")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndexClone, "index.number_of_shards"),
+            indexSettingsResp.getSetting(sourceIndex, "index.number_of_shards"),
             indexSettingsResp.getSetting(rollupIndex, "index.number_of_shards")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndexClone, "index.number_of_replicas"),
+            indexSettingsResp.getSetting(sourceIndex, "index.number_of_replicas"),
             indexSettingsResp.getSetting(rollupIndex, "index.number_of_replicas")
         );
         assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
@@ -508,9 +478,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             }
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
         });
-
-        // Assert that source index was removed
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(sourceIndex).get());
     }
 
     private CompositeAggregationBuilder buildCompositeAggs(

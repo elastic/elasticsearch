@@ -1,8 +1,8 @@
 ---
 "cluster health basic test":
   - skip:
-      version: "- 8.2.99"
-      reason: "summary text was updated in 8.3.0"
+      version: "- 8.3.99"
+      reason: "health was only added in 8.2.0, and master_is_stable in 8.4.0"
 
   - do:
       _internal.health: {}
@@ -10,5 +10,5 @@
   - is_true: cluster_name
   - match:   { status: "green" }
   - match:   { components.cluster_coordination.status: "green" }
-  - match:   { components.cluster_coordination.indicators.instance_has_master.status: "green" }
-  - match:   { components.cluster_coordination.indicators.instance_has_master.summary: "Health coordinating instance has an elected master node." }
+  - match:   { components.cluster_coordination.indicators.master_is_stable.status: "green" }
+  - match:   { components.cluster_coordination.indicators.master_is_stable.summary: "The cluster has a stable master node" }

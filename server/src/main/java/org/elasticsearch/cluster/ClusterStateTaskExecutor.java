@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * An executor for batches of cluster state update tasks.
@@ -74,24 +74,19 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     }
 
     /**
-     * An {@link ActionListener} for passing to {@link ClusterStateTaskExecutor.TaskContext#success} which preserves the
+     * A {@link Consumer} for passing to {@link ClusterStateTaskExecutor.TaskContext#success} which preserves the
      * legacy behaviour of calling {@link ClusterStateTaskListener#clusterStateProcessed} or {@link ClusterStateTaskListener#onFailure}.
      * <p>
      * New implementations should use a dedicated listener rather than relying on this legacy behaviour.
      */
     // TODO remove all remaining usages of this listener
+    @Deprecated
     record LegacyClusterTaskResultActionListener(ClusterStateTaskListener task, ClusterState originalState)
         implements
-            ActionListener<ClusterState> {
-
+            Consumer<ClusterState> {
         @Override
-        public void onResponse(ClusterState publishedState) {
+        public void accept(ClusterState publishedState) {
             task.clusterStateProcessed(originalState, publishedState);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            task.onFailure(e);
         }
     }
 
@@ -110,24 +105,37 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * Record that the task succeeded.
          * <p>
          * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you may not use this
-         * method and must instead call {@link #success(ActionListener, ClusterStateAckListener)}, passing the task itself as the {@code
+         * method and must instead call {@link #success(Runnable, ClusterStateAckListener)}, passing the task itself as the {@code
          * clusterStateAckListener} argument.
          *
-         * @param publishListener A listener for the completion of the resulting cluster state publication. This listener is completed
-         *                        with the cluster state that was published (or the publication exception that occurred) in the thread
-         *                        context in which the task was submitted. The task's {@link
-         *                        ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master service,
-         *                        nor is {@link ClusterStateTaskListener#onFailure} once the task execution has succeeded, but legacy
-         *                        implementations may supply a listener which calls those methods.
-         *                        <p>
-         *                        The listener should prefer not to use the published state for things like determining the result of a
-         *                        task. The task may have been executed as part of a batch, and later tasks in the batch may overwrite
-         *                        the results from earlier tasks. Instead the listener should independently capture the information it
-         *                        needs to properly process the completion of a cluster state update.
+         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds. The task's {@link
+         *                             ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
+         *                             service once the task execution has succeeded, but legacy implementations may supply a listener
+         *                             which calls this methods.
          */
-        // TODO remove all remaining usages of the published state and then make publishListener an ActionListener<Void>
+        void success(Runnable onPublicationSuccess);
+
+        /**
+         * Record that the task succeeded.
+         * <p>
+         * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you may not use this
+         * method and must instead call {@link #success(Consumer, ClusterStateAckListener)}, passing the task itself as the {@code
+         * clusterStateAckListener} argument.
+         *
+         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published. The task's {@link
+         *                               ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
+         *                               service once the task execution has succeeded, but legacy implementations may supply a listener
+         *                               which calls this methods.
+         *                               <p>
+         *                               The consumer should prefer not to use the published state for things like determining the result
+         *                               of a task. The task may have been executed as part of a batch, and later tasks in the batch may
+         *                               overwrite the results from earlier tasks. Instead the listener should independently capture the
+         *                               information it needs to properly process the completion of a cluster state update.
+         */
+        // TODO remove all remaining usages of the published state and migrate all callers to the Runnable variant, then remove this
         // see https://github.com/elastic/elasticsearch/issues/84415
-        void success(ActionListener<ClusterState> publishListener);
+        @Deprecated
+        void success(Consumer<ClusterState> publishedStateConsumer);
 
         /**
          * Record that the task succeeded.
@@ -135,25 +143,41 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
          * itself as the {@code clusterStateAckListener} argument.
          *
-         * @param publishListener A listener for the completion of the resulting cluster state publication. This listener is completed
-         *                        with the cluster state that was published (or the publication exception that occurred) in the thread
-         *                        context in which the task was submitted. The task's {@link
-         *                        ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master service,
-         *                        nor is {@link ClusterStateTaskListener#onFailure} once the task execution has succeeded, but legacy
-         *                        implementations may use this listener to call those methods.
-         *                        <p>
-         *                        The listener should prefer not to use the published state for things like determining the result of a
-         *                        task. The task may have been executed as part of a batch, and later tasks in the batch may overwrite
-         *                        the results from earlier tasks. Instead the listener should independently capture the information it
-         *                        needs to properly process the completion of a cluster state update.
+         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds. The task's {@link
+         *                             ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
+         *                             service once the task execution has succeeded, but legacy implementations may supply a listener
+         *                             which calls this methods.
          *
          * @param clusterStateAckListener A listener for acknowledgements from nodes. If the publication succeeds then this listener is
          *                                completed as nodes ack the state update. If the publication fails then the failure
          *                                notification happens via {@code publishListener.onFailure()}: this listener is not notified.
          */
-        // TODO remove all remaining usages of the published state and then make publishListener an ActionListener<Void>
+        void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener);
+
+        /**
+         * Record that the task succeeded.
+         * <p>
+         * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
+         * itself as the {@code clusterStateAckListener} argument.
+         *
+         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published. The task's {@link
+         *                               ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
+         *                               service once the task execution has succeeded, but legacy implementations may supply a listener
+         *                               which calls this methods.
+         *                               <p>
+         *                               The consumer should prefer not to use the published state for things like determining the result
+         *                               of a task. The task may have been executed as part of a batch, and later tasks in the batch may
+         *                               overwrite the results from earlier tasks. Instead the listener should independently capture the
+         *                               information it needs to properly process the completion of a cluster state update.
+         *
+         * @param clusterStateAckListener A listener for acknowledgements from nodes. If the publication succeeds then this listener is
+         *                                completed as nodes ack the state update. If the publication fails then the failure
+         *                                notification happens via {@code publishListener.onFailure()}: this listener is not notified.
+         */
+        // TODO remove all remaining usages of the published state and migrate all callers to the Runnable variant, then remove this
         // see https://github.com/elastic/elasticsearch/issues/84415
-        void success(ActionListener<ClusterState> publishListener, ClusterStateAckListener clusterStateAckListener);
+        @Deprecated
+        void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener);
 
         /**
          * Record that the task succeeded.
@@ -169,7 +193,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          *                                notification happens via {@code publishListener.onFailure()}: this listener is not notified.
          */
         default void success(ClusterStateAckListener clusterStateAckListener) {
-            success(new SuccessIgnoringPublishListener(getTask()), clusterStateAckListener);
+            success(() -> {}, clusterStateAckListener);
         }
 
         /**
@@ -178,21 +202,5 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * @param failure The exception with which the task failed.
          */
         void onFailure(Exception failure);
-    }
-
-    /**
-     * Tasks that listen for acks typically do not care about a successfully-completed publication, but must still handle publication
-     * failures. This adapter makes that pattern easy.
-     */
-    record SuccessIgnoringPublishListener(ClusterStateTaskListener task) implements ActionListener<ClusterState> {
-        @Override
-        public void onResponse(ClusterState clusterState) {
-            // nothing to do here, listener is completed at the end of acking
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            task.onFailure(e);
-        }
     }
 }

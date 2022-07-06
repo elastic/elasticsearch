@@ -253,8 +253,10 @@ final class IndexDiskUsageAnalyzer {
                 case BINARY -> iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
                 case SORTED -> {
                     SortedDocValues sorted = iterateDocValues(maxDocs, () -> docValuesReader.getSorted(field), SortedDocValues::ordValue);
-                    sorted.lookupOrd(0);
-                    sorted.lookupOrd(sorted.getValueCount() - 1);
+                    if (sorted.getValueCount() > 0) {
+                        sorted.lookupOrd(0);
+                        sorted.lookupOrd(sorted.getValueCount() - 1);
+                    }
                 }
                 case SORTED_SET -> {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
@@ -262,8 +264,10 @@ final class IndexDiskUsageAnalyzer {
                             cancellationChecker.logEvent();
                         }
                     });
-                    sortedSet.lookupOrd(0);
-                    sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
+                    if (sortedSet.getValueCount() > 0) {
+                        sortedSet.lookupOrd(0);
+                        sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
+                    }
                 }
                 default -> {
                     assert false : "Unknown docValues type [" + dvType + "]";
@@ -385,8 +389,10 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
-                values.intersect(new PointsVisitor());
-                stats.addPoints(field.name, directory.getBytesRead());
+                if (values != null) {
+                    values.intersect(new PointsVisitor());
+                    stats.addPoints(field.name, directory.getBytesRead());
+                }
             }
         }
     }

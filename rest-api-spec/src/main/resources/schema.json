@@ -276,6 +276,14 @@
                 "required": {
                     "type": "boolean",
                     "title": "Whether the parameter is required"
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": ["private", "feature_flag", "public"]
+                },
+                "feature_flag": {
+                    "type": "string",
+                    "title": "If visibility of the API is set to `feature_flag` this documents the feature_flag to use"
                 }
             },
             "required": [

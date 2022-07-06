@@ -41,13 +41,25 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
@@ -63,13 +75,32 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
+    protected static Directory createNewDirectory() {
+        final Directory dir = LuceneTestCase.newDirectory();
+        if (randomBoolean()) {
+            return new FilterDirectory(dir) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        analyzeDiskUsageAfterDeleteRandomDocuments(dir);
+                    } finally {
+                        super.close();
+                    }
+                }
+            };
+        } else {
+            return dir;
+        }
+    }
+
     public void testStoredFields() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -122,7 +153,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testTermVectors() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final FieldType fieldType = randomTermVectorsFieldType();
@@ -174,7 +205,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testBinaryPoints() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -211,7 +242,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testTriangle() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
                 final double ratio = randomDouble();
@@ -277,7 +308,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
             });
 
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, config)) {
                 int numDocs = randomIntBetween(100, 1000);
                 for (int i = 0; i < numDocs; i++) {
@@ -330,12 +361,12 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     public void testMixedFields() throws Exception {
-        try (Directory dir = newDirectory()) {
+        try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), IndexDiskUsageAnalyzerTests::addRandomFields);
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
-            try (Directory perFieldDir = newDirectory()) {
+            try (Directory perFieldDir = createNewDirectory()) {
                 rewriteIndexWithPerFieldCodec(dir, codec, perFieldDir);
                 final IndexDiskUsageStats perFieldStats = collectPerFieldStats(perFieldDir);
                 assertStats(stats, perFieldStats);
@@ -679,5 +710,70 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
     private static ShardId testShardId() {
         return new ShardId("test_index", "_na_", randomIntBetween(0, 3));
+    }
+
+    private static class RandomMatchQuery extends Query {
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new ConstantScoreWeight(this, 1.0f) {
+                @Override
+                public Scorer scorer(LeafReaderContext context) {
+                    final FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    for (int i = 0; i < bits.length(); i++) {
+                        if (randomBoolean()) {
+                            bits.set(i);
+                        }
+                    }
+                    return new ConstantScoreScorer(this, 1.0f, ScoreMode.COMPLETE_NO_SCORES, new BitSetIterator(bits, bits.length()));
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "RandomMatchQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+    }
+
+    /**
+     * Asserts that we properly handle situations where segments have FieldInfos, but associated documents are gone
+     */
+    private static void analyzeDiskUsageAfterDeleteRandomDocuments(Directory dir) throws IOException {
+        int iterations = between(5, 20);
+        for (int i = 0; i < iterations; i++) {
+            IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true);
+            final IndexWriter.DocStats docStats;
+            try (IndexWriter writer = new IndexWriter(dir, config); DirectoryReader reader = DirectoryReader.open(writer)) {
+                writer.deleteDocuments(new RandomMatchQuery());
+                writer.flush();
+                writer.commit();
+                docStats = writer.getDocStats();
+            }
+            IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            if (docStats.numDocs == 0) {
+                return;
+            }
+            assertThat(stats.total().getPointsBytes(), greaterThanOrEqualTo(0L));
+        }
     }
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -466,8 +465,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = encode(doubleValue, scalingFactor);
 
-        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
-        context.doc().addAll(fields);
+        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (indexed || stored)) {
             context.addToFieldNames(fieldType().name());
@@ -680,7 +678,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(decodeForSyntheticSource(value, scalingFactor));
             }
         };

@@ -11,7 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -22,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRes
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -38,13 +43,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.action.profile.ProfileHasPrivilegesRequestTests.randomValidPrivilegesToCheckRequest;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -138,7 +149,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             .checkPrivileges(any(Subject.class), eq(request.privilegesToCheck()), eq(List.of()), anyActionListener());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
-        transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
+        transportProfileHasPrivilegesAction.doExecute(mock(CancellableTask.class), request, listener);
 
         ProfileHasPrivilegesResponse response = listener.get();
         assertThat(response.errorUids(), is(errorProfileUids));
@@ -180,10 +191,90 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         }).when(authorizationService).checkPrivileges(any(), any(), any(), any());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
-        transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
+        transportProfileHasPrivilegesAction.doExecute(mock(CancellableTask.class), request, listener);
 
         ProfileHasPrivilegesResponse response = listener.get();
         assertThat(response.hasPrivilegeUids(), emptyIterable());
         assertThat(response.errorUids(), is(errorProfileUids));
+    }
+
+    public void testDLSQueryIndicesPrivilegesRequestValidation() {
+        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(1, 5)];
+        for (int i = 0; i < indicesPrivileges.length; i++) {
+            indicesPrivileges[i] = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(randomFrom("read", "write"))
+                .indices(randomAlphaOfLengthBetween(2, 8))
+                .query(new BytesArray(randomAlphaOfLength(5)))
+                .build();
+        }
+
+        final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(
+            randomList(1, 100, () -> randomAlphaOfLengthBetween(4, 10)),
+            new AuthorizationEngine.PrivilegesToCheck(
+                new String[0],
+                indicesPrivileges,
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
+            )
+        );
+
+        final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
+        transportProfileHasPrivilegesAction.execute(mock(CancellableTask.class), request, listener);
+
+        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> listener.actionGet());
+        assertThat(ile, notNullValue());
+        assertThat(ile.getMessage(), containsString("may only check index privileges without any DLS query"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCancellation() throws Exception {
+        final List<String> profileUids = new ArrayList<>(new HashSet<>(randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 10))));
+        final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(profileUids, randomValidPrivilegesToCheckRequest());
+        doAnswer(invocation -> {
+            Collection<String> uidsArg = (Collection<String>) invocation.getArguments()[0];
+            Map<String, Subject> profileUidToSubject = new HashMap<>();
+            for (String uid : uidsArg) {
+                profileUidToSubject.put(uid, new Subject(new User("user_for_profile_" + uid), mock(Authentication.RealmRef.class)));
+            }
+            final ActionListener<MultiProfileSubjectResponse> listener = (ActionListener<MultiProfileSubjectResponse>) invocation
+                .getArguments()[1];
+            listener.onResponse(new MultiProfileSubjectResponse(profileUidToSubject, Set.of()));
+            return null;
+        }).when(profileService).getProfileSubjects(anyCollection(), anyActionListener());
+
+        doAnswer(invocation -> {
+            final ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocation.getArguments()[2];
+            listener.onResponse(List.of());
+            return null;
+        }).when(nativePrivilegeStore).getPrivileges(anyCollection(), any(), anyActionListener());
+
+        final AtomicInteger cancelCountDown = new AtomicInteger(randomIntBetween(1, profileUids.size() + 1));
+        final boolean taskActuallyCancelled = cancelCountDown.get() <= profileUids.size();
+        final CancellableTask cancellableTask = new CancellableTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of());
+
+        if (cancelCountDown.decrementAndGet() == 0) {
+            TaskCancelHelper.cancel(cancellableTask, "reason");
+        }
+        doAnswer(invocation -> {
+            ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
+                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
+            if (cancelCountDown.decrementAndGet() == 0) {
+                TaskCancelHelper.cancel(cancellableTask, "reason");
+            }
+            listener.onResponse(ALL_CHECKS_SUCCESS_NO_DETAILS);
+            return null;
+        }).when(authorizationService)
+            .checkPrivileges(any(Subject.class), eq(request.privilegesToCheck()), eq(List.of()), anyActionListener());
+
+        final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
+        transportProfileHasPrivilegesAction.doExecute(cancellableTask, request, listener);
+        if (taskActuallyCancelled) {
+            ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+            assertThat(e.getCause(), instanceOf(TaskCancelledException.class));
+        } else {
+            ProfileHasPrivilegesResponse profileHasPrivilegesResponse = listener.get();
+            assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), contains(profileUids.toArray()));
+        }
     }
 }

@@ -207,7 +207,6 @@ The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
 
-ifeval::["{release-state}"!="released"]
 [discrete]
 [[security-domain-settings]]
 ==== Security domain settings
@@ -229,7 +228,6 @@ xpack:
 <1> Specifies the name of the security domain
 <2> Specifies the realms that belong to the domain
 // end::security-domain-settings-description-tag[]
-endif::[]
 
 [discrete]
 [[realm-settings]]
@@ -1859,6 +1857,21 @@ the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
 Defaults to `200`.
 // end::oidc-http-max-endpoint-connections-tag[]
+
+// tag::oidc-http-connection-pool-ttl-tag[]
+`http.connection_pool_ttl` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the time-to-live of connections
+in the connection pool (default to 3 minutes). A connection is closed if it is
+idle for more than the specified timeout.
+
+The server can also set the `Keep-Alive` HTTP response header. The effective
+time-to-live value is the smaller value between this setting and the `Keep-Alive`
+reponse header. Configure this setting to `-1` to let the server dictate the value.
+If the header is not set by the server and the setting has value of `-1`,
+the time-to-live is infinite and connections never expire.
+// end::oidc-http-connection-pool-ttl-tag[]
 
 [discrete]
 [[ref-oidc-ssl-settings]]

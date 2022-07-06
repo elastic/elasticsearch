@@ -43,6 +43,7 @@ import java.util.function.BiConsumer;
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
+    private final CardinalityAggregatorFactory.ExecutionMode executionMode;
     private final ValuesSource valuesSource;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
@@ -61,6 +62,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
+        CardinalityAggregatorFactory.ExecutionMode executionMode,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -70,6 +72,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.executionMode = executionMode;
     }
 
     @Override
@@ -99,14 +102,15 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 return new EmptyCollector();
             }
 
-            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-            // only use ordinals if they don't increase memory usage by more than 25%
-            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+            if (executionMode.useSegmentOrdinals(maxOrd, precision)) {
                 ordinalsCollectorsUsed++;
                 return new OrdinalsCollector(counts, ordinalValues, bigArrays());
             }
-            ordinalsCollectorsOverheadTooHigh++;
+
+            if (executionMode.isHeuristicBased()) {
+                // if we could have used segment ordinals, and it was our heuristic that made the choice not to, increment the counter
+                ordinalsCollectorsOverheadTooHigh++;
+            }
         }
 
         stringHashingCollectorsUsed++;
@@ -229,7 +233,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
-    private static class OrdinalsCollector extends Collector {
+    static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 

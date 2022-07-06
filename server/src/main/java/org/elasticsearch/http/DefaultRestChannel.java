@@ -65,7 +65,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         CorsHandler corsHandler,
         @Nullable HttpTracer tracerLog
     ) {
-        super(request, settings.getDetailedErrorsEnabled());
+        super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
         this.recycler = recycler;
@@ -167,7 +167,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     }
 
     private void addCookies(HttpResponse response) {
-        if (settings.isResetCookies()) {
+        if (settings.resetCookies()) {
             List<String> cookies = request.getHttpRequest().strictCookies();
             if (cookies.isEmpty() == false) {
                 for (String cookie : cookies) {

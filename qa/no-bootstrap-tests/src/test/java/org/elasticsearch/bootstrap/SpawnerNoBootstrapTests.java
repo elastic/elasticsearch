@@ -8,6 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +24,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginTestUtil;
+import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.io.IOException;
@@ -52,6 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * that prevents the Spawner class from doing its job. Also needs to run in a separate JVM to other
  * tests that extend ESTestCase for the same reason.
  */
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
     private static final String CONTROLLER_SOURCE = """

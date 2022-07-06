@@ -12,7 +12,7 @@ group = 'org.elasticsearch.x-pack.qa.sql.jdbc'
 
 dependencies {
   api project(':test:framework')
-  implementation xpackProject('plugin:sql:sql-proto')
+  implementation project(':x-pack:plugin:sql:sql-proto')
 
   // Actual tests will use the shadow jar
   compileOnly(project(path: xpackModule('sql:jdbc'))) {
@@ -55,7 +55,7 @@ subprojects {
     apply plugin: 'elasticsearch.internal-java-rest-test'
 
     dependencies {
-      javaRestTestImplementation(xpackProject('plugin:sql:qa:jdbc'))
+      javaRestTestImplementation(project(':x-pack:plugin:sql:qa:jdbc'))
       // We use the shadowjar for testing since that's the actual artifact we deliver to users
       javaRestTestCompileOnly project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
     }

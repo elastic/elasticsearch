@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -82,7 +81,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         RestController restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
-        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new TestResponse());
+        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new RestResponse(RestStatus.OK, ""));
 
         // Register valid test handlers with test RestController
         for (RestRequest.Method method : validHttpMethodArray) {
@@ -108,25 +107,6 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         List<String> responseAllowHeaderArray = Arrays.asList(responseAllowHeader.split(","));
         assertThat(responseAllowHeaderArray.size(), is(validHttpMethodArray.size()));
         assertThat(responseAllowHeaderArray, containsInAnyOrder(getMethodNameStringArray(validHttpMethodArray).toArray()));
-    }
-
-    private static class TestResponse extends RestResponse {
-
-        @Override
-        public String contentType() {
-            return null;
-        }
-
-        @Override
-        public BytesReference content() {
-            return null;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
-        }
-
     }
 
     /**

@@ -977,13 +977,17 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values) throws IOException {
+        return xContentList(name, values, ToXContent.EMPTY_PARAMS);
+    }
+
+    public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values, ToXContent.Params params) throws IOException {
         field(name);
         if (values == null) {
             return nullValue();
         }
         startArray();
         for (ToXContent value : values) {
-            value(value);
+            value(value, params);
         }
         endArray();
         return this;
@@ -1021,6 +1025,10 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     public XContentBuilder map(Map<String, ?> values) throws IOException {
         return map(values, true, true);
+    }
+
+    public XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
+        return map(values, ensureNoSelfReferences, true);
     }
 
     public XContentBuilder stringStringMap(String name, Map<String, String> values) throws IOException {

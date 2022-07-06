@@ -20,11 +20,9 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 /** custom policy for union of static and dynamic permissions */
@@ -69,25 +67,6 @@ final class ESPolicy extends Policy {
         this.plugins = plugins;
     }
 
-    private static final Predicate<StackTraceElement> JDK_BOOT = f -> f.getClassLoaderName() == null;
-    private static final Predicate<StackTraceElement> ES_BOOTSTRAP = f -> f.getClassName().startsWith("org.elasticsearch.bootstrap");
-    private static final Predicate<StackTraceElement> IS_LOG4J = f -> "org.apache.logging.log4j.util.LoaderUtil".equals(f.getClassName())
-        && "getClassLoaders".equals(f.getMethodName());
-
-    /**
-     *  Returns true if the top of the call stack has:
-     *   1) Only frames belonging from the JDK's boot loader or org.elasticsearch.bootstrap, followed directly by
-     *   2) org.apache.logging.log4j.util.LoaderUtil.getClassLoaders
-     */
-    private static boolean isLoaderUtilGetClassLoaders() {
-        Optional<StackTraceElement> frame = Arrays.stream(Thread.currentThread().getStackTrace())
-            .dropWhile(JDK_BOOT.or(ES_BOOTSTRAP))
-            .limit(1)
-            .findFirst()
-            .filter(IS_LOG4J);
-        return frame.isPresent();
-    }
-
     @Override
     @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {
@@ -124,11 +103,7 @@ final class ESPolicy extends Policy {
             if ("<<ALL FILES>>".equals(permission.getName())) {
                 hadoopHack();
             }
-        } else if (permission instanceof RuntimePermission
-            && "getClassLoader".equals(permission.getName())
-            && isLoaderUtilGetClassLoaders()) {
-                return true;
-            }
+        }
 
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);

@@ -28,6 +28,7 @@
             - "rocky-linux-8&&immutable"
             - "rhel-7&&immutable"
             - "rhel-8&&immutable"
+            - "rhel-9&&immutable"
             - "almalinux-8&&immutable"
     builders:
       - inject:

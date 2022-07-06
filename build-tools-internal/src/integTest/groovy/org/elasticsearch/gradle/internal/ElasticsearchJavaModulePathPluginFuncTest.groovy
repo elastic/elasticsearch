@@ -24,7 +24,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     public static final String ES_VERSION = VersionProperties.getElasticsearch()
 
     def setup() {
-        javaMainClass()
+        clazz("org.acme.JavaMainClass")
         subProject("some-lib") << """
             plugins {
                 id 'java-library'

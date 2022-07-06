@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +29,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,9 +69,9 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     private final Settings settings;
 
     // the mapping source should always include the type as top level
-    private final ImmutableOpenMap<String, CompressedXContent> mappings;
+    private final Map<String, CompressedXContent> mappings;
 
-    private final ImmutableOpenMap<String, AliasMetadata> aliases;
+    private final Map<String, AliasMetadata> aliases;
 
     public IndexTemplateMetadata(
         String name,
@@ -79,8 +79,8 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         Integer version,
         List<String> patterns,
         Settings settings,
-        ImmutableOpenMap<String, CompressedXContent> mappings,
-        ImmutableOpenMap<String, AliasMetadata> aliases
+        Map<String, CompressedXContent> mappings,
+        Map<String, AliasMetadata> aliases
     ) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
@@ -239,14 +239,14 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
 
         private Settings settings = Settings.EMPTY;
 
-        private final ImmutableOpenMap.Builder<String, CompressedXContent> mappings;
+        private final Map<String, CompressedXContent> mappings;
 
-        private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
+        private final Map<String, AliasMetadata> aliases;
 
         public Builder(String name) {
             this.name = name;
-            mappings = ImmutableOpenMap.builder();
-            aliases = ImmutableOpenMap.builder();
+            mappings = new HashMap<>();
+            aliases = new HashMap<>();
         }
 
         public Builder(IndexTemplateMetadata indexTemplateMetadata) {
@@ -256,8 +256,8 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
             patterns(indexTemplateMetadata.patterns());
             settings(indexTemplateMetadata.settings());
 
-            mappings = ImmutableOpenMap.builder(indexTemplateMetadata.mappings);
-            aliases = ImmutableOpenMap.builder(indexTemplateMetadata.aliases());
+            mappings = new HashMap<>(indexTemplateMetadata.mappings);
+            aliases = new HashMap<>(indexTemplateMetadata.aliases());
         }
 
         public Builder order(int order) {
@@ -306,7 +306,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
 
         public IndexTemplateMetadata build() {
-            return new IndexTemplateMetadata(name, order, version, indexPatterns, settings, mappings.build(), aliases.build());
+            return new IndexTemplateMetadata(name, order, version, indexPatterns, settings, Map.copyOf(mappings), Map.copyOf(aliases));
         }
 
         /**

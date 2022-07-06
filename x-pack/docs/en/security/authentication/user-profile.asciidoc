@@ -74,6 +74,12 @@ that match given criteria. This API is designed to support user-suggestions,
 in collaboration with features such as those found in {kib}.
 However, the suggest user profile API is not intended to provide a general-purpose search API.
 
+Lastly, you can use the <<security-api-has-privileges-user-profile, has privileges API for
+user profiles>> to check the privileges of multiple users by specifying their profiles' unique IDs.
+This can be used in conjunction with the suggest user profile API in order to restrict the
+suggestions only to users that have the necessary permissions to actually perform
+the action in the context.
+
 ==== Limitations
 
 * Creating a new user profile requires a user's authentication details

@@ -1076,7 +1076,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final List<String> fullSnapshotsToDelete = createNSnapshots(repoName, randomIntBetween(1, 5));
         final String masterName = internalCluster().getMasterName();
-        blockMasterOnAnyDataFile(repoName);
+        blockMasterFromDeletingIndexNFile(repoName);
         final ActionFuture<AcknowledgedResponse> deleteAllSnapshotsWithIndex = startDeleteSnapshots(
             repoName,
             fullSnapshotsToDelete,

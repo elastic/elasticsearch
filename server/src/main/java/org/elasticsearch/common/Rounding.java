@@ -191,10 +191,6 @@ public abstract class Rounding implements Writeable {
             return field;
         }
 
-        public static DateTimeUnit resolve(String name) {
-            return DateTimeUnit.valueOf(name.toUpperCase(Locale.ROOT));
-        }
-
         public String shortName() {
             return shortName;
         }

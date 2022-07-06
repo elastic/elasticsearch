@@ -46,9 +46,9 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         // We might want to port this into a general pattern later on.
         project.getExtensions()
             .getExtraProperties()
-            .set("addQaCheckDependencies", new Closure<Object>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
-                public void doCall(Object it) {
-                    project.afterEvaluate(project1 -> {
+            .set("addQaCheckDependencies", new Closure<Project>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
+                public void doCall(Project proj) {
+                    proj.afterEvaluate(project1 -> {
                         // let check depend on check tasks of qa sub-projects
                         final var checkTaskProvider = project1.getTasks().named("check");
                         Optional<Project> qaSubproject = project1.getSubprojects()
@@ -63,7 +63,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
                 }
 
                 public void doCall() {
-                    doCall(null);
+                    doCall();
                 }
             });
 

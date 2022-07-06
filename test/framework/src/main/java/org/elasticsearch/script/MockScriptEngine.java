@@ -148,10 +148,9 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
             return context.factoryClazz.cast(new MockBytesRefSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = (parameters, metadata) -> new IngestScript(parameters, metadata) {
+            IngestScript.Factory factory = (parameters, metadata, ctx) -> new IngestScript(parameters, metadata, ctx) {
                 @Override
                 public void execute() {
-                    final Map<String, Object> ctx = getCtx();
                     script.apply(ctx);
                 }
             };
@@ -167,11 +166,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
-            UpdateScript.Factory factory = (parameters, metadata) -> new UpdateScript(parameters, metadata) {
+            UpdateScript.Factory factory = (parameters, ctx, md) -> new UpdateScript(parameters, ctx, md) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
-                    vars.put("ctx", metadata.getCtx());
+                    vars.put("ctx", ctx);
                     vars.put("params", parameters);
                     vars.putAll(parameters);
                     script.apply(vars);

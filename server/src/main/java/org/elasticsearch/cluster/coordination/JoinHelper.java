@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -178,11 +177,7 @@ public class JoinHelper {
         }
 
         void logNow() {
-            logger.log(
-                getLogLevel(exception),
-                () -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest),
-                exception
-            );
+            logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
         static Level getLogLevel(TransportException e) {

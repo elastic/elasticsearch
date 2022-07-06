@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -108,13 +107,13 @@ public class ElectionSchedulerFactory {
 
         if (maxTimeout.millis() < initialTimeout.millis()) {
             throw new IllegalArgumentException(
-                new ParameterizedMessage(
-                    "[{}] is [{}], but must be at least [{}] which is [{}]",
+                format(
+                    "[%s] is [%s], but must be at least [%s] which is [%s]",
                     ELECTION_MAX_TIMEOUT_SETTING_KEY,
                     maxTimeout,
                     ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
                     initialTimeout
-                ).getFormattedMessage()
+                )
             );
         }
     }

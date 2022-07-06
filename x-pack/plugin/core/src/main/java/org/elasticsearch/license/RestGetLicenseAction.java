@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -101,7 +100,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
                         builder.endObject();
                     }
                     builder.endObject();
-                    return new BytesRestResponse(hasLicense ? OK : NOT_FOUND, builder);
+                    return new RestResponse(hasLicense ? OK : NOT_FOUND, builder);
                 }
             });
     }

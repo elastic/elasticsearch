@@ -701,7 +701,7 @@ public final class IndexSettings {
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(
                 IndexSettings.TIME_SERIES_END_TIME,
-                endTime -> { this.timestampBounds = new TimestampBounds(this.timestampBounds, endTime); }
+                endTime -> { this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime); }
             );
         }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);

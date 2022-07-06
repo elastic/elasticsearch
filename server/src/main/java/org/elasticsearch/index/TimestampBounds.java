@@ -13,23 +13,30 @@ import java.time.Instant;
  * Bounds for the {@code @timestamp} field on this index.
  */
 public class TimestampBounds {
+
+    /**
+     * @return an updated instance based on current instance with a new end time.
+     */
+    public static TimestampBounds updateEndTime(TimestampBounds current, Instant newEndTime) {
+        long newEndTimeMillis = newEndTime.toEpochMilli();
+        if (current.endTime > newEndTimeMillis) {
+            throw new IllegalArgumentException(
+                "index.time_series.end_time must be larger than current value [" + current.endTime + "] but was [" + newEndTime + "]"
+            );
+        }
+        return new TimestampBounds(current.startTime(), newEndTimeMillis);
+    }
+
     private final long startTime;
     private final long endTime;
 
     public TimestampBounds(Instant startTime, Instant endTime) {
-        this.startTime = startTime.toEpochMilli();
-        this.endTime = endTime.toEpochMilli();
+        this(startTime.toEpochMilli(), endTime.toEpochMilli());
     }
 
-    public TimestampBounds(TimestampBounds previous, Instant newEndTime) {
-        long newEndTimeMillis = newEndTime.toEpochMilli();
-        if (previous.endTime > newEndTimeMillis) {
-            throw new IllegalArgumentException(
-                "index.time_series.end_time must be larger than current value [" + previous.endTime + "] but was [" + newEndTime + "]"
-            );
-        }
-        this.startTime = previous.startTime();
-        this.endTime = newEndTimeMillis;
+    private TimestampBounds(long startTime, long endTime) {
+        this.startTime = startTime;
+        this.endTime = endTime;
     }
 
     /**

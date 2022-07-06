@@ -23,7 +23,7 @@ jobs:
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.3
         with:
           target_sync_branch: master
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          target_repo_token: ${{ secrets.ELASTICSEARCHMACHINE }}
           upstream_sync_branch: master
           upstream_sync_repo: elastic/elasticsearch
 
@@ -37,7 +37,7 @@ jobs:
            title: "🤖 ESQL: Merge upstream"
            body: ":robot: Generated PR to keep ESQL development branch up to date"
            labels: "upstream-sync,auto-merge,esql"
-           github_token: ${{ secrets.GITHUB_TOKEN }}
+           github_token: ${{ secrets.ELASTICSEARCHMACHINE }}
 
       - name: Merge ESQL PR
         id: pr-merge-esql
@@ -46,4 +46,4 @@ jobs:
         with:
            method: merge
            number: ${{ steps.pr-create-esql.outputs.number }}
-           github-token: ${{ secrets.GITHUB_TOKEN }}
+           github-token: ${{ secrets.ELASTICSEARCHMACHINE }}

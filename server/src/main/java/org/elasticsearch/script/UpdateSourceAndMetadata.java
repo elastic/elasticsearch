@@ -158,7 +158,7 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
     }
 
     /**
-     *
+     * A {@link #stringValidator(MapOperation, String, Object)} that validates against a set of valid strings and forbids removal.
      */
     public static Validator opValidatorFromValidOps(Set<String> validOps) {
         return new Validator() {

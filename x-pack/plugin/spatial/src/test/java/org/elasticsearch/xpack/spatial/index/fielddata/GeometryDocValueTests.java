@@ -133,11 +133,11 @@ public class GeometryDocValueTests extends ESTestCase {
 
             // Label position is the centroid if within the polygon
             GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(rectangle);
-            GeoPoint labelPosition = shapeValue.labelPosition();
+            ShapeValues.Location labelPosition = shapeValue.labelPosition();
             double labelLon = ((double) minX + maxX) / 2;
             double labelLat = ((double) minY + maxY) / 2;
-            assertEquals(labelLon, labelPosition.lon(), 0.0000001);
-            assertEquals(labelLat, labelPosition.lat(), 0.0000001);
+            assertEquals(labelLon, labelPosition.getLon(), 0.0000001);
+            assertEquals(labelLat, labelPosition.getLat(), 0.0000001);
         }
     }
 
@@ -155,10 +155,10 @@ public class GeometryDocValueTests extends ESTestCase {
 
         // Label position is calculated as the first triangle
         GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(geometry);
-        GeoPoint labelPosition = shapeValue.labelPosition();
+        ShapeValues.Location labelPosition = shapeValue.labelPosition();
         assertThat(
             "Expect label position to match one of eight triangles in the two rectangles",
-            labelPosition,
+            new GeoPoint(labelPosition.getLat(), labelPosition.getLon()),
             isRectangleLabelPosition(r1, r2)
         );
     }
@@ -177,11 +177,11 @@ public class GeometryDocValueTests extends ESTestCase {
 
         // Label position is the centroid if within the polygon
         GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(geometry);
-        GeoPoint labelPosition = shapeValue.labelPosition();
+        ShapeValues.Location labelPosition = shapeValue.labelPosition();
         double centroidX = CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
-        assertEquals(centroidX, labelPosition.lon(), 0.0000001);
-        assertEquals(centroidY, labelPosition.lat(), 0.0000001);
+        assertEquals(centroidX, labelPosition.getLon(), 0.0000001);
+        assertEquals(centroidY, labelPosition.getLat(), 0.0000001);
         Circle tolerance = new Circle(centroidX, centroidY, 1);
         assertTrue("Expect label position to be within the geometry", shapeValue.intersects(tolerance));
     }
@@ -192,11 +192,11 @@ public class GeometryDocValueTests extends ESTestCase {
 
         // Label position is the centroid if within the polygon
         GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(geometry);
-        GeoPoint labelPosition = shapeValue.labelPosition();
+        ShapeValues.Location labelPosition = shapeValue.labelPosition();
         double centroidX = CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
-        assertEquals(centroidX, labelPosition.lon(), 0.0000001);
-        assertEquals(centroidY, labelPosition.lat(), 0.0000001);
+        assertEquals(centroidX, labelPosition.getLon(), 0.0000001);
+        assertEquals(centroidY, labelPosition.getLat(), 0.0000001);
         Circle tolerance = new Circle(centroidX, centroidY, 1);
         assertTrue("Expect label position to be within the geometry", shapeValue.intersects(tolerance));
     }

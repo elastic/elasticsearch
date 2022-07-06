@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.XYDocValuesField;
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -19,10 +18,12 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
@@ -33,6 +34,11 @@ import java.util.List;
 public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
 
     private static final double GEOHASH_TOLERANCE = 1E-6D;
+
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new LocalStateSpatialPlugin());
+    }
 
     public void testEmpty() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -73,12 +79,9 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
     public void testUnmappedWithMissing() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("another_field")
-                .missing("53.69437,6.475031");
+                .missing("6.475030899047852, 53.69437026977539");
 
-            CartesianPoint expectedCentroid = new CartesianPoint(
-                GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(53.69437)),
-                GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(6.475031))
-            );
+            CartesianPoint expectedCentroid = new CartesianPoint(6.475030899047852, 53.69437026977539);
             Document document = new Document();
             document.add(new LatLonDocValuesField("field", 10, 10));
             w.addDocument(document);
@@ -87,7 +90,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new PointFieldMapper.PointFieldType("another_field");
                 InternalCartesianCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
-                assertEquals(result.centroid(), expectedCentroid);
+                assertEquals(expectedCentroid, result.centroid());
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         }

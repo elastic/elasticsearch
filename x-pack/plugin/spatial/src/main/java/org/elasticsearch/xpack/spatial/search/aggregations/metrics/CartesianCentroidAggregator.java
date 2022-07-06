@@ -30,7 +30,7 @@ import java.util.Map;
  */
 public final class CartesianCentroidAggregator extends MetricsAggregator {
     private final CartesianPointValuesSource valuesSource;
-    private DoubleArray lonSum, lonCompensations, latSum, latCompensations;
+    private DoubleArray xSum, xCompensations, ySum, yCompensations;
     private LongArray counts;
 
     public CartesianCentroidAggregator(
@@ -44,10 +44,10 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
         // TODO: Stop expecting nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? (CartesianPointValuesSource) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
-            lonSum = bigArrays().newDoubleArray(1, true);
-            lonCompensations = bigArrays().newDoubleArray(1, true);
-            latSum = bigArrays().newDoubleArray(1, true);
-            latCompensations = bigArrays().newDoubleArray(1, true);
+            xSum = bigArrays().newDoubleArray(1, true);
+            xCompensations = bigArrays().newDoubleArray(1, true);
+            ySum = bigArrays().newDoubleArray(1, true);
+            yCompensations = bigArrays().newDoubleArray(1, true);
             counts = bigArrays().newLongArray(1, true);
         }
     }
@@ -58,16 +58,16 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final CartesianPointValuesSource.CartesianPointValues values = valuesSource.pointValues(ctx);
-        final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
-        final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumX = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumY = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                latSum = bigArrays().grow(latSum, bucket + 1);
-                lonSum = bigArrays().grow(lonSum, bucket + 1);
-                lonCompensations = bigArrays().grow(lonCompensations, bucket + 1);
-                latCompensations = bigArrays().grow(latCompensations, bucket + 1);
+                xSum = bigArrays().grow(xSum, bucket + 1);
+                ySum = bigArrays().grow(ySum, bucket + 1);
+                xCompensations = bigArrays().grow(xCompensations, bucket + 1);
+                yCompensations = bigArrays().grow(yCompensations, bucket + 1);
                 counts = bigArrays().grow(counts, bucket + 1);
 
                 if (values.advanceExact(doc)) {
@@ -76,26 +76,26 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
                     counts.increment(bucket, valueCount);
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    double sumLat = latSum.get(bucket);
-                    double compensationLat = latCompensations.get(bucket);
-                    double sumLon = lonSum.get(bucket);
-                    double compensationLon = lonCompensations.get(bucket);
+                    double sumX = xSum.get(bucket);
+                    double compensationX = xCompensations.get(bucket);
+                    double sumY = ySum.get(bucket);
+                    double compensationY = yCompensations.get(bucket);
 
-                    compensatedSumLat.reset(sumLat, compensationLat);
-                    compensatedSumLon.reset(sumLon, compensationLon);
+                    compensatedSumX.reset(sumX, compensationX);
+                    compensatedSumY.reset(sumY, compensationY);
 
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
                         CartesianPoint value = values.nextValue();
-                        // latitude
-                        compensatedSumLat.add(value.getY());
-                        // longitude
-                        compensatedSumLon.add(value.getX());
+                        // x / longitude
+                        compensatedSumX.add(value.getX());
+                        // y / latitude
+                        compensatedSumY.add(value.getY());
                     }
-                    lonSum.set(bucket, compensatedSumLon.value());
-                    lonCompensations.set(bucket, compensatedSumLon.delta());
-                    latSum.set(bucket, compensatedSumLat.value());
-                    latCompensations.set(bucket, compensatedSumLat.delta());
+                    xSum.set(bucket, compensatedSumX.value());
+                    xCompensations.set(bucket, compensatedSumX.delta());
+                    ySum.set(bucket, compensatedSumY.value());
+                    yCompensations.set(bucket, compensatedSumY.delta());
                 }
             }
         };
@@ -108,7 +108,7 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
         }
         final long bucketCount = counts.get(bucket);
         final CartesianPoint bucketCentroid = (bucketCount > 0)
-            ? new CartesianPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
+            ? new CartesianPoint(xSum.get(bucket) / bucketCount, ySum.get(bucket) / bucketCount)
             : null;
         return new InternalCartesianCentroid(name, bucketCentroid, bucketCount, metadata());
     }
@@ -120,6 +120,6 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(latSum, latCompensations, lonSum, lonCompensations, counts);
+        Releasables.close(xSum, xCompensations, ySum, yCompensations, counts);
     }
 }

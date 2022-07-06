@@ -412,7 +412,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoPoint getInternalLabelPosition() {
             try {
-                return value.labelPosition();
+                // TODO: Make location a parent interface of CartesianPoint
+                ShapeValues.Location location = value.labelPosition();
+                return new GeoPoint(location.getLat(), location.getLon());
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to parse geo shape label position: " + e.getMessage(), e);
             }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
+import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -67,9 +68,10 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
 
         @Override
         public CartesianPoint nextValue() throws IOException {
-            // TODO extract x,y from encoded
-            // return point.reset(x, y);
-            return point;
+            long encoded = numericValues.nextValue();
+            final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
+            final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));
+            return point.reset(x, y);
         }
     }
 

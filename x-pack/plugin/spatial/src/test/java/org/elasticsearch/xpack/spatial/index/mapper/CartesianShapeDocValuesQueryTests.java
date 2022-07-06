@@ -64,7 +64,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
         final int numDocs = randomIntBetween(10, 1000);
-        ShapeIndexer indexer = new ShapeIndexer(FIELD_NAME);
+        CartesianShapeIndexer indexer = new CartesianShapeIndexer(FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             @SuppressWarnings("unchecked")
@@ -112,7 +112,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
         final int numDocs = randomIntBetween(10, 100);
-        ShapeIndexer indexer = new ShapeIndexer(FIELD_NAME);
+        CartesianShapeIndexer indexer = new CartesianShapeIndexer(FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             Geometry geometry = ShapeTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 5), false);

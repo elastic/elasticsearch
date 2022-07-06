@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -59,7 +61,7 @@ public abstract class GeoShapeValues extends ShapeValues<GeoPoint> {
      * Creates a new {@link GeoShapeValues} instance
      */
     protected GeoShapeValues() {
-        super(CoordinateEncoder.GEO, GeoShapeValues.GeoShapeValue::new);
+        super(CoordinateEncoder.GEO, GeoShapeValues.GeoShapeValue::new, new GeoShapeIndexer(Orientation.CCW, "missing"));
     }
 
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
@@ -72,16 +74,17 @@ public abstract class GeoShapeValues extends ShapeValues<GeoPoint> {
         /**
          * Select a label position that is within the shape.
          */
-        public GeoPoint labelPosition() throws IOException {
+        public Location labelPosition() throws IOException {
             // For polygons we prefer to use the centroid, as long as it is within the polygon
             if (reader.getDimensionalShapeType() == DimensionalShapeType.POLYGON && intersects(new Point(getX(), getY()))) {
                 // Note: GeoPoint has coordinates swapped when compared to Point
-                return new GeoPoint(getY(), getX());
+                return new Location(getX(), getY());
             }
             // For all other cases, use the first triangle (or line or point) in the tree which will always intersect the shape
             LabelPositionVisitor<GeoPoint> visitor = new LabelPositionVisitor<>(CoordinateEncoder.GEO, (x, y) -> new GeoPoint(y, x));
             reader.visit(visitor);
-            return visitor.labelPosition();
+            GeoPoint point = visitor.labelPosition();
+            return new Location(point.getLon(), point.getLat());
         }
 
         /**

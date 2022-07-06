@@ -181,7 +181,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     }
 
     private final Builder builder;
-    private final ShapeIndexer indexer;
+    private final CartesianShapeIndexer indexer;
 
     public ShapeFieldMapper(
         String simpleName,
@@ -203,7 +203,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             parser
         );
         this.builder = builder;
-        this.indexer = new ShapeIndexer(mappedFieldType.name());
+        this.indexer = new CartesianShapeIndexer(mappedFieldType.name());
     }
 
     @Override
@@ -315,7 +315,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public CartesianPoint getInternalLabelPosition() {
             try {
-                return value.labelPosition();
+                // TODO: Make location a parent interface of CartesianPoint
+                ShapeValues.Location location = value.labelPosition();
+                return new CartesianPoint(location.getX(), location.getY());
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to parse geo shape label position: " + e.getMessage(), e);
             }

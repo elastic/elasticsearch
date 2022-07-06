@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * A stateful lightweight per document geo values.
@@ -54,7 +59,7 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianPoint> {
      * Creates a new {@link CartesianShapeValues} instance
      */
     protected CartesianShapeValues() {
-        super(CoordinateEncoder.Cartesian, CartesianShapeValues.CartesianShapeValue::new);
+        super(CoordinateEncoder.Cartesian, CartesianShapeValues.CartesianShapeValue::new, new CartesianShapeIndexer("missing"));
     }
 
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
@@ -68,15 +73,16 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianPoint> {
         /**
          * Select a label position that is within the shape.
          */
-        public CartesianPoint labelPosition() throws IOException {
+        public Location labelPosition() throws IOException {
             // For polygons we prefer to use the centroid, as long as it is within the polygon
             if (reader.getDimensionalShapeType() == DimensionalShapeType.POLYGON && intersects(new Point(getX(), getY()))) {
-                return new CartesianPoint(getX(), getY());
+                return new Location(getX(), getY());
             }
             // For all other cases, use the first triangle (or line or point) in the tree which will always intersect the shape
             LabelPositionVisitor<CartesianPoint> visitor = new LabelPositionVisitor<>(encoder, CartesianPoint::new);
             reader.visit(visitor);
-            return visitor.labelPosition();
+            CartesianPoint point = visitor.labelPosition();
+            return new Location(point.getX(), point.getY());
         }
     }
 }

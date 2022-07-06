@@ -45,7 +45,7 @@ public class LabelPositionVisitor<T extends ToXContentFragment> implements Trian
         double bY = encoder.decodeY(bYi);
         // System.out.println("Got line: (" + aX + "," + aY + ")-(" + bX + "," + bY + ")");
         assert labelPosition == null;
-        labelPosition = pointMaker.apply((aY + bY) / 2.0, (aX + bX) / 2.0);
+        labelPosition = pointMaker.apply((aX + bX) / 2.0, (aY + bY) / 2.0);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class LabelPositionVisitor<T extends ToXContentFragment> implements Trian
         double cY = encoder.decodeY(cYi);
         // System.out.println("Got triangle: (" + aX + "," + aY + ")-(" + bX + "," + bY + ")-(" + cX + "," + cY + ")");
         assert labelPosition == null;
-        labelPosition = pointMaker.apply((aY + bY + cY) / 3.0, (aX + bX + cX) / 3.0);
+        labelPosition = pointMaker.apply((aX + bX + cX) / 3.0, (aY + bY + cY) / 3.0);
     }
 
     @Override

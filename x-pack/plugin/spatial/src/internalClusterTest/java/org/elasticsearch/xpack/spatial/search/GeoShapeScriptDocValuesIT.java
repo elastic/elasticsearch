@@ -21,7 +21,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -79,7 +79,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptHeight(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
@@ -90,7 +90,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptWidth(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
@@ -101,30 +101,30 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lat();
         }
 
         private double scriptLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lon();
         }
 
         private double scriptLabelLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lat();
         }
 
         private double scriptLabelLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lon();
         }
 
-        private ScriptDocValues.Geometry<GeoPoint> assertGeometry(Map<?, ?> doc) {
-            ScriptDocValues.Geometry<GeoPoint> geometry = (ScriptDocValues.Geometry<GeoPoint>) doc.get("location");
+        private LeafShapeFieldData.ShapeScriptValues<GeoPoint> assertGeometry(Map<?, ?> doc) {
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = (LeafShapeFieldData.ShapeScriptValues<GeoPoint>) doc.get("location");
             if (geometry.size() == 0) {
                 assertThat(geometry.getBoundingBox(), Matchers.nullValue());
                 assertThat(geometry.getCentroid(), Matchers.nullValue());

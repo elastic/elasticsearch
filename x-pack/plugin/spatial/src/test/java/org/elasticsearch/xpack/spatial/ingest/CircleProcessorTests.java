@@ -38,7 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.SpatialUtils;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper.ShapeFieldType;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer;
+import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.io.IOException;
@@ -274,7 +274,7 @@ public class CircleProcessorTests extends ESTestCase {
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            ShapeIndexer indexer = new ShapeIndexer(fieldName);
+            CartesianShapeIndexer indexer = new CartesianShapeIndexer(fieldName);
             for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }

@@ -9,18 +9,20 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -41,13 +43,15 @@ import java.util.function.Supplier;
 public abstract class ShapeValues<T extends ToXContentFragment> {
     protected final CoordinateEncoder encoder;
     protected final Supplier<ShapeValue<T>> supplier;
+    protected final ShapeIndexer missingShapeIndexer;
 
     /**
      * Creates a new {@link ShapeValues} instance
      */
-    protected ShapeValues(CoordinateEncoder encoder, Supplier<ShapeValue<T>> supplier) {
+    protected ShapeValues(CoordinateEncoder encoder, Supplier<ShapeValue<T>> supplier, ShapeIndexer missingShapeIndexer) {
         this.encoder = encoder;
         this.supplier = supplier;
+        this.missingShapeIndexer = missingShapeIndexer;
     }
 
     /**
@@ -67,13 +71,11 @@ public abstract class ShapeValues<T extends ToXContentFragment> {
      */
     public abstract ShapeValue<T> value() throws IOException;
 
-    private static final ShapeIndexer MISSING_Shape_INDEXER = new ShapeIndexer("missing");
-
     public ShapeValue<T> missing(String missing) {
         try {
             final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
             final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
-            field.add(MISSING_Shape_INDEXER.indexShape(geometry), geometry);
+            field.add(missingShapeIndexer.indexShape(geometry), geometry);
             final ShapeValue<T> value = supplier.get();
             value.reset(field.binaryValue());
             return value;
@@ -84,7 +86,7 @@ public abstract class ShapeValues<T extends ToXContentFragment> {
 
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the Geo decoder */
-    public abstract static class ShapeValue<T> implements ToXContentFragment {
+    public abstract static class ShapeValue<T extends ToXContentFragment> implements ToXContentFragment {
         protected final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final Tile2DVisitor tile2DVisitor;
@@ -112,7 +114,7 @@ public abstract class ShapeValues<T extends ToXContentFragment> {
         /**
          * Select a label position that is within the shape.
          */
-        public abstract T labelPosition() throws IOException;
+        public abstract Location labelPosition() throws IOException;
 
         /**
          * Determine the {@link GeoRelation} between the current shape and a bounding box provided in
@@ -168,6 +170,32 @@ public abstract class ShapeValues<T extends ToXContentFragment> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             throw new IllegalArgumentException("cannot write xcontent for geo_shape doc value");
+        }
+    }
+
+    public static class Location {
+        private double x;
+        private double y;
+
+        Location(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+
+        public double getX() {
+            return x;
+        }
+
+        public double getY() {
+            return y;
+        }
+
+        public double getLat() {
+            return y;
+        }
+
+        public double getLon() {
+            return x;
         }
     }
 

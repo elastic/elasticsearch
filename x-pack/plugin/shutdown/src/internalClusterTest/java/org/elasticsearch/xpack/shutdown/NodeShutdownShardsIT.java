@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -56,16 +55,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
 
-        // Mark the node for shutdown
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeToRestartId,
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName(),
-            null,
-            null
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
 
         internalCluster().stopNode(nodeToRestartName);
 
@@ -91,16 +81,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().restartNode(nodeToRestartName, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-                    nodeToRestartId,
-                    SingleNodeShutdownMetadata.Type.REMOVE,
-                    "testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline",
-                    null,
-                    null
-                );
-                AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-                assertTrue(putShutdownResponse.isAcknowledged());
-
+                putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -123,16 +104,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node
         final String nodeToRestartId = getNodeId(nodeToShutDownName);
 
-        // Mark the node for shutdown
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeToRestartId,
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName(),
-            null,
-            null
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
 
         assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
@@ -155,15 +127,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         indexRandomData();
 
         String nodeToStopId = findIdOfNodeWithPrimaryShard(indexName);
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeToStopId,
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            this.getTestName(),
-            null,
-            null
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeToStopId, SingleNodeShutdownMetadata.Type.REMOVE, null);
         assertBusy(() -> assertNodeShutdownStatus(nodeToStopId, COMPLETE));
     }
 
@@ -174,16 +138,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
 
-        // Mark the nodeA as being replaced
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            this.getTestName(),
-            null,
-            nodeB
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
 
         assertNodeShutdownStatus(nodeAId, STALLED);
 
@@ -266,16 +221,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t2"; // TODO: fix this to so it's actually overrideable
 
-        // Mark the nodeA as being replaced
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            this.getTestName(),
-            null,
-            nodeB
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
 
         assertNodeShutdownStatus(nodeAId, STALLED);
 
@@ -350,16 +296,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
         final String nodeC = "node_t2"; // TODO: fix this to so it's actually overrideable
 
-        // Mark the nodeA as being replaced
-        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            this.getTestName(),
-            null,
-            nodeB
-        );
-        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
-        assertTrue(putShutdownResponse.isAcknowledged());
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
 
         assertNodeShutdownStatus(nodeAId, STALLED);
 
@@ -398,15 +335,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         final String nodeC = internalCluster().startNode();
 
-        // Register a replace for nodeA, with nodeC as the target
-        PutShutdownNodeAction.Request shutdownRequest = new PutShutdownNodeAction.Request(
-            nodeAId,
-            SingleNodeShutdownMetadata.Type.REPLACE,
-            "testing",
-            null,
-            nodeC
-        );
-        client().execute(PutShutdownNodeAction.INSTANCE, shutdownRequest).get();
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeC);
 
         // Wait for the node replace shutdown to be complete
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
@@ -451,13 +380,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
         ensureGreen("myindex");
 
-        // Mark the node for shutdown
-        assertAcked(
-            client().execute(
-                PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, this.getTestName(), null, null)
-            ).get()
-        );
+        putNodeShutdown(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, null);
 
         // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
         // that auto-expansion has run.
@@ -521,6 +444,15 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .map(DiscoveryNode::getId)
             .findFirst()
             .orElseThrow();
+    }
+
+    private void putNodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, String nodeReplacementName) throws Exception {
+        assertAcked(
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName)
+            ).get()
+        );
     }
 
     private void assertNodeShutdownStatus(String nodeId, SingleNodeShutdownMetadata.Status status) throws Exception {

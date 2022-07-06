@@ -1294,7 +1294,21 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     )
                 );
 
+                // force a full write, so that the next write is an actual incremental write from clusterState->newClusterState
                 writeDurationMillis.set(randomLongBetween(0, writeDurationMillis.get() - 1));
+                assertExpectedLogs(
+                    1L,
+                    null,
+                    clusterState,
+                    writer,
+                    new MockLogAppender.UnseenEventExpectation(
+                        "should not see warning below threshold",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.WARN,
+                        "*"
+                    )
+                );
+
                 assertExpectedLogs(
                     1L,
                     clusterState,
@@ -1308,7 +1322,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     )
                 );
 
-                assertThat(currentTime.get(), lessThan(startTimeMillis + 14 * slowWriteLoggingThresholdMillis)); // ensure no overflow
+                assertThat(currentTime.get(), lessThan(startTimeMillis + 16 * slowWriteLoggingThresholdMillis)); // ensure no overflow
             }
         }
     }

@@ -400,8 +400,7 @@ subprojects {
       tasks.named("checkExtraction").configure {
         onlyIf rpmExists
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
-        getExecutable().set('rpm')
-        getArgs().addAll(
+        commandLine 'rpm',
           '--badreloc',
           '--ignorearch',
           '--ignoreos',
@@ -414,7 +413,6 @@ subprojects {
           "/=${packageExtractionDir}",
           '-i',
           "${-> buildDist.get().outputs.files.singleFile}"
-        )
       }
     }
 

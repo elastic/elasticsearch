@@ -76,10 +76,9 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
             findRemote.dependsOn(createCloneTaskProvider);
-            // TODO Gradle should provide property based configuration here
             findRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
             findRemote.setExecutable("git");
-            findRemote.getArgs().set(asList("remote", "-v"));
+            findRemote.args("remote", "-v");
             findRemote.getCaptureOutput().set(true);
             findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });
         });

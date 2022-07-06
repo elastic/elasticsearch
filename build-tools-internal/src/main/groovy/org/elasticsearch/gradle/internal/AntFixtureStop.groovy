@@ -31,7 +31,7 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
     void setFixture(AntFixture fixture) {
         assert this.fixture == null
         this.fixture = fixture;
-        final String pid = "${ -> this.fixture.pid }"
+        final Object pid = "${ -> this.fixture.pid }"
         onlyIf { fixture.pidFile.exists() }
         doFirst {
             logger.info("Shutting down ${fixture.name} with pid ${pid}")

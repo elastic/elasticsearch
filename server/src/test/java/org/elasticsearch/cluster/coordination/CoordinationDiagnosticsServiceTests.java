@@ -391,7 +391,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 assertThat(
                     healthIndicatorResult.summary(),
                     containsString(
-                        "No master node observed in the last 30s, and this node is not master eligible. Reaching out to a master-eligible node for more information, but no result yet."
+                        "No master node observed in the last 30s, and this node is not master eligible. Reaching out to a master-eligible" +
+                            " node for more information, but no result yet."
                     )
                 );
 

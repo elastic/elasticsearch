@@ -50,7 +50,7 @@ include::troubleshooting/data/add-tier.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
 
-include::modules/discovery/discovery.asciidoc[tag=troubleshoot-discovery,leveloffset=-2]
+include::troubleshooting/discovery-issues.asciidoc[]
 
 include::troubleshooting/data/increase-tier-capacity.asciidoc[]
 

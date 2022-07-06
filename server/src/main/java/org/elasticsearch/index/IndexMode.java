@@ -104,6 +104,10 @@ public enum IndexMode {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -186,6 +190,10 @@ public enum IndexMode {
             return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
         }
 
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return true;
+        }
     };
 
     protected static String tsdbMode() {
@@ -287,6 +295,11 @@ public enum IndexMode {
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
     public abstract DocumentDimensions buildDocumentDimensions();
+
+    /**
+     * @return Whether timestamps should be validated for being withing the time range of an index.
+     */
+    public abstract boolean shouldValidateTimestamp();
 
     public static IndexMode fromString(String value) {
         return switch (value) {

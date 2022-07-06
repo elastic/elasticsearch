@@ -698,7 +698,7 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
-        if (mode != IndexMode.TIME_SERIES) {
+        if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(
                 IndexSettings.TIME_SERIES_END_TIME,
                 endTime -> { this.timestampBounds = new TimestampBounds(this.timestampBounds, endTime); }

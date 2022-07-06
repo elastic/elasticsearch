@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gradle;
 
-import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.io.output.TeeOutputStream;
 import org.elasticsearch.gradle.util.SerializableConsumer;
 import org.gradle.api.Action;
@@ -47,7 +46,9 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 
 /**
- * A wrapper around gradle's Exec task to capture output and log on error.
+ * A wrapper around gradle's exec functionality to capture output and log on error.
+ * This Task is configuration cache compatible in contrast to Gradles' build in
+ * Exec task implementation.
  */
 @SuppressWarnings("unchecked")
 public abstract class LoggedExec extends DefaultTask implements FileSystemOperationsAware {
@@ -100,7 +101,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @TaskAction
     public void run() {
-        OutputStream out = getCaptureOutput().get() ? new ByteArrayOutputStream() : new NullOutputStream();
+        OutputStream out = getCaptureOutput().get() ? new ByteArrayOutputStream() : System.out;
         OutputStream effectiveOutputStream = out;
         if (spoolOutput) {
             File spoolFile = new File(projectLayout.getBuildDirectory().dir("buffered-output").get().getAsFile(), this.getName());
@@ -119,19 +120,13 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             outputLogger = logger -> { logger.error(byteStreamToString(out)); };
         }
 
-        OutputStream effectiveOutStream = effectiveOutputStream;
+        OutputStream finalOutputStream = getOutputIndenting().isPresent()
+            ? new IndentingOutputStream(effectiveOutputStream, getOutputIndenting().get())
+            : effectiveOutputStream;
         ExecResult execResult = execOperations.exec(execSpec -> {
             execSpec.setIgnoreExitValue(true);
-            execSpec.setStandardOutput(
-                getOutputIndenting().isPresent()
-                    ? new TeeOutputStream(new IndentingOutputStream(System.out, getOutputIndenting().get()), effectiveOutStream)
-                    : effectiveOutStream
-            );
-            execSpec.setErrorOutput(
-                getOutputIndenting().isPresent()
-                    ? new TeeOutputStream(new IndentingOutputStream(System.err, getOutputIndenting().get()), effectiveOutStream)
-                    : effectiveOutStream
-            );
+            execSpec.setStandardOutput(finalOutputStream);
+            execSpec.setErrorOutput(finalOutputStream);
             execSpec.setExecutable(getExecutableProperty().get());
             execSpec.setEnvironment(getEnvironment().get());
             if (getArgs().isPresent()) {
@@ -227,9 +222,10 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @Internal
     public String getOutput() {
-        if(getCaptureOutput().get() == false) {
-            throw new GradleException("Capturing output was not enabled. Use " + getName() +
-                    ".getCapturedOutput.set(true) to enable output capturing");
+        if (getCaptureOutput().get() == false) {
+            throw new GradleException(
+                "Capturing output was not enabled. Use " + getName() + ".getCapturedOutput.set(true) to enable output capturing"
+            );
         }
         return output;
     }

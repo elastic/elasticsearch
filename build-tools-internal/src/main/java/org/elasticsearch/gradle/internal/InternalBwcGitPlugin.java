@@ -69,16 +69,14 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
             createClone.onlyIf(task -> this.gitExtension.getCheckoutDir().get().exists() == false);
-            createClone.setExecutable("git");
-            createClone.args("clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
+            createClone.commandLine("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
             findRemote.dependsOn(createCloneTaskProvider);
             findRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
-            findRemote.setExecutable("git");
-            findRemote.args("remote", "-v");
+            findRemote.commandLine("git", "remote", "-v");
             findRemote.getCaptureOutput().set(true);
             findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });
         });
@@ -91,8 +89,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
                 .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
-            addRemote.setExecutable("git");
-            addRemote.args("remote", "add", remoteRepo, remoteRepoUrl);
+            addRemote.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
         });
 
         boolean isOffline = project.getGradle().getStartParameter().isOffline();
@@ -109,8 +106,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             fetchLatest.onlyIf(t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir().get());
-            fetchLatest.setExecutable("git");
-            fetchLatest.args("fetch", "--all");
+            fetchLatest.commandLine("git", "fetch", "--all");
         });
 
         String projectPath = project.getPath();

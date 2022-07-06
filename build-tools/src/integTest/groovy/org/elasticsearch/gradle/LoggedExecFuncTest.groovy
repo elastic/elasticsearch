@@ -96,25 +96,21 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
   
 # Read the user input   
   
-echo "Enter the user name: "  
+echo "Enter the user input: "  
 read userInput  
-echo "The Current User Input is \$userInput"  
+echo "The user input is \$userInput"  
 """
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
           commandLine 'bash', 'script.sh'
           getStandardInput().set('FooBar')
-          getCaptureOutput().set(true)
-          doLast {
-            println 'OUTPUT ' + output
-          }
         }
         """
         when:
         def result = gradleRunner("loggedExec").build()
         then:
         result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
-        result.getOutput().contains("The Current User Input is FooBar")
+        result.getOutput().contains("The user input is FooBar")
     }
 }

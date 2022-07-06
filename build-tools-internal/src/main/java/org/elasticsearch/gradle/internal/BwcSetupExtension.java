@@ -72,37 +72,36 @@ public class BwcSetupExtension {
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 loggedExec.setExecutable("cmd");
-                loggedExec.getArgs().addAll("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
             } else {
                 loggedExec.setExecutable(new File(checkoutDir.get(), "gradlew").toString());
             }
 
-            loggedExec.getArgs().addAll("-g", project.getGradle().getGradleUserHomeDir().toString());
+            loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().toString());
             if (project.getGradle().getStartParameter().isOffline()) {
-                loggedExec.getArgs().add("--offline");
+                loggedExec.args("--offline");
             }
             // TODO resolve
             String buildCacheUrl = System.getProperty("org.elasticsearch.build.cache.url");
             if (buildCacheUrl != null) {
-                loggedExec.getArgs().add("-Dorg.elasticsearch.build.cache.url=" + buildCacheUrl);
+                loggedExec.args("-Dorg.elasticsearch.build.cache.url=" + buildCacheUrl);
             }
 
-            loggedExec.getArgs().add("-Dbuild.snapshot=true");
-            loggedExec.getArgs().add("-Dscan.tag.NESTED");
+            loggedExec.args("-Dbuild.snapshot=true", "-Dscan.tag.NESTED");
             final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
             List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);
             if (nonDefaultLogLevels.contains(logLevel)) {
-                loggedExec.getArgs().add("--" + logLevel.name().toLowerCase(Locale.ENGLISH));
+                loggedExec.args("--" + logLevel.name().toLowerCase(Locale.ENGLISH));
             }
             final String showStacktraceName = project.getGradle().getStartParameter().getShowStacktrace().name();
             assert Arrays.asList("INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL").contains(showStacktraceName);
             if (showStacktraceName.equals("ALWAYS")) {
-                loggedExec.getArgs().add("--stacktrace");
+                loggedExec.args("--stacktrace");
             } else if (showStacktraceName.equals("ALWAYS_FULL")) {
-                loggedExec.getArgs().add("--full-stacktrace");
+                loggedExec.args("--full-stacktrace");
             }
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
-                loggedExec.getArgs().add("--parallel");
+                loggedExec.args("--parallel");
             }
             loggedExec.getOutputIndenting().set(unreleasedVersionInfo.get().version().toString());
             configAction.execute(loggedExec);

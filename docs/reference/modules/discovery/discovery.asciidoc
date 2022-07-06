@@ -34,6 +34,7 @@ faulty. When a node stops being the elected master, it begins the discovery
 process again.
 
 [[modules-discovery-troubleshooting]]
+//tag::troubleshoot-discovery[]
 ==== Troubleshooting discovery
 
 In most cases, the discovery and election process completes quickly, and the
@@ -61,6 +62,7 @@ nodes.
 
 The following sections describe some common discovery and election problems.
 
+[discrete]
 ===== No master is elected
 
 When a node wins the master election, it logs a message containing
@@ -97,6 +99,7 @@ typical reason that the cluster can't elect a master is that one of the other
 nodes can't discover a quorum. Inspect the logs on the other master-eligible
 nodes and ensure that they have all discovered enough nodes to form a quorum.
 
+[discrete]
 ===== Master is elected but unstable
 
 When a node wins the master election, it logs a message containing
@@ -105,6 +108,7 @@ unstable. In this situation, focus on the logs from the master-eligible nodes
 to understand why the election winner stops being the master and triggers
 another election.
 
+[discrete]
 ===== Node cannot discover or join stable master
 
 If there is a stable elected master but a node can't discover or join its
@@ -112,12 +116,13 @@ cluster, it will repeatedly log messages about the problem using the
 `ClusterFormationFailureHelper` logger. Other log messages on the affected node
 and the elected master may provide additional information about the problem.
 
+[discrete]
 ===== Node joins cluster and leaves again
 
 If a node joins the cluster but {es} determines it to be faulty then it will be
 removed from the cluster again. See <<cluster-fault-detection-troubleshooting>>
 for more information.
-
+//end::troubleshoot-discovery[]
 
 [[built-in-hosts-providers]]
 ==== Seed hosts providers

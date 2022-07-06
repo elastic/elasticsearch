@@ -17,12 +17,12 @@
     "url": {
       "paths": [
         {
-          "path": "/_security/api_key/{ids}",
+          "path": "/_security/api_key/{id}",
           "methods": [
             "PUT"
           ],
           "parts": {
-            "ids": {
+            "id": {
               "type": "string",
               "description": "The ID of the API key to update"
             }

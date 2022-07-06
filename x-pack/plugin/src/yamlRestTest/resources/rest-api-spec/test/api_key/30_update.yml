@@ -99,7 +99,7 @@ teardown:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.update_api_key:
-        ids: "$user1_key_id"
+        id: "$user1_key_id"
         body: >
           {
             "role_descriptors": {
@@ -218,7 +218,7 @@ teardown:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.update_api_key:
-        ids: "$user1_key_id"
+        id: "$user1_key_id"
         body: {}
   - match: { updated: true }
 
@@ -312,7 +312,7 @@ teardown:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.update_api_key:
-        ids: "$user1_key_id"
+        id: "$user1_key_id"
         body: >
           {
             "role_descriptors": {},

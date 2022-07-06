@@ -1214,8 +1214,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
-            builder.put(Collections.unmodifiableMap(immutableStateMetadata.apply(part.immutableStateMetadata)));
-            return builder.build(true);
+            builder.put(immutableStateMetadata.apply(part.immutableStateMetadata));
+            return builder.build();
         }
     }
 

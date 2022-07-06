@@ -80,7 +80,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
             indices = Strings.EMPTY_ARRAY;
         }
         this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
-        final IndexFieldCapabilities.Deduplicator fieldDeduplicator = IndexFieldCapabilities.deduplicatorWithMap();
+        final IndexFieldCapabilities.Deduplicator fieldDeduplicator = new IndexFieldCapabilities.Deduplicator();
         indexResponses = in.readList(is -> new FieldCapabilitiesIndexResponse(is, fieldDeduplicator));
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             this.failures = in.readList(FieldCapabilitiesFailure::new);

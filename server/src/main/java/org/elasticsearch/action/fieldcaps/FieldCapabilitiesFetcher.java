@@ -41,7 +41,7 @@ class FieldCapabilitiesFetcher {
 
     FieldCapabilitiesFetcher(IndicesService indicesService) {
         this.indicesService = indicesService;
-        this.fieldDeduplicator = IndexFieldCapabilities.deduplicatorWithMap();
+        this.fieldDeduplicator = new IndexFieldCapabilities.Deduplicator();
     }
 
     public FieldCapabilitiesIndexResponse fetch(final FieldCapabilitiesIndexRequest request) throws IOException {

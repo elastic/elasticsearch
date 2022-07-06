@@ -227,7 +227,10 @@ final class RequestDispatcher {
                     shardRequest,
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, is -> new FieldCapabilitiesIndexResponse(is, f -> f))
+                    new ActionListenerResponseHandler<>(
+                        listener,
+                        is -> new FieldCapabilitiesIndexResponse(is, new IndexFieldCapabilities.Deduplicator())
+                    )
                 );
             }
         }

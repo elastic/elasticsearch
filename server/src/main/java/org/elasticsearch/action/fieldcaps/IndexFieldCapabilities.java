@@ -154,14 +154,10 @@ public class IndexFieldCapabilities implements Writeable {
             && Objects.equals(meta, that.meta);
     }
 
-    @FunctionalInterface
-    interface Deduplicator {
-        IndexFieldCapabilities deduplicate(IndexFieldCapabilities field);
-    }
+    static final class Deduplicator {
+        private final Map<String, IndexFieldCapabilities> caches = new HashMap<>();
 
-    static Deduplicator deduplicatorWithMap() {
-        final Map<String, IndexFieldCapabilities> caches = new HashMap<>();
-        return field -> {
+        IndexFieldCapabilities deduplicate(IndexFieldCapabilities field) {
             final IndexFieldCapabilities existing = caches.putIfAbsent(field.getName(), field);
             if (existing != null) {
                 if (existing.equalsWithoutName(field)) {
@@ -178,7 +174,7 @@ public class IndexFieldCapabilities implements Writeable {
             } else {
                 return field;
             }
-        };
+        }
     }
 
     @Override

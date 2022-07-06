@@ -422,6 +422,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
         final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false);
+        super.printJwtIssuer(jwtIssuer);
 
         final int realmsCount = 2;
         final List<Realm> allRealms = new ArrayList<>(realmsCount); // two identical realms for same issuer, except different client secret
@@ -443,7 +444,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                     RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
                     JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
                 );
-            if (jwtIssuer.encodedJwkSetPkcPublicOnly.isEmpty() != false) {
+            if (jwtIssuer.encodedJwkSetPkcPublicOnly.isEmpty() == false) {
                 authcSettings.put(
                     RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
                     super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublicOnly)
@@ -473,6 +474,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             jwtRealm.initialize(allRealms, super.licenseState);
             final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
             this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
+            super.printJwtRealm(jwtRealm);
         }
 
         // pick 2nd realm and use its secret, verify 2nd realm does authc, which implies 1st realm rejects the secret

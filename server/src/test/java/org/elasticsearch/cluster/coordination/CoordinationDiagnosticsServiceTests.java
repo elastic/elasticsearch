@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.CoordinationDiagnosticsStatus;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -360,6 +361,79 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
                     .diagnoseMasterStability(true);
                 assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
+            }
+        }
+    }
+
+    public void testRedForNoMasterQueryingNonMaster() {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            createAndAddNonMasterNode(cluster);
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            int killedMasterNodeCount = 0;
+            DiscoveryNode nonKilledMasterNode = null;
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (killedMasterNodeCount >= 2) {
+                    nonKilledMasterNode = node.getLocalNode();
+                } else if (node.getLocalNode().isMasterNode()) {
+                    node.disconnect();
+                    killedMasterNodeCount++;
+                }
+            }
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
+            for (Cluster.ClusterNode node : cluster.clusterNodes.stream()
+                .filter(node -> node.getLocalNode().isMasterNode() == false)
+                .toList()) {
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
+                    .diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsStatus.RED));
+                assertThat(
+                    healthIndicatorResult.summary(),
+                    containsString(
+                        "No master node observed in the last 30s, and this node is not master eligible. Reaching out to a master-eligible node for more information, but no result yet."
+                    )
+                );
+
+                CoordinationDiagnosticsStatus artificialRemoteStatus = randomValueOtherThan(
+                    CoordinationDiagnosticsStatus.GREEN,
+                    () -> randomFrom(CoordinationDiagnosticsStatus.values())
+                );
+                String artificialRemoteStatusSummary = "Artificial failure";
+                CoordinationDiagnosticsService.CoordinationDiagnosticsResult artificialRemoteResult =
+                    new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                        artificialRemoteStatus,
+                        artificialRemoteStatusSummary,
+                        null
+                    );
+                node.coordinationDiagnosticsService.remoteCoordinationDiagnosisResult =
+                    new CoordinationDiagnosticsService.RemoteMasterHealthResult(nonKilledMasterNode, artificialRemoteResult, null);
+                healthIndicatorResult = node.coordinationDiagnosticsService.diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(artificialRemoteStatus));
+                assertThat(healthIndicatorResult.summary(), containsString(artificialRemoteStatusSummary));
+
+                artificialRemoteResult = new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                    CoordinationDiagnosticsStatus.GREEN,
+                    artificialRemoteStatusSummary,
+                    null
+                );
+                node.coordinationDiagnosticsService.remoteCoordinationDiagnosisResult =
+                    new CoordinationDiagnosticsService.RemoteMasterHealthResult(nonKilledMasterNode, artificialRemoteResult, null);
+                healthIndicatorResult = node.coordinationDiagnosticsService.diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsStatus.RED));
+                assertThat(healthIndicatorResult.summary(), containsString("reports that the status is GREEN"));
+
+                Exception artificialRemoteResultException = new RuntimeException(artificialRemoteStatusSummary);
+                node.coordinationDiagnosticsService.remoteCoordinationDiagnosisResult =
+                    new CoordinationDiagnosticsService.RemoteMasterHealthResult(nonKilledMasterNode, null, artificialRemoteResultException);
+                healthIndicatorResult = node.coordinationDiagnosticsService.diagnoseMasterStability(true);
+                assertThat(healthIndicatorResult.status(), equalTo(CoordinationDiagnosticsStatus.RED));
+                assertThat(healthIndicatorResult.summary(), containsString("received an exception"));
+            }
+
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             }
         }
     }

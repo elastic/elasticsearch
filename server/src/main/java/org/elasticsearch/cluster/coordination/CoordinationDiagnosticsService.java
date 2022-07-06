@@ -110,7 +110,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     );
 
     private Scheduler.Cancellable remoteStableMasterHealthIndicatorTask = null;
-    private volatile RemoteMasterHealthResult remoteCoordinationDiagnosisResult = null;
+    volatile RemoteMasterHealthResult remoteCoordinationDiagnosisResult = null;  // Non-private for testing
 
     public CoordinationDiagnosticsService(
         ClusterService clusterService,
@@ -670,5 +670,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     }
 
-    private record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {}
+    // Non-private for testing:
+    record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {}
 }

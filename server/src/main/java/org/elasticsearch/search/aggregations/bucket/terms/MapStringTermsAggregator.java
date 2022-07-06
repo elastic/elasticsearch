@@ -86,12 +86,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return resultStrategy.wrapCollector(
             collectorSource.getLeafCollector(
                 includeExclude,
-                ctx,
+                aggCtx.getLeafReaderContext(),
                 sub,
                 this::addRequestCircuitBreakerBytes,
                 (s, doc, owningBucketOrd, bytes) -> {

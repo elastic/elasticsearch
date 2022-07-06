@@ -119,11 +119,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         postCollectLastCollector();
 
-        collector = pickCollector(ctx);
+        collector = pickCollector(aggCtx.getLeafReaderContext());
         return collector;
     }
 

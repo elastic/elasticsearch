@@ -67,18 +67,15 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(
-        final LeafReaderContext ctx,
-        final LeafBucketCollector sub,
-        AggregationExecutionContext aggCtx
-    ) throws IOException {
-        IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(ctx);
+    public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
+        IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(aggCtx.getLeafReaderContext());
         IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
         Weight weight = searcher.createWeight(searcher.rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        Scorer childDocsScorer = weight.scorer(ctx);
+        Scorer childDocsScorer = weight.scorer(aggCtx.getLeafReaderContext());
 
-        final BitSet parentDocs = parentFilter.getBitSet(ctx);
+        final BitSet parentDocs = parentFilter.getBitSet(aggCtx.getLeafReaderContext());
         final DocIdSetIterator childDocs = childDocsScorer != null ? childDocsScorer.iterator() : null;
         if (collectsFromSingleBucket) {
             return new LeafBucketCollectorBase(sub, null) {

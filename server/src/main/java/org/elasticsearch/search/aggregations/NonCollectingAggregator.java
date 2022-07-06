@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -33,11 +32,7 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
     }
 
     @Override
-    public final LeafBucketCollector getLeafCollector(
-        LeafReaderContext reader,
-        LeafBucketCollector sub,
-        AggregationExecutionContext aggCtx
-    ) {
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
         // the framework will automatically eliminate it
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }

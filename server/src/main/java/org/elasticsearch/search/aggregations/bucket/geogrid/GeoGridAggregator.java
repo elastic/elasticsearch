@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -68,12 +67,9 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(
-        final LeafReaderContext ctx,
-        final LeafBucketCollector sub,
-        AggregationExecutionContext aggCtx
-    ) throws IOException {
-        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+    public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
+        final SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }

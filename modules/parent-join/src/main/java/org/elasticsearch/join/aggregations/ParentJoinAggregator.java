@@ -86,16 +86,16 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    public final LeafBucketCollector getLeafCollector(
-        LeafReaderContext ctx,
-        final LeafBucketCollector sub,
-        AggregationExecutionContext aggCtx
-    ) throws IOException {
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
-        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), inFilter.scorerSupplier(ctx));
+        final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
+        final Bits parentDocs = Lucene.asSequentialAccessBits(
+            aggCtx.getLeafReaderContext().reader().maxDoc(),
+            inFilter.scorerSupplier(aggCtx.getLeafReaderContext())
+        );
         return new LeafBucketCollector() {
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {

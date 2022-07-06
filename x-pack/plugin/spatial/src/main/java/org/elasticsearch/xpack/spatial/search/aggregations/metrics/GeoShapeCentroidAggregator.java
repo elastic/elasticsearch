@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
@@ -62,11 +61,11 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx) {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final GeoShapeValues values = valuesSource.geoShapeValues(ctx);
+        final GeoShapeValues values = valuesSource.geoShapeValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);

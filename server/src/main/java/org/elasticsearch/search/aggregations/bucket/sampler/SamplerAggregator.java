@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -231,12 +230,11 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (bdd == null) {
             throw new AggregationExecutionException("Sampler aggregation must be used with child aggregations.");
         }
-        return bdd.getLeafCollector(ctx);
+        return bdd.getLeafCollector(aggCtx);
     }
 
     @Override

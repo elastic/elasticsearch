@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
@@ -108,9 +107,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
-        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
         collectionStrategy.globalOrdsReady(globalOrds);
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
@@ -301,13 +299,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-            throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
             }
-            final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
-            mapping = valuesSource.globalOrdinalsMapping(ctx);
+            final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(aggCtx.getLeafReaderContext());
+            mapping = valuesSource.globalOrdinalsMapping(aggCtx.getLeafReaderContext());
             if (segmentOrds.getValueCount() == 0) {
                 segmentsWithoutValues++;
                 return LeafBucketCollector.NO_OP_COLLECTOR;

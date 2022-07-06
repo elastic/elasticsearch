@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
@@ -98,8 +97,7 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
         // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
@@ -151,7 +149,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
                 LeafCollector leafCollector = leafCollectors.get(bucket);
                 if (leafCollector == null) {
-                    leafCollector = collectors.collector.getLeafCollector(ctx);
+                    leafCollector = collectors.collector.getLeafCollector(aggCtx.getLeafReaderContext());
                     if (scorer != null) {
                         leafCollector.setScorer(scorer);
                     }

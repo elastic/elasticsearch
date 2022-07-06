@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
@@ -66,13 +65,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (pointConverter != null) {
-            Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
+            Number segMax = findLeafMaxValue(aggCtx.getLeafReaderContext().reader(), pointField, pointConverter);
             if (segMax != null) {
                 /*
                  * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
@@ -86,7 +84,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         }
-        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.bucket.range;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -114,13 +113,12 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if ((valuesSource instanceof HistogramValuesSource.Histogram) == false) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final HistogramValuesSource.Histogram valuesSource = (HistogramValuesSource.Histogram) this.valuesSource;
-        final HistogramValues values = valuesSource.getHistogramValues(ctx);
+        final HistogramValues values = valuesSource.getHistogramValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

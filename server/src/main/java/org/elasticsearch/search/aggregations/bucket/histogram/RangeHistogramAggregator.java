@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -73,12 +72,11 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         final RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override

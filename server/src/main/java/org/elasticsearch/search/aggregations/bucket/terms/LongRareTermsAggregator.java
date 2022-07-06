@@ -65,9 +65,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
-        SortedNumericDocValues values = getValues(valuesSource, ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        SortedNumericDocValues values = getValues(valuesSource, aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {

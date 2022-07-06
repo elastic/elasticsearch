@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -58,13 +57,12 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), ctx);
-        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), ctx);
+        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
+        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
         final CompensatedSum compDiffSum = new CompensatedSum(0, 0);
         final CompensatedSum compDiffSumOfSqr = new CompensatedSum(0, 0);
 

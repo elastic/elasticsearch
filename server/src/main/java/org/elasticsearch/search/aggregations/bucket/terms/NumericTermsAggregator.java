@@ -82,9 +82,8 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
-        SortedNumericDocValues values = resultStrategy.getValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        SortedNumericDocValues values = resultStrategy.getValues(aggCtx.getLeafReaderContext());
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {

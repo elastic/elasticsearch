@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
@@ -47,10 +46,12 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         // no need to provide deleted docs to the filter
-        final Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filter.get().scorerSupplier(ctx));
+        final Bits bits = Lucene.asSequentialAccessBits(
+            aggCtx.getLeafReaderContext().reader().maxDoc(),
+            filter.get().scorerSupplier(aggCtx.getLeafReaderContext())
+        );
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

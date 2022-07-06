@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.Version;
@@ -653,9 +652,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-            throws IOException {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(ctx);
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(aggCtx.getLeafReaderContext());
             final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
 
             if (singleton != null) {

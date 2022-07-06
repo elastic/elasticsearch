@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
@@ -56,14 +55,13 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(
-            ctx,
+            aggCtx.getLeafReaderContext(),
             AggregateDoubleMetricFieldMapper.Metric.value_count
         );
 

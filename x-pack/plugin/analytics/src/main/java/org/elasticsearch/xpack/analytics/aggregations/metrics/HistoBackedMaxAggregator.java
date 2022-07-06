@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
@@ -55,13 +54,12 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        final HistogramValues values = valuesSource.getHistogramValues(ctx);
+        final HistogramValues values = valuesSource.getHistogramValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override

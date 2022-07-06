@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.prefix;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.core.Releasables;
@@ -114,9 +113,8 @@ public final class IpPrefixAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
-        return new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(ctx), ipPrefix);
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        return new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext()), ipPrefix);
     }
 
     private class IpPrefixLeafCollector extends LeafBucketCollectorBase {

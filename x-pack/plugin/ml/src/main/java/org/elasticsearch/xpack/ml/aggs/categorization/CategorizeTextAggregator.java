@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
@@ -142,7 +141,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx) {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -157,7 +156,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             }
 
             private void collectFromSource(int doc, long owningBucketOrd, TokenListCategorizer categorizer) throws IOException {
-                sourceLookup.setSegmentAndDocument(ctx, doc);
+                sourceLookup.setSegmentAndDocument(aggCtx.getLeafReaderContext(), doc);
                 Iterator<String> itr = sourceLookup.extractRawValuesWithoutCaching(sourceFieldName).stream().map(obj -> {
                     if (obj instanceof BytesRef) {
                         return fieldType.valueForDisplay(obj).toString();

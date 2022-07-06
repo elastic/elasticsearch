@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -61,13 +60,14 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (valuesSource instanceof HistogramValuesSource.Histogram) {
-            final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(ctx);
+            final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(
+                aggCtx.getLeafReaderContext()
+            );
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -81,7 +81,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
                 }
             };
         } else {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(aggCtx.getLeafReaderContext());
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {

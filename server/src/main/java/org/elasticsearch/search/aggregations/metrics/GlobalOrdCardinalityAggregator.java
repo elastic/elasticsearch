@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -69,9 +68,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
-        values = valuesSource.globalOrdinalsValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        values = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucketOrd) throws IOException {

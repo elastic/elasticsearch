@@ -243,7 +243,8 @@ public class DiscoveryNodeFilters {
     }
 
     private boolean isSingleNodeFilterInternal() {
-        return (filters.size() == 1 && NON_ATTRIBUTE_NAMES.contains(filters.keySet().iterator().next())
+        return (filters.size() == 1
+            && NON_ATTRIBUTE_NAMES.contains(filters.keySet().iterator().next())
             && (filters.values().iterator().next().length == 1 || opType == OpType.AND))
             || (filters.size() > 1 && opType == OpType.AND && NON_ATTRIBUTE_NAMES.containsAll(filters.keySet()));
     }

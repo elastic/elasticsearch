@@ -73,7 +73,7 @@ public class RestLogsActionTests extends RestActionTestCase {
             assertDataStreamFields("foo", "default", indexRequest);
             Map<String, Object> doc = ((IndexRequest) request.requests().get(0)).sourceAsMap();
             assertEquals("{\"message\": \"missing end quote}", getPath(doc, "event.original"));
-            assertEquals("json_e_o_f_exception", getPath(doc, "_logs.error.type"));
+            assertEquals("json_e_o_f_exception", getPath(doc, "ingest.error.type"));
             return Mockito.mock(BulkResponse.class);
         });
         assertEquals(0, dispatchRequest(req).errors().get());
@@ -143,11 +143,11 @@ public class RestLogsActionTests extends RestActionTestCase {
                 IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
                 assertDataStreamFields("generic", "bar", indexRequest);
                 Map<String, Object> doc = indexRequest.sourceAsMap();
-                assertEquals("mapper_parsing_exception", getPath(doc, "_logs.error.type"));
-                assertEquals("bad foo", getPath(doc, "_logs.error.message"));
-                assertEquals("logs", getPath(doc, "_logs.data_stream.type"));
-                assertEquals("foo", getPath(doc, "_logs.data_stream.dataset"));
-                assertEquals("bar", getPath(doc, "_logs.data_stream.namespace"));
+                assertEquals("mapper_parsing_exception", getPath(doc, "ingest.error.type"));
+                assertEquals("bad foo", getPath(doc, "ingest.error.message"));
+                assertEquals("logs", getPath(doc, "ingest.error.data_stream.type"));
+                assertEquals("foo", getPath(doc, "ingest.error.data_stream.dataset"));
+                assertEquals("bar", getPath(doc, "ingest.error.data_stream.namespace"));
                 return Mockito.mock(BulkResponse.class);
             }
         });

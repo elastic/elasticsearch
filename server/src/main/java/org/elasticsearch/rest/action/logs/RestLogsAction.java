@@ -99,8 +99,8 @@ public class RestLogsAction extends BaseRestHandler {
                     } catch (Exception e) {
                         event = new HashMap<>();
                         addPath(event, "event.original", line);
-                        addPath(event, "_logs.error.type", ElasticsearchException.getExceptionName(e));
-                        addPath(event, "_logs.error.message", e.getMessage());
+                        addPath(event, "ingest.error.type", ElasticsearchException.getExceptionName(e));
+                        addPath(event, "ingest.error.message", e.getMessage());
                     }
                 } else {
                     event = Map.of("message", line);
@@ -157,11 +157,11 @@ public class RestLogsAction extends BaseRestHandler {
                             // looks like a persistent error (such as a mapping issue);
                             // re-try in fallback data stream which has lenient mappings
                             Exception cause = failure.getCause();
-                            addPath(doc, "_logs.error.type", ElasticsearchException.getExceptionName(cause));
-                            addPath(doc, "_logs.error.message", cause.getMessage());
+                            addPath(doc, "ingest.error.type", ElasticsearchException.getExceptionName(cause));
+                            addPath(doc, "ingest.error.message", cause.getMessage());
                             @SuppressWarnings("unchecked")
                             Map<String, String> dataStream = (Map<String, String>) doc.get("data_stream");
-                            addPath(doc, "_logs.data_stream", new HashMap<>(dataStream));
+                            addPath(doc, "ingest.error.data_stream", new HashMap<>(dataStream));
                             dataStream.put("type", "logs");
                             dataStream.put("dataset", "generic");
                             retryBulk.add(

@@ -11,22 +11,12 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.SourceAndMetadataMap;
 
 import java.time.ZonedDateTime;
-import java.util.AbstractCollection;
-import java.util.AbstractMap;
-import java.util.AbstractSet;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -43,29 +33,34 @@ import java.util.stream.Collectors;
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
 class IngestSourceAndMetadata extends SourceAndMetadataMap {
+    public static final String VERSION_TYPE = "_version_type";
+    public static final String IF_SEQ_NO = "_if_seq_no";
+    public static final String IF_PRIMARY_TERM = "_if_primary_term";
+    public static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
+
     protected final ZonedDateTime timestamp;
 
     /**
      * map of key to validating function. Should throw {@link IllegalArgumentException} on invalid value
      */
     protected static final Map<String, SourceAndMetadataMap.Validator> VALIDATORS = Map.of(
-        IngestDocument.Metadata.INDEX.getFieldName(),
+        INDEX,
         SourceAndMetadataMap::stringValidator,
-        IngestDocument.Metadata.ID.getFieldName(),
+        ID,
         SourceAndMetadataMap::stringValidator,
-        IngestDocument.Metadata.ROUTING.getFieldName(),
+        ROUTING,
         SourceAndMetadataMap::stringValidator,
-        IngestDocument.Metadata.VERSION.getFieldName(),
+        VERSION,
         SourceAndMetadataMap::nonNullLongValidator,
-        IngestDocument.Metadata.VERSION_TYPE.getFieldName(),
-        SourceAndMetadataMap::versionTypeValidator,
-        IngestDocument.Metadata.DYNAMIC_TEMPLATES.getFieldName(),
+        VERSION_TYPE,
+        IngestSourceAndMetadata::versionTypeValidator,
+        DYNAMIC_TEMPLATES,
         SourceAndMetadataMap::mapValidator,
-        IngestDocument.Metadata.IF_SEQ_NO.getFieldName(),
+        IF_SEQ_NO,
         SourceAndMetadataMap::longValidator,
-        IngestDocument.Metadata.IF_PRIMARY_TERM.getFieldName(),
+        IF_PRIMARY_TERM,
         SourceAndMetadataMap::longValidator,
-        IngestDocument.Metadata.TYPE.getFieldName(),
+        TYPE,
         SourceAndMetadataMap::stringValidator
     );
 
@@ -162,4 +157,68 @@ class IngestSourceAndMetadata extends SourceAndMetadataMap {
     public ZonedDateTime getTimestamp() {
         return timestamp;
     }
+
+    public long getVersion() {
+        Number version = getNumber(VERSION);
+        assert version != null : VERSION + " validation allowed null version";
+        return version.longValue();
+    }
+
+    @Override
+    public String getVersionType() {
+        return getString(VERSION_TYPE);
+    }
+
+    @Override
+    public void setVersionType(String versionType) {
+        put(VERSION_TYPE, versionType);
+    }
+
+    @Override
+    public String getType() {
+        return getString(TYPE);
+    }
+
+    public Number getIfSeqNo() {
+        return getNumber(IF_SEQ_NO);
+    }
+
+    public Number getIfPrimaryTerm() {
+        return getNumber(IF_PRIMARY_TERM);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, String> getDynamicTemplates() {
+        return (Map<String, String>) metadata.get(DYNAMIC_TEMPLATES);
+    }
+
+    public Map<String, Validator> getValidators() {
+        return validators;
+    }
+
+    /**
+     * Allow lower case Strings that map to VersionType values, or null
+     */
+    public static void versionTypeValidator(MapOperation op, String key, Object value) {
+        if (op == MapOperation.REMOVE || value == null) {
+            return;
+        }
+        if (value instanceof String versionType) {
+            try {
+                VersionType.fromString(versionType);
+                return;
+            } catch (IllegalArgumentException ignored) {}
+        }
+        throw new IllegalArgumentException(
+            key
+                + " must be a null or one of ["
+                + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
+                + "] but was ["
+                + value
+                + "] with type ["
+                + value.getClass().getName()
+                + "]"
+        );
+    }
+
 }

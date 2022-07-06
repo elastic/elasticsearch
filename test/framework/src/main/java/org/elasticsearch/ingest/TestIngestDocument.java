@@ -67,7 +67,10 @@ public class TestIngestDocument {
      * Create an IngestDocument with a metadata map and validators.  The metadata map is passed by reference, not copied, so callers
      * can observe changes to the map directly.
      */
-    public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, SourceAndMetadataMap.Validator> validators) {
+    public static IngestDocument ofMetadataWithValidator(
+        Map<String, Object> metadata,
+        Map<String, SourceAndMetadataMap.Validator> validators
+    ) {
         return new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), metadata, null, validators), new HashMap<>());
     }
 

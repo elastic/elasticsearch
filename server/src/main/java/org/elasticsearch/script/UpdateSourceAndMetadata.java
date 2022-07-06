@@ -10,37 +10,43 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.util.Maps;
 
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class UpdateMetadata extends SourceAndMetadataMap {
+/**
+ * Source and metadata for update (as opposed to insert via upsert) in the Update context.
+ */
+public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
     protected static final String OP = "op";
     protected static final String TIMESTAMP = "_now";
     protected static final String SOURCE = "_source";
 
-    private static final String LEGACY_NOOP_STRING = "none";
+    // AbstractAsyncBulkByScrollAction.OpType uses 'noop' rather than 'none', so unify on 'noop' but allow 'none' in
+    // the ctx map
+    protected static final String LEGACY_NOOP_STRING = "none";
     protected static final Set<String> VALID_OPS = Set.of("noop", "index", "delete", LEGACY_NOOP_STRING);
 
     public static Map<String, Validator> VALIDATORS = Map.of(
         INDEX,
-        UpdateMetadata::setOnceStringValidator,
+        UpdateSourceAndMetadata::setOnceStringValidator,
         ID,
-        UpdateMetadata::setOnceStringValidator,
+        UpdateSourceAndMetadata::setOnceStringValidator,
         VERSION,
-        UpdateMetadata::setOnceLongValidator,
+        UpdateSourceAndMetadata::setOnceLongValidator,
         ROUTING,
-        UpdateMetadata::setOnceStringValidator,
+        UpdateSourceAndMetadata::setOnceStringValidator,
         TYPE,
-        UpdateMetadata::setOnceStringValidator,
+        UpdateSourceAndMetadata::setOnceStringValidator,
         OP,
         opValidatorFromValidOps(VALID_OPS),
         TIMESTAMP,
-        UpdateMetadata::setOnceLongValidator
+        UpdateSourceAndMetadata::setOnceLongValidator
     );
 
-    public UpdateMetadata(
+    public UpdateSourceAndMetadata(
         String index,
         String id,
         long version,
@@ -50,7 +56,11 @@ public class UpdateMetadata extends SourceAndMetadataMap {
         long timestamp,
         Map<String, Object> source
     ) {
-        super(wrapSource(source), metadataMap(index, id, version, routing, type, op, timestamp), VALIDATORS, TIMESTAMP, OP);
+        super(wrapSource(source), metadataMap(index, id, version, routing, type, op, timestamp), VALIDATORS);
+    }
+
+    protected UpdateSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, Map<String, Validator> validators) {
+        super(wrapSource(source), metadata, validators);
     }
 
     protected static Map<String, Object> wrapSource(Map<String, Object> source) {
@@ -107,6 +117,24 @@ public class UpdateMetadata extends SourceAndMetadataMap {
             throw new IllegalArgumentException(LEGACY_NOOP_STRING + " is deprecated, use 'noop' instead");
         }
         super.setOp(op);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getSource() {
+        Map<String, Object> wrapped = super.getSource();
+        Object rawSource = wrapped.get(SOURCE);
+        if (rawSource instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        throw new IllegalArgumentException(
+            "Expected source to be a map, instead was [" + rawSource + "] with type [" + rawSource.getClass().getCanonicalName() + "]"
+        );
+    }
+
+    @Override
+    public ZonedDateTime getTimestamp() {
+        return getZonedDateTime(TIMESTAMP);
     }
 
     public static void setOnceStringValidator(MapOperation op, String key, Object value) {

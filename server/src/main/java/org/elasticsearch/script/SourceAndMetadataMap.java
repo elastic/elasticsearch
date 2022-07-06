@@ -8,52 +8,32 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.ingest.IngestDocument;
-
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
- * Check if the key is metadata and, if so, that it can be set to value
- * @param key the key to check
- * @param value the value to check, if key is being deleted, value should be null.  This means there
- *              is no difference between setting a key to null and deleting.
- * @return {@code true} if the {@param key} is metdata and may be set to {@param value}
- *         {@code false} if the {@param key} is not metadata
- * @throws IllegalArgumentException if {@param key} is metadata but may not be set to {@param value}.
- */
-
-/**
+ * Container that holds the source and metadata for write scripts.  Acts like a map for backwards compatibilty with
+ * ctx and implements {@link Metadata} so that scripts can use the newer API for setting.
  *
+ * Common metadata keys are
  */
-public class SourceAndMetadataMap extends AbstractMap<String, Object> implements Metadata {
+public abstract class SourceAndMetadataMap extends AbstractMap<String, Object> implements Metadata {
     public static final String INDEX = "_index";
     public static final String ID = "_id";
     public static final String TYPE = "_type";
     public static final String ROUTING = "_routing";
     public static final String VERSION = "_version";
-    public static final String VERSION_TYPE = "_version_type";
-
-    public static final String IF_SEQ_NO = "_if_seq_no";
-    public static final String IF_PRIMARY_TERM = "_if_primary_term";
-    public static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
-
-    public String timestampKey;
-    public String opKey;
 
     protected final Map<String, Validator> validators;
     protected final Map<String, Object> source;
@@ -63,15 +43,6 @@ public class SourceAndMetadataMap extends AbstractMap<String, Object> implements
         this.source = source;
         this.metadata = metadata;
         this.validators = validators;
-        validateMetadata();
-    }
-
-    protected SourceAndMetadataMap(Map<String, Object> source, Map<String, Object> metadata, Map<String, Validator> validators, String timestampKey, String opKey) {
-        this.source = source;
-        this.metadata = metadata;
-        this.validators = validators;
-        this.timestampKey = timestampKey;
-        this.opKey = opKey;
         validateMetadata();
     }
 
@@ -242,7 +213,13 @@ public class SourceAndMetadataMap extends AbstractMap<String, Object> implements
             return ZonedDateTime.ofInstant(Instant.ofEpochMilli(number.longValue()), ZoneOffset.UTC);
         }
         throw new IllegalArgumentException(
-            "unexpected type for [" + key + "] with value [" + value + "], expected Number or ZonedDateTime, got [" + value.getClass().getName() + "]"
+            "unexpected type for ["
+                + key
+                + "] with value ["
+                + value
+                + "], expected Number or ZonedDateTime, got ["
+                + value.getClass().getName()
+                + "]"
         );
     }
 
@@ -438,60 +415,6 @@ public class SourceAndMetadataMap extends AbstractMap<String, Object> implements
         return get(VERSION) == null;
     }
 
-    @Override
-    public String getVersionType() {
-        return getString(VERSION_TYPE);
-    }
-
-    @Override
-    public void setVersionType(String versionType) {
-        Metadata.super.setVersionType(versionType);
-    }
-
-    @Override
-    public String getOp() {
-        if (opKey == null) {
-            throw new UnsupportedOperationException();
-        }
-        return getString(opKey);
-    }
-
-    @Override
-    public void setOp(String op) {
-        if (opKey == null) {
-            throw new UnsupportedOperationException();
-        }
-
-        put(opKey, op);
-    }
-
-    @Override
-    public String getType() {
-        return getString(TYPE);
-    }
-
-    @Override
-    public ZonedDateTime getTimestamp() {
-        if (timestampKey == null) {
-            throw new UnsupportedOperationException();
-        }
-
-        return getZonedDateTime(timestampKey);
-    }
-
-    public Number getIfSeqNo() {
-        return getNumber(IF_SEQ_NO);
-    }
-
-    public Number getIfPrimaryTerm() {
-        return getNumber(IF_PRIMARY_TERM);
-    }
-
-    @SuppressWarnings("unchecked")
-    public Map<String, String> getDynamicTemplates() {
-        return (Map<String, String>) metadata.get(DYNAMIC_TEMPLATES);
-    }
-
     /**
      * Allow a String or null
      */
@@ -531,31 +454,6 @@ public class SourceAndMetadataMap extends AbstractMap<String, Object> implements
             throw new IllegalArgumentException(key + " cannot be null");
         }
         longValidator(op, key, value);
-    }
-
-    /**
-     * Allow lower case Strings that map to VersionType values, or null
-     */
-    public static void versionTypeValidator(MapOperation op, String key, Object value) {
-        if (op == MapOperation.REMOVE || value == null) {
-            return;
-        }
-        if (value instanceof String versionType) {
-            try {
-                VersionType.fromString(versionType);
-                return;
-            } catch (IllegalArgumentException ignored) {}
-        }
-        throw new IllegalArgumentException(
-            key
-                + " must be a null or one of ["
-                + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
-                + "] but was ["
-                + value
-                + "] with type ["
-                + value.getClass().getName()
-                + "]"
-        );
     }
 
     /**

@@ -473,10 +473,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             );
             processor.execute(ingestDocument);
             assertThat(ingestDocument.getIngestContext().get("geoip"), nullValue());
-            assertThat(
-                ingestDocument.getIngestContext().get("tags"),
-                equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb"))
-            );
+            assertThat(ingestDocument.getIngestContext().get("tags"), equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
         }
 
         copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");

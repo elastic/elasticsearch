@@ -80,7 +80,7 @@ public final class IngestDocument {
                 deepCopyMap(other.ingestContext.getSource()),
                 deepCopyMap(other.ingestContext.getMetadata()),
                 other.getIngestSourceAndMetadata().timestamp,
-                other.getIngestSourceAndMetadata().validators
+                other.getIngestSourceAndMetadata().getValidators()
             ),
             deepCopyMap(other.ingestMetadata)
         );

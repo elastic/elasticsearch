@@ -32,6 +32,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.script.UpdateSourceAndMetadata;
+import org.elasticsearch.script.UpsertSourceAndMetadata;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -86,10 +88,17 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<Op, Map<String, Object>> executeScriptedUpsert(Script script, UpdateScript.Metadata metadata) {
+    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Script script, UpsertSourceAndMetadata srcAndMeta) {
         // Tell the script that this is a create and not an update (insert from upsert)
-        UpdateScript.Metadata md = executeScript(script, metadata);
-        return new Tuple<>(lenientGetOp(md, logger, script.getIdOrCode()), md.getSource());
+        srcAndMeta = executeScript(script, srcAndMeta);
+        UpdateOpType operation = UpdateOpType.lenientFromString(srcAndMeta.getOp(), logger, script.getIdOrCode());
+        if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
+            // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
+            logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
+            operation = UpdateOpType.NONE;
+        }
+
+        return new Tuple<>(operation, srcAndMeta.getSource());
     }
 
     /**
@@ -104,13 +113,17 @@ public class UpdateHelper {
         if (request.scriptedUpsert() && request.script() != null) {
             // Run the script to perform the create logic
             IndexRequest upsert = request.upsertRequest();
-            Tuple<Op, Map<String, Object>> upsertResult = executeScriptedUpsert(
-                request.script,
-                UpdateScript.insert(getResult.getIndex(), getResult.getId(), Op.CREATE, nowInMillis.getAsLong(), upsert.sourceAsMap())
+            UpsertSourceAndMetadata srcAndMeta = new UpsertSourceAndMetadata(
+                getResult.getIndex(),
+                getResult.getId(),
+                UpdateOpType.CREATE.toString(),
+                nowInMillis.getAsLong(),
+                upsert.sourceAsMap()
             );
+            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(request.script, srcAndMeta);
             switch (upsertResult.v1()) {
                 case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
-                case NOOP -> {
+                case NONE -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
                         getResult.getId(),
@@ -221,23 +234,23 @@ public class UpdateHelper {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
 
-        UpdateScript.Metadata md = executeScript(
+        UpdateSourceAndMetadata srcAndMeta = executeScript(
             request.script,
-            UpdateScript.update(
+            new UpdateSourceAndMetadata(
                 getResult.getIndex(),
                 getResult.getId(),
                 getResult.getVersion(),
                 routing,
-                Op.INDEX, // The default operation is "index"
-                nowInMillis.getAsLong(),
                 MapperService.SINGLE_MAPPING_NAME,
+                UpdateOpType.INDEX.toString(), // The default operation is "index"
+                nowInMillis.getAsLong(),
                 sourceAndContent.v2()
             )
         );
-        Op op = lenientGetOp(md, logger, request.script.getIdOrCode());
-        final Map<String, Object> updatedSourceAsMap = md.getSource();
+        UpdateOpType operation = UpdateOpType.lenientFromString(srcAndMeta.getOp(), logger, request.script.getIdOrCode());
+        final Map<String, Object> updatedSourceAsMap = srcAndMeta.getSource();
 
-        switch (op) {
+        switch (operation) {
             case INDEX -> {
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                     .id(request.id())
@@ -288,11 +301,11 @@ public class UpdateHelper {
         }
     }
 
-    private Metadata executeScript(Script script, Map<String, Object> ctx) {
+    private <T extends UpdateSourceAndMetadata> T executeScript(Script script, T metadata) {
         try {
             if (scriptService != null) {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                UpdateScript executableScript = factory.newInstance(script.getParams(), metadata);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), metadata, metadata);
                 executableScript.execute();
             }
         } catch (Exception e) {
@@ -386,13 +399,43 @@ public class UpdateHelper {
         }
     }
 
-    protected Op lenientGetOp(UpdateScript.Metadata md, Logger logger, String scriptId) {
-        try {
-            return md.getOp();
-        } catch (IllegalArgumentException err) {
-            // TODO: can we remove this leniency yet?? (this comment from 1907c466, April 2017 -@stu)
-            logger.warn("[{}] for script [{}], doing nothing...", err.getMessage(), scriptId);
-            return Op.NOOP;
+    /**
+     * After executing the script, this is the type of operation that will be used for subsequent actions. This corresponds to the "ctx.op"
+     * variable inside of scripts.
+     */
+    enum UpdateOpType {
+        CREATE("create"),
+        INDEX("index"),
+        DELETE("delete"),
+        NONE("none");
+
+        private final String name;
+
+        UpdateOpType(String name) {
+            this.name = name;
+        }
+
+        public static UpdateOpType lenientFromString(String operation, Logger logger, String scriptId) {
+            switch (operation) {
+                case "create":
+                    return UpdateOpType.CREATE;
+                case "index":
+                    return UpdateOpType.INDEX;
+                case "delete":
+                    return UpdateOpType.DELETE;
+                case "noop":
+                case "none":
+                    return UpdateOpType.NONE;
+                default:
+                    // TODO: can we remove this leniency yet??
+                    logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", operation, scriptId);
+                    return UpdateOpType.NONE;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return name;
         }
     }
 

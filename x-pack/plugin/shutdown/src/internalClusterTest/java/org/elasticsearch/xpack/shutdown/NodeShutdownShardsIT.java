@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
@@ -232,6 +234,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         assertBusy(() -> assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId));
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        assertIndexSetting("myindex", "index.routing.allocation.require._name", nodeA);
 
         createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
 
@@ -272,6 +275,36 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                         )
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
+    }
+
+    public void testNodeReplacementAcceptIndexThatCouldNotBeAllocatedAnywhere() throws Exception {
+        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
+        // Create an index on nodeA, then create allocation filter that could not be satisfied.
+        // when we replace it with nodeB, it'll move the data, overridding the `_name` allocation filter
+        createIndex(
+            "myindex",
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeA)
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
+
+        var fakeNodeName = UUIDs.randomBase64UUID();
+        updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.require._name", fakeNodeName));
+
+        final String nodeAId = getNodeId(nodeA);
+        final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
+
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
+        assertNodeShutdownStatus(nodeAId, STALLED);
+
+        internalCluster().startNode(Settings.builder().put("node.name", nodeB));
+        final String nodeBId = getNodeId(nodeB);
+
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
+        assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId);
+        assertIndexSetting("myindex", "index.routing.allocation.require._name", fakeNodeName);
     }
 
     public void testNodeReplacementOnlyToTarget() throws Exception {
@@ -443,7 +476,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         for (int p = 0; p < indexRoutingTable.size(); p++) {
             var primaryShard = indexRoutingTable.shard(p).primaryShard();
             assertThat(
-                "expected all shards for index ["
+                "expected all primary shards for index ["
                     + indexName
                     + "] to be on node ["
                     + nodeId
@@ -455,5 +488,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 equalTo(nodeId)
             );
         }
+    }
+
+    private void assertIndexSetting(String index, String setting, String expectedValue) {
+        var response = client().admin().indices().getSettings(new GetSettingsRequest().indices(index)).actionGet();
+        assertThat(response.getSetting(index, setting), equalTo(expectedValue));
     }
 }

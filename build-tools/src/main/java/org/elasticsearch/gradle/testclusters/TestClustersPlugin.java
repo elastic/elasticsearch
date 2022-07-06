@@ -99,7 +99,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         createListClustersTask(project, container);
 
         // register cluster registry as a global build service
-        project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
+        project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistryService.class, noop());
 
         // register throttle so we only run at most max-workers/2 nodes concurrently
         project.getGradle()
@@ -168,26 +168,26 @@ public class TestClustersPlugin implements Plugin<Project> {
                 throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
             }
 
-            Provider<TestClustersRegistry> registryProvider = GradleUtils.getBuildService(
+            Provider<TestClustersRegistryService> registryProvider = GradleUtils.getBuildService(
                 project.getGradle().getSharedServices(),
                 REGISTRY_SERVICE_NAME
             );
-            TestClustersRegistry registry = registryProvider.get();
+            TestClustersRegistryService registryService = registryProvider.get();
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
             // we use this information to determine when the last task that required the cluster executed so that we can
             // terminate the cluster right away and free up resources.
-            configureClaimClustersHook(project.getGradle(), registry);
+            configureClaimClustersHook(project.getGradle(), registryService);
 
             // Before each task, we determine if a cluster needs to be started for that task.
-            configureStartClustersHook(project.getGradle(), registry);
+            configureStartClustersHook(project.getGradle(), registryService);
 
             // After each task we determine if there are clusters that are no longer needed.
             configureStopClustersHook(registryProvider);
         }
 
-        private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
+        private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistryService registry) {
             // Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
             // claims so we'll know when it's safe to stop them.
             gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
@@ -200,7 +200,8 @@ public class TestClustersPlugin implements Plugin<Project> {
             });
         }
 
-        private static void configureStartClustersHook(Gradle gradle, TestClustersRegistry registry) {
+        private static void configureStartClustersHook(Gradle gradle, TestClustersRegistryService service) {
+            TestClustersRegistry registry = service.getRegistry();
             gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
                 taskExecutionGraph.getAllTasks().stream().filter(task -> task instanceof TestClustersAware).forEach(task -> {
                     task.doFirst(new Action<Task>() {
@@ -216,7 +217,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             });
         }
 
-        private void configureStopClustersHook(Provider<TestClustersRegistry> registry) {
+        private void configureStopClustersHook(Provider<TestClustersRegistryService> registry) {
             getBuildEventsListenerRegistry().onTaskCompletion(registry);
         }
 

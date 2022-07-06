@@ -5,14 +5,12 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
 package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.services.BuildService;
-import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.tooling.events.FinishEvent;
-import org.gradle.tooling.events.OperationCompletionListener;
 import org.gradle.tooling.events.task.TaskFailureResult;
 import org.gradle.tooling.events.task.TaskFinishEvent;
 
@@ -22,8 +20,8 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-public abstract class TestClustersRegistry implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {
-    private static final Logger logger = Logging.getLogger(TestClustersRegistry.class);
+public class TestClustersRegistry {
+    private static final Logger logger = Logging.getLogger(TestClustersRegistryService.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
@@ -48,7 +46,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         cluster.start();
     }
 
-    @Override
     public void onFinish(FinishEvent finishEvent) {
         TaskFinishEvent taskFinishEvent = (TaskFinishEvent) finishEvent;
         String taskPath = taskFinishEvent.getDescriptor().getTaskPath();
@@ -59,6 +56,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         }
     }
 
+
     private void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
         if (taskFailed) {
             // If the task fails, and other tasks use this cluster, the other task will likely never be
@@ -68,8 +66,8 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
                 // task failed or this is the last one to stop
                 for (int i = 1;; i += i) {
                     logger.lifecycle(
-                        "No more test clusters left to run, going to sleep because {} was set," + " interrupt (^C) to stop clusters.",
-                        TESTCLUSTERS_INSPECT_FAILURE
+                            "No more test clusters left to run, going to sleep because {} was set," + " interrupt (^C) to stop clusters.",
+                            TESTCLUSTERS_INSPECT_FAILURE
                     );
                     try {
                         Thread.sleep(1000 * i);
@@ -92,4 +90,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             }
         }
     }
+
+
 }

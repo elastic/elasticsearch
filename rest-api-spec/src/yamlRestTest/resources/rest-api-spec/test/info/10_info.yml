@@ -7,3 +7,4 @@
     - is_true:    tagline
     - is_true:    version
     - is_true:    version.number
+    - match:      { version.build_flavor: default }

@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentSer
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Collections;
@@ -91,6 +92,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     private final TrainedModelAssignmentService trainedModelAssignmentService;
     private final NamedXContentRegistry xContentRegistry;
     private final MlMemoryTracker memoryTracker;
+    private final InferenceAuditor auditor;
     protected volatile int maxLazyMLNodes;
     protected volatile long maxMLNodeSize;
 
@@ -106,7 +108,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         Settings settings,
         TrainedModelAssignmentService trainedModelAssignmentService,
         NamedXContentRegistry xContentRegistry,
-        MlMemoryTracker memoryTracker
+        MlMemoryTracker memoryTracker,
+        InferenceAuditor auditor
     ) {
         super(
             StartTrainedModelDeploymentAction.NAME,
@@ -124,6 +127,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.trainedModelAssignmentService = Objects.requireNonNull(trainedModelAssignmentService);
+        this.auditor = Objects.requireNonNull(auditor);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
@@ -280,11 +284,12 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             timeout,
             new TrainedModelAssignmentService.WaitForAssignmentListener() {
                 @Override
-                public void onResponse(TrainedModelAssignment allocation) {
+                public void onResponse(TrainedModelAssignment assignment) {
                     if (predicate.exception != null) {
                         deleteFailedDeployment(modelId, predicate.exception, listener);
                     } else {
-                        listener.onResponse(new CreateTrainedModelAssignmentAction.Response(allocation));
+                        auditor.info(assignment.getModelId(), Messages.INFERENCE_DEPLOYMENT_STARTED);
+                        listener.onResponse(new CreateTrainedModelAssignmentAction.Response(assignment));
                     }
                 }
 

@@ -24,9 +24,12 @@ import java.util.stream.Collectors;
 
 /**
  * Container that holds the source and metadata for write scripts.  Acts like a map for backwards compatibilty with
- * ctx and implements {@link Metadata} so that scripts can use the newer API for setting.
+ * ctx and implements {@link Metadata} so that scripts can use the newer API for reading and writing metadata values.
  *
- * Common metadata keys are
+ * Keeps two maps, a {@link #metadata} map for metadata mappings and a {@link #source} map for all other mappings.
+ * A mapping belongs in metadata if and only if there is a {@link Validator} for the mapping.
+ *
+ * Validators ensure modifications to the metadata map are always valid so getters are exception free.
  */
 public abstract class SourceAndMetadataMap extends AbstractMap<String, Object> implements Metadata {
     public static final String INDEX = "_index";
@@ -468,12 +471,23 @@ public abstract class SourceAndMetadataMap extends AbstractMap<String, Object> i
         );
     }
 
+    /**
+     * The operation being performed on the value in the map.
+     * INIT: Initial value - the metadata value as passed into this class
+     * UPDATE: the metadata is being set to a different value
+     * REMOVE: the metadata mapping is being removed
+     */
     public enum MapOperation {
         INIT,
         UPDATE,
         REMOVE
     }
 
+    /**
+     * A "TriConsumer" that tests if the {@link MapOperation}, the metadata key and value are valid.
+     *
+     * @throws IllegalArgumentException if the given triple is invalid
+     */
     @FunctionalInterface
     public interface Validator {
         void accept(MapOperation op, String key, Object value);

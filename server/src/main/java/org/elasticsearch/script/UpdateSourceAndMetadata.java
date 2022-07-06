@@ -137,6 +137,9 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         return getZonedDateTime(TIMESTAMP);
     }
 
+    /**
+     * A validator that allows string values to be set once but neither updated nor removed.
+     */
     public static void setOnceStringValidator(MapOperation op, String key, Object value) {
         if (op != MapOperation.INIT) {
             throw new IllegalArgumentException("Cannot " + op.name().toLowerCase(Locale.ROOT) + " key [" + key + "]");
@@ -144,6 +147,9 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         stringValidator(op, key, value);
     }
 
+    /**
+     * Same as {@link #longValidator(MapOperation, String, Object)} but allows longs to be set once and neither updated nor removed.
+     */
     public static void setOnceLongValidator(MapOperation op, String key, Object value) {
         if (op != MapOperation.INIT) {
             throw new IllegalArgumentException("Cannot " + op.name().toLowerCase(Locale.ROOT) + " key [" + key + "]");
@@ -151,6 +157,9 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         longValidator(op, key, value);
     }
 
+    /**
+     *
+     */
     public static Validator opValidatorFromValidOps(Set<String> validOps) {
         return new Validator() {
             @Override

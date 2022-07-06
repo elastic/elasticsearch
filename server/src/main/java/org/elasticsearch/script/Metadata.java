@@ -11,7 +11,10 @@ package org.elasticsearch.script;
 import java.time.ZonedDateTime;
 
 /**
- * Ingest and update metadata available to write scripts
+ * Ingest and update metadata available to write scripts.
+ *
+ * This interface is a super-set of all metadata for the write contexts.  A write contexts should only
+ * whitelist the relevant getter and setters.
  */
 public interface Metadata {
     /**
@@ -48,6 +51,7 @@ public interface Metadata {
 
     /**
      * The version type of the document, {@link org.elasticsearch.index.VersionType} as a lower-case string.
+     * Since update does not hav ethis metadata, defaults to throwing {@link UnsupportedOperationException}.
      */
     default String getVersionType() {
         throw new UnsupportedOperationException();
@@ -55,26 +59,36 @@ public interface Metadata {
 
     /**
      * Set the version type of the document.
+     *
+     * Since update does not hav ethis metadata, defaults to throwing {@link UnsupportedOperationException}
      * @param versionType {@link org.elasticsearch.index.VersionType} as a lower-case string
      */
     default void setVersionType(String versionType) {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Get the update operation for this document, eg "create", "index", "noop".
+     *
+     * Since ingest does not have this metadata, defaults to throwing {@link UnsupportedOperationException}.
+     */
     default String getOp() {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Set the update operation for this document.  See {@code org.elasticsearch.action.update.UpdateHelper.UpdateOpType} and
+     * {@code org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.OpType}
+     *
+     * Since ingest does not have this metadata, defaults to throwing {@link UnsupportedOperationException}.
+     * @param op the op type as a string.
+     */
     default void setOp(String op) {
         throw new UnsupportedOperationException();
     }
 
-    default String getType() {
-        throw new UnsupportedOperationException();
-    }
-
     /**
-     * Timestamp of this ingestion or update
+     * Timestamp of this ingestion or update.
      */
     ZonedDateTime getTimestamp();
 }

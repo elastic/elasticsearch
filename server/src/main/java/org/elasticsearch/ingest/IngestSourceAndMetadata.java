@@ -154,10 +154,12 @@ class IngestSourceAndMetadata extends SourceAndMetadataMap {
     }
 
     // timestamp isn't backed by the map
+    @Override
     public ZonedDateTime getTimestamp() {
         return timestamp;
     }
 
+    @Override
     public long getVersion() {
         Number version = getNumber(VERSION);
         assert version != null : VERSION + " validation allowed null version";
@@ -174,11 +176,7 @@ class IngestSourceAndMetadata extends SourceAndMetadataMap {
         put(VERSION_TYPE, versionType);
     }
 
-    @Override
-    public String getType() {
-        return getString(TYPE);
-    }
-
+    // These getters are inaccessible to scripts but live in the same map
     public Number getIfSeqNo() {
         return getNumber(IF_SEQ_NO);
     }

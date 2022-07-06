@@ -27,7 +27,7 @@ import org.elasticsearch.common.inject.CreationException;
 @ConverterKeys({ "consoleException" })
 public class ConsoleThrowablePatternConverter extends ThrowablePatternConverter {
 
-    // true if exceptions shoudwhether exception formatting should always be delegated to the super class
+    // true if exceptions should be truncated, false if they should be delegated to the super class
     private final boolean enabled;
 
     private ConsoleThrowablePatternConverter(String[] options, Configuration config, boolean enabled) {

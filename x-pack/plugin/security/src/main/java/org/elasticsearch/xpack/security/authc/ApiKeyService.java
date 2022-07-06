@@ -380,11 +380,11 @@ public class ApiKeyService {
                 throw new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]");
             }
 
-            final VersionedApiKeyDoc versionedDoc = singleDoc(apiKeyId, versionedDocs);
+            final VersionedApiKeyDocWithSource versionedDoc = singleDoc(apiKeyId, versionedDocs);
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
-            doUpdateApiKey(authentication, request, userRoles, listener, versionedDoc);
+            doUpdateApiKey(authentication, request, userRoles, versionedDoc, listener);
         }, listener::onFailure));
     }
 
@@ -392,16 +392,16 @@ public class ApiKeyService {
         final Authentication authentication,
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles,
-        final ActionListener<UpdateApiKeyResponse> listener,
-        final VersionedApiKeyDoc versionedDoc
+        final VersionedApiKeyDocWithSource currentVersionedDoc,
+        final ActionListener<UpdateApiKeyResponse> listener
     ) throws IOException {
         logger.trace(
             "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
             request.getId(),
-            versionedDoc.seqNo(),
-            versionedDoc.primaryTerm()
+            currentVersionedDoc.seqNo(),
+            currentVersionedDoc.primaryTerm()
         );
-        final var currentDocVersion = Version.fromId(versionedDoc.doc().version);
+        final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
         final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
@@ -417,7 +417,7 @@ public class ApiKeyService {
             .setId(request.getId())
             .setSource(
                 buildUpdatedDocument(
-                    versionedDoc.doc(),
+                    currentVersionedDoc.doc(),
                     authentication,
                     userRoles,
                     request.getRoleDescriptors(),
@@ -425,12 +425,12 @@ public class ApiKeyService {
                     request.getMetadata()
                 )
             )
-            .setIfSeqNo(versionedDoc.seqNo())
-            .setIfPrimaryTerm(versionedDoc.primaryTerm())
+            .setIfSeqNo(currentVersionedDoc.seqNo())
+            .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
             .setOpType(DocWriteRequest.OpType.INDEX)
             .request();
 
-        final boolean isNoop = indexRequest.source().equals(versionedDoc.source());
+        final boolean isNoop = indexRequest.source().equals(currentVersionedDoc.source());
         if (isNoop) {
             logger.trace("Noop update request for API key [{}] detected. Skipping index request.", request.getId());
             listener.onResponse(new UpdateApiKeyResponse(false));
@@ -440,8 +440,8 @@ public class ApiKeyService {
         logger.trace(
             "Executing update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
             request.getId(),
-            versionedDoc.seqNo(),
-            versionedDoc.primaryTerm()
+            currentVersionedDoc.seqNo(),
+            currentVersionedDoc.primaryTerm()
         );
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
@@ -1142,7 +1142,7 @@ public class ApiKeyService {
     private void findVersionedApiKeyDocsForSubject(
         final Authentication authentication,
         final String[] apiKeyIds,
-        final ActionListener<Collection<VersionedApiKeyDoc>> listener
+        final ActionListener<Collection<VersionedApiKeyDocWithSource>> listener
     ) {
         assert authentication.isApiKey() == false;
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
@@ -1287,7 +1287,7 @@ public class ApiKeyService {
         }
     }
 
-    private static VersionedApiKeyDoc singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
+    private static VersionedApiKeyDocWithSource singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDocWithSource> elements) {
         if (elements.size() != 1) {
             final var message = "expected single API key doc with ID ["
                 + apiKeyId
@@ -1543,17 +1543,22 @@ public class ApiKeyService {
         );
     }
 
-    private static VersionedApiKeyDoc convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
+    private static VersionedApiKeyDocWithSource convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
         try (
             XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, hit.getSourceRef(), XContentType.JSON)
         ) {
-            return new VersionedApiKeyDoc(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm(), hit.getSourceRef());
+            return new VersionedApiKeyDocWithSource(
+                ApiKeyDoc.fromXContent(parser),
+                hit.getSeqNo(),
+                hit.getPrimaryTerm(),
+                hit.getSourceRef()
+            );
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
 
-    private record VersionedApiKeyDoc(ApiKeyDoc doc, long seqNo, long primaryTerm, BytesReference source) {}
+    private record VersionedApiKeyDocWithSource(ApiKeyDoc doc, long seqNo, long primaryTerm, BytesReference source) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {

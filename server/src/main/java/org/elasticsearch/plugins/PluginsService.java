@@ -87,7 +87,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             "org.elasticsearch.server",
             "org.elasticsearch.xcore",
             "org.elasticsearch.xcontent",
-            "org.apache.lucene.core"
+            "org.apache.lucene.core",
+            "t.digest"
         ),
         "x-pack-fleet",
         Set.of(

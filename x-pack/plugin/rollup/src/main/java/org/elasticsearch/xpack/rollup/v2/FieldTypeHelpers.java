@@ -22,7 +22,7 @@ public class FieldTypeHelpers {
         private final Map<String, Object> indexMapping;
         private final IndexMetadata indexMetadata;
 
-        public Builder(final IndicesService indicesService, final Map<String, Object> indexMapping, final IndexMetadata indexMetadata) {
+        Builder(final IndicesService indicesService, final Map<String, Object> indexMapping, final IndexMetadata indexMetadata) {
             this.indicesService = indicesService;
             this.indexMapping = indexMapping;
             this.indexMetadata = indexMetadata;

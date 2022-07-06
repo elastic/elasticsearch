@@ -22,7 +22,7 @@ class TimeseriesFieldTypeHelper implements FieldTypeHelper {
     private final MapperService mapperService;
     private final String timestampField;
 
-    public TimeseriesFieldTypeHelper(final MapperService mapperService, final String timestampField) {
+    TimeseriesFieldTypeHelper(final MapperService mapperService, final String timestampField) {
         this.mapperService = mapperService;
         this.timestampField = timestampField;
     }

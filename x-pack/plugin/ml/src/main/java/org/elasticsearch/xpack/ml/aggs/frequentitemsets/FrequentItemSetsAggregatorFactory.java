@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregation;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,7 +98,18 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
             );
         }
 
-        return new EclatFrequentItemSetAggregator(name, context, parent, metadata, configs, minimumSupport, minimumSetSize, size);
+        return new MapReduceAggregator<
+            HashBasedTransactionStore,
+            ImmutableTransactionStore,
+            HashBasedTransactionStore,
+            EclatMapReducer.EclatResult>(
+                name,
+                context,
+                parent,
+                metadata,
+                new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, minimumSupport, minimumSetSize, size),
+                configs
+            ) {
+        };
     }
-
 }

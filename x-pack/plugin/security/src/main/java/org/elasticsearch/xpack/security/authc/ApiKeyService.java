@@ -388,76 +388,6 @@ public class ApiKeyService {
         }, listener::onFailure));
     }
 
-    private void doUpdateApiKey(
-        final Authentication authentication,
-        final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles,
-        final VersionedApiKeyDocWithSource currentVersionedDoc,
-        final ActionListener<UpdateApiKeyResponse> listener
-    ) throws IOException {
-        logger.trace(
-            "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
-            request.getId(),
-            currentVersionedDoc.seqNo(),
-            currentVersionedDoc.primaryTerm()
-        );
-        final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
-        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
-        assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
-        if (currentDocVersion.before(targetDocVersion)) {
-            logger.debug(
-                "API key update for [{}] will update version from [{}] to [{}]",
-                request.getId(),
-                currentDocVersion,
-                targetDocVersion
-            );
-        }
-
-        final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-            .setId(request.getId())
-            .setSource(
-                buildUpdatedDocument(
-                    currentVersionedDoc.doc(),
-                    authentication,
-                    userRoles,
-                    request.getRoleDescriptors(),
-                    targetDocVersion,
-                    request.getMetadata()
-                )
-            )
-            .setIfSeqNo(currentVersionedDoc.seqNo())
-            .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
-            .setOpType(DocWriteRequest.OpType.INDEX)
-            .request();
-
-        final boolean isNoop = indexRequest.source().equals(currentVersionedDoc.source());
-        if (isNoop) {
-            logger.trace("Noop update request for API key [{}] detected. Skipping index request.", request.getId());
-            listener.onResponse(new UpdateApiKeyResponse(false));
-            return;
-        }
-
-        logger.trace(
-            "Executing update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
-            request.getId(),
-            currentVersionedDoc.seqNo(),
-            currentVersionedDoc.primaryTerm()
-        );
-        securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
-                ActionListener.<BulkResponse>wrap(
-                    bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
-                    listener::onFailure
-                ),
-                client::bulk
-            )
-        );
-    }
-
     // package-private for testing
     void validateCurrentApiKeyDocForUpdate(String apiKeyId, Authentication authentication, ApiKeyDoc apiKeyDoc) {
         assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.get("principal"));
@@ -1034,6 +964,76 @@ public class ApiKeyService {
                 apiKeyId
             );
         }
+    }
+
+    private void doUpdateApiKey(
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles,
+        final VersionedApiKeyDocWithSource currentVersionedDoc,
+        final ActionListener<UpdateApiKeyResponse> listener
+    ) throws IOException {
+        logger.trace(
+            "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
+            request.getId(),
+            currentVersionedDoc.seqNo(),
+            currentVersionedDoc.primaryTerm()
+        );
+        final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
+        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
+        assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
+        if (currentDocVersion.before(targetDocVersion)) {
+            logger.debug(
+                "API key update for [{}] will update version from [{}] to [{}]",
+                request.getId(),
+                currentDocVersion,
+                targetDocVersion
+            );
+        }
+
+        final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
+            .setId(request.getId())
+            .setSource(
+                buildUpdatedDocument(
+                    currentVersionedDoc.doc(),
+                    authentication,
+                    userRoles,
+                    request.getRoleDescriptors(),
+                    targetDocVersion,
+                    request.getMetadata()
+                )
+            )
+            .setIfSeqNo(currentVersionedDoc.seqNo())
+            .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
+            .setOpType(DocWriteRequest.OpType.INDEX)
+            .request();
+
+        final boolean isNoop = indexRequest.source().equals(currentVersionedDoc.source());
+        if (isNoop) {
+            logger.trace("Noop update request for API key [{}] detected. Skipping index request.", request.getId());
+            listener.onResponse(new UpdateApiKeyResponse(false));
+            return;
+        }
+
+        logger.trace(
+            "Executing update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
+            request.getId(),
+            currentVersionedDoc.seqNo(),
+            currentVersionedDoc.primaryTerm()
+        );
+        securityIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
+                ActionListener.<BulkResponse>wrap(
+                    bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
+                    listener::onFailure
+                ),
+                client::bulk
+            )
+        );
     }
 
     /**

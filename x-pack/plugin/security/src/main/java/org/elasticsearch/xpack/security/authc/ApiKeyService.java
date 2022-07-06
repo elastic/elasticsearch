@@ -1015,12 +1015,7 @@ public class ApiKeyService {
             return;
         }
 
-        logger.trace(
-            "Executing update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
-            request.getId(),
-            currentVersionedDoc.seqNo(),
-            currentVersionedDoc.primaryTerm()
-        );
+        logger.trace("Executing index request to update API key [{}]", request.getId());
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(

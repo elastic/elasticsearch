@@ -91,6 +91,7 @@ import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.operator.service.FileSettingsService;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
@@ -520,7 +521,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
-        HealthNodeTaskExecutor.ENABLED_SETTING
+        HealthNodeTaskExecutor.ENABLED_SETTING,
+        FileSettingsService.OPERATOR_DIRECTORY
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

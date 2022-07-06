@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -260,6 +261,20 @@ public final class ExceptionsHelper {
                 new Thread(() -> { throw error; }).start();
             }
         });
+    }
+
+    public static void unwrap(Throwable t, Consumer<Throwable> errorListener, int limit) {
+        int counter = 0;
+        Throwable cause;
+        Throwable prev = t;
+        errorListener.accept(prev);
+        while ((cause = prev.getCause()) != null && (prev != cause)) {
+            prev = cause;
+            errorListener.accept(prev);
+            if (counter++ > limit) {
+                return;
+            }
+        }
     }
 
     /**

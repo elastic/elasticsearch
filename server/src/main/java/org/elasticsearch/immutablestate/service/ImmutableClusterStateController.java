@@ -10,6 +10,7 @@ package org.elasticsearch.immutablestate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -111,11 +112,18 @@ public class ImmutableClusterStateController {
         try {
             immutableStatePackage = packageParser.apply(parser, null);
         } catch (Exception e) {
-            List<String> errors = List.of(e.getMessage());
+            StringBuilder stringBuilder = new StringBuilder();
+            ExceptionsHelper.unwrap(e, (t) -> stringBuilder.append(t.getMessage()).append(", "), 20);
+            if (stringBuilder.length() > 2) {
+                stringBuilder.setLength(stringBuilder.length() - 2);
+            }
+            List<String> errors = List.of(stringBuilder.toString());
             recordErrorState(new ImmutableUpdateErrorState(namespace, -1L, errors, ImmutableStateErrorMetadata.ErrorKind.PARSING));
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            errorListener.accept(
+                new IllegalStateException("Error processing state change request for " + namespace + ", with errors: " + stringBuilder, e)
+            );
             return;
         }
 

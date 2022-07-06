@@ -134,6 +134,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.operator.service.FileSettingsService;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
@@ -1010,6 +1011,11 @@ public class Node implements Closeable {
                 modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
             }
 
+            modules.add(
+                b -> b.bind(FileSettingsService.class)
+                    .toInstance(new FileSettingsService(clusterService, actionModule.getImmutableClusterStateController(), environment))
+            );
+
             injector = modules.createInjector();
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
@@ -1164,6 +1170,7 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             injector.getInstance(ReadinessService.class).start();
         }
+        injector.getInstance(FileSettingsService.class).start();
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -1312,6 +1319,7 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             injector.getInstance(ReadinessService.class).stop();
         }
+        injector.getInstance(FileSettingsService.class).stop();
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
@@ -1395,6 +1403,7 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
+        toClose.add(injector.getInstance(FileSettingsService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

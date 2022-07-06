@@ -427,4 +427,95 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         });
     }
 
+    public void testOperatorControllerWithBadJSONContent() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        controller.initHandlers(
+            List.of(
+                new ImmutableClusterSettingsAction(clusterSettings),
+                new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
+            )
+        );
+
+        String testJSON = """
+            {
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     },
+                     "ilm": {
+                         "my_timeseries_lifecycle": {
+                            "policy": {
+                                 "phases": {
+                                     "hot": {
+                                         "min_age": "10s",
+                                         "actions": {
+                                            "rollover": {
+                                               "max_primary_shard_size": "50gb",
+                                               "max_age": "30d"
+                                            }
+                                         }
+                                     },
+                                     "delete": {
+                                         "min_age": "30s",
+                                         "actions": {
+                                         }
+                                     }
+                                 }
+                            }
+                         },
+                         "my_timeseries_lifecycle1": {
+                             "phases": {
+                                 "warm": {
+                                     "min_age": "10s",
+                                     "actions": {
+                                        "shrink": {
+                                          "number_of_shards": 1
+                                        },
+                                        "forcemerge": {
+                                          "max_num_segments": 1
+                                        }
+                                     }
+                                 },
+                                 "delete": {
+                                     "min_age": "30s",
+                                     "actions": {
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+            }""";
+
+        AtomicReference<Exception> x = new AtomicReference<>();
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> x.set(e));
+
+            assertTrue(x.get() instanceof IllegalStateException);
+            assertEquals(
+                "Error processing state change request for operator, with errors: "
+                    + "[51:10] [immutable_cluster_package] failed to parse field [state], [51:10] [state] "
+                    + "failed to parse field [ilm], [1:2] [lifecycle_policy] unknown field [policy]",
+                x.get().getMessage()
+            );
+        }
+    }
+
 }

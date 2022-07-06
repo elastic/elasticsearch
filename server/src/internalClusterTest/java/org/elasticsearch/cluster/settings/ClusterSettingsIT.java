@@ -402,17 +402,6 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         state = client().admin().cluster().prepareState().get().getState();
         assertTrue(state.getMetadata().persistentSettings().getAsBoolean("archived.this.is.unknown", false));
 
-        // cannot remove read only block due to archived settings
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> {
-            Settings.Builder builder = Settings.builder();
-            clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
-            clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
-            assertAcked(
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).setTransientSettings(builder).get()
-            );
-        });
-        assertTrue(e1.getMessage().contains("unknown setting [archived.this.is.unknown]"));
-
         // fail to clear archived settings with non-archived settings
         final ClusterBlockException e2 = expectThrows(
             ClusterBlockException.class,

@@ -54,9 +54,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().get("source_field"), equalTo("8.8.8.8"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("8.8.8.8"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(6));
         assertThat(geoData.get("ip"), equalTo("8.8.8.8"));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -171,9 +171,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().get("source_field"), equalTo(address));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(address));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(9));
         assertThat(geoData.get("ip"), equalTo(address));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
@@ -208,9 +208,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().get("source_field"), equalTo("80.231.5.0"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("80.231.5.0"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(1));
         assertThat(geoData.get("ip"), equalTo("80.231.5.0"));
     }
@@ -234,9 +234,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().get("source_field"), equalTo("82.170.213.79"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("82.170.213.79"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(4));
         assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
@@ -263,9 +263,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().get("source_field"), equalTo("80.231.5.0"));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("80.231.5.0"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(1));
         assertThat(geoData.get("ip"), equalTo("80.231.5.0"));
     }
@@ -290,9 +290,9 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().get("source_field"), equalTo(ip));
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(4));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("asn"), equalTo(1136L));
@@ -318,7 +318,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         document.put("source_field", "127.0.0.1");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getIngestContext().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
     }
 
     /**
@@ -365,7 +365,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getIngestContext().get("target_field");
+        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
 
         Map<String, Object> location = new HashMap<>();
         location.put("lat", 37.751d);
@@ -395,7 +395,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getIngestContext().get("target_field");
+        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
 
         Map<String, Object> location = new HashMap<>();
         location.put("lat", 37.751d);
@@ -447,7 +447,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getIngestContext().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
 
         Map<String, Object> location = new HashMap<>();
         location.put("lat", 37.751d);
@@ -474,7 +474,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
     }
 
     public void testInvalidDatabase() throws Exception {
@@ -496,8 +496,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        assertThat(ingestDocument.getIngestContext().containsKey("target_field"), is(false));
-        assertThat(ingestDocument.getIngestContext(), hasEntry("tags", List.of("_geoip_expired_database")));
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_expired_database")));
     }
 
     public void testNoDatabase() throws Exception {
@@ -519,8 +519,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getIngestContext().containsKey("target_field"), is(false));
-        assertThat(ingestDocument.getIngestContext(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City")));
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City")));
     }
 
     public void testNoDatabase_ignoreMissing() throws Exception {

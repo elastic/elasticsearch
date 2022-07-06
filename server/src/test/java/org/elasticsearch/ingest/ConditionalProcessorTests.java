@@ -109,8 +109,8 @@ public class ConditionalProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
         execProcessor(processor, ingestDocument, (result, e) -> {});
-        assertThat(ingestDocument.getIngestContext().get(conditionalField), is(falseValue));
-        assertThat(ingestDocument.getIngestContext(), not(hasKey("foo")));
+        assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
+        assertThat(ingestDocument.getSourceAndMetadata(), not(hasKey("foo")));
         assertStats(processor, 0, 0, 0);
         assertEquals(scriptName, processor.getCondition());
 
@@ -124,8 +124,8 @@ public class ConditionalProcessorTests extends ESTestCase {
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, trueValue);
         execProcessor(processor, ingestDocument, (result, e) -> {});
-        assertThat(ingestDocument.getIngestContext().get(conditionalField), is(trueValue));
-        assertThat(ingestDocument.getIngestContext().get("foo"), is("bar"));
+        assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(trueValue));
+        assertThat(ingestDocument.getSourceAndMetadata().get("foo"), is("bar"));
         assertStats(processor, 1, 0, 1);
 
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

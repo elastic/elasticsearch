@@ -66,7 +66,7 @@ public final class RemoveProcessor extends AbstractProcessor {
     }
 
     private void fieldsToKeepProcessor(IngestDocument document) {
-        IngestDocument.getAllFields(document.getIngestContext())
+        IngestDocument.getAllFields(document.getSourceAndMetadata())
             .stream()
             .filter(documentField -> IngestDocument.Metadata.isMetadata(documentField) == false)
             .filter(documentField -> shouldKeep(documentField, fieldsToKeep, document) == false)

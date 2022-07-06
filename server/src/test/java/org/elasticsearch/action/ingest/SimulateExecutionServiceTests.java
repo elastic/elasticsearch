@@ -88,8 +88,8 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(simulateDocumentVerboseResult.getProcessorResults().get(1).getProcessorTag(), equalTo("test-id"));
         assertVerboseResult(simulateDocumentVerboseResult.getProcessorResults().get(1), pipeline.getId(), ingestDocument);
         assertThat(
-            simulateDocumentVerboseResult.getProcessorResults().get(1).getIngestDocument().getIngestContext(),
-            not(sameInstance(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument().getIngestContext()))
+            simulateDocumentVerboseResult.getProcessorResults().get(1).getIngestDocument().getSourceAndMetadata(),
+            not(sameInstance(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument().getSourceAndMetadata()))
         );
         assertThat(simulateDocumentVerboseResult.getProcessorResults().get(1).getFailure(), nullValue());
     }
@@ -381,7 +381,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
                 result.getIngestDocument().getMetadataMap().get(IngestDocument.Metadata.ID.getFieldName()),
                 equalTo(Integer.toString(id))
             );
-            assertThat(result.getIngestDocument().getIngestContext().get("processed"), is(true));
+            assertThat(result.getIngestDocument().getSourceAndMetadata().get("processed"), is(true));
         }
     }
 
@@ -399,7 +399,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
         assertThat(simulateVerboseIngestDocument, not(sameInstance(expectedIngestDocument)));
         assertIngestDocument(simulateVerboseIngestDocument, expectedIngestDocument);
-        assertThat(simulateVerboseIngestDocument.getIngestContext(), not(sameInstance(expectedIngestDocument.getIngestContext())));
+        assertThat(simulateVerboseIngestDocument.getSourceAndMetadata(), not(sameInstance(expectedIngestDocument.getSourceAndMetadata())));
     }
 
 }

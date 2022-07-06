@@ -102,7 +102,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             Map.of("_field", "89.160.20.128")
                         );
                         processor1.execute(document1);
-                        assertThat(document1.getIngestContext().get("geoip"), notNullValue());
+                        assertThat(document1.getSourceAndMetadata().get("geoip"), notNullValue());
                         IngestDocument document2 = new IngestDocument(
                             "index",
                             "id",
@@ -112,7 +112,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             Map.of("_field", "89.160.20.128")
                         );
                         processor2.execute(document2);
-                        assertThat(document2.getIngestContext().get("geoip"), notNullValue());
+                        assertThat(document2.getSourceAndMetadata().get("geoip"), notNullValue());
                         numberOfIngestRuns.incrementAndGet();
                     } catch (Exception | AssertionError e) {
                         logger.error("error in ingest thread after run [" + numberOfIngestRuns.get() + "]", e);

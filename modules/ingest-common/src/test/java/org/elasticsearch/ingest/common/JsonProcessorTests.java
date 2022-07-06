@@ -157,7 +157,7 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);
 
-        Map<String, Object> sourceAndMetadata = ingestDocument.getIngestContext();
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
         assertEquals(1, sourceAndMetadata.get("a"));
         assertEquals(2, sourceAndMetadata.get("b"));
         assertEquals("see", sourceAndMetadata.get("c"));
@@ -175,7 +175,7 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         lenientJsonProcessor.execute(ingestDocument);
 
-        Map<String, Object> sourceAndMetadata = ingestDocument.getIngestContext();
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
         assertEquals(2, sourceAndMetadata.get("a"));
         assertEquals("see", sourceAndMetadata.get("c"));
 

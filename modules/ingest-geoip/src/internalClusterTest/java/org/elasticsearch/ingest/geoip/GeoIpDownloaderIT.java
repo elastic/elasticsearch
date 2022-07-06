@@ -298,9 +298,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 assertThat(result.getIngestDocument(), notNullValue());
 
                 IngestDocument doc = result.getIngestDocument();
-                assertThat(doc.getIngestContext(), hasKey("ip-city"));
-                assertThat(doc.getIngestContext(), hasKey("ip-asn"));
-                assertThat(doc.getIngestContext(), hasKey("ip-country"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-city"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-asn"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-country"));
 
                 assertThat(doc.getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
                 assertThat(doc.getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
@@ -362,7 +362,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             SimulateDocumentBaseResult result = simulatePipeline();
             assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument(), notNullValue());
-            Map<String, Object> source = result.getIngestDocument().getIngestContext();
+            Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
             assertThat(
                 source,
                 hasEntry(
@@ -388,7 +388,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument(), notNullValue());
 
-            Map<?, ?> source = result.getIngestDocument().getIngestContext();
+            Map<?, ?> source = result.getIngestDocument().getSourceAndMetadata();
             assertThat(source, not(hasKey("tags")));
             assertThat(source, hasKey("ip-city"));
             assertThat(source, hasKey("ip-asn"));

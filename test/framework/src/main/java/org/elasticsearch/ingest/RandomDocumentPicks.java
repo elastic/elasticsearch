@@ -62,7 +62,7 @@ public final class RandomDocumentPicks {
      * field.
      */
     public static String randomExistingFieldName(Random random, IngestDocument ingestDocument) {
-        Map<String, Object> source = new TreeMap<>(ingestDocument.getIngestContext());
+        Map<String, Object> source = new TreeMap<>(ingestDocument.getSourceAndMetadata());
         Map.Entry<String, Object> randomEntry = getRandomEntry(random, source.entrySet());
         String key = randomEntry.getKey();
         while (randomEntry.getValue() instanceof Map) {
@@ -111,7 +111,7 @@ public final class RandomDocumentPicks {
      */
     public static boolean canAddField(String path, IngestDocument ingestDocument) {
         String[] pathElements = path.split("\\.");
-        Map<String, Object> innerMap = ingestDocument.getIngestContext();
+        Map<String, Object> innerMap = ingestDocument.getSourceAndMetadata();
         if (pathElements.length > 1) {
             for (int i = 0; i < pathElements.length - 1; i++) {
                 Object currentLevel = innerMap.get(pathElements[i]);

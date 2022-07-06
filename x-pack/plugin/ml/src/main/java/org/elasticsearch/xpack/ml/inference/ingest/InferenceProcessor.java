@@ -144,7 +144,7 @@ public class InferenceProcessor extends AbstractProcessor {
     }
 
     InferModelAction.Request buildRequest(IngestDocument ingestDocument) {
-        Map<String, Object> fields = new HashMap<>(ingestDocument.getIngestContext());
+        Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
         // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
         if (ingestDocument.getIngestMetadata().isEmpty() == false) {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());

@@ -40,6 +40,7 @@ import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -67,7 +68,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     abstract public MapProperty<String, String> getEnvironment();
 
     @Input
-    abstract public Property<String> getExecutable();
+    abstract public Property<String> getExecutableProperty();
 
     @Input
     @Optional
@@ -131,7 +132,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                     ? new TeeOutputStream(new IndentingOutputStream(System.err, getOutputIndenting().get()), effectiveOutStream)
                     : effectiveOutStream
             );
-            execSpec.setExecutable(getExecutable().get());
+            execSpec.setExecutable(getExecutableProperty().get());
             execSpec.setEnvironment(getEnvironment().get());
             if (getArgs().isPresent()) {
                 execSpec.setArgs(getArgs().get());
@@ -158,7 +159,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
             if (exitValue != 0) {
                 try {
-                    LoggedExec.this.getLogger().error("Output for " + getExecutable().get() + ":");
+                    LoggedExec.this.getLogger().error("Output for " + getExecutableProperty().get() + ":");
                     outputLogger.accept(LoggedExec.this.getLogger());
                 } catch (Exception e) {
                     throw new GradleException("Failed to read exec output", e);
@@ -166,7 +167,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 throw new GradleException(
                     String.format(
                         "Process '%s %s' finished with non-zero exit value %d",
-                        LoggedExec.this.getExecutable().get(),
+                        LoggedExec.this.getExecutableProperty().get(),
                         LoggedExec.this.getArgs().get(),
                         exitValue
                     )
@@ -254,5 +255,29 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 }
             }
         }
+    }
+
+    public void setExecutable(String executable) {
+        getExecutableProperty().set(executable);
+    }
+
+    public void args(Object... args) {
+        args(List.of(args));
+    }
+
+    public void args(List<Object> args) {
+        getArgs().addAll(args);
+    }
+
+    public void commandLine(Object... args) {
+        commandLine(List.of(args));
+    }
+
+    public void commandLine(List<Object> args) {
+        if (args.size() == 0) {
+            throw new IllegalArgumentException("Cannot set commandline with of entry size 0");
+        }
+        getExecutableProperty().set(args.get(0).toString());
+        getArgs().set(args.subList(1, args.size()));
     }
 }

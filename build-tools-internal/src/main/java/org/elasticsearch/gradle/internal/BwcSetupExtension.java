@@ -71,10 +71,10 @@ public class BwcSetupExtension {
             }));
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                loggedExec.getExecutable().set("cmd");
+                loggedExec.setExecutable("cmd");
                 loggedExec.getArgs().addAll("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
             } else {
-                loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.setExecutable(new File(checkoutDir.get(), "gradlew").toString());
             }
 
             loggedExec.getArgs().addAll("-g", project.getGradle().getGradleUserHomeDir().toString());

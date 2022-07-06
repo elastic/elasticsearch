@@ -31,18 +31,18 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
     void setFixture(AntFixture fixture) {
         assert this.fixture == null
         this.fixture = fixture;
-        final Object pid = "${ -> this.fixture.pid }"
+        final String pid = "${ -> this.fixture.pid }"
         onlyIf { fixture.pidFile.exists() }
         doFirst {
             logger.info("Shutting down ${fixture.name} with pid ${pid}")
         }
 
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            getExecutable().set('Taskkill')
-            getArgs().addAll('/PID', pid, '/F')
+            executable = 'Taskkill'
+            args '/PID', pid, '/F'
         } else {
-            getExecutable().set('kill')
-            getArgs().addAll('-9', pid)
+            executable = 'kill'
+            args '-9', pid
         }
         doLast {
             fileSystemOperations.delete {

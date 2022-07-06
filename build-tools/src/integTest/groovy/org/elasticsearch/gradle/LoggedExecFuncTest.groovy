@@ -34,7 +34,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
-          getExecutable().set('ls')
+          executable = 'ls'
           getArgs().add('-lh')
           spoolOutput = $spooling
         }
@@ -53,7 +53,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
-          getExecutable().set('ls')
+          executable = 'ls'
           getArgs().add('-lh')
           doLast {
             println 'OUTPUT ' + output

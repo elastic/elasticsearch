@@ -69,7 +69,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
             createClone.onlyIf(task -> this.gitExtension.getCheckoutDir().get().exists() == false);
-            createClone.getExecutable().set("git");
+            createClone.setExecutable("git");
             createClone.getArgs().set(asList("clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get()));
         });
 
@@ -78,7 +78,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             findRemote.dependsOn(createCloneTaskProvider);
             // TODO Gradle should provide property based configuration here
             findRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
-            findRemote.getExecutable().set("git");
+            findRemote.setExecutable("git");
             findRemote.getArgs().set(asList("remote", "-v"));
             findRemote.getCaptureOutput().set(true);
             findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });
@@ -92,7 +92,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
                 .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
-            addRemote.getExecutable().set("git");
+            addRemote.setExecutable("git");
             addRemote.getArgs().set(asList("remote", "add", remoteRepo, remoteRepoUrl));
         });
 
@@ -110,7 +110,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             fetchLatest.onlyIf(t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir().get());
-            fetchLatest.getExecutable().set("git");
+            fetchLatest.setExecutable("git");
             fetchLatest.getArgs().set(asList("fetch", "--all"));
         });
 

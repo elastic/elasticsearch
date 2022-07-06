@@ -105,7 +105,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeToRestartId = getNodeId(nodeToShutDownName);
 
         putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
-
         assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
     }
 
@@ -133,13 +132,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
-        Settings.Builder nodeASettings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1);
-        createIndex("myindex", nodeASettings.build());
+        createIndex("myindex", Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
 
         putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
-
         assertNodeShutdownStatus(nodeAId, STALLED);
 
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
@@ -163,7 +160,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             }
             assertThat("expected all 3 of the primary shards to be allocated", active, equalTo(3));
         });
-
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
         final String nodeC = internalCluster().startNode();
@@ -213,16 +209,18 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
-        Settings.Builder nodeASettings = Settings.builder()
-            .put("index.routing.allocation.require._name", nodeA)
-            .put("index.number_of_shards", 3)
-            .put("index.number_of_replicas", 0);
-        createIndex("myindex", nodeASettings.build());
+        createIndex(
+            "myindex",
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeA)
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .build()
+        );
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t2"; // TODO: fix this to so it's actually overrideable
 
         putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REPLACE, nodeB);
-
         assertNodeShutdownStatus(nodeAId, STALLED);
 
         final String nodeC = internalCluster().startNode();
@@ -232,17 +230,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
         logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
 
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
-            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                assertThat(
-                    "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
-                    sr.currentNodeId(),
-                    equalTo(nodeBId)
-                );
-            }
-        });
-
+        assertBusy(() -> assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId));
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
 
         createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
@@ -290,8 +278,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(
             Settings.builder().put("node.name", "node-a").put("cluster.routing.rebalance.enable", "none")
         );
-        Settings.Builder nodeASettings = Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0);
-        createIndex("myindex", nodeASettings.build());
+        createIndex("myindex", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
         final String nodeC = "node_t2"; // TODO: fix this to so it's actually overrideable
@@ -309,17 +296,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
         logger.info("--> NodeC: {} -- {}", nodeC, nodeCId);
 
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
-            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                assertThat(
-                    "expected all shards for index to be on node B (" + nodeBId + ") but " + sr.toString() + " is on " + sr.currentNodeId(),
-                    sr.currentNodeId(),
-                    equalTo(nodeBId)
-                );
-            }
-        });
-
+        assertBusy(() -> assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId));
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
     }
 
@@ -458,5 +435,25 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     private void assertNodeShutdownStatus(String nodeId, SingleNodeShutdownMetadata.Status status) throws Exception {
         var response = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(nodeId)).get();
         assertThat(response.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(status));
+    }
+
+    private void assertIndexPrimaryShardsAreAllocatedOnNode(String indexName, String nodeId) {
+        var state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+        var indexRoutingTable = state.routingTable().index(indexName);
+        for (int p = 0; p < indexRoutingTable.size(); p++) {
+            var primaryShard = indexRoutingTable.shard(p).primaryShard();
+            assertThat(
+                "expected all shards for index ["
+                    + indexName
+                    + "] to be on node ["
+                    + nodeId
+                    + "] but "
+                    + primaryShard.toString()
+                    + " is on "
+                    + primaryShard.currentNodeId(),
+                primaryShard.currentNodeId(),
+                equalTo(nodeId)
+            );
+        }
     }
 }

@@ -15,9 +15,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -123,18 +122,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        if (fieldType.hasDocValues()) {
-            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
+        if (fieldType.hasDocValues() || fieldType.getTextSearchInfo().hasNorms()) {
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
             assertEquals("field", fieldExistsQuery.getField());
-            assertDocValuesField(fields, "field");
-            assertNoFieldNamesField(fields);
-        } else if (fieldType.getTextSearchInfo().hasNorms()) {
-            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
-            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
-            assertEquals("field", normsFieldExistsQuery.getField());
-            assertHasNorms(fields, "field");
-            assertNoDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
         } else {
             assertThat(query, instanceOf(TermQuery.class));
@@ -166,16 +157,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
         }
         fail("field [" + field + "] should be indexed but it isn't");
-    }
-
-    protected static void assertDocValuesField(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
-        for (IndexableField indexableField : fields) {
-            if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
-                return;
-            }
-        }
-        fail("doc_values not present for field [" + field + "]");
     }
 
     protected static void assertNoDocValuesField(LuceneDocument doc, String field) {

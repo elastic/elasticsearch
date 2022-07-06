@@ -225,6 +225,46 @@ setup:
   - match: { aggregations.fi.buckets.1.key.data\.error_message: ["engine overheated"] }
 
 ---
+"Test frequent items as subagg":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "filter_error": {
+                "filter": {
+                  "term": {
+                    "error_message": "compressor low pressure"
+                  }
+                },
+                "aggs": {
+                  "fi": {
+                    "frequent_items": {
+                      "minimum_set_size": 3,
+                      "minimum_support": 0.3,
+                      "fields": [
+                        {"field": "features"},
+                        {"field": "error_message"}
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { aggregations.filter_error.fi.buckets: 5 }
+  - match: { aggregations.filter_error.fi.buckets.0.doc_count: 5 }
+  - match: { aggregations.filter_error.fi.buckets.0.support: 1.0 }
+  - match: { aggregations.filter_error.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+  - match: { aggregations.filter_error.fi.buckets.1.doc_count: 2 }
+  - match: { aggregations.filter_error.fi.buckets.1.support: 0.4 }
+  - match: { aggregations.filter_error.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+
+
+---
 "Test frequent items unsupported types":
   - do:
       catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_items\]/

@@ -343,6 +343,7 @@ import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.process.DummyController;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlControllerHolder;
@@ -1070,7 +1071,13 @@ public class MachineLearning extends Plugin
             threadPool
         );
         trainedModelAllocationClusterServiceSetOnce.set(
-            new TrainedModelAssignmentClusterService(settings, clusterService, threadPool, new NodeLoadDetector(memoryTracker))
+            new TrainedModelAssignmentClusterService(
+                settings,
+                clusterService,
+                threadPool,
+                new NodeLoadDetector(memoryTracker),
+                new SystemAuditor(client, clusterService)
+            )
         );
 
         mlAutoscalingDeciderService.set(

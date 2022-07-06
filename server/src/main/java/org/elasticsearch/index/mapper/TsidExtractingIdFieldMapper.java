@@ -12,6 +12,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -21,13 +24,16 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -118,12 +124,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields[0].numericValue().longValue();
 
-        Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-
-        byte[] suffix = new byte[16];
-        ByteUtils.writeLongLE(hash.h1, suffix, 0);
-        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
+        byte[] suffix = idSuffix(tsid, timestamp);
 
         IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
         // TODO it'd be way faster to use the fields that we've extract here rather than the source or parse the tsid
@@ -157,6 +158,16 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, FIELD_TYPE));
+    }
+
+    private static byte[] idSuffix(BytesRef tsid, long timestamp) {
+        Hash128 hash = new Hash128();
+        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
+
+        byte[] suffix = new byte[16];
+        ByteUtils.writeLongLE(hash.h1, suffix, 0);
+        ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
+        return suffix;
     }
 
     @Override
@@ -201,5 +212,66 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     public String reindexId(String id) {
         // null the _id so we recalculate it on write
         return null;
+    }
+
+    @Override
+    public IdLoader loader(IndexRouting indexRouting) {
+        return new IdLoader() {
+            @Override
+            public IdLoader.Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+                IndexRouting.ExtractFromSource sourceIndexRouting = (IndexRouting.ExtractFromSource) indexRouting;
+
+                long[] timestamps = new long[docIdsInLeaf.length];
+                SortedNumericDocValues timestampDv = reader.getSortedNumericDocValues(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                for (int i = 0; i < docIdsInLeaf.length; i++) {
+                    if (false == timestampDv.advanceExact(docIdsInLeaf[i])) {
+                        throw new IllegalStateException("couldn't find doc value for @timestamp");
+                    }
+                    if (timestampDv.docValueCount() != 1) {
+                        throw new IllegalStateException("found more than one @timestamp");
+                    }
+                    timestamps[i] = timestampDv.nextValue();
+                }
+
+                SortedDocValues tsidDv = reader.getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+                String[] ids = new String[docIdsInLeaf.length];
+                if (false == tsidDv.advanceExact(docIdsInLeaf[0])) {
+                    throw new IllegalStateException("couldn't find doc value for _tsid");
+                }
+                int ord = -1;
+                BytesRef tsid = null;
+                Map<String, Object> tsidDecoded = null;
+                for (int i = 0; i < docIdsInLeaf.length; i++) {
+                    if (false == tsidDv.advanceExact(docIdsInLeaf[i])) {
+                        throw new IllegalStateException("couldn't find doc value for _tsid");
+                    }
+                    if (ord != tsidDv.ordValue()) {
+                        /*
+                         * We sort by _tsid so there should be long runs of the same ordinal.
+                         * And once we're past that run we'll never see it again.
+                         */
+                        ord = tsidDv.ordValue();
+                        tsid = tsidDv.lookupOrd(ord);
+                        tsidDecoded = TimeSeriesIdFieldMapper.decodeTsid(tsid);
+                    }
+                    ids[i] = sourceIndexRouting.createId(tsidDecoded, idSuffix(tsid, timestamps[i]));
+                }
+
+                return new IdLoader.Leaf() {
+                    int idx = -1;
+
+                    @Override
+                    public String id(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                        idx++;
+                        if (docIdsInLeaf[idx] != docId) {
+                            throw new IllegalArgumentException(
+                                "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                            );
+                        }
+                        return ids[idx];
+                    }
+                };
+            }
+        };
     }
 }

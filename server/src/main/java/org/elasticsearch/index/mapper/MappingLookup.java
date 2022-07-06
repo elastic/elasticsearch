@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -406,11 +407,19 @@ public final class MappingLookup {
     }
 
     /**
-     * Build something to load source {@code _source}.
+     * Build something to load {@code _source}.
      */
     public SourceLoader newSourceLoader() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping);
+    }
+
+    /**
+     * Build something to load the {@code _id}.
+     */
+    public IdLoader idLoader(IndexRouting indexRouting) {
+        IdFieldMapper idMapper = (IdFieldMapper) mapping.getMetadataMapperByName(IdFieldMapper.NAME);
+        return idMapper == null ? ProvidedIdFieldMapper.NO_FIELD_DATA.loader(indexRouting) : idMapper.loader(indexRouting);
     }
 
     /**

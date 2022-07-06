@@ -22,6 +22,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -398,6 +400,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return new SourceLoader.Synthetic(mappingLookup.getMapping());
         }
         return mappingLookup.newSourceLoader();
+    }
+
+    /**
+     * Build something to load {@code _id}.
+     */
+    public IdLoader newIdLoader(IndexRouting indexRouting) {
+        return mappingLookup.idLoader(indexRouting);
     }
 
     /**

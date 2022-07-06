@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
@@ -58,6 +59,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * this {@code _id}.
      */
     public abstract String reindexId(String id);
+
+    /**
+     * Build something to load the {@code _id}.
+     */
+    public abstract IdLoader loader(IndexRouting indexRouting);
 
     /**
      * Create a {@link Field} to store the provided {@code _id} that "stores"

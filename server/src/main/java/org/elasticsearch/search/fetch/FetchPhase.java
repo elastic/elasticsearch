@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -114,6 +115,8 @@ public class FetchPhase {
         profiler.visitor(fieldsVisitor);
 
         FetchContext fetchContext = new FetchContext(context);
+        IdLoader idLoader = context.getSearchExecutionContext()
+            .newIdLoader(context.getSearchExecutionContext().getIndexSettings().getIndexRouting());
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
@@ -125,6 +128,7 @@ public class FetchPhase {
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader = null;
         boolean hasSequentialDocs = hasSequentialDocs(docs);
         SourceLoader.Leaf leafSourceLoader = null;
+        IdLoader.Leaf leafIdLoader = null;
         int leafIndex = -1;
         LeafReaderContext leafReaderContext = null;
         int endReaderIdx = -1;
@@ -154,6 +158,7 @@ public class FetchPhase {
                             fieldReader = leafReaderContext.reader()::document;
                         }
                         leafSourceLoader = fetchContext.sourceLoader().leaf(leafReaderContext.reader(), docIdsInLeaf);
+                        leafIdLoader = idLoader.leaf(leafReaderContext.reader(), docIdsInLeaf);
                         for (FetchSubPhaseProcessor processor : processors) {
                             processor.setNextReader(leafReaderContext);
                         }
@@ -170,6 +175,7 @@ public class FetchPhase {
                     docId,
                     storedToRequestedFields,
                     leafReaderContext,
+                    leafIdLoader,
                     leafSourceLoader,
                     fieldReader
                 );
@@ -294,6 +300,7 @@ public class FetchPhase {
         int docId,
         Map<String, Set<String>> storedToRequestedFields,
         LeafReaderContext subReaderContext,
+        IdLoader.Leaf idLoader,
         SourceLoader.Leaf sourceLoader,
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader
     ) throws IOException {
@@ -305,6 +312,7 @@ public class FetchPhase {
                 docId,
                 storedToRequestedFields,
                 subReaderContext,
+                idLoader,
                 sourceLoader,
                 storedFieldReader
             );
@@ -335,6 +343,7 @@ public class FetchPhase {
         int docId,
         Map<String, Set<String>> storedToRequestedFields,
         LeafReaderContext subReaderContext,
+        IdLoader.Leaf idLoader,
         SourceLoader.Leaf sourceLoader,
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader
     ) throws IOException {
@@ -345,14 +354,15 @@ public class FetchPhase {
         } else {
             SearchHit hit;
             loadStoredFields(context.getSearchExecutionContext()::getFieldType, profiler, fieldReader, fieldsVisitor, subDocId);
+            String id = idLoader.id(fieldsVisitor, subDocId);
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
                 fillDocAndMetaFields(context, fieldsVisitor, storedToRequestedFields, docFields, metaFields);
 
-                hit = new SearchHit(docId, fieldsVisitor.id(), docFields, metaFields);
+                hit = new SearchHit(docId, id, docFields, metaFields);
             } else {
-                hit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
+                hit = new SearchHit(docId, id, emptyMap(), emptyMap());
             }
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId);

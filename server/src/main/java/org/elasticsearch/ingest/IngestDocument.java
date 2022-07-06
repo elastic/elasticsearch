@@ -747,7 +747,7 @@ public final class IngestDocument {
     /**
      * Get the strongly typed metadata
      */
-    public org.elasticsearch.script.Metadata getContextMetadata() {
+    public org.elasticsearch.script.Metadata getMetadata() {
         return sourceAndMetadata;
     }
 

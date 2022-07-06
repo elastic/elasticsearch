@@ -1,0 +1,6 @@
+pr: 88286
+summary: Don't fail validation on archived settings
+area: Infra/Settings
+type: bug
+issues:
+ - 86022

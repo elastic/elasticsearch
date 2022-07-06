@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.Maps.asMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
 /**
@@ -38,7 +37,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * Internally it uses {@link TransportPutLifecycleAction} and
  * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
-public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<LifecyclePolicy> {
+public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<List<LifecyclePolicy>> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -60,18 +59,12 @@ public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<Li
     @SuppressWarnings("unchecked")
     public Collection<PutLifecycleAction.Request> prepare(Object input) throws IOException {
         List<PutLifecycleAction.Request> result = new ArrayList<>();
+        List<LifecyclePolicy> policies = (List<LifecyclePolicy>) input;
 
-        Map<String, ?> source = asMap(input);
-
-        for (String name : source.keySet()) {
-            Map<String, ?> content = (Map<String, ?>) source.get(name);
-            var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
-            try (XContentParser parser = mapToXContentParser(config, content)) {
-                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
-                PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
-                validate(request);
-                result.add(request);
-            }
+        for (var policy : policies) {
+            PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
+            validate(request);
+            result.add(request);
         }
 
         return result;
@@ -107,5 +100,23 @@ public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<Li
         }
 
         return new TransformState(state, entities);
+    }
+
+    @Override
+    public List<LifecyclePolicy> fromXContent(XContentParser parser) throws IOException {
+        List<LifecyclePolicy> result = new ArrayList<>();
+
+        Map<String, ?> source = parser.map();
+        var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+
+        for (String name : source.keySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> content = (Map<String, ?>) source.get(name);
+            try (XContentParser policyParser = mapToXContentParser(config, content)) {
+                result.add(LifecyclePolicy.parse(policyParser, name));
+            }
+        }
+
+        return result;
     }
 }

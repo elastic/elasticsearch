@@ -19,11 +19,13 @@ import org.elasticsearch.cluster.metadata.ImmutableStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,21 +37,45 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Controller class for applying file based settings to ClusterState.
+ * Controller class for applying immutable state to ClusterState.
+ * <p>
  * This class contains the logic about validation, ordering and applying of
- * the cluster state specified in a file.
+ * the cluster state specified in a file or through plugins/modules.
  */
 public class ImmutableClusterStateController {
     private static final Logger logger = LogManager.getLogger(ImmutableClusterStateController.class);
 
-    public static final String SETTINGS = "settings";
-    public static final String METADATA = "metadata";
+    public static final ParseField STATE_FIELD = new ParseField("state");
+    public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
     Map<String, ImmutableClusterStateHandler<?>> handlers = null;
     final ClusterService clusterService;
 
+    @SuppressWarnings("unchecked")
+    private final ConstructingObjectParser<Package, Void> packageParser = new ConstructingObjectParser<>("immutable_cluster_package", a -> {
+        List<Tuple<String, Object>> tuples = (List<Tuple<String, Object>>) a[0];
+        Map<String, Object> stateMap = new HashMap<>();
+        for (var tuple : tuples) {
+            stateMap.put(tuple.v1(), tuple.v2());
+        }
+
+        return new Package(stateMap, (PackageVersion) a[1]);
+    });
+
+    /**
+     * Controller class for saving immutable ClusterState.
+     * @param clusterService for fetching and saving the modified state
+     */
     public ImmutableClusterStateController(ClusterService clusterService) {
         this.clusterService = clusterService;
+        packageParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
+            if (handlers.containsKey(name) == false) {
+                throw new IllegalStateException("Missing handler definition for content key [" + name + "]");
+            }
+            p.nextToken();
+            return new Tuple<>(name, handlers.get(name).fromXContent(p));
+        }, STATE_FIELD);
+        packageParser.declareObject(ConstructingObjectParser.constructorArg(), PackageVersion::parse, METADATA_FIELD);
     }
 
     /**
@@ -65,35 +91,10 @@ public class ImmutableClusterStateController {
      * A package class containing the composite immutable cluster state
      * <p>
      * Apart from the cluster state we want to store as immutable, the package requires that
-     * you supply the version metadata. This version metadata (see {@link StateVersionMetadata}) is checked to ensure
+     * you supply the version metadata. This version metadata (see {@link PackageVersion}) is checked to ensure
      * that the update is safe, and it's not unnecessarily repeated.
      */
-    public static class Package {
-        public static final ParseField STATE_FIELD = new ParseField("state");
-        public static final ParseField METADATA_FIELD = new ParseField("metadata");
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Package, Void> PARSER = new ConstructingObjectParser<>(
-            "immutable_cluster_state",
-            a -> new Package((Map<String, Object>) a[0], (StateVersionMetadata) a[1])
-        );
-        static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), STATE_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), StateVersionMetadata::parse, METADATA_FIELD);
-        }
-
-        Map<String, Object> state;
-        StateVersionMetadata metadata;
-
-        /**
-         * A package class containing the composite immutable cluster state
-         * @param state a {@link Map} of immutable state handler name and data
-         * @param metadata a version metadata
-         */
-        public Package(Map<String, Object> state, StateVersionMetadata metadata) {
-            this.state = state;
-            this.metadata = metadata;
-        }
-    }
+    public record Package(Map<String, Object> state, PackageVersion metadata) {}
 
     /**
      * Saves an immutable cluster state for a given 'namespace' from {@link XContentParser}
@@ -108,7 +109,7 @@ public class ImmutableClusterStateController {
         Package immutableStatePackage;
 
         try {
-            immutableStatePackage = Package.PARSER.apply(parser, null);
+            immutableStatePackage = packageParser.apply(parser, null);
         } catch (Exception e) {
             List<String> errors = List.of(e.getMessage());
             recordErrorState(new ImmutableUpdateErrorState(namespace, -1L, errors, ImmutableStateErrorMetadata.ErrorKind.PARSING));
@@ -132,7 +133,7 @@ public class ImmutableClusterStateController {
      */
     public void process(String namespace, Package immutableStateFilePackage, Consumer<Exception> errorListener) {
         Map<String, Object> immutableState = immutableStateFilePackage.state;
-        StateVersionMetadata stateVersionMetadata = immutableStateFilePackage.metadata;
+        PackageVersion packageVersion = immutableStateFilePackage.metadata;
 
         LinkedHashSet<String> orderedHandlers;
         try {
@@ -140,12 +141,7 @@ public class ImmutableClusterStateController {
         } catch (Exception e) {
             List<String> errors = List.of(e.getMessage());
             recordErrorState(
-                new ImmutableUpdateErrorState(
-                    namespace,
-                    stateVersionMetadata.version(),
-                    errors,
-                    ImmutableStateErrorMetadata.ErrorKind.PARSING
-                )
+                new ImmutableUpdateErrorState(namespace, packageVersion.version(), errors, ImmutableStateErrorMetadata.ErrorKind.PARSING)
             );
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
@@ -155,7 +151,7 @@ public class ImmutableClusterStateController {
 
         ClusterState state = clusterService.state();
         ImmutableStateMetadata existingMetadata = state.metadata().immutableStateMetadata().get(namespace);
-        if (checkMetadataVersion(existingMetadata, stateVersionMetadata, errorListener) == false) {
+        if (checkMetadataVersion(existingMetadata, packageVersion, errorListener) == false) {
             return;
         }
 
@@ -190,27 +186,27 @@ public class ImmutableClusterStateController {
     // package private for testing
     static boolean checkMetadataVersion(
         ImmutableStateMetadata existingMetadata,
-        StateVersionMetadata stateVersionMetadata,
+        PackageVersion packageVersion,
         Consumer<Exception> errorListener
     ) {
-        if (Version.CURRENT.before(stateVersionMetadata.minCompatibleVersion())) {
+        if (Version.CURRENT.before(packageVersion.minCompatibleVersion())) {
             errorListener.accept(
                 new IncompatibleVersionException(
                     format(
                         "Cluster state version [%s] is not compatible with this Elasticsearch node",
-                        stateVersionMetadata.minCompatibleVersion()
+                        packageVersion.minCompatibleVersion()
                     )
                 )
             );
             return false;
         }
 
-        if (existingMetadata != null && existingMetadata.version() >= stateVersionMetadata.version()) {
+        if (existingMetadata != null && existingMetadata.version() >= packageVersion.version()) {
             errorListener.accept(
                 new IncompatibleVersionException(
                     format(
                         "Not updating cluster state because version [%s] is less or equal to the current metadata version [%s]",
-                        stateVersionMetadata.version(),
+                        packageVersion.version(),
                         existingMetadata.version()
                     )
                 )

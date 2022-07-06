@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -16,10 +17,12 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.immutablestate.TransformState;
 import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
 import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
 import org.elasticsearch.immutablestate.service.ImmutableStateUpdateStateTask;
+import org.elasticsearch.immutablestate.service.PackageVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -34,8 +37,10 @@ import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.RollupILMAction;
@@ -52,6 +57,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -224,67 +231,7 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
     }
 
-    public void testOperatorController() throws IOException {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterService clusterService = mock(ClusterService.class);
-        final ClusterName clusterName = new ClusterName("elasticsearch");
-
-        ClusterState state = ClusterState.builder(clusterName).build();
-        when(clusterService.state()).thenReturn(state);
-
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
-        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
-
-        String testJSON = """
-            {
-                 "metadata": {
-                     "version": "1234",
-                     "compatibility": "8.4.0"
-                 },
-                 "state": {
-                     "cluster_settings": {
-                         "indices.recovery.max_bytes_per_sec": "50mb"
-                     },
-                     "ilm": {
-                         "my_timeseries_lifecycle": {
-                             "phases": {
-                                 "warm": {
-                                     "min_age": "10s",
-                                     "actions": {
-                                     }
-                                 },
-                                 "delete": {
-                                     "min_age": "30s",
-                                     "actions": {
-                                     }
-                                 }
-                             }
-                         }
-                     }
-                 }
-            }""";
-
-        AtomicReference<Exception> x = new AtomicReference<>();
-
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> x.set(e));
-
-            assertTrue(x.get() instanceof IllegalStateException);
-            assertEquals("Error processing state change request for operator", x.get().getMessage());
-        }
-
-        Client client = mock(Client.class);
-        when(client.settings()).thenReturn(Settings.EMPTY);
-
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-        controller.initHandlers(
-            List.of(
-                new ImmutableClusterSettingsAction(clusterSettings),
-                new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
-            )
-        );
-
+    private void setupTaskMock(ClusterService clusterService, ClusterState state) {
         doAnswer((Answer<Object>) invocation -> {
             Object[] args = invocation.getArguments();
 
@@ -323,6 +270,94 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
 
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());
+    }
+
+    public void testOperatorControllerFromJSONContent() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
+        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
+
+        String testJSON = """
+            {
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     },
+                     "ilm": {
+                         "my_timeseries_lifecycle": {
+                             "phases": {
+                                 "hot": {
+                                     "min_age": "10s",
+                                     "actions": {
+                                        "rollover": {
+                                           "max_primary_shard_size": "50gb",
+                                           "max_age": "30d"
+                                        }
+                                     }
+                                 },
+                                 "delete": {
+                                     "min_age": "30s",
+                                     "actions": {
+                                     }
+                                 }
+                             }
+                         },
+                         "my_timeseries_lifecycle1": {
+                             "phases": {
+                                 "warm": {
+                                     "min_age": "10s",
+                                     "actions": {
+                                        "shrink": {
+                                          "number_of_shards": 1
+                                        },
+                                        "forcemerge": {
+                                          "max_num_segments": 1
+                                        }
+                                     }
+                                 },
+                                 "delete": {
+                                     "min_age": "30s",
+                                     "actions": {
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+            }""";
+
+        AtomicReference<Exception> x = new AtomicReference<>();
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> x.set(e));
+
+            assertTrue(x.get() instanceof IllegalStateException);
+            assertEquals("Error processing state change request for operator", x.get().getMessage());
+        }
+
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        controller.initHandlers(
+            List.of(
+                new ImmutableClusterSettingsAction(clusterSettings),
+                new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
+            )
+        );
+
+        setupTaskMock(clusterService, state);
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
             controller.process("operator", parser, (e) -> {
@@ -332,4 +367,64 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
             });
         }
     }
+
+    public void testOperatorControllerWithPluginPackage() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
+        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
+
+        AtomicReference<Exception> x = new AtomicReference<>();
+
+        ImmutableClusterStateController.Package pack = new ImmutableClusterStateController.Package(
+            Map.of(
+                ImmutableClusterSettingsAction.NAME,
+                Map.of("indices.recovery.max_bytes_per_sec", "50mb"),
+                ImmutableLifecycleAction.NAME,
+                List.of(
+                    new LifecyclePolicy(
+                        "my_timeseries_lifecycle",
+                        Map.of(
+                            "warm",
+                            new Phase("warm", new TimeValue(10, TimeUnit.SECONDS), Collections.emptyMap()),
+                            "delete",
+                            new Phase("delete", new TimeValue(30, TimeUnit.SECONDS), Collections.emptyMap())
+                        )
+                    )
+                )
+            ),
+            new PackageVersion(123L, Version.CURRENT)
+        );
+
+        controller.process("operator", pack, (e) -> x.set(e));
+
+        assertTrue(x.get() instanceof IllegalStateException);
+        assertEquals("Error processing state change request for operator", x.get().getMessage());
+
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        controller.initHandlers(
+            List.of(
+                new ImmutableClusterSettingsAction(clusterSettings),
+                new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
+            )
+        );
+
+        setupTaskMock(clusterService, state);
+
+        controller.process("operator", pack, (e) -> {
+            if (e != null) {
+                fail("Should not fail");
+            }
+        });
+    }
+
 }

@@ -11,7 +11,6 @@ package org.elasticsearch.immutablestate.service;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
@@ -249,7 +248,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
     }
 
     public void testUpdateTaskDuplicateError() {
-        ImmutableClusterStateHandler<ClusterUpdateSettingsRequest> dummy = new ImmutableClusterStateHandler<>() {
+        ImmutableClusterStateHandler<Map<String, Object>> dummy = new ImmutableClusterStateHandler<>() {
             @Override
             public String name() {
                 return "one";
@@ -259,12 +258,17 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             public TransformState transform(Object source, TransformState prevState) throws Exception {
                 throw new Exception("anything");
             }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
         };
 
         ImmutableStateUpdateStateTask task = spy(
             new ImmutableStateUpdateStateTask(
                 "namespace_one",
-                new ImmutableClusterStateController.Package(Map.of("one", "two"), new StateVersionMetadata(1L, Version.CURRENT)),
+                new ImmutableClusterStateController.Package(Map.of("one", "two"), new PackageVersion(1L, Version.CURRENT)),
                 Map.of("one", dummy),
                 List.of(dummy.name()),
                 (errorState) -> {},
@@ -323,11 +327,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         ImmutableStateMetadata operatorMetadata = ImmutableStateMetadata.builder("test").version(123L).build();
 
         assertTrue(
-            ImmutableClusterStateController.checkMetadataVersion(
-                operatorMetadata,
-                new StateVersionMetadata(124L, Version.CURRENT),
-                (e) -> {}
-            )
+            ImmutableClusterStateController.checkMetadataVersion(operatorMetadata, new PackageVersion(124L, Version.CURRENT), (e) -> {})
         );
 
         AtomicReference<Exception> x = new AtomicReference<>();
@@ -335,7 +335,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         assertFalse(
             ImmutableClusterStateController.checkMetadataVersion(
                 operatorMetadata,
-                new StateVersionMetadata(123L, Version.CURRENT),
+                new PackageVersion(123L, Version.CURRENT),
                 (e) -> x.set(e)
             )
         );
@@ -346,7 +346,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         assertFalse(
             ImmutableClusterStateController.checkMetadataVersion(
                 operatorMetadata,
-                new StateVersionMetadata(124L, Version.fromId(Version.CURRENT.id + 1)),
+                new PackageVersion(124L, Version.fromId(Version.CURRENT.id + 1)),
                 (e) -> x.set(e)
             )
         );
@@ -356,7 +356,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
     }
 
     public void testHandlerOrdering() {
-        ImmutableClusterStateHandler<?> oh1 = new ImmutableClusterStateHandler<>() {
+        ImmutableClusterStateHandler<Map<String, Object>> oh1 = new ImmutableClusterStateHandler<>() {
             @Override
             public String name() {
                 return "one";
@@ -371,9 +371,14 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             public Collection<String> dependencies() {
                 return List.of("two", "three");
             }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
         };
 
-        ImmutableClusterStateHandler<?> oh2 = new ImmutableClusterStateHandler<>() {
+        ImmutableClusterStateHandler<Map<String, Object>> oh2 = new ImmutableClusterStateHandler<>() {
             @Override
             public String name() {
                 return "two";
@@ -383,9 +388,14 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             public TransformState transform(Object source, TransformState prevState) throws Exception {
                 return null;
             }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
         };
 
-        ImmutableClusterStateHandler<?> oh3 = new ImmutableClusterStateHandler<>() {
+        ImmutableClusterStateHandler<Map<String, Object>> oh3 = new ImmutableClusterStateHandler<>() {
             @Override
             public String name() {
                 return "three";
@@ -399,6 +409,11 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             @Override
             public Collection<String> dependencies() {
                 return List.of("two");
+            }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
             }
         };
 
@@ -438,6 +453,11 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             public Collection<String> dependencies() {
                 return List.of("one");
             }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
         };
 
         controller.initHandlers(List.of(oh1, oh2));
@@ -468,7 +488,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         );
     }
 
-    class TestHandler implements ImmutableClusterStateHandler<ClusterUpdateSettingsRequest> {
+    class TestHandler implements ImmutableClusterStateHandler<Map<String, Object>> {
 
         @Override
         public String name() {
@@ -478,6 +498,11 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         @Override
         public TransformState transform(Object source, TransformState prevState) throws Exception {
             return prevState;
+        }
+
+        @Override
+        public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+            return parser.map();
         }
     }
 }

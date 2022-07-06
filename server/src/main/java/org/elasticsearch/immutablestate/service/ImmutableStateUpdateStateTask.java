@@ -74,10 +74,10 @@ public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
 
     protected ClusterState execute(ClusterState state) {
         ImmutableStateMetadata existingMetadata = state.metadata().immutableStateMetadata().get(namespace);
-        Map<String, Object> immutableState = immutableStatePackage.state;
-        StateVersionMetadata stateVersionMetadata = immutableStatePackage.metadata;
+        Map<String, Object> immutableState = immutableStatePackage.state();
+        PackageVersion packageVersion = immutableStatePackage.metadata();
 
-        var immutableMetadataBuilder = new ImmutableStateMetadata.Builder(namespace).version(stateVersionMetadata.version());
+        var immutableMetadataBuilder = new ImmutableStateMetadata.Builder(namespace).version(packageVersion.version());
         List<String> errors = new ArrayList<>();
 
         for (var handlerName : orderedHandlers) {
@@ -97,13 +97,13 @@ public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
             // version hasn't been updated.
             if (existingMetadata != null
                 && existingMetadata.errorMetadata() != null
-                && existingMetadata.errorMetadata().version() >= stateVersionMetadata.version()) {
+                && existingMetadata.errorMetadata().version() >= packageVersion.version()) {
                 logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
                 throw new ImmutableClusterStateController.IncompatibleVersionException(
                     format(
                         "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
-                        stateVersionMetadata.version(),
+                        packageVersion.version(),
                         existingMetadata.errorMetadata().version()
                     )
                 );
@@ -112,7 +112,7 @@ public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
             recordErrorState.accept(
                 new ImmutableClusterStateController.ImmutableUpdateErrorState(
                     namespace,
-                    stateVersionMetadata.version(),
+                    packageVersion.version(),
                     errors,
                     ImmutableStateErrorMetadata.ErrorKind.VALIDATION
                 )

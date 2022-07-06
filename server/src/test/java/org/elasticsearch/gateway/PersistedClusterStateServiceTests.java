@@ -87,6 +87,7 @@ import static org.elasticsearch.gateway.PersistedClusterStateService.INDEX_TYPE_
 import static org.elasticsearch.gateway.PersistedClusterStateService.IS_LAST_PAGE;
 import static org.elasticsearch.gateway.PersistedClusterStateService.IS_NOT_LAST_PAGE;
 import static org.elasticsearch.gateway.PersistedClusterStateService.LAST_PAGE_FIELD_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.MAPPING_TYPE_NAME;
 import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.elasticsearch.gateway.PersistedClusterStateService.PAGE_FIELD_NAME;
 import static org.elasticsearch.gateway.PersistedClusterStateService.TYPE_FIELD_NAME;
@@ -1073,19 +1074,21 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 commitUserData = reader.getIndexCommit().getUserData();
                 final IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
-                for (String typeName : new String[] { GLOBAL_TYPE_NAME, INDEX_TYPE_NAME }) {
+                for (String typeName : new String[] { GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME }) {
                     final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
                     final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
                     for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
                         final Scorer scorer = weight.scorer(leafReaderContext);
-                        final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
-                        final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
-                        final DocIdSetIterator docIdSetIterator = scorer.iterator();
-                        while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                            if (isLiveDoc.test(docIdSetIterator.docID())) {
-                                final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
-                                documents.add(document);
+                        if (scorer != null) {
+                            final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                            final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                            final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                            while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                if (isLiveDoc.test(docIdSetIterator.docID())) {
+                                    final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                                    document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
+                                    documents.add(document);
+                                }
                             }
                         }
                     }

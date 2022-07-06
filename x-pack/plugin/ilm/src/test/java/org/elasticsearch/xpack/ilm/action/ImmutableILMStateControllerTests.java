@@ -63,6 +63,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -342,7 +343,10 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
             controller.process("operator", parser, (e) -> x.set(e));
 
             assertTrue(x.get() instanceof IllegalStateException);
-            assertEquals("Error processing state change request for operator", x.get().getMessage());
+            assertThat(
+                x.get().getMessage(),
+                containsString("[10:10] [state] failed to parse field [ilm], Missing handler definition for content key [ilm]")
+            );
         }
 
         Client client = mock(Client.class);

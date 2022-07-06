@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -86,7 +87,13 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             controller.process("operator", parser, (e) -> x.set(e));
 
             assertTrue(x.get() instanceof IllegalStateException);
-            assertEquals("Error processing state change request for operator", x.get().getMessage());
+            assertThat(
+                x.get().getMessage(),
+                containsString(
+                    "Error processing state change request for operator, with errors: [12:1] "
+                        + "Unexpected end-of-input: expected close marker for Object (start marker at [Source: (String)"
+                )
+            );
         }
 
         testJSON = """

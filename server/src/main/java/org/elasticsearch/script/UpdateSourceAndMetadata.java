@@ -41,7 +41,7 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         TYPE,
         UpdateSourceAndMetadata::setOnceStringValidator,
         OP,
-        opValidatorFromValidOps(VALID_OPS),
+        UpdateSourceAndMetadata::stringValidator,
         TIMESTAMP,
         UpdateSourceAndMetadata::setOnceLongValidator
     );
@@ -105,7 +105,8 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
     @Override
     public String getOp() {
         String op = getString(OP);
-        if (LEGACY_NOOP_STRING.equals(op)) {
+        if (LEGACY_NOOP_STRING.equals(op) || VALID_OPS.contains(op) == false) {
+            // UpdateHelper.UpdateOpType.lenientFromString allows anything into the map
             return "noop";
         }
         return op;
@@ -115,6 +116,11 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
     public void setOp(String op) {
         if (LEGACY_NOOP_STRING.equals(op)) {
             throw new IllegalArgumentException(LEGACY_NOOP_STRING + " is deprecated, use 'noop' instead");
+        }
+        if (VALID_OPS.contains(op) == false) {
+            throw new IllegalArgumentException(
+                "[" + op + "] must be one of " + VALID_OPS.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + op + "]"
+            );
         }
         put(OP, op);
     }
@@ -161,31 +167,28 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
      * A {@link #stringValidator(MapOperation, String, Object)} that validates against a set of valid strings and forbids removal.
      */
     public static Validator opValidatorFromValidOps(Set<String> validOps) {
-        return new Validator() {
-            @Override
-            public void accept(MapOperation op, String key, Object value) {
-                if (op == MapOperation.REMOVE) {
-                    throw new IllegalArgumentException("Cannot remove [" + key + "]");
-                }
-                if (value instanceof String opStr) {
-                    if (validOps.contains(opStr)) {
-                        return;
-                    }
-                    throw new IllegalArgumentException(
-                        key + " must be one of " + validOps.stream().sorted().collect(Collectors.joining(",")) + ", not [" + opStr + "]"
-                    );
+        return (op, key, value) -> {
+            if (op == MapOperation.REMOVE) {
+                throw new IllegalArgumentException("Cannot remove [" + key + "]");
+            }
+            if (value instanceof String opStr) {
+                if (validOps.contains(opStr)) {
+                    return;
                 }
                 throw new IllegalArgumentException(
-                    key
-                        + " must be String and one of "
-                        + validOps.stream().sorted().collect(Collectors.joining(","))
-                        + " but was ["
-                        + value
-                        + "] with type ["
-                        + value.getClass().getName()
-                        + "]"
+                    key + " must be one of " + validOps.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + opStr + "]"
                 );
             }
+            throw new IllegalArgumentException(
+                key
+                    + " must be String and one of "
+                    + validOps.stream().sorted().collect(Collectors.joining(","))
+                    + " but was ["
+                    + value
+                    + "] with type ["
+                    + value.getClass().getName()
+                    + "]"
+            );
         };
     }
 }

@@ -481,4 +481,18 @@ public abstract class SourceAndMetadataMap extends AbstractMap<String, Object> i
     public interface Validator {
         void accept(MapOperation op, String key, Object value);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if ((o instanceof SourceAndMetadataMap) == false) return false;
+        if (super.equals(o) == false) return false;
+        SourceAndMetadataMap that = (SourceAndMetadataMap) o;
+        return validators.equals(that.validators) && source.equals(that.source) && metadata.equals(that.metadata);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(source, metadata);
+    }
 }

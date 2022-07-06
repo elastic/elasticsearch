@@ -75,7 +75,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             tp,
             listener
         );
-
+        action.init();
         action.onSuccess(new WarningInferenceResults("foo"));
         for (int i = 0; i < 10; i++) {
             action.onSuccess(new WarningInferenceResults("foo"));
@@ -95,7 +95,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             tp,
             listener
         );
-
+        action.init();
         action.onTimeout();
         for (int i = 0; i < 10; i++) {
             action.onSuccess(new WarningInferenceResults("foo"));
@@ -116,7 +116,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             tp,
             listener
         );
-
+        action.init();
         action.onFailure(new Exception("bar"));
         for (int i = 0; i < 10; i++) {
             action.onSuccess(new WarningInferenceResults("foo"));
@@ -146,7 +146,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 tp,
                 listener
             );
-
+            action.init();
             action.onTimeout();
             action.run();
             verify(resultProcessor, times(1)).ignoreResponseWithoutNotifying("1");
@@ -163,7 +163,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 tp,
                 listener
             );
-
+            action.init();
             action.onFailure(new IllegalStateException());
             action.run();
             verify(resultProcessor, never()).registerRequest(anyString(), any());

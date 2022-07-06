@@ -178,8 +178,15 @@ teardown:
         body: >
           {
             "name": "joe",
-            "size": 5
+            "size": 5,
+            "hint": {
+              "uids": ["u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"],
+              "labels": {
+                "direction": ["north", "east"]
+              }
+            }
           }
 
+  # None of the hints matches. But name match is sufficient
   - length: { profiles: 1 }
   - match: { "profiles.0.uid": "$profile_uid" }

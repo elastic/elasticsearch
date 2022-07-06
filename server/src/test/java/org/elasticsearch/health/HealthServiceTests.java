@@ -9,11 +9,6 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -30,9 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.oneOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class HealthServiceTests extends ESTestCase {
 
@@ -48,8 +40,7 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            ),
-            mockEmptyClusterService()
+            )
         );
 
         assertThat(
@@ -116,8 +107,7 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            ),
-            mockEmptyClusterService()
+            )
         );
 
         expectThrows(
@@ -147,8 +137,7 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            ),
-            mockEmptyClusterService()
+            )
         );
 
         // Get all indicators returns preflight result mixed in with appropriate component
@@ -210,10 +199,7 @@ public class HealthServiceTests extends ESTestCase {
 
     private void assertIndicatorIsUnknownStatus(HealthIndicatorResult result) {
         assertThat(result.status(), is(equalTo(UNKNOWN)));
-        assertThat(
-            result.summary(),
-            is(oneOf(HealthService.UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED, HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED))
-        );
+        assertThat(result.summary(), is(HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED));
     }
 
     public void testPreflightIndicatorFailureTriggersUnknownResults() {
@@ -231,8 +217,7 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            ),
-            mockEmptyClusterService()
+            )
         );
 
         List<HealthComponentResult> health = service.getHealth(null, null, false);
@@ -321,113 +306,6 @@ public class HealthServiceTests extends ESTestCase {
         }
     }
 
-    public void testAllIndicatorsUnknownWhenClusterStateNotRecovered() {
-        var hasMaster = new HealthIndicatorResult("has_master", "coordination", RED, null, null, null, null, null);
-        var hasStorage = new HealthIndicatorResult("has_storage", "data", GREEN, null, null, null, null, null);
-        var networkLatency = new HealthIndicatorResult("network_latency", "coordination", GREEN, null, null, null, null, null);
-        var slowTasks = new HealthIndicatorResult("slow_task_assignment", "coordination", YELLOW, null, null, null, null, null);
-        var shardsAvailable = new HealthIndicatorResult("shards_availability", "data", GREEN, null, null, null, null, null);
-
-        var service = new HealthService(
-            List.of(createMockHealthIndicatorService(hasMaster), createMockHealthIndicatorService(hasStorage)),
-            List.of(
-                createMockHealthIndicatorService(networkLatency),
-                createMockHealthIndicatorService(slowTasks),
-                createMockHealthIndicatorService(shardsAvailable)
-            ),
-            mockClusterService(
-                ClusterState.builder(new ClusterName("test-cluster"))
-                    .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
-                    .build()
-            )
-        );
-
-        List<HealthComponentResult> health = service.getHealth(null, null, false);
-        assertThat(health.size(), is(equalTo(2)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            // UNKNOWN because cluster state not recovered
-            assertThat(component1.status(), is(equalTo(UNKNOWN)));
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(3)));
-            // Preflight 1 should be UNKNOWN
-            HealthIndicatorResult hasMasterResult = component1.findIndicator("has_master");
-            assertIndicatorIsUnknownStatus(hasMasterResult);
-            // Indicator 1 should be UNKNOWN
-            HealthIndicatorResult networkLatencyResult = component1.findIndicator("network_latency");
-            assertIndicatorIsUnknownStatus(networkLatencyResult);
-            // Indicator 2 should be UNKNOWN
-            HealthIndicatorResult slowTasksResult = component1.findIndicator("slow_task_assignment");
-            assertIndicatorIsUnknownStatus(slowTasksResult);
-        }
-        {
-            HealthComponentResult component2 = health.stream().filter(result -> result.name().equals("data")).findAny().orElseThrow();
-            // UNKNOWN because cluster state not recovered
-            assertThat(component2.status(), is(equalTo(UNKNOWN)));
-            assertThat(component2.indicators(), is(notNullValue()));
-            assertThat(component2.indicators().size(), is(equalTo(2)));
-            // Preflight 2 should be UNKNOWN
-            HealthIndicatorResult hasStorageResult = component2.findIndicator("has_storage");
-            assertIndicatorIsUnknownStatus(hasStorageResult);
-            // Indicator 3 should be UNKNOWN
-            HealthIndicatorResult shardsAvailableResult = component2.findIndicator("shards_availability");
-            assertIndicatorIsUnknownStatus(shardsAvailableResult);
-        }
-
-        health = service.getHealth("coordination", null, false);
-        assertThat(health.size(), is(equalTo(1)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            // UNKNOWN because cluster state not recovered
-            assertThat(component1.status(), is(equalTo(UNKNOWN)));
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(3)));
-            // Preflight 1 should be UNKNOWN
-            HealthIndicatorResult hasMasterResult = component1.findIndicator("has_master");
-            assertIndicatorIsUnknownStatus(hasMasterResult);
-            // Indicator 1 should be UNKNOWN
-            HealthIndicatorResult networkLatencyResult = component1.findIndicator("network_latency");
-            assertIndicatorIsUnknownStatus(networkLatencyResult);
-            // Indicator 2 should be UNKNOWN
-            HealthIndicatorResult slowTasksResult = component1.findIndicator("slow_task_assignment");
-            assertIndicatorIsUnknownStatus(slowTasksResult);
-        }
-
-        health = service.getHealth("coordination", "slow_task_assignment", false);
-        assertThat(health.size(), is(equalTo(1)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(1)));
-            // Indicator 2 should be UNKNOWN
-            HealthIndicatorResult slowTasksResult = component1.findIndicator("slow_task_assignment");
-            assertIndicatorIsUnknownStatus(slowTasksResult);
-        }
-
-        health = service.getHealth("coordination", "has_master", false);
-        assertThat(health.size(), is(equalTo(1)));
-        {
-            HealthComponentResult component1 = health.stream()
-                .filter(result -> result.name().equals("coordination"))
-                .findAny()
-                .orElseThrow();
-            assertThat(component1.indicators(), is(notNullValue()));
-            assertThat(component1.indicators().size(), is(equalTo(1)));
-            // Preflight 1 should be UNKNOWN
-            HealthIndicatorResult hasMasterResult = component1.findIndicator("has_master");
-            assertIndicatorIsUnknownStatus(hasMasterResult);
-        }
-    }
-
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {
         return new HealthIndicatorService() {
             @Override
@@ -452,13 +330,4 @@ public class HealthServiceTests extends ESTestCase {
         };
     }
 
-    private static ClusterService mockEmptyClusterService() {
-        return mockClusterService(ClusterState.EMPTY_STATE);
-    }
-
-    private static ClusterService mockClusterService(ClusterState clusterState) {
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
-        return clusterService;
-    }
 }

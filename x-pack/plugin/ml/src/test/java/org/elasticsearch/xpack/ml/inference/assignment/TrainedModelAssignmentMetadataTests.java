@@ -49,32 +49,6 @@ public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTest
         return new TrainedModelAssignmentMetadata(new HashMap<>());
     }
 
-    public void testBuilderChanged_WhenAddingRemovingModel() {
-        TrainedModelAssignmentMetadata original = randomInstance();
-        String newModel = "foo_model";
-
-        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.fromMetadata(original);
-        assertThat(builder.isChanged(), is(false));
-
-        assertUnchanged(builder, b -> b.removeAssignment(newModel));
-
-        builder.addNewAssignment(newModel, TrainedModelAssignment.Builder.empty(randomParams(newModel)));
-        assertThat(builder.isChanged(), is(true));
-    }
-
-    public void testBuilderChangedWhenAssignmentChanged() {
-        String allocatedModelId = "test_model_id";
-        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.fromMetadata(
-            TrainedModelAssignmentMetadata.Builder.empty()
-                .addNewAssignment(allocatedModelId, TrainedModelAssignment.Builder.empty(randomParams(allocatedModelId)))
-                .build()
-        );
-        assertThat(builder.isChanged(), is(false));
-
-        builder.getAssignment(allocatedModelId).addNewRoutingEntry("new-node");
-        assertThat(builder.isChanged(), is(true));
-    }
-
     public void testIsAllocated() {
         String allocatedModelId = "test_model_id";
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -82,15 +56,6 @@ public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTest
             .build();
         assertThat(metadata.isAssigned(allocatedModelId), is(true));
         assertThat(metadata.isAssigned("unknown_model_id"), is(false));
-    }
-
-    private static TrainedModelAssignmentMetadata.Builder assertUnchanged(
-        TrainedModelAssignmentMetadata.Builder builder,
-        Function<TrainedModelAssignmentMetadata.Builder, TrainedModelAssignmentMetadata.Builder> function
-    ) {
-        function.apply(builder);
-        assertThat(builder.isChanged(), is(false));
-        return builder;
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomParams(String modelId) {

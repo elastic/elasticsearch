@@ -16,7 +16,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -93,21 +96,23 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
         Response.Builder responseBuilder = Response.builder();
+        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
 
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
-            doInfer(task, request, responseBuilder, listener);
+            doInfer(task, request, responseBuilder, parentTaskId, listener);
         } else {
             trainedModelProvider.getTrainedModel(
                 request.getModelId(),
                 GetTrainedModelsAction.Includes.empty(),
+                parentTaskId,
                 ActionListener.wrap(trainedModelConfig -> {
                     // Since we just checked MachineLearningField.ML_API_FEATURE.check(licenseState) and that check failed
                     // That means we don't have a plat+ license. The only licenses for trained models are basic (free) and plat.
                     boolean allowed = trainedModelConfig.getLicenseLevel() == License.OperationMode.BASIC;
                     responseBuilder.setLicensed(allowed);
                     if (allowed || request.isPreviouslyLicensed()) {
-                        doInfer(task, request, responseBuilder, listener);
+                        doInfer(task, request, responseBuilder, parentTaskId, listener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     }
@@ -116,11 +121,17 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         }
     }
 
-    private void doInfer(Task task, Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
+    private void doInfer(
+        Task task,
+        Request request,
+        Response.Builder responseBuilder,
+        TaskId parentTaskId,
+        ActionListener<Response> listener
+    ) {
         if (isAllocatedModel(request.getModelId())) {
-            inferAgainstAllocatedModel(task, request, responseBuilder, listener);
+            inferAgainstAllocatedModel(request, responseBuilder, parentTaskId, listener);
         } else {
-            getModelAndInfer(request, responseBuilder, listener);
+            getModelAndInfer(request, responseBuilder, parentTaskId, (CancellableTask) task, listener);
         }
     }
 
@@ -129,7 +140,13 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         return trainedModelAssignmentMetadata.isAssigned(modelId);
     }
 
-    private void getModelAndInfer(Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
+    private void getModelAndInfer(
+        Request request,
+        Response.Builder responseBuilder,
+        TaskId parentTaskId,
+        CancellableTask task,
+        ActionListener<Response> listener
+    ) {
         ActionListener<LocalModel> getModelListener = ActionListener.wrap(model -> {
             TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
                 client.threadPool().executor(ThreadPool.Names.SAME),
@@ -138,12 +155,12 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 // Always fail immediately and return an error
                 ex -> true
             );
-            request.getObjectsToInfer()
-                .forEach(
-                    stringObjectMap -> typedChainTaskExecutor.add(
-                        chainedTask -> model.infer(stringObjectMap, request.getUpdate(), chainedTask)
-                    )
-                );
+            request.getObjectsToInfer().forEach(stringObjectMap -> typedChainTaskExecutor.add(chainedTask -> {
+                if (task.isCancelled()) {
+                    throw new TaskCancelledException(format("Inference task cancelled with reason [%s]", task.getReasonCancelled()));
+                }
+                model.infer(stringObjectMap, request.getUpdate(), chainedTask);
+            }));
 
             typedChainTaskExecutor.execute(ActionListener.wrap(inferenceResultsInterfaces -> {
                 model.release();
@@ -154,13 +171,13 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             }));
         }, listener::onFailure);
 
-        modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
+        modelLoadingService.getModelForPipeline(request.getModelId(), parentTaskId, getModelListener);
     }
 
     private void inferAgainstAllocatedModel(
-        Task task,
         Request request,
         Response.Builder responseBuilder,
+        TaskId parentTaskId,
         ActionListener<Response> listener
     ) {
         TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
@@ -174,11 +191,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             .forEach(
                 stringObjectMap -> typedChainTaskExecutor.add(
                     chainedTask -> inferSingleDocAgainstAllocatedModel(
-                        task,
                         request.getModelId(),
                         request.getTimeout(),
                         request.getUpdate(),
                         stringObjectMap,
+                        parentTaskId,
                         chainedTask
                     )
                 )
@@ -195,21 +212,20 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     private void inferSingleDocAgainstAllocatedModel(
-        Task task,
         String modelId,
         TimeValue timeValue,
         InferenceConfigUpdate inferenceConfigUpdate,
         Map<String, Object> doc,
+        TaskId parentTaskId,
         ActionListener<InferenceResults> listener
     ) {
-        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         InferTrainedModelDeploymentAction.Request request = new InferTrainedModelDeploymentAction.Request(
             modelId,
             inferenceConfigUpdate,
             Collections.singletonList(doc),
             timeValue
         );
-        request.setParentTask(taskId);
+        request.setParentTask(parentTaskId);
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,

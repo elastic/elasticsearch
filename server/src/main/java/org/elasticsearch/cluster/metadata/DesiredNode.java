@@ -46,7 +46,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
     private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
-    public static final ConstructingObjectParser<DesiredNode, String> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
         "desired_node",
         false,
         (args, name) -> new DesiredNode(
@@ -60,27 +60,31 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
-        PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), PROCESSORS_FIELD);
-        PARSER.declareObjectOrNull(
+        configureParser(PARSER);
+    }
+
+    static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
+        parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
+        parser.declareFloat(ConstructingObjectParser.optionalConstructorArg(), PROCESSORS_FIELD);
+        parser.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ProcessorsRange.fromXContent(p),
             null,
             PROCESSORS_RANGE_FIELD
         );
-        PARSER.declareField(
+        parser.declareField(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MEMORY_FIELD.getPreferredName()),
             MEMORY_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(
+        parser.declareField(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), STORAGE_FIELD.getPreferredName()),
             STORAGE_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(
+        parser.declareField(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> parseVersion(p.text()),
             VERSION_FIELD,
@@ -104,10 +108,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
 
-    public DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
-        this(settings, (float) processors, memory, storage, version);
-    }
-
     public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage, Version version) {
         this(settings, null, processorsRange, memory, storage, version);
     }
@@ -116,7 +116,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         this(settings, processors, null, memory, storage, version);
     }
 
-    private DesiredNode(
+    DesiredNode(
         Settings settings,
         Float processors,
         ProcessorsRange processorsRange,
@@ -210,6 +210,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toInnerXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SETTINGS_FIELD.getPreferredName());
         settings.toXContent(builder, params);
         builder.endObject();
@@ -222,8 +228,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         builder.field(MEMORY_FIELD.getPreferredName(), memory);
         builder.field(STORAGE_FIELD.getPreferredName(), storage);
         builder.field(VERSION_FIELD.getPreferredName(), version);
-        builder.endObject();
-        return builder;
     }
 
     public boolean hasMasterRole() {
@@ -263,6 +267,16 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     private boolean processorHasDecimals() {
         return processors != null && ((int) (float) processors) != Math.ceil(processors);
+    }
+
+    @Nullable
+    Float processors() {
+        return processors;
+    }
+
+    @Nullable
+    ProcessorsRange processorsRange() {
+        return processorsRange;
     }
 
     public ByteSizeValue memory() {

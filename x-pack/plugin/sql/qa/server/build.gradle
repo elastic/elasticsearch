@@ -63,7 +63,7 @@ subprojects {
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
      * them explicitly for non-es projects. */
-    javaRestTestImplementation(xpackProject('plugin:sql:qa:server')) {
+    javaRestTestImplementation(project(':x-pack:plugin:sql:qa:server')) {
       transitive = false
     }
     javaRestTestImplementation project(":test:framework")
@@ -81,11 +81,11 @@ subprojects {
 
 
     javaRestTestRuntimeOnly project(path: xpackModule('sql:jdbc'))
-    javaRestTestRuntimeOnly xpackProject('plugin:sql:sql-client')
+    javaRestTestRuntimeOnly project(':x-pack:plugin:sql:sql-client')
 
     // CLI testing dependencies
     javaRestTestRuntimeOnly project(path: xpackModule('sql:sql-cli'))
-    javaRestTestRuntimeOnly(xpackProject('plugin:sql:sql-action')) {
+    javaRestTestRuntimeOnly(project(':x-pack:plugin:sql:sql-action')) {
       transitive = false
     }
 

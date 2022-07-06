@@ -40,8 +40,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   // Ensure new cache setting is recognised
   setting 'xpack.security.authz.store.roles.has_privileges.cache.max_size', '100'
 
-  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
-
   user username: "test_admin", password: 'x-pack-test-password'
   user username: "rac_user", password: 'x-pack-test-password', role: "rac_user_role"
 }

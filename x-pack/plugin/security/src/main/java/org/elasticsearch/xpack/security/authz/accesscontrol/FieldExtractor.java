@@ -24,8 +24,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.util.set.Sets;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -81,7 +81,7 @@ class FieldExtractor {
         } else if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
             // Both queries are supposed to be equivalent, so if any of them can be extracted, we are good
             try {
-                Set<String> dvQueryFields = new HashSet<>(1);
+                Set<String> dvQueryFields = Sets.newHashSetWithExpectedSize(1);
                 extractFields(indexOrDocValuesQuery.getRandomAccessQuery(), dvQueryFields);
                 fields.addAll(dvQueryFields);
             } catch (UnsupportedOperationException e) {

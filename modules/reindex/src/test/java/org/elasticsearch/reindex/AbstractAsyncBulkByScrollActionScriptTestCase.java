@@ -17,7 +17,9 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.OpType;
 import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
+import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.script.UpdateScript;
 import org.junit.Before;
 
@@ -47,13 +49,30 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
-        UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
-            @Override
-            public void execute() {
-                scriptBody.accept(getCtx());
+        when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(
+            (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
             }
-        };
-        when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);
+        );
+        when(scriptService.compile(any(), eq(UpdateByQueryScript.CONTEXT))).thenReturn(
+            (params, ctx) -> new UpdateByQueryScript(Collections.emptyMap(), ctx) {
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
+            }
+        );
+        when(scriptService.compile(any(), eq(ReindexScript.CONTEXT))).thenReturn(
+            (params, ctx) -> new ReindexScript(Collections.emptyMap(), ctx) {
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
+            }
+        );
         AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

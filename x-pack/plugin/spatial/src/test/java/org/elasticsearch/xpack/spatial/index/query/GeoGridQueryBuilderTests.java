@@ -264,7 +264,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
         double lon = randomDoubleBetween(-180d, 180d, true);
         double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
-        for (int zoom = 0; zoom <= MAX_ZOOM; zoom++) {
+        for (int zoom = 0; zoom < MAX_ZOOM; zoom++) {
             long tile = GeoTileUtils.longEncode(qLon, qLat, zoom);
             Rectangle qRect = GeoGridQueryBuilder.getQueryTile(stringEncode(tile));
             assertBoundingBox(tile, zoom, qLon, qLat, qRect);

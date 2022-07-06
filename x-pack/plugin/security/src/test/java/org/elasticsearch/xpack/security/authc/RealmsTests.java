@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
@@ -125,16 +126,7 @@ public class RealmsTests extends ESTestCase {
 
         threadContext = new ThreadContext(Settings.EMPTY);
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-
-        reservedRealm = new ReservedRealm(
-            mock(Environment.class),
-            Settings.EMPTY,
-            mock(NativeUsersStore.class),
-            new AnonymousUser(Settings.EMPTY),
-            threadPool
-        );
+        reservedRealm = buildReservedRealm();
         allowAllRealms();
     }
 
@@ -406,27 +398,6 @@ public class RealmsTests extends ESTestCase {
                     + "] is associated to domains [domain1, domain2]"
             )
         );
-    }
-
-    public void testReservedRealmIsAlwaysDomainless() throws Exception {
-        int realmId = randomIntBetween(0, randomRealmTypesCount - 1);
-        Settings settings = Settings.builder()
-            .put("xpack.security.authc.realms.type_" + realmId + ".reserved.order", 2)
-            .put("xpack.security.authc.domains.domain_reserved.realms", "reserved")
-            .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".disabled_native.enabled", false)
-            .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".disabled_file.enabled", false)
-            .put("path.home", createTempDir())
-            .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-        Iterator<Realm> iterator = realms.iterator();
-        assertThat(iterator.hasNext(), is(true));
-        Realm realm = iterator.next();
-        assertThat(realm, is(reservedRealm));
-        realm = iterator.next();
-        assertThat(realm.type(), is("type_" + realmId));
-        assertThat(realm.name(), is("reserved"));
-        assertThat(realm.realmRef().getDomain().name(), is("domain_reserved"));
     }
 
     public void testDomainWithUndefinedRealms() {
@@ -1094,6 +1065,147 @@ public class RealmsTests extends ESTestCase {
                 + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ")
                 + "]. "
                 + "In a future major release, node will fail to start if any realm names start with reserved prefix."
+        );
+    }
+
+    public void testExplicitlyConfiguredRealmNamesMustNotClashWithDefaultRealmNames() throws Exception {
+        final Tuple<String, String> defaultRealm = randomFrom(
+            new Tuple<>("reserved", "reserved"),
+            new Tuple<>("file", "default_file"),
+            new Tuple<>("native", "default_native")
+        );
+
+        final String configuredRealmType = randomValueOtherThan(defaultRealm.v1(), () -> randomAlphaOfLengthBetween(3, 18));
+        factories.put(configuredRealmType, DummyRealm::new);
+        final String realmSettingKey = "xpack.security.authc.realms." + configuredRealmType + "." + defaultRealm.v2();
+
+        // The name of an explicitly configured realm must not be either default_native, default_file or "reserved"
+        final Settings settings1 = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(realmSettingKey + ".order", randomInt())
+            .build();
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Realms(
+                settings1,
+                TestEnvironment.newEnvironment(settings1),
+                factories,
+                licenseState,
+                threadContext,
+                buildReservedRealm()
+            )
+        );
+        assertThat(
+            e1.getMessage(),
+            containsString(
+                "Found realm configured with name clashing with the [" + defaultRealm.v2() + "] realm: [" + realmSettingKey + "]"
+            )
+        );
+
+        // It is OK if the explicitly configured realm is disabled
+        final Settings settings2 = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(realmSettingKey + ".order", randomInt())
+            .put(realmSettingKey + ".enabled", false)
+            .build();
+        final Realms realms2 = new Realms(
+            settings2,
+            TestEnvironment.newEnvironment(settings2),
+            factories,
+            licenseState,
+            threadContext,
+            buildReservedRealm()
+        );
+        assertThat(realms2.getActiveRealms().stream().map(Realm::type).toList(), containsInAnyOrder("reserved", "file", "native"));
+
+        // This block of tests do not apply to reserved realm since it is not configurable
+        if ("file".equals(defaultRealm.v1()) || "native".equals(defaultRealm.v1())) {
+            final String autoEnabledRealmType = "file".equals(defaultRealm.v1()) ? "native" : "file";
+
+            // It is OK if the default file or native realm is disabled
+            final Settings settings3 = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(realmSettingKey + ".order", randomInt())
+                .put("xpack.security.authc.realms." + defaultRealm.v1() + "." + randomAlphaOfLengthBetween(3, 18) + ".enabled", false)
+                .build();
+            final Realms realms3 = new Realms(
+                settings3,
+                TestEnvironment.newEnvironment(settings3),
+                factories,
+                licenseState,
+                threadContext,
+                buildReservedRealm()
+            );
+            assertThat(
+                realms3.getActiveRealms().stream().map(Realm::type).toList(),
+                containsInAnyOrder("reserved", configuredRealmType, autoEnabledRealmType)
+            );
+
+            // It is OK if file or native realm is named something else
+            final Settings settings4 = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(realmSettingKey + ".order", randomInt())
+                .put("xpack.security.authc.realms." + defaultRealm.v1() + "." + randomAlphaOfLengthBetween(3, 18) + ".order", randomInt())
+                .build();
+            final Realms realms4 = new Realms(
+                settings4,
+                TestEnvironment.newEnvironment(settings4),
+                factories,
+                licenseState,
+                threadContext,
+                buildReservedRealm()
+            );
+            assertThat(
+                realms4.getActiveRealms().stream().map(Realm::type).toList(),
+                containsInAnyOrder("reserved", configuredRealmType, "file", "native")
+            );
+
+            // All explicitly configured realm names still must be unique
+            final Settings settings5 = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(realmSettingKey + ".order", randomInt())
+                .put("xpack.security.authc.realms." + defaultRealm.v1() + "." + defaultRealm.v2() + ".order", randomInt())
+                .build();
+            final IllegalArgumentException e5 = expectThrows(
+                IllegalArgumentException.class,
+                () -> new Realms(
+                    settings5,
+                    TestEnvironment.newEnvironment(settings5),
+                    factories,
+                    licenseState,
+                    threadContext,
+                    buildReservedRealm()
+                )
+            );
+            assertThat(e5.getMessage(), containsString("Found multiple realms configured with the same name"));
+        }
+
+        // It is OK to explicitly configure file to be default_file and native to be default_native
+        final Settings settings6 = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms.file.default_file.order", randomInt())
+            .put("xpack.security.authc.realms.native.default_native.order", randomInt())
+            .build();
+        final Realms realms6 = new Realms(
+            settings6,
+            TestEnvironment.newEnvironment(settings6),
+            factories,
+            licenseState,
+            threadContext,
+            buildReservedRealm()
+        );
+        assertThat(realms6.getActiveRealms().stream().map(Realm::type).toList(), containsInAnyOrder("reserved", "file", "native"));
+    }
+
+    private ReservedRealm buildReservedRealm() {
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        return new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            mock(NativeUsersStore.class),
+            new AnonymousUser(Settings.EMPTY),
+            threadPool
         );
     }
 

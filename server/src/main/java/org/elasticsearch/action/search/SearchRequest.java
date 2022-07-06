@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
@@ -101,6 +102,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private Map<String, long[]> waitForCheckpoints = Collections.emptyMap();
 
     private TimeValue waitForCheckpointsTimeout = TimeValue.timeValueSeconds(30);
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private boolean forceSyntheticSource = false;
 
     public SearchRequest() {
         this((Version) null);
@@ -212,6 +221,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
+        this.forceSyntheticSource = searchRequest.forceSyntheticSource;
     }
 
     /**
@@ -261,6 +271,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            forceSyntheticSource = false;
+        }
     }
 
     @Override
@@ -307,6 +322,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + waitForCheckpointsVersion
                     + "] or greater."
             );
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
         }
     }
 
@@ -721,6 +743,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return resolveTrackTotalHitsUpTo(scroll, source);
     }
 
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public void setForceSyntheticSource(boolean forceSyntheticSource) {
+        this.forceSyntheticSource = forceSyntheticSource;
+    }
+
     @Override
     public SearchRequest rewrite(QueryRewriteContext ctx) throws IOException {
         if (source == null) {
@@ -804,7 +846,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
-            && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode);
+            && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode)
+            && forceSyntheticSource == that.forceSyntheticSource;
     }
 
     @Override
@@ -825,7 +868,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
-            minCompatibleShardNode
+            minCompatibleShardNode,
+            forceSyntheticSource
         );
     }
 

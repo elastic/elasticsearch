@@ -12,6 +12,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,21 +38,22 @@ public abstract class CommandTestCase extends ESTestCase {
     /** The working directory that execute uses */
     protected Path esHomeDir;
 
+    /** The ES config dir */
+    protected Path configDir;
+
     @Before
-    public void resetTerminal() {
+    public void resetTerminal() throws IOException {
         terminal.reset();
         terminal.setSupportsBinary(false);
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);
         esHomeDir = createTempDir();
+        configDir = esHomeDir.resolve("config");
+        Files.createDirectory(configDir);
         sysprops.clear();
         sysprops.put("es.path.home", esHomeDir.toString());
         sysprops.put("es.path.conf", esHomeDir.resolve("config").toString());
         sysprops.put("os.name", "Linux"); // default to linux, tests can override to check specific OS behavior
         envVars.clear();
-    }
-
-    protected static Map<String, String> mockSystemProperties(Path homeDir) {
-        return Map.of("es.path.home", homeDir.toString(), "es.path.conf", homeDir.resolve("config").toString());
     }
 
     /** Creates a Command to test execution. */

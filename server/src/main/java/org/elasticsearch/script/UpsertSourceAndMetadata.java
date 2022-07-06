@@ -17,7 +17,7 @@ import java.util.Set;
  * Metadata for insert via upsert in the Update context
  */
 public class UpsertSourceAndMetadata extends UpdateSourceAndMetadata {
-    protected static final Set<String> VALID_OPS = Set.of("noop", "create", LEGACY_NOOP_STRING);
+    protected static final Set<String> VALID_UPSERT_OPS = Set.of("noop", "create", LEGACY_NOOP_STRING);
 
     public static Map<String, Validator> VALIDATORS = Map.of(
         INDEX,
@@ -25,13 +25,13 @@ public class UpsertSourceAndMetadata extends UpdateSourceAndMetadata {
         ID,
         UpdateSourceAndMetadata::setOnceStringValidator,
         OP,
-        opValidatorFromValidOps(VALID_OPS),
+        opValidatorFromValidOps(VALID_UPSERT_OPS),
         TIMESTAMP,
         UpdateSourceAndMetadata::setOnceLongValidator
     );
 
     public UpsertSourceAndMetadata(String index, String id, String op, long timestamp, Map<String, Object> source) {
-        super(source, metadataMap(index, id, op, timestamp), VALIDATORS);
+        super(source, metadataMap(index, id, op, timestamp), VALIDATORS, VALID_UPSERT_OPS);
     }
 
     protected static Map<String, Object> metadataMap(String index, String id, String op, long timestamp) {

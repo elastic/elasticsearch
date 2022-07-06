@@ -27,7 +27,7 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
     // AbstractAsyncBulkByScrollAction.OpType uses 'noop' rather than 'none', so unify on 'noop' but allow 'none' in
     // the ctx map
     protected static final String LEGACY_NOOP_STRING = "none";
-    protected static final Set<String> VALID_OPS = Set.of("noop", "create", "index", "delete", LEGACY_NOOP_STRING);
+    protected static final Set<String> VALID_UPDATE_OPS = Set.of("noop", "index", "delete", LEGACY_NOOP_STRING);
 
     public static Map<String, Validator> VALIDATORS = Map.of(
         INDEX,
@@ -46,6 +46,8 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         UpdateSourceAndMetadata::setOnceLongValidator
     );
 
+    protected final Set<String> validOps;
+
     public UpdateSourceAndMetadata(
         String index,
         String id,
@@ -57,10 +59,12 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         Map<String, Object> source
     ) {
         super(wrapSource(source), metadataMap(index, id, version, routing, type, op, timestamp), VALIDATORS);
+        validOps = VALID_UPDATE_OPS;
     }
 
-    protected UpdateSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, Map<String, Validator> validators) {
+    protected UpdateSourceAndMetadata(Map<String, Object> source, Map<String, Object> metadata, Map<String, Validator> validators, Set<String> validOps) {
         super(wrapSource(source), metadata, validators);
+        this.validOps = validOps;
     }
 
     protected static Map<String, Object> wrapSource(Map<String, Object> source) {
@@ -105,7 +109,7 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
     @Override
     public String getOp() {
         String op = getString(OP);
-        if (LEGACY_NOOP_STRING.equals(op) || VALID_OPS.contains(op) == false) {
+        if (LEGACY_NOOP_STRING.equals(op) || validOps.contains(op) == false) {
             // UpdateHelper.UpdateOpType.lenientFromString allows anything into the map
             return "noop";
         }
@@ -117,9 +121,9 @@ public class UpdateSourceAndMetadata extends SourceAndMetadataMap {
         if (LEGACY_NOOP_STRING.equals(op)) {
             throw new IllegalArgumentException(LEGACY_NOOP_STRING + " is deprecated, use 'noop' instead");
         }
-        if (VALID_OPS.contains(op) == false) {
+        if (validOps.contains(op) == false) {
             throw new IllegalArgumentException(
-                "[" + op + "] must be one of " + VALID_OPS.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + op + "]"
+                "[" + op + "] must be one of " + VALID_UPDATE_OPS.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + op + "]"
             );
         }
         put(OP, op);

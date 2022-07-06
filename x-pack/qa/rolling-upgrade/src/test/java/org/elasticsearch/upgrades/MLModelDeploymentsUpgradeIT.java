@@ -112,7 +112,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 }));
                 waitForDeploymentStarted(modelId);
                 // attempt inference on new and old nodes multiple times
-                for (int i = 0; i < 100; i++) {
+                for (int i = 0; i < 10; i++) {
                     assertInfer(modelId);
                 }
             }

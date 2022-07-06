@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -341,7 +340,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateNotInUse() {
         String pipeline = "pipeline";
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indices = new HashMap<>();
         int defaultIndicesCount = randomIntBetween(0, 4);
         List<String> defaultIndices = new ArrayList<>();
         for (int i = 0; i < defaultIndicesCount; i++) {
@@ -370,7 +369,7 @@ public class IngestServiceTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> IngestService.validateNotInUse(pipeline, indices.build().values())
+            () -> IngestService.validateNotInUse(pipeline, indices.values())
         );
 
         if (defaultIndices.size() > 0) {

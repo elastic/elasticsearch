@@ -25,7 +25,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.AbstractMapReducer;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.ValuesExtractor.Field;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.IOException;
 import java.util.List;

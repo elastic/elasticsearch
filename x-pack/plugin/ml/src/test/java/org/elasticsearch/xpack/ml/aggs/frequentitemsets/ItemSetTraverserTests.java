@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.ValuesExtractor.Field;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 import org.junit.After;
 
 import java.io.IOException;

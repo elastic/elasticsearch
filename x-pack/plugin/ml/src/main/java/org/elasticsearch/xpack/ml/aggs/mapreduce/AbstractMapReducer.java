@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.ValuesExtractor.Field;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.Closeable;
 import java.io.IOException;

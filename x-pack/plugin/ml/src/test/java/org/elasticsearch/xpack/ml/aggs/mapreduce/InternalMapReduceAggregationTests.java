@@ -27,7 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregationTests.WordCountMapReducer.WordCounts;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.ValuesExtractor.Field;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.Closeable;
 import java.io.IOException;

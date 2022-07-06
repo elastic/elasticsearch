@@ -28,7 +28,12 @@ import java.util.List;
 /**
  * Interface to extract values from Lucene in order to feed it into the MapReducer.
  */
-public abstract class ValuesExtractor {
+public abstract class MapReduceValueSource {
+
+    @FunctionalInterface
+    public interface ValueSourceSupplier {
+        MapReduceValueSource build(ValuesSourceConfig config, int id);
+    }
 
     public static class Field implements Writeable {
         private final String name;
@@ -58,49 +63,37 @@ public abstract class ValuesExtractor {
     private final Field field;
     private final DocValueFormat format;
 
-    abstract Tuple<Field, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException;
+    abstract Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException;
 
-    ValuesExtractor(Field field, DocValueFormat format) {
-        this.field = field;
-        this.format = format;
+    MapReduceValueSource(ValuesSourceConfig config, int id) {
+        String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
+
+        if (Strings.isNullOrEmpty(fieldName)) {
+            throw new IllegalArgumentException("scripts are not supported");
+        }
+
+        this.field = new Field(fieldName, id);
+        this.format = config.format();
     }
 
     public Field getField() {
         return field;
     }
 
-    public DocValueFormat getFormat() {
+    DocValueFormat getFormat() {
         return format;
     }
 
-    static ValuesExtractor buildBytesExtractor(ValuesSourceConfig config, int id) {
-        ValuesSource vs = config.getValuesSource();
-        String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
-
-        return new Keyword(new Field(fieldName, id), (Bytes) vs, config.format());
-    }
-
-    static ValuesExtractor buildLongExtractor(ValuesSourceConfig config, int id) {
-        ValuesSource vs = config.getValuesSource();
-        String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
-
-        if (Strings.isNullOrEmpty(fieldName)) {
-            throw new IllegalArgumentException("scripts are not supported");
-        }
-        return new LongValue(new Field(fieldName, id), (Numeric) vs, config.format());
-    }
-
-    static class Keyword extends ValuesExtractor {
+    public static class KeywordValueSource extends MapReduceValueSource {
         private final ValuesSource.Bytes source;
 
-        Keyword(Field field, ValuesSource.Bytes source, DocValueFormat format) {
-            super(field, format);
-            this.source = source;
+        public KeywordValueSource(ValuesSourceConfig config, int id) {
+            super(config, id);
+            this.source = (Bytes) config.getValuesSource();
         }
 
         @Override
-        public Tuple<Field, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException {
-
+        public Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException {
             SortedBinaryDocValues values = source.bytesValues(ctx);
 
             if (values.advanceExact(doc)) {
@@ -116,17 +109,16 @@ public abstract class ValuesExtractor {
         }
     }
 
-    static class LongValue extends ValuesExtractor {
+    public static class NumericValueSource extends MapReduceValueSource {
         private final ValuesSource.Numeric source;
 
-        LongValue(Field field, ValuesSource.Numeric source, DocValueFormat format) {
-            super(field, format);
-            this.source = source;
+        public NumericValueSource(ValuesSourceConfig config, int id) {
+            super(config, id);
+            this.source = (Numeric) config.getValuesSource();
         }
 
         @Override
-        public Tuple<Field, List<Object>> collectValues(LeafReaderContext ctx, int doc) throws IOException {
-
+        public Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException {
             SortedNumericDocValues values = source.longValues(ctx);
 
             if (values.advanceExact(doc)) {

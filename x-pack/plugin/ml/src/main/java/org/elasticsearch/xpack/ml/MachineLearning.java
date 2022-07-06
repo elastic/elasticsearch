@@ -72,7 +72,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -284,7 +283,6 @@ import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregat
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
@@ -442,7 +440,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -1477,13 +1474,8 @@ public class MachineLearning extends Plugin
                 FrequentItemSetsAggregationBuilder::new,
                 FrequentItemSetsAggregationBuilder.PARSER
             ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
-                .setAggregatorRegistrar(s -> s.registerUsage(FrequentItemSetsAggregationBuilder.NAME))
+                .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators)
         );
-    }
-
-    @Override
-    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return List.of(MapReduceValueSourceRegistry::registerMapReduceValueSource);
     }
 
     public static boolean criticalTemplatesInstalled(ClusterState clusterState) {

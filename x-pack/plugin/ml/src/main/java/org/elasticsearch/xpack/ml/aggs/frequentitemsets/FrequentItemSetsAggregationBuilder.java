@@ -16,11 +16,14 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,6 +66,26 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SUPPORT);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SET_SIZE);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Aggregation.CommonFields.SIZE);
+    }
+
+    static final ValuesSourceRegistry.RegistryKey<MapReduceValueSource.ValueSourceSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, MapReduceValueSource.ValueSourceSupplier.class);
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
+        registry.registerUsage(NAME);
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
+            MapReduceValueSource.KeywordValueSource::new,
+            false
+        );
+
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
+            MapReduceValueSource.NumericValueSource::new,
+            false
+        );
     }
 
     private final List<MultiValuesSourceFieldConfig> fields;

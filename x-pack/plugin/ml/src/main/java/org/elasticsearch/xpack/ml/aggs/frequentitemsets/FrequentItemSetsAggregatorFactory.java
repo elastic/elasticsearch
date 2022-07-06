@@ -104,6 +104,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
             HashBasedTransactionStore,
             EclatMapReducer.EclatResult>(
                 name,
+                FrequentItemSetsAggregationBuilder.REGISTRY_KEY,
                 context,
                 parent,
                 metadata,

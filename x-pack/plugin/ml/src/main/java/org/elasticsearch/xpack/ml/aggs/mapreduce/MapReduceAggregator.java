@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.Closeable;
@@ -32,16 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.REGISTRY_KEY;
-import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.SUPPORTED_TYPES;
-
 public abstract class MapReduceAggregator<
     MapContext extends Closeable,
     MapFinalContext extends Writeable,
     ReduceContext extends Closeable,
     Result extends ToXContent & Writeable> extends AggregatorBase {
 
-    private final List<ValuesExtractor> extractors;
+    private final List<MapReduceValueSource> extractors;
     private final List<String> fieldNames;
     private final AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
@@ -51,6 +49,7 @@ public abstract class MapReduceAggregator<
 
     protected MapReduceAggregator(
         String name,
+        ValuesSourceRegistry.RegistryKey<MapReduceValueSource.ValueSourceSupplier> registryKey,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
@@ -59,17 +58,11 @@ public abstract class MapReduceAggregator<
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
-        List<ValuesExtractor> extractors = new ArrayList<>();
+        List<MapReduceValueSource> extractors = new ArrayList<>();
         List<String> fieldNames = new ArrayList<>();
         int id = 0;
         for (ValuesSourceConfig c : configs) {
-            if (SUPPORTED_TYPES.contains(c.valueSourceType()) == false) {
-                throw new IllegalArgumentException(
-                    c.getDescription() + " is not supported for aggregation [" + mapReducer.getWriteableName() + "]"
-                );
-            }
-
-            ValuesExtractor e = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c, id++);
+            MapReduceValueSource e = context.getValuesSourceRegistry().getAggregator(registryKey, c).build(c, id++);
             if (e.getField().getName() != null) {
                 fieldNames.add(e.getField().getName());
                 extractors.add(e);
@@ -113,7 +106,7 @@ public abstract class MapReduceAggregator<
 
                 mapReducer.map(extractors.stream().map(extractor -> {
                     try {
-                        return extractor.collectValues(ctx, doc);
+                        return extractor.collect(ctx, doc);
                     } catch (IOException e) {
                         firstException.trySet(e);
                         // ignored in AbstractMapReducer

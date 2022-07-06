@@ -1435,6 +1435,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
+        final Map<String, Object> oldMetadata = createdApiKey.v2();
         final var newRoleDescriptors = randomRoleDescriptors();
         final boolean nullRoleDescriptors = newRoleDescriptors == null;
         // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML
@@ -1453,7 +1454,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, listener);
 
         assertNotNull(response);
-        assertTrue(response.isUpdated());
+        // In this test, roleDescriptors always change unless they are `null` since the role descriptors assigned to the key
+        // before the update has a role name "role", whereas the randomly generated role descriptors for the update have longer
+        // random role names. As such null descriptors (plus matching or null metadata) is the only way we can get a noop here
+        final boolean isUpdated = nullRoleDescriptors == false
+            || (request.getMetadata() != null && request.getMetadata().equals(oldMetadata));
+        assertEquals(isUpdated, response.isUpdated());
 
         final PlainActionFuture<GetApiKeyResponse> getListener = new PlainActionFuture<>();
         client().filterWithHeader(

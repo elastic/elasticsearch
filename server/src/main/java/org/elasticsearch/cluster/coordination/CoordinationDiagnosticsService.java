@@ -482,6 +482,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 }
             }
         }
+        /*
+         * This begins polling a random master-eligible node for its result from this service. However there's a 10-second delay before it
+         * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
+         * polling tasks will be canceled before any requests are actually made.
+         */
+        if (currentMaster == null && clusterService.localNode().isMasterNode() == false) {
+            beginPollingRemoteStableMasterHealthIndicatorService();
+        } else {
+            cancelPollingRemoteStableMasterHealthIndicatorService();
+        }
     }
 
     private void beginPollingRemoteStableMasterHealthIndicatorService() {

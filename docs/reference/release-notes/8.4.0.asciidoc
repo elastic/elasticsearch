@@ -1,0 +1,181 @@
+[[release-notes-8.4.0]]
+== {es} version 8.4.0
+
+coming[8.4.0]
+
+Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
+
+[[bug-8.4.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Make the metric in the `buckets_path` parameter optional {es-pull}87220[#87220] (issue: {es-issue}72983[#72983])
+
+Allocation::
+* Clamp auto-expand replicas to the closest value {es-pull}87505[#87505] (issue: {es-issue}84788[#84788])
+
+Authentication::
+* Fix unique realm name check to cover default realms {es-pull}87999[#87999]
+
+Authorization::
+* Add rollover permissions for `remote_monitoring_agent` {es-pull}87717[#87717] (issue: {es-issue}84161[#84161])
+
+Autoscaling::
+* Do not include desired nodes in snapshots {es-pull}87695[#87695]
+
+EQL::
+* Avoid attempting PIT close on PIT open failure {es-pull}87498[#87498]
+
+Health::
+* Using the correct connection to fetch remote master history {es-pull}87299[#87299]
+
+Highlighting::
+* Handle ordering in plain highlighter for multiple inputs {es-pull}87414[#87414] (issue: {es-issue}87210[#87210])
+
+ILM+SLM::
+* Batch ILM move to retry step task update {es-pull}86759[#86759]
+
+Infra/Core::
+* Disallow three-digit minor and revision versions {es-pull}87338[#87338]
+
+Ingest::
+* Don't ignore pipeline for upserts in bulk api {es-pull}87719[#87719] (issue: {es-issue}87131[#87131])
+* Geoip processor should respect the `ignore_missing` in case of missing database {es-pull}87793[#87793] (issue: {es-issue}87345[#87345])
+
+Machine Learning::
+* Improve trained model stats API performance {es-pull}87978[#87978]
+
+SQL::
+* Fix date range checks {es-pull}87151[#87151] (issue: {es-issue}77179[#77179])
+
+Snapshot/Restore::
+* Use the provided SAS token without SDK sanitation that can produce invalid signatures {es-pull}88155[#88155] (issue: {es-issue}88140[#88140])
+
+Transform::
+* Execute `_refresh` separately from DBQ, with system permissions {es-pull}88005[#88005] (issue: {es-issue}88001[#88001])
+
+[[enhancement-8.4.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Minor `RangeAgg` optimization {es-pull}86935[#86935] (issue: {es-issue}84262[#84262])
+* Speed counting filters/range/date_histogram aggs {es-pull}81322[#81322]
+* Update bucket metric pipeline agg paths to allow intermediate single bucket and bucket qualified multi-bucket aggs {es-pull}85729[#85729]
+
+Allocation::
+* Add debug information to `ReactiveReason` about assigned and unassigned shards {es-pull}86132[#86132] (issue: {es-issue}85243[#85243])
+* Use desired nodes during data tier allocation decisions {es-pull}87735[#87735]
+
+Audit::
+* User Profile - audit support for security domain {es-pull}87097[#87097]
+
+Authorization::
+* App permissions with action patterns do not retrieve privileges {es-pull}85455[#85455]
+* Cancellable Profile Has Privilege check {es-pull}87224[#87224]
+* Return action denied error when user with insufficient privileges (`manage_own_api_key`) attempts a grant API key request {es-pull}87461[#87461] (issue: {es-issue}87438[#87438])
+
+Autoscaling::
+* Add processors to autoscaling capacity response {es-pull}87895[#87895]
+* Keep track of desired nodes status in cluster state {es-pull}87474[#87474]
+
+Cluster Coordination::
+* Expose segment details in PCSS debug log {es-pull}87412[#87412]
+* Report overall mapping size in cluster stats {es-pull}87556[#87556]
+
+Data streams::
+* Give doc-value-only mappings to numeric fields on metrics templates {es-pull}87100[#87100]
+
+Distributed::
+* Make Desired Nodes API operator-only {es-pull}87778[#87778] (issue: {es-issue}87777[#87777])
+
+FIPS::
+* Log warning when hash function used by cache is not recommended in FIPS mode {es-pull}86740[#86740]
+* Log warning when hashers for stored API keys or service tokens are not compliant with FIPS {es-pull}87363[#87363]
+
+Geo::
+* Optimize geogrid aggregations for singleton points {es-pull}87439[#87439]
+* Use a faster but less accurate log algorithm for computing Geotile Y coordinate {es-pull}87515[#87515]
+
+Health::
+* Adding a transport action to get cluster formation info {es-pull}87306[#87306]
+* Adding additional capability to the `master_is_stable` health indicator service {es-pull}87482[#87482]
+* Creating a transport action for the `CoordinationDiagnosticsService` {es-pull}87984[#87984]
+* Move the master stability logic into its own service separate from the `HealthIndicatorService` {es-pull}87672[#87672]
+* Remove cluster block preflight check from health api {es-pull}87520[#87520] (issue: {es-issue}87464[#87464])
+
+Infra/Core::
+* Improve console exception messages {es-pull}87942[#87942]
+* Stop making index read-only when executing force merge index lifecycle management action {es-pull}81162[#81162] (issue: {es-issue}81162[#81162])
+* Stream input and output support for optional collections {es-pull}88127[#88127]
+* Update version of internal http client {es-pull}87491[#87491]
+
+Infra/Logging::
+* Catch an exception when formatting a string fails {es-pull}87132[#87132]
+
+Ingest::
+* Allow pipeline processor to ignore missing pipelines {es-pull}87354[#87354]
+* Move the ingest attachment processor to the default distribution {es-pull}87989[#87989]
+* Only perform `ensureNoSelfReferences` check during ingest when needed {es-pull}87352[#87352] (issue: {es-issue}87335[#87335])
+* Removing `BouncyCastle` dependencies from ingest-attachment plugin {es-pull}88031[#88031]
+
+Machine Learning::
+* Add authorization info to ML config listings {es-pull}87884[#87884]
+* Expand allowed NER labels to be any I-O-B tagged labels {es-pull}87091[#87091]
+* Improve scalability of NLP models {es-pull}87366[#87366]
+
+Mapping::
+* Speed up `NumberFieldMapper` {es-pull}85688[#85688]
+
+Monitoring::
+* JvmService use SingleObjectCache {es-pull}87236[#87236]
+
+Network::
+* Allow start cluster with unreachable remote clusters {es-pull}87298[#87298]
+
+Performance::
+* Warn about impact of large readahead on search {es-pull}88007[#88007]
+
+Query Languages::
+* Add support for VERSION field type in SQL and EQL {es-pull}87590[#87590] (issue: {es-issue}83375[#83375])
+
+Rollup::
+* [TSDB] Add Kahan support to downsampling summation {es-pull}87554[#87554]
+
+SQL::
+* Implement support for partial search results in SQL CLI {es-pull}86982[#86982] (issue: {es-issue}86082[#86082])
+
+Search::
+* Add mapping stats for indexed `dense_vectors` {es-pull}86859[#86859]
+
+Security::
+* Automatically close idle connections in OIDC back-channel {es-pull}87773[#87773]
+* Support exists query for API key query {es-pull}87229[#87229]
+
+Snapshot/Restore::
+* Make snapshot deletes not block the repository during data blob deletes {es-pull}86514[#86514]
+* Update HDFS Repository to HDFS 3.3.3 {es-pull}88039[#88039]
+
+Transform::
+* Add authorization info to transform config listings {es-pull}87570[#87570]
+* Implement per-transform num_failure_retries setting {es-pull}87361[#87361]
+
+[[feature-8.4.0]]
+[float]
+=== New features
+
+Health::
+* Master stability health indicator part 1 (when a master has been seen recently) {es-pull}86524[#86524]
+
+Infra/Logging::
+* Stable logging API - the basic use case {es-pull}86612[#86612]
+
+[[upgrade-8.4.0]]
+[float]
+=== Upgrades
+
+Network::
+* Upgrade to Netty 4.1.77 {es-pull}86630[#86630]
+
+

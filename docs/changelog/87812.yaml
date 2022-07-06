@@ -1,6 +1,0 @@
-pr: 87812
-summary: Remove vim-tiny from Docker build
-area: Packaging
-type: enhancement
-issues:
- - 85634

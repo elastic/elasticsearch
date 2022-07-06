@@ -55,7 +55,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             InferenceResults.writeResult(inferenceResult, document, parentField, modelId);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
-                Map<String, Object> metadataMap = document.getMetadata();
+                Map<String, Object> metadataMap = document.getMetadataMap();
                 for (Map.Entry<String, Object> metadata : metadataMap.entrySet()) {
                     if (metadata.getValue() != null) {
                         builder.field(metadata.getKey(), metadata.getValue().toString());

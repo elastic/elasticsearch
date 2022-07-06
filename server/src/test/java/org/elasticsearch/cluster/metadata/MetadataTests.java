@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1094,9 +1093,8 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, Metadata.Custom> mapBuilder = ImmutableOpenMap.builder();
-        mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, Metadata.Custom> map = mapBuilder.build();
+        final Map<String, Metadata.Custom> map = new HashMap<>();
+        map.put(key, null);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 

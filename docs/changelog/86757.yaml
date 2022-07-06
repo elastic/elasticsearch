@@ -1,5 +1,0 @@
-pr: 86757
-summary: "Prefer secondary auth headers for transforms"
-area: Transform
-type: enhancement
-issues: []

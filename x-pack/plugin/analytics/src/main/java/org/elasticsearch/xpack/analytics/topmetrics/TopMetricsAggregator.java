@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
@@ -37,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.timeseries.DocsPerOrdIterator;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortValue;
@@ -70,7 +70,6 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     private final int size;
     private final BucketedSort sort;
     private final Metrics metrics;
-    private IntArray intArray;
 
     TopMetricsAggregator(
         String name,
@@ -140,28 +139,22 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         return new LeafBucketCollector() {
 
-            CompetitiveIterator competitiveIterator;
+            DocsPerOrdIterator docsPerOrdIterator;
 
             @Override
             public DocIdSetIterator competitiveIterator() throws IOException {
                 if (aggCtx != null && aggCtx.getTsid() != null) {
                     // TODO: we need to check that the sorting is that in @timestamp in descending order
                     SortedDocValues tsids = DocValues.getSorted(ctx.reader(), TimeSeriesIdFieldMapper.NAME);
-                    competitiveIterator = new CompetitiveIterator(tsids);
+                    docsPerOrdIterator = new DocsPerOrdIterator(tsids, size);
                 }
-                intArray = bigArrays().newIntArray(1);
-                return competitiveIterator;
+                return docsPerOrdIterator;
             }
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (leafSort.collect(doc, bucket) && competitiveIterator != null) {
-                    if (intArray.size() <= bucket) {
-                        intArray = bigArrays().resize(intArray, bucket + 1);
-                    }
-                    if (intArray.increment(bucket, 1) >= size) {
-                        competitiveIterator.advanceTSID();
-                    }
+                if (leafSort.collect(doc, bucket) && docsPerOrdIterator != null) {
+                    docsPerOrdIterator.visitedDoc(doc);
                 }
             }
 
@@ -186,7 +179,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public void doClose() {
-        Releasables.close(sort, metrics, intArray);
+        Releasables.close(sort, metrics);
     }
 
     static class Metrics implements BucketedSort.ExtraData, Releasable {
@@ -552,66 +545,6 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public void close() {}
-    }
-
-    private static class CompetitiveIterator extends DocIdSetIterator {
-
-        private final SortedDocValues tsids;
-        private boolean advanceTSID;
-
-        CompetitiveIterator(SortedDocValues tsids) {
-            this.tsids = tsids;
-        }
-
-        void advanceTSID() throws IOException {
-            advanceTSID = true;
-        }
-
-        private int doAvanceTSID() throws IOException {
-            int docID = tsids.docID();
-            if (docID == DocIdSetIterator.NO_MORE_DOCS) {
-                return docID;
-            }
-            int currentOrd = tsids.ordValue();
-            do {
-                // if we could know efficiently the docId for the next Tsid, we could
-                // speed up this process enormously instead of manually advance the iterator
-                // until we find the position we want.
-                docID = tsids.nextDoc();
-            } while (docID != DocIdSetIterator.NO_MORE_DOCS && currentOrd == tsids.ordValue());
-            return docID;
-        }
-
-        @Override
-        public int docID() {
-            return tsids.docID();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            if (advanceTSID) {
-                advanceTSID = false;
-                return doAvanceTSID();
-            }
-            return tsids.nextDoc();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            if (advanceTSID) {
-                advanceTSID = false;
-                doAvanceTSID();
-            }
-            if (tsids.docID() < target) {
-                return tsids.advance(target);
-            }
-            return tsids.docID();
-        }
-
-        @Override
-        public long cost() {
-            return tsids.cost();
-        }
     }
 
 }

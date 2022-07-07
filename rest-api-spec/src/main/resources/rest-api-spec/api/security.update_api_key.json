@@ -31,7 +31,7 @@
       ]
     },
     "body": {
-      "description": "The API key request to update attributes of an API key. If body omitted or empty, will update auto-updatable attributes only.",
+      "description": "The API key request to update attributes of an API key.",
       "required": false
     }
   }

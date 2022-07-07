@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -669,12 +670,16 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     private void testAggregation(
-        AggregationBuilder aggregationBuilder,
+        CardinalityAggregationBuilder aggregationBuilder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalCardinality> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        for (CardinalityAggregatorFactory.ExecutionMode mode : CardinalityAggregatorFactory.ExecutionMode.values()) {
+            aggregationBuilder.executionHint(mode.toString().toLowerCase(Locale.ROOT));
+            testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        }
     }
 }

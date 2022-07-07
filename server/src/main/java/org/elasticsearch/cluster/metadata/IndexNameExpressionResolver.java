@@ -764,7 +764,7 @@ public class IndexNameExpressionResolver {
             if (aliases == null) {
                 return null;
             }
-            return aliases.toArray(new String[aliases.size()]);
+            return aliases.toArray(Strings.EMPTY_ARRAY);
         }
     }
 
@@ -825,20 +825,7 @@ public class IndexNameExpressionResolver {
                             }
                         } else {
                             // Non-routing alias
-                            if (norouting.contains(concreteIndex) == false) {
-                                norouting.add(concreteIndex);
-                                if (paramRouting != null) {
-                                    Set<String> r = new HashSet<>(paramRouting);
-                                    if (routings == null) {
-                                        routings = new HashMap<>();
-                                    }
-                                    routings.put(concreteIndex, r);
-                                } else {
-                                    if (routings != null) {
-                                        routings.remove(concreteIndex);
-                                    }
-                                }
-                            }
+                            routings = collectRoutings(routings, paramRouting, norouting, concreteIndex);
                         }
                     }
                 }
@@ -850,43 +837,37 @@ public class IndexNameExpressionResolver {
                 if (dataStream.getIndices() != null) {
                     for (Index index : dataStream.getIndices()) {
                         String concreteIndex = index.getName();
-                        if (norouting.contains(concreteIndex) == false) {
-                            norouting.add(concreteIndex);
-                            if (paramRouting != null) {
-                                Set<String> r = new HashSet<>(paramRouting);
-                                if (routings == null) {
-                                    routings = new HashMap<>();
-                                }
-                                routings.put(concreteIndex, r);
-                            } else {
-                                if (routings != null) {
-                                    routings.remove(concreteIndex);
-                                }
-                            }
-                        }
+                        routings = collectRoutings(routings, paramRouting, norouting, concreteIndex);
                     }
                 }
             } else {
                 // Index
-                if (norouting.contains(expression) == false) {
-                    norouting.add(expression);
-                    if (paramRouting != null) {
-                        Set<String> r = new HashSet<>(paramRouting);
-                        if (routings == null) {
-                            routings = new HashMap<>();
-                        }
-                        routings.put(expression, r);
-                    } else {
-                        if (routings != null) {
-                            routings.remove(expression);
-                        }
-                    }
-                }
+                routings = collectRoutings(routings, paramRouting, norouting, expression);
             }
 
         }
         if (routings == null || routings.isEmpty()) {
             return null;
+        }
+        return routings;
+    }
+
+    @Nullable
+    private static Map<String, Set<String>> collectRoutings(
+        @Nullable Map<String, Set<String>> routings,
+        @Nullable Set<String> paramRouting,
+        Set<String> noRouting,
+        String concreteIndex
+    ) {
+        if (noRouting.add(concreteIndex)) {
+            if (paramRouting != null) {
+                if (routings == null) {
+                    routings = new HashMap<>();
+                }
+                routings.put(concreteIndex, new HashSet<>(paramRouting));
+            } else if (routings != null) {
+                routings.remove(concreteIndex);
+            }
         }
         return routings;
     }

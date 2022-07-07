@@ -65,7 +65,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         assertOutputContains(result.output, """\
             > Task :loggedExec FAILED
             Output for ls:""".stripIndent())
-        assertOutputContains(result.output, "wtf: No such file or directory")
+        assertOutputContains(result.output, "No such file or directory")
         where:
         spooling << [false, true]
     }

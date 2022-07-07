@@ -26,19 +26,7 @@ class CheckstylePrecommitPluginFuncTest extends AbstractGradleInternalPluginFunc
     public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setup() {
-        file('build.versions.toml') << '''\
-[libraries]
-checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
-'''
-        settingsFile << '''
-            dependencyResolutionManagement {
-              versionCatalogs {
-                buildLibs {
-                  from(files("build.versions.toml"))
-                }
-              }
-            }'''
-
+        withVersionCatalogue()
         buildFile << """
         apply plugin:'java'
         """

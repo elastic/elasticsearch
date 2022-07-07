@@ -3,7 +3,7 @@
 name: "Sync development branches"
 on:
   schedule:
-      - cron: '40 4 * * *'
+      - cron: '00 16 * * *'
   workflow_dispatch:
 
 jobs:
@@ -39,11 +39,11 @@ jobs:
            labels: "upstream-sync,auto-merge,esql"
            github_token: ${{ secrets.ELASTICSEARCHMACHINE }}
 
-      - name: Merge ESQL PR
-        id: pr-merge-esql
-        if: steps.pr-create-esql.outputs.created == 'true'
-        uses: juliangruber/merge-pull-request-action@v1.1.0
-        with:
-           method: merge
-           number: ${{ steps.pr-create-esql.outputs.number }}
-           github-token: ${{ secrets.ELASTICSEARCHMACHINE }}
+#      - name: Merge ESQL PR
+#        id: pr-merge-esql
+#        if: steps.pr-create-esql.outputs.created == 'true'
+#        uses: juliangruber/merge-pull-request-action@v1.1.0
+#        with:
+#           method: merge
+#           number: ${{ steps.pr-create-esql.outputs.number }}
+#           github-token: ${{ secrets.ELASTICSEARCHMACHINE }}

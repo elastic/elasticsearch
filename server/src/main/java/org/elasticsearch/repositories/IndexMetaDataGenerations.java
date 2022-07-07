@@ -136,7 +136,7 @@ public final class IndexMetaDataGenerations {
      * @return new instance without the given snapshot
      */
     public IndexMetaDataGenerations withRemovedSnapshots(Collection<SnapshotId> snapshotIds) {
-        final Set<SnapshotId> snapshotIdsSet = new HashSet<>(snapshotIds);
+        final var snapshotIdsSet = new HashSet<>(snapshotIds);
         final Map<SnapshotId, Map<IndexId, String>> retainedIndexMetaLookup = Maps.newMapWithExpectedSize(lookup.size());
         final Set<String> retainedBlobUUIDs = Sets.newHashSetWithExpectedSize(identifiers.size());
         for (Map.Entry<SnapshotId, Map<IndexId, String>> e : lookup.entrySet()) {

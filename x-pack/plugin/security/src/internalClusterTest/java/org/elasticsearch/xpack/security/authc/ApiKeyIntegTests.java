@@ -1684,7 +1684,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(response.isUpdated());
     }
 
-    public void testNoopUpdateApiKey() throws ExecutionException, InterruptedException {
+    public void testNoopUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
@@ -1698,10 +1698,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // First update is not noop, because role descriptors changed and possibly metadata
         assertTrue(response.isUpdated());
 
-        // Update with same request is a noop
+        // Update with same request is a noop and does not clear cache
+        authenticateWithApiKey(apiKeyId, createdApiKey.v1().getKey());
+        final var serviceWithNameForDoc1 = Arrays.stream(internalCluster().getNodeNames())
+            .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
+            .filter(s -> s.getDocCache().get(apiKeyId) != null)
+            .findFirst()
+            .orElseThrow();
+        final int count = serviceWithNameForDoc1.getDocCache().count();
         response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         assertFalse(response.isUpdated());
+        assertEquals(count, serviceWithNameForDoc1.getDocCache().count());
 
         // Update with empty request is a noop
         response = executeUpdateApiKey(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));

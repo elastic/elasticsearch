@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReaso
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -71,6 +72,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private NodeLoadDetector nodeLoadDetector;
+    private SystemAuditor systemAuditor;
 
     @Before
     public void setupObjects() {
@@ -90,6 +92,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         MlMemoryTracker memoryTracker = mock(MlMemoryTracker.class);
         when(memoryTracker.isRecentlyRefreshed()).thenReturn(true);
         nodeLoadDetector = new NodeLoadDetector(memoryTracker);
+
+        systemAuditor = mock(SystemAuditor.class);
     }
 
     public void testUpdateModelRoutingTable() {
@@ -1127,7 +1131,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private TrainedModelAssignmentClusterService createClusterService() {
-        return new TrainedModelAssignmentClusterService(Settings.EMPTY, clusterService, threadPool, nodeLoadDetector);
+        return new TrainedModelAssignmentClusterService(Settings.EMPTY, clusterService, threadPool, nodeLoadDetector, systemAuditor);
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {

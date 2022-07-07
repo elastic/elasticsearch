@@ -149,7 +149,7 @@ public final class MockTransportService extends TransportService {
     ) {
         return new MockTransportService(
             settings,
-            transport,
+            new StubbableTransport(transport),
             threadPool,
             interceptor,
             boundAddress -> new DiscoveryNode(
@@ -161,7 +161,7 @@ public final class MockTransportService extends TransportService {
                 version
             ),
             clusterSettings,
-            taskHeaders
+            createTaskManager(settings, threadPool, taskHeaders)
         );
     }
 
@@ -183,7 +183,7 @@ public final class MockTransportService extends TransportService {
     ) {
         this(
             settings,
-            transport,
+            new StubbableTransport(transport),
             threadPool,
             interceptor,
             (boundAddress) -> DiscoveryNode.createLocal(
@@ -192,7 +192,7 @@ public final class MockTransportService extends TransportService {
                 settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
             ),
             clusterSettings,
-            Collections.emptySet()
+            createTaskManager(settings, threadPool, Set.of())
         );
     }
 
@@ -212,7 +212,34 @@ public final class MockTransportService extends TransportService {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+        this(
+            settings,
+            new StubbableTransport(transport),
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            createTaskManager(settings, threadPool, taskHeaders)
+        );
+    }
+
+    public MockTransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings
+    ) {
+        this(
+            settings,
+            new StubbableTransport(transport),
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            createTaskManager(settings, threadPool, Set.of())
+        );
     }
 
     private MockTransportService(
@@ -222,7 +249,7 @@ public final class MockTransportService extends TransportService {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        TaskManager taskManager
     ) {
         super(
             settings,
@@ -231,8 +258,8 @@ public final class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            taskHeaders,
-            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()))
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
+            taskManager
         );
         this.original = transport.getDelegate();
     }
@@ -245,12 +272,11 @@ public final class MockTransportService extends TransportService {
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }
 
-    @Override
-    protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+    private static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return super.createTaskManager(settings, threadPool, taskHeaders);
+            return new TaskManager(settings, threadPool, taskHeaders);
         }
     }
 

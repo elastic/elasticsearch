@@ -1202,7 +1202,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         public Metadata apply(Metadata part) {
             // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
             // mappings in the builder
-            Builder builder = new Builder(part.mappingsByHash);
+            final var updatedIndices = indices.apply(part.indices);
+            Builder builder = new Builder(part.mappingsByHash, updatedIndices.size());
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -1210,10 +1211,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-            builder.indices(indices.apply(part.indices));
+            builder.indices(updatedIndices);
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
-            builder.put(Collections.unmodifiableMap(immutableStateMetadata.apply(part.immutableStateMetadata)));
+            builder.put(immutableStateMetadata.apply(part.immutableStateMetadata));
             return builder.build();
         }
     }
@@ -1327,15 +1328,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final Map<String, ImmutableStateMetadata> immutableStateMetadata;
 
         // If this is set to false we can skip checking #mappingsByHash for unused entries in #build(). Used as an optimization to save
-        // the rather expensive call to #purgeUnusedEntries when building from another instance and we know that no mappings can have
-        // become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
+        // the rather expensive logic for removing unused mappings when building from another instance and we know that no mappings can
+        // have become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
         // #mappingsByHash.
         private boolean checkForUnusedMappings = true;
 
         private final Map<String, MappingMetadata> mappingsByHash;
 
         public Builder() {
-            this(Map.of());
+            this(Map.of(), 0);
         }
 
         Builder(Metadata metadata) {
@@ -1356,9 +1357,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             this.immutableStateMetadata = new HashMap<>(metadata.immutableStateMetadata);
         }
 
-        private Builder(Map<String, MappingMetadata> mappingsByHash) {
+        private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
-            indices = ImmutableOpenMap.builder();
+            indices = ImmutableOpenMap.builder(indexCountHint);
             aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
@@ -1383,15 +1384,22 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder put(IndexMetadata indexMetadata, boolean incrementVersion) {
-            if (indices.get(indexMetadata.getIndex().getName()) == indexMetadata) {
-                return this;
-            }
+            final String name = indexMetadata.getIndex().getName();
             indexMetadata = dedupeMapping(indexMetadata);
-            // if we put a new index metadata, increment its version
+            IndexMetadata previous;
             if (incrementVersion) {
+                if (indices.get(name) == indexMetadata) {
+                    return this;
+                }
+                // if we put a new index metadata, increment its version
                 indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
+                previous = indices.put(name, indexMetadata);
+            } else {
+                previous = indices.put(name, indexMetadata);
+                if (previous == indexMetadata) {
+                    return this;
+                }
             }
-            IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             updateAliases(previous, indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
@@ -1842,6 +1850,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
          * @return a new <code>Metadata</code> instance
          */
         public Metadata build() {
+            return build(false);
+        }
+
+        private Metadata build(boolean skipNameCollisionChecks) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
@@ -1859,6 +1871,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             final String[] allIndicesArray = new String[indicesMap.size()];
             int i = 0;
+            final Set<String> sha256HashesInUse = checkForUnusedMappings ? Sets.newHashSetWithExpectedSize(mappingsByHash.size()) : null;
             for (var entry : indicesMap.entrySet()) {
                 allIndicesArray[i++] = entry.getKey();
                 final IndexMetadata indexMetadata = entry.getValue();
@@ -1881,6 +1894,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     }
                 }
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
+                if (sha256HashesInUse != null) {
+                    final var mapping = indexMetadata.mapping();
+                    if (mapping != null) {
+                        sha256HashesInUse.add(mapping.getSha256());
+                    }
+                }
             }
 
             var aliasedIndices = this.aliasedIndices.build();
@@ -1893,14 +1912,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
-            } else {
+            } else if (skipNameCollisionChecks == false) {
                 // we have changes to the the entity names so we ensure we have no naming collisions
                 ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
-            if (checkForUnusedMappings) {
-                purgeUnusedEntries(indicesMap);
+            if (sha256HashesInUse != null) {
+                mappingsByHash.keySet().retainAll(sha256HashesInUse);
             }
 
             // build all concrete indices arrays:
@@ -2352,23 +2371,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 indexMetadataBuilder.putMapping(entry);
             } else {
                 mappingsByHash.put(digest, indexMetadataBuilder.mapping());
-            }
-        }
-
-        private void purgeUnusedEntries(ImmutableOpenMap<String, IndexMetadata> indices) {
-            final Set<String> sha256HashesInUse = Sets.newHashSetWithExpectedSize(mappingsByHash.size());
-            for (var im : indices.values()) {
-                if (im.mapping() != null) {
-                    sha256HashesInUse.add(im.mapping().getSha256());
-                }
-            }
-
-            final var iterator = mappingsByHash.entrySet().iterator();
-            while (iterator.hasNext()) {
-                final var cacheKey = iterator.next().getKey();
-                if (sha256HashesInUse.contains(cacheKey) == false) {
-                    iterator.remove();
-                }
             }
         }
 

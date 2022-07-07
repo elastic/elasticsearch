@@ -30,6 +30,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
@@ -57,7 +58,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, Netty4ChunkedHttpResponse response) {}
 
-    private ChunkedWrite currentWrite;
+    private ChunkedWrite currentChunkedWrite;
 
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
@@ -204,34 +205,28 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) {
-        if (currentWrite != null) {
-            queuedWrites.add(new WriteOperation(readyResponse, promise));
-            return;
-        }
+        assert currentChunkedWrite == null : "unexpected existing write [" + currentChunkedWrite + "]";
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
-        currentWrite = new ChunkedWrite(combiner, promise, readyResponse);
+        currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
         final ChannelPromise first = ctx.newPromise();
         combiner.add((Future<Void>) first);
         enqueueWrite(ctx, readyResponse, first);
         while (ctx.channel().isWritable()) {
             try {
-                final ReleasableBytesReference bytes = readyResponse.body()
-                    .encodeChunk(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler());
-                final ByteBuf content = Netty4Utils.toByteBuf(bytes);
-                final boolean done = readyResponse.body().isDone();
-                final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-                f.addListener(ignored -> bytes.close());
-                combiner.add(f);
-                if (done) {
-                    currentWrite.combiner.finish(currentWrite.onDone);
-                    currentWrite = null;
-                    writeSequence++;
+                if (writeChunk(ctx, combiner, readyResponse.body())) {
+                    finishChunkedWrite();
                     return;
                 }
             } catch (IOException e) {
                 promise.tryFailure(e);
             }
         }
+    }
+
+    private void finishChunkedWrite() {
+        currentChunkedWrite.combiner.finish(currentChunkedWrite.onDone);
+        currentChunkedWrite = null;
+        writeSequence++;
     }
 
     private void splitAndWrite(ChannelHandlerContext ctx, Netty4HttpResponse msg, ChannelPromise promise) {
@@ -280,33 +275,34 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         }
         boolean needsFlush = true;
         while (channel.isWritable()) {
-            if (currentWrite != null) {
-                try {
-                    final ReleasableBytesReference bytes = currentWrite.response.body()
-                        .encodeChunk(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE, serverTransport.recycler());
-                    final ByteBuf content = Netty4Utils.toByteBuf(bytes);
-                    final boolean done = currentWrite.response.body().isDone();
-                    final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-                    f.addListener(ignored -> bytes.close());
-                    currentWrite.combiner.add(f);
-                    if (done) {
-                        currentWrite.combiner.finish(currentWrite.onDone);
-                        currentWrite = null;
-                        writeSequence++;
-                        continue;
-                    }
-                } catch (IOException e) {
-                    // TODO: this is weird but just failing everything for this connection in case of a serialization exception which
-                    // seems to always be a bug sounds about right?
-                    throw new UncheckedIOException(e);
-                }
-            }
             WriteOperation currentWrite = queuedWrites.poll();
             if (currentWrite == null) {
                 drainQueuedNowWritable(ctx);
+                if (channel.isWritable() == false) {
+                    // try flushing to make channel writable again, loop will only continue if channel becomes writable again
+                    ctx.flush();
+                    needsFlush = false;
+                }
+                if (channel.isWritable() == false) {
+                    break;
+                }
                 currentWrite = queuedWrites.poll();
             }
             if (currentWrite == null) {
+                // TODO: this is confusing, handle the outstanding first chunk of a chunked write nicer than by putting it in the
+                // queued writes
+                if (currentChunkedWrite != null) {
+                    try {
+                        if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.response.body())) {
+                            finishChunkedWrite();
+                            continue;
+                        }
+                    } catch (IOException e) {
+                        // TODO: this is weird but just failing everything for this connection in case of a serialization exception which
+                        // seems to always be a bug sounds about right?
+                        throw new UncheckedIOException(e);
+                    }
+                }
                 break;
             }
             ctx.write(currentWrite.msg, currentWrite.promise);
@@ -326,6 +322,19 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         return true;
     }
 
+    private boolean writeChunk(ChannelHandlerContext ctx, PromiseCombiner combiner, ChunkedRestResponseBody body) throws IOException {
+        final ReleasableBytesReference bytes = body.encodeChunk(
+            Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE,
+            serverTransport.recycler()
+        );
+        final ByteBuf content = Netty4Utils.toByteBuf(bytes);
+        final boolean done = body.isDone();
+        final ChannelFuture f = ctx.write(done ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
+        f.addListener(ignored -> bytes.close());
+        combiner.add(f);
+        return done;
+    }
+
     private void failQueuedWrites() {
         WriteOperation queuedWrite;
         while ((queuedWrite = queuedWrites.poll()) != null) {
@@ -336,7 +345,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
         // TODO: handle current write
-        assert currentWrite == null;
+        assert currentChunkedWrite == null;
         List<Tuple<? extends Netty4RestResponse, ChannelPromise>> inflightResponses = removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {

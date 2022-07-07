@@ -3,7 +3,7 @@
 name: "Sync development branches"
 on:
   schedule:
-      - cron: '00 16 * * *'
+      - cron: '40 4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -39,6 +39,8 @@ jobs:
            labels: "upstream-sync,auto-merge,esql"
            github_token: ${{ secrets.ELASTICSEARCHMACHINE }}
 
+## Merging done by bot on CI check completion 
+##
 #      - name: Merge ESQL PR
 #        id: pr-merge-esql
 #        if: steps.pr-create-esql.outputs.created == 'true'

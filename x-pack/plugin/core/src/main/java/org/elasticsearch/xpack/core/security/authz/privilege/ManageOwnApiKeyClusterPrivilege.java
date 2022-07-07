@@ -63,9 +63,10 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
             } else if (request instanceof UpdateApiKeyRequest) {
-                // Note: we return `true` here even if the authenticated entity is an API key. API keys *cannot* update themselves
+                // Note: we return `true` here even if the authenticated entity is an API key. API keys *cannot* update themselves,
                 // however this is a business logic restriction, rather than one driven solely by privileges. We therefore enforce this
-                // limitation at the transport layer, in `TransportUpdateApiKeyAction`
+                // limitation at the transport layer, in `TransportUpdateApiKeyAction`.
+                // Ownership of an API key, for regular users, is enforced at the service layer.
                 return true;
             } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {
                 return checkIfUserIsOwnerOfApiKeys(

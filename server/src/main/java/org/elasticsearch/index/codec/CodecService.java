@@ -9,7 +9,7 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene92.Lucene92Codec;
+import org.apache.lucene.codecs.lucene93.Lucene93Codec;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -34,11 +34,11 @@ public class CodecService {
     public CodecService(@Nullable MapperService mapperService) {
         final var codecs = new HashMap<String, Codec>();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene92Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene92Codec(Lucene92Codec.Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene93Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene93Codec(Lucene93Codec.Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Lucene92Codec.Mode.BEST_SPEED, mapperService));
-            codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMapperCodec(Lucene92Codec.Mode.BEST_COMPRESSION, mapperService));
+            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Lucene93Codec.Mode.BEST_SPEED, mapperService));
+            codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMapperCodec(Lucene93Codec.Mode.BEST_COMPRESSION, mapperService));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

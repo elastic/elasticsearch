@@ -109,3 +109,93 @@ executed in parallel in the target node for all recoveries. Defaults to `25`.
 +
 Do not increase this setting without carefully verifying that your cluster has
 the resources available to handle the extra load that will result.
+
+[discrete]
+==== Recovery settings for managed services
+
+NOTE: {cloud-only}
+
+WARNING: This feature is available in {es} 7.17.1 and 8.0.1 onwards but is not
+supported in {es} 8.0.0. As such the recovery settings for managed services should
+be removed before upgrading to 8.0.0. It is possible to configure the settings in
+7.17.1 and then upgrade to 8.0.1 directly.
+
+When running {es} as a managed service, the following settings allow the
+service to specify absolute maximum bandwidths for disk reads, disk writes, and
+network traffic on each node, and permit you to control the maximum recovery
+bandwidth on each node in terms of these absolute maximum values. They have two
+effects:
+
+1. They determine the bandwidth used for recovery if
+`indices.recovery.max_bytes_per_sec` is not set, overriding the default
+behaviour described above.
+
+2. They impose a node-wide limit on recovery bandwidth which is independent of
+the value of `indices.recovery.max_bytes_per_sec`.
+
+If you do not set `indices.recovery.max_bytes_per_sec` then the maximum
+recovery bandwidth is computed as a proportion of the absolute maximum
+bandwidth. The computation is performed separately for read and write traffic.
+The service defines the absolute maximum bandwidths for disk reads, disk
+writes, and network transfers using `node.bandwidth.recovery.disk.read`,
+`node.bandwidth.recovery.disk.write` and `node.bandwidth.recovery.network`
+respectively, and you can set the proportion of the absolute maximum bandwidth
+that may be used for recoveries by adjusting
+`node.bandwidth.recovery.operator.factor.read` and
+`node.bandwidth.recovery.operator.factor.write`.
+
+If you set `indices.recovery.max_bytes_per_sec` then {es} will use its value
+for the maximum recovery bandwidth, as long as this does not exceed the
+node-wide limit. {es} computes the node-wide limit by multiplying the absolute
+maximum bandwidths by the
+`node.bandwidth.recovery.operator.factor.max_overcommit` factor. If you set
+`indices.recovery.max_bytes_per_sec` in excess of the node-wide limit then the
+node-wide limit takes precedence.
+
+The service should determine values for the absolute maximum bandwidths
+settings by experiment, using a recovery-like workload in which there are
+several concurrent workers each processing files sequentially in chunks of
+512kiB.
+
+`node.bandwidth.recovery.disk.read`::
+(<<byte-units,byte value>> per second) The absolute maximum disk read speed for
+a recovery-like workload on the node. If set,
+`node.bandwidth.recovery.disk.write` and `node.bandwidth.recovery.network` must
+also be set.
+
+`node.bandwidth.recovery.disk.write`::
+(<<byte-units,byte value>> per second) The absolute maximum disk write speed
+for a recovery-like workload on the node. If set,
+`node.bandwidth.recovery.disk.read` and `node.bandwidth.recovery.network` must
+also be set.
+
+`node.bandwidth.recovery.network`::
+(<<byte-units,byte value>> per second) The absolute maximum network throughput
+for a recovery-like workload on the node, which applies to both reads and
+writes. If set, `node.bandwidth.recovery.disk.read` and
+`node.bandwidth.recovery.disk.write` must also be set.
+
+`node.bandwidth.recovery.operator.factor.read`::
+(float) The proportion of the maximum read
+bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec`
+is not set. Must be greater than `0` and not greater than `1`. If not set, the
+value of `node.bandwidth.recovery.operator.factor` is used. If no factor
+settings are set then the value `0.4` is used.
+
+`node.bandwidth.recovery.operator.factor.write`::
+(float) The proportion of the maximum
+write bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec`
+is not set. Must be greater than `0` and not greater than `1`. If not set, the
+value of `node.bandwidth.recovery.operator.factor` is used. If no factor
+settings are set then the value `0.4` is used.
+
+`node.bandwidth.recovery.operator.factor`::
+(float) The proportion of the maximum
+bandwidth that may be used for recoveries if neither
+`indices.recovery.max_bytes_per_sec` nor any other factor settings are set.
+Must be greater than `0` and not greater than `1`. Defaults to `0.4`.
+
+`node.bandwidth.recovery.operator.factor.max_overcommit`::
+(float) The proportion of the absolute
+maximum bandwidth that may be used for recoveries regardless of any other
+settings. Must be greater than `0`. Defaults to `100`.

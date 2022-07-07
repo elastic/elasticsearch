@@ -152,7 +152,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             List<List<String>> rows = new ArrayList<>();
             for (String table : tables) {
                 List<String> fields = new ArrayList<>();
-                fields.add("integTest"); // gradle defined
+                fields.add("javaRestTest"); // gradle defined
                 fields.add(table);
                 fields.add("TABLE");
                 fields.add("INDEX");

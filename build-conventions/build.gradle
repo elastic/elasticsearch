@@ -61,11 +61,11 @@ repositories {
 }
 
 dependencies {
-    api 'org.apache.maven:maven-model:3.6.2'
-    api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
-    api 'org.apache.rat:apache-rat:0.11'
-    compileOnly "com.puppycrawl.tools:checkstyle:8.45.1"
-    api('com.diffplug.spotless:spotless-plugin-gradle:6.0.0') {
+    api buildLibs.maven.model
+    api buildLibs.shadow.plugin
+    api buildLibs.apache.rat
+    compileOnly buildLibs.checkstyle
+    api(buildLibs.spotless.plugin) {
       exclude module: "groovy-xml"
     }
 }

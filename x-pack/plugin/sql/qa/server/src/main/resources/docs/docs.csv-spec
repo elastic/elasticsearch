@@ -99,9 +99,9 @@ SHOW TABLES;
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
-integTest      |library        |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest      |library        |TABLE     |INDEX
 
 // end::showTables
 ;
@@ -112,7 +112,7 @@ SHOW TABLES LIKE 'emp';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeExact
 ;
@@ -123,8 +123,8 @@ SHOW TABLES LIKE 'emp%';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
 
 // end::showTablesLikeWildcard
 ;
@@ -136,7 +136,7 @@ SHOW TABLES LIKE 'em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeOneChar
 ;
@@ -147,7 +147,7 @@ SHOW TABLES LIKE '%em_';
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeMixed
 ;
@@ -170,8 +170,8 @@ SHOW TABLES "*,-l*";
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
 
 // end::showTablesEsMultiIndex
 ;
@@ -186,10 +186,10 @@ SHOW TABLES INCLUDE FROZEN;
 
  catalog       |     name      | type     |     kind
 ---------------+---------------+----------+---------------
-integTest      |archive        |TABLE     |FROZEN INDEX
-integTest      |emp            |TABLE     |INDEX
-integTest      |employees      |VIEW      |ALIAS
-integTest      |library        |TABLE     |INDEX
+javaRestTest      |archive        |TABLE     |FROZEN INDEX
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest      |library        |TABLE     |INDEX
 
 // end::showTablesIncludeFrozen
 ;
@@ -3350,7 +3350,7 @@ Alejandro
 Amabile
 Anneke
 Anoosh
-Arumugam
+Basil
 // end::filterToday
 ;
 
@@ -3515,4 +3515,3 @@ SELECT author, name FROM library WHERE name RLIKE 'Child.* Dune';
 Frank Herbert  |Children of Dune
 // end::simpleRLike
 ;
-

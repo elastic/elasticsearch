@@ -35,12 +35,14 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -79,7 +81,12 @@ public class MockNode extends Node {
         final boolean forbidPrivateIndexSettings
     ) {
         this(
-            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
+            InternalSettingsPreparer.prepareEnvironment(
+                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
+                Collections.emptyMap(),
+                configPath,
+                () -> "mock_ node"
+            ),
             classpathPlugins,
             forbidPrivateIndexSettings
         );

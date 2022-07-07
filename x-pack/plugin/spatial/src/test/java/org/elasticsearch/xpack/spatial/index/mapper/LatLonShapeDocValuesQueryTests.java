@@ -136,6 +136,10 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             LatLonGeometry[] geometries = randomLuceneQueryGeometries();
             for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
+                if (relation == ShapeField.QueryRelation.CONTAINS) {
+                    // We don't check this here as it might fail due to LUCENE-10514
+                    continue;
+                }
                 Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, geometries);
                 Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, geometries);
                 assertQueries(s, indexQuery, docValQuery, numDocs);

@@ -33,6 +33,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
+  testImplementation(project(xpackModule('data-streams')))
   testImplementation(project(":modules:analysis-common"))
 }
 

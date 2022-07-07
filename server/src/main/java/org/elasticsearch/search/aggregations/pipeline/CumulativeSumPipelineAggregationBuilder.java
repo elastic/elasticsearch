@@ -96,7 +96,7 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
         if (bucketsPaths.length != 1) {
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
-        context.validateParentAggSequentiallyOrdered(NAME, name);
+        context.validateParentAggSequentiallyOrderedWithoutSkips(NAME, name);
     }
 
     @Override

@@ -15,12 +15,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -292,12 +294,16 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
                 // This job has a running datafeed attached to it.
                 // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
-                revertToCurrentSnapshot(jobTask.getJobId(), ActionListener.wrap(response -> openJob(jobTask), e -> {
-                    if (autodetectProcessManager.isNodeDying() == false) {
-                        logger.error(new ParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
-                        failTask(jobTask, "failed to revert to current snapshot");
-                    }
-                }));
+                RevertToCurrentSnapshotAction revertToCurrentSnapshotAction = new RevertToCurrentSnapshotAction(
+                    jobTask,
+                    ActionListener.wrap(response -> openJob(jobTask), e -> {
+                        if (autodetectProcessManager.isNodeDying() == false) {
+                            logger.error(new ParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
+                            failTask(jobTask, "failed to revert to current snapshot");
+                        }
+                    })
+                );
+                revertToCurrentSnapshotAction.run();
             } else {
                 openJob(jobTask);
             }
@@ -391,51 +397,96 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
     }
 
-    private void revertToCurrentSnapshot(String jobId, ActionListener<Boolean> listener) {
-        ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(jobResponse -> {
-            List<Job> jobPage = jobResponse.getResponse().results();
-            // We requested a single concrete job so if it didn't exist we would get an error
-            assert jobPage.size() == 1;
+    /**
+     * This action reverts a job to its current snapshot if one exists or resets the job.
+     * This action is retryable. As this action happens when a job is relocating to another node,
+     * it is common that this happens during rolling upgrades. During a rolling upgrade, it is
+     * probable that data nodes containing shards of the ML indices might not be available temporarily
+     * which results to failures in the revert/reset action. Thus, it is important to retry a few times
+     * so that the job manages to successfully recover without user intervention.
+     */
+    private class RevertToCurrentSnapshotAction extends RetryableAction<Boolean> {
 
-            String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
-            if (jobSnapshotId == null && isMasterNodeVersionOnOrAfter(ResetJobAction.VERSION_INTRODUCED)) {
-                logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobId);
-                ResetJobAction.Request request = new ResetJobAction.Request(jobId);
-                request.setSkipJobStateValidation(true);
-                request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    ResetJobAction.INSTANCE,
-                    request,
-                    ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure)
-                );
-            } else {
-                logger.info("[{}] job has running datafeed task; reverting to current snapshot", jobId);
-                RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(
-                    jobId,
-                    jobSnapshotId == null ? ModelSnapshot.EMPTY_SNAPSHOT_ID : jobSnapshotId
-                );
-                request.setForce(true);
-                request.setDeleteInterveningResults(true);
-                request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    RevertModelSnapshotAction.INSTANCE,
-                    request,
-                    ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure)
+        private final JobTask jobTask;
+        private volatile boolean hasFailedAtLeastOnce;
+
+        private RevertToCurrentSnapshotAction(JobTask jobTask, ActionListener<Boolean> listener) {
+            super(
+                logger,
+                client.threadPool(),
+                // No need to wait before first execution
+                TimeValue.timeValueMillis(1),
+                // Retry for 15 minutes. This should be enough time for at least some replicas
+                // to be available so that and data deletion can succeed.
+                TimeValue.timeValueMinutes(15),
+                listener,
+                MachineLearning.UTILITY_THREAD_POOL_NAME
+            );
+            this.jobTask = Objects.requireNonNull(jobTask);
+        }
+
+        @Override
+        public void tryAction(ActionListener<Boolean> listener) {
+            ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(jobResponse -> {
+                List<Job> jobPage = jobResponse.getResponse().results();
+                // We requested a single concrete job so if it didn't exist we would get an error
+                assert jobPage.size() == 1;
+
+                String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
+                if (jobSnapshotId == null && isMasterNodeVersionOnOrAfter(ResetJobAction.VERSION_INTRODUCED)) {
+                    logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobTask.getJobId());
+                    ResetJobAction.Request request = new ResetJobAction.Request(jobTask.getJobId());
+                    request.setSkipJobStateValidation(true);
+                    request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    executeAsyncWithOrigin(
+                        client,
+                        ML_ORIGIN,
+                        ResetJobAction.INSTANCE,
+                        request,
+                        ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure)
+                    );
+                } else {
+                    logger.info("[{}] job has running datafeed task; reverting to current snapshot", jobTask.getJobId());
+                    RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(
+                        jobTask.getJobId(),
+                        jobSnapshotId == null ? ModelSnapshot.EMPTY_SNAPSHOT_ID : jobSnapshotId
+                    );
+                    request.setForce(true);
+                    request.setDeleteInterveningResults(true);
+                    request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    executeAsyncWithOrigin(
+                        client,
+                        ML_ORIGIN,
+                        RevertModelSnapshotAction.INSTANCE,
+                        request,
+                        ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure)
+                    );
+                }
+            }, error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobTask.getJobId())));
+
+            // We need to refetch the job in order to learn what is its current model snapshot
+            // as the one that exists in the task params is outdated.
+            GetJobsAction.Request request = new GetJobsAction.Request(jobTask.getJobId());
+            request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (jobTask.isClosing() || jobTask.isVacating()) {
+                return false;
+            }
+            if (hasFailedAtLeastOnce == false) {
+                hasFailedAtLeastOnce = true;
+                logger.error(
+                    new ParameterizedMessage("[{}] error reverting job to its current snapshot; attempting retry", jobTask.getJobId()),
+                    e
                 );
             }
-        }, error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobId)));
-
-        // We need to refetch the job in order to learn what is its current model snapshot
-        // as the one that exists in the task params is outdated.
-        GetJobsAction.Request request = new GetJobsAction.Request(jobId);
-        request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
+            return true;
+        }
     }
 
     // Exceptions that occur while the node is dying, i.e. after the JVM has received a SIGTERM,

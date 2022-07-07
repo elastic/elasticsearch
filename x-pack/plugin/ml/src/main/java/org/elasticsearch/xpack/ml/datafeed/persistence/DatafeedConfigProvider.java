@@ -183,11 +183,11 @@ public class DatafeedConfigProvider {
     public void findDatafeedIdsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds));
         sourceBuilder.fetchSource(false);
+        sourceBuilder.size(jobIds.size());
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setSize(jobIds.size())
             .setSource(sourceBuilder)
             .request();
 
@@ -214,8 +214,7 @@ public class DatafeedConfigProvider {
     public void findDatafeedsByJobIds(Collection<String> jobIds, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setSize(jobIds.size())
-            .setSource(new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds)))
+            .setSource(new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds)).size(jobIds.size()))
             .request();
 
         executeAsyncWithOrigin(

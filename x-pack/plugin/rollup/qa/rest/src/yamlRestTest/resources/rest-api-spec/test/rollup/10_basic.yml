@@ -23,25 +23,25 @@ setup:
         body:
           - index:
               _index: docs
-              _id:    1
+              _id:    "1"
           - timestamp: "2020-01-01T05:10:00Z"
             color: "blue"
             price: 10
           - index:
               _index: docs
-              _id:    2
+              _id:    "2"
           - timestamp: "2020-01-01T05:30:00Z"
             color: "blue"
             price: 20
           - index:
               _index: docs
-              _id:    3
+              _id:    "3"
           - timestamp: "2020-01-01T06:10:00Z"
             color: "red"
             price: 30
           - index:
               _index: docs
-              _id:    4
+              _id:    "4"
           - timestamp: "2020-01-01T06:30:00Z"
             color: "green"
             price: 40

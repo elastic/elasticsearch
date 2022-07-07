@@ -463,6 +463,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
         getStats().markStartDelete();
 
+        ActionListener<RefreshResponse> deleteByQueryAndRefreshDoneListener = ActionListener.wrap(
+            refreshResponse -> finalizeCheckpoint(listener),
+            listener::onFailure
+        );
+
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
             logger.trace(() -> new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
 
@@ -493,7 +498,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 return;
             }
 
-            finalizeCheckpoint(listener);
+            // Since we configure DBQ request *not* to perform a refresh, we need to perform the refresh manually.
+            // This separation ensures that the DBQ runs with user permissions and the refresh runs with system permissions.
+            refreshDestinationIndex(deleteByQueryAndRefreshDoneListener);
         }, listener::onFailure));
     }
 
@@ -570,6 +577,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     public synchronized boolean maybeTriggerAsyncJob(long now) {
+        // threadpool: trigger_engine_scheduler if triggered from the scheduler, generic if called from the task on start
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getJobId());
             return false;

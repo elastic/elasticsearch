@@ -61,7 +61,7 @@ class StoreTrustConfig extends TrustConfig {
 
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
-        final Path storePath = CertParsingUtils.resolvePath(trustStorePath, environment);
+        final Path storePath = resolveTrustStorePath(environment);
         try {
             KeyStore trustStore = getStore(storePath, trustStoreType, trustStorePassword);
             return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
@@ -90,6 +90,14 @@ class StoreTrustConfig extends TrustConfig {
             }
         }
         return certificates;
+    }
+
+    protected Path resolveTrustStorePath(Environment environment) {
+        return CertParsingUtils.resolvePath(trustStorePath, environment);
+    }
+
+    protected KeyStore getStore(Path path) throws GeneralSecurityException, IOException {
+        return getStore(path, trustStoreType, trustStorePassword);
     }
 
     @Override

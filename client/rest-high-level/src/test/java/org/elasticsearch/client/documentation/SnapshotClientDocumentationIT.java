@@ -450,9 +450,9 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         assertThat(1, equalTo(repositoryMetadataResponse.size()));
         final boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
         if (async) {
-            assertThat("asyncIntegTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
+            assertThat("asyncJavaRestTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
         } else {
-            assertThat("integTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
+            assertThat("javaRestTest-0", equalTo(repositoryMetadataResponse.get(0).getName()));
         }
     }
 

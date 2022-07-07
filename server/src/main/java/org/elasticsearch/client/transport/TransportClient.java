@@ -50,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.Closeable;
@@ -63,7 +64,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
@@ -172,6 +172,7 @@ public abstract class TransportClient extends AbstractClient {
             entries.addAll(searchModule.getNamedWriteables());
             entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(ClusterModule.getNamedWriteables());
+            entries.addAll(SystemIndexMigrationExecutor.getNamedWriteables());
             entries.addAll(
                 pluginsService.filterPlugins(Plugin.class)
                     .stream()
@@ -204,7 +205,7 @@ public abstract class TransportClient extends AbstractClient {
                 null,
                 null,
                 null,
-                new SystemIndices(emptyMap())
+                new SystemIndices(emptyList())
             );
             modules.add(actionModule);
 

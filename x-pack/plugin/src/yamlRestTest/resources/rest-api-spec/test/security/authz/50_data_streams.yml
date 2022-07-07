@@ -118,7 +118,7 @@ teardown:
   - do: # superuser
       index:
         index:  simple-data-stream1
-        id:       1
+        id:       "1"
         op_type:  create
         body:   { foo: bar, "@timestamp": "2020-12-12" }
 
@@ -158,7 +158,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  $idx0name
-        id: 1
+        id: "1"
         if_seq_no: $seqno
         if_primary_term: $primary_term
         op_type:  index
@@ -257,7 +257,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  $idx0name
-        id:       1
+        id:       "1"
         op_type:  index
         if_seq_no: $seqno
         if_primary_term: $primary_term
@@ -267,7 +267,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        id:       2
+        id:       "2"
         op_type:  create
         index:  write-data-stream1
         body:   { foo: bar, bar: baz, "@timestamp": "2000-12-12" }
@@ -287,7 +287,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  $idx1name
-        id:       2
+        id:       "2"
         op_type:  index
         if_seq_no: $seqno
         if_primary_term: $primary_term
@@ -521,7 +521,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  simple-allows-auto-configure
-        id:       1
+        id:       "1"
         op_type:  create
         body:   { foo: bar, "@timestamp": "2020-12-12" }
 
@@ -531,7 +531,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  simple-data-stream1
-        id:       1
+        id:       "1"
         op_type:  create
         body:   { foo: bar, "@timestamp": "2020-12-12" }
 

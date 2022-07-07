@@ -203,7 +203,7 @@ SYS TABLES CATALOG LIKE '%' LIKE '';
 
     TABLE_CAT:s  |  TABLE_SCHEM:s|  TABLE_NAME:s |  TABLE_TYPE:s |    REMARKS:s  |   TYPE_CAT:s  |  TYPE_SCHEM:S |   TYPE_NAME:s |SELF_REFERENCING_COL_NAME:s|REF_GENERATION:s
 -----------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+-------------------------+---------------
-integTest        |null           |null           |null           |null           |null           |null           |null           |null                     |null
+javaRestTest        |null           |null           |null           |null           |null           |null           |null           |null                     |null
 my_remote_cluster|null           |null           |null           |null           |null           |null           |null           |null                     |null
 ;
 

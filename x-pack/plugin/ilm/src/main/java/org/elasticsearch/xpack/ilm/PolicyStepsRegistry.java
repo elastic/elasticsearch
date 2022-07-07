@@ -306,14 +306,30 @@ public class PolicyStepsRegistry {
         return phaseSteps;
     }
 
+    /**
+     * Read-only internal helper for getStep that returns a non-null step if one is cached for the provided
+     * IndexMetadata and StepKey, and null otherwise.
+     */
     @Nullable
-    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+    private Step getCachedStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
         final Tuple<IndexMetadata, Step> cachedStep = cachedSteps.get(indexMetadata.getIndex());
         // n.b. we're using instance equality here for the IndexMetadata rather than object equality because it's fast,
         // this means that we're erring on the side of cache misses (if the IndexMetadata changed in any way, it'll be
         // a new instance, so we'll miss-and-repopulate the cache for the index in question)
-        if (cachedStep != null && cachedStep.v1() == indexMetadata && cachedStep.v2().getKey().equals(stepKey)) {
-            return cachedStep.v2();
+        if (cachedStep != null && cachedStep.v1() == indexMetadata) {
+            assert cachedStep.v2() != null : "null steps should never be cached in the policy step registry";
+            if (cachedStep.v2() != null && cachedStep.v2().getKey().equals(stepKey)) {
+                return cachedStep.v2();
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+        final Step cachedStep = getCachedStep(indexMetadata, stepKey);
+        if (cachedStep != null) {
+            return cachedStep;
         }
 
         if (ErrorStep.NAME.equals(stepKey.getName())) {
@@ -355,7 +371,9 @@ public class PolicyStepsRegistry {
 
         // Return the step that matches the given stepKey or else null if we couldn't find it
         final Step s = phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
-        cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+        if (s != null) {
+            cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+        }
         return s;
     }
 

@@ -26,13 +26,13 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  { "department": "compsci", "staff": 12, "courses": [ { "name": "Object Oriented Programming", "credits": 3, "sessions": [ { "semester": "spr2021", "students": 37 }, { "semester": "fall2020", "students": 45} ] }, { "name": "Theory of Computation", "credits": 4, "sessions": [ { "semester": "spr2021", "students": 19 }, { "semester": "fall2020", "students": 14 } ] } ] }
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:  { "department": "math", "staff": 20, "courses": [ { "name": "Precalculus", "credits": 1, "sessions": [ { "semester": "spr2021", "students": 100 }, { "semester": "fall2020", "students": 134 } ] }, { "name": "Linear Algebra", "credits": 3, "sessions": [ { "semester": "spr2021", "students": 29 }, { "semester": "fall2020", "students": 23 } ] } ] }
 
   - do:

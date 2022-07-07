@@ -29,7 +29,7 @@
   - do:
       index:
           index: test
-          id: 3
+          id: "3"
           body:
             field1: quick lazy huge brown pidgin
             field2: the quick lazy huge brown fox jumps over the tree
@@ -37,14 +37,14 @@
   - do:
       index:
           index: test
-          id: 1
+          id: "1"
           body:
             field1: the quick brown fox
 
   - do:
       index:
           index: test
-          id: 2
+          id: "2"
           body:
             field1: the quick lazy huge brown fox jumps over the tree
           refresh: true
@@ -274,7 +274,7 @@
   - do:
       index:
           index: test
-          id: 1
+          id: "1"
           body:
             text: quick brown fox
           refresh: true
@@ -315,7 +315,7 @@
   - do:
       index:
           index: test
-          id: 2
+          id: "2"
           body:
             text: fast brown fox
           refresh: true

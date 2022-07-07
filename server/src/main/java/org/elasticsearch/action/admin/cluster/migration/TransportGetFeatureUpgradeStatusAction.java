@@ -85,7 +85,6 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     ) throws Exception {
 
         List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures()
-            .values()
             .stream()
             .sorted(Comparator.comparing(SystemIndices.Feature::getName))
             .map(feature -> getFeatureUpgradeStatus(state, feature))

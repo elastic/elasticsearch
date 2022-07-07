@@ -28,7 +28,7 @@ See: https://github.com/elastic/docs
 Snippets marked with `[source,console]` are automatically annotated with
 "VIEW IN CONSOLE" and "COPY AS CURL" in the documentation and are automatically
 tested by the command `./gradlew -pdocs check`. To test just the docs from a
-single page, use e.g. `./gradlew -pdocs integTest --tests "\*rollover*"`.
+single page, use e.g. `./gradlew -pdocs yamlRestTest --tests "\*rollover*"`.
 
 By default each `[source,console]` snippet runs as its own isolated test. You
 can manipulate the test execution in the following ways:

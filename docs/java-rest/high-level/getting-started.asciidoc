@@ -18,11 +18,11 @@ doesn't need to be in the same minor version as the Elasticsearch nodes it
 communicates with, as it is forward compatible meaning that it supports
 communicating with later versions of Elasticsearch than the one it was developed for.
 
-The 6.0 client is able to communicate with any 6.x Elasticsearch node, while the 6.1
-client is for sure able to communicate with 6.1, 6.2 and any later 6.x version, but
+The 7.0 client is able to communicate with any 7.x Elasticsearch node, while the 7.1
+client is for sure able to communicate with 7.1, 7.2 and any later 7.x version, but
 there may be incompatibility issues when communicating with a previous Elasticsearch
-node version, for instance between 6.1 and 6.0, in case the 6.1 client supports new
-request body fields for some APIs that are not known by the 6.0 node(s).
+node version, for instance between 7.1 and 7.0, in case the 7.1 client supports new
+request body fields for some APIs that are not known by the 7.0 node(s).
 
 It is recommended to upgrade the High Level Client when upgrading the Elasticsearch
 cluster to a new major version, as REST API breaking changes may cause unexpected
@@ -30,6 +30,21 @@ results depending on the node that is hit by the request, and newly added APIs w
 only be supported by the newer version of the client. The client should always be
 updated last, once all of the nodes in the cluster have been upgraded to the new
 major version.
+
+*Compatibility with Elasticsearch 8.x*
+
+The High Level Client version 7.16 and higher can communicate with Elasticsearch version 8.x after enabling API compatibility mode. When this mode is enabled, the client will send HTTP headers that instruct Elasticsearch 8.x to honor 7.x request/responses.
+
+Compatibility mode is enabled as follows:
+
+["source","java",subs="attributes"]
+--------------------------------------------------
+RestHighLevelClient esClient = new RestHighLevelClientBuilder(restClient)
+    .setApiCompatibilityMode(true)
+    .build()
+--------------------------------------------------
+
+When compatibility mode is enabled, the client can also communicate with Elasticsearch version 7.11 and higher.
 
 [[java-rest-high-javadoc]]
 === Javadoc
@@ -141,7 +156,7 @@ transitive dependencies:
 [[java-rest-high-getting-started-initialization]]
 === Initialization
 
-A `RestHighLevelClient` instance needs a 
+A `RestHighLevelClient` instance needs a
 {java-api-client}/java-rest-low-usage-initialization.html[REST low-level client builder]
 to be built as follows:
 
@@ -172,27 +187,27 @@ All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can
 use to customize the request in ways that won't change how Elasticsearch
 executes the request. For example, this is the place where you'd specify a
 `NodeSelector` to control which node receives the request. See the
-{java-api-client}/java-rest-low-usage-requests.html#java-rest-low-usage-request-options[low level client documentation] 
+{java-api-client}/java-rest-low-usage-requests.html#java-rest-low-usage-request-options[low level client documentation]
 for more examples of customizing the options.
 
 [[java-rest-high-getting-started-asynchronous-usage]]
 === Asynchronous usage
 
-All of the methods across the different clients exist in a traditional synchronous and 
-asynchronous variant. The difference is that the asynchronous ones use asynchronous requests 
+All of the methods across the different clients exist in a traditional synchronous and
+asynchronous variant. The difference is that the asynchronous ones use asynchronous requests
 in the REST Low Level Client. This is useful if you are doing multiple requests or are using e.g.
 rx java, Kotlin co-routines, or similar frameworks.
 
-The asynchronous methods are recognizable by the fact that they have the word "Async" in their name 
-and return a `Cancellable` instance. The asynchronous methods accept the same request object 
-as the synchronous variant and accept a generic `ActionListener<T>` where `T` is the return 
-type of the synchronous method. 
+The asynchronous methods are recognizable by the fact that they have the word "Async" in their name
+and return a `Cancellable` instance. The asynchronous methods accept the same request object
+as the synchronous variant and accept a generic `ActionListener<T>` where `T` is the return
+type of the synchronous method.
 
-All asynchronous methods return a `Cancellable` object with a `cancel` method that you may call 
+All asynchronous methods return a `Cancellable` object with a `cancel` method that you may call
 in case you want to abort the request. Cancelling
-no longer needed requests is a good way to avoid putting unnecessary 
+no longer needed requests is a good way to avoid putting unnecessary
 load on Elasticsearch.
 
-Using the `Cancellable` instance is optional and you can safely ignore this if you have 
-no need for this. A use case for this would be using this with e.g. Kotlin's `suspendCancellableCoRoutine`. 
+Using the `Cancellable` instance is optional and you can safely ignore this if you have
+no need for this. A use case for this would be using this with e.g. Kotlin's `suspendCancellableCoRoutine`.
 

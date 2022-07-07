@@ -11,14 +11,14 @@
        index:
            index:  test_1
            type:   test
-           id:     1
+           id:     "1"
            body:   { foo: bar }
 
    - do:
        index:
            index:  test_1
            type:   test
-           id:     2
+           id:     "2"
            body:   { foo: baz }
 
    - do:
@@ -26,13 +26,13 @@
        mget:
            body:
                docs:
-                   - { _index: test_1, _type: test, _id: 1, _routing : test1 }
-                   - { _index: test_1, _type: test, _id: 2, _routing : test1 }
+                   - { _index: test_1, _type: test, _id: "1", _routing : test1 }
+                   - { _index: test_1, _type: test, _id: "2", _routing : test1 }
 
    - do:
        catch:  bad_request
        mget:
            body:
                docs:
-                   - { _index: test_1, _type: test, _id: 1, _version : 1 }
-                   - { _index: test_1, _type: test, _id: 2, _version : 1 }
+                   - { _index: test_1, _type: test, _id: "1", _version : 1 }
+                   - { _index: test_1, _type: test, _id: "2", _version : 1 }

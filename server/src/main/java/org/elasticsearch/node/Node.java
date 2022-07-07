@@ -550,19 +550,15 @@ public class Node implements Closeable {
                     IndicesModule.getNamedXContents().stream(),
                     searchModule.getNamedXContents().stream(),
                     pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream()),
-                    ClusterModule.getNamedXWriteables().stream()
+                    ClusterModule.getNamedXWriteables().stream(),
+                    SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
-            final Map<String, SystemIndices.Feature> featuresMap = pluginsService.filterPlugins(SystemIndexPlugin.class)
-                .stream()
-                .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
-                .collect(
-                    Collectors.toMap(
-                        SystemIndexPlugin::getFeatureName,
-                        plugin -> SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings)
-                    )
-                );
-            final SystemIndices systemIndices = new SystemIndices(featuresMap);
+            final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {
+                SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName());
+                return SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings);
+            }).collect(toList());
+            final SystemIndices systemIndices = new SystemIndices(features);
             final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
 
             ModulesBuilder modules = new ModulesBuilder();
@@ -797,7 +793,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of(Task.X_OPAQUE_ID_HTTP_HEADER, Task.TRACE_ID, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)
+                Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(
                 settings,
@@ -837,7 +833,7 @@ public class Node implements Closeable {
                 repositoryService,
                 transportService,
                 actionModule.getActionFilters(),
-                systemIndices.getFeatures()
+                systemIndices.getFeatures().stream().collect(Collectors.toMap(SystemIndices.Feature::getName, Function.identity()))
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,

@@ -77,38 +77,46 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final IndexCommit safeCommit;
+        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or release";
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+        final IndexCommit safeCommit = commits.get(keptPosition);
+        int totalDocsOfSafeCommit;
+        try {
+            totalDocsOfSafeCommit = getDocCountOfCommit(safeCommit);
+        } catch (IOException ex) {
+            logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
+            totalDocsOfSafeCommit = safeCommitInfo.docCount;
+        }
         synchronized (this) {
-            final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-            this.safeCommitInfo = SafeCommitInfo.EMPTY;
+            this.safeCommitInfo = new SafeCommitInfo(
+                Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                totalDocsOfSafeCommit
+            );
             this.lastCommit = commits.get(commits.size() - 1);
-            this.safeCommit = commits.get(keptPosition);
-            for (int i = 0; i < keptPosition; i++) {
-                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                    deleteCommit(commits.get(i));
-                }
-            }
+            this.safeCommit = safeCommit;
             updateRetentionPolicy();
             if (keptPosition == commits.size() - 1) {
                 this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
             } else {
                 this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             }
-            safeCommit = this.safeCommit;
+            for (int i = 0; i < keptPosition; i++) {
+                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                    deleteCommit(commits.get(i));
+                }
+            }
         }
+        assert assertSafeCommitUnchanged(safeCommit);
+    }
 
-        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
-        safeCommitInfo = new SafeCommitInfo(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-            getDocCountOfCommit(safeCommit)
-        );
-
+    private boolean assertSafeCommitUnchanged(IndexCommit safeCommit) {
         // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
         // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
         // bit more history and do a few more ops-based recoveries than we would otherwise.
         final IndexCommit newSafeCommit = this.safeCommit;
         assert safeCommit == newSafeCommit
             : "onCommit called concurrently? " + safeCommit.getGeneration() + " vs " + newSafeCommit.getGeneration();
+        return true;
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {

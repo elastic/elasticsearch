@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -332,6 +331,9 @@ public class License implements ToXContentObject {
     }
 
     /**
+     * The expiration date as it appears in the license. For most uses, prefer {@link LicenseService#getExpiryDate(License)}, as in
+     * rare cases the effective expiration date may differ from the expiration date specified in the license.
+     *
      * @return the expiry date in milliseconds
      */
     public long expiryDate() {
@@ -410,19 +412,6 @@ public class License implements ToXContentObject {
      */
     public synchronized void removeOperationModeFileWatcher() {
         this.operationModeFileWatcher = null;
-    }
-
-    /**
-     * @return the current license's status
-     */
-    public LicenseStatus status() {
-        long now = System.currentTimeMillis();
-        if (issueDate > now) {
-            return LicenseStatus.INVALID;
-        } else if (expiryDate < now) {
-            return LicenseStatus.EXPIRED;
-        }
-        return LicenseStatus.ACTIVE;
     }
 
     private void validate() {
@@ -562,7 +551,7 @@ public class License implements ToXContentObject {
             licenseVersion = this.version;
         }
         if (restViewMode) {
-            builder.field(Fields.STATUS, status().label());
+            builder.field(Fields.STATUS, LicenseService.status(this).label());
         }
         builder.field(Fields.UID, uid);
 

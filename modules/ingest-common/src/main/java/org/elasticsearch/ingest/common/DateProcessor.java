@@ -102,6 +102,7 @@ public final class DateProcessor extends AbstractProcessor {
         for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
                 dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
+                break;
             } catch (Exception e) {
                 // try the next parser and keep track of the exceptions
                 lastException = ExceptionsHelper.useOrSuppress(lastException, e);

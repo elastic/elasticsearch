@@ -11,6 +11,7 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
@@ -816,5 +818,78 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     private static long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
+    }
+
+    public void testBuildParentTripMessage() {
+        class TestChildCircuitBreaker extends NoopCircuitBreaker {
+            private final long used;
+
+            TestChildCircuitBreaker(long used) {
+                super("child");
+                this.used = used;
+            }
+
+            @Override
+            public long getUsed() {
+                return used;
+            }
+
+            @Override
+            public double getOverhead() {
+                return 1.0;
+            }
+        }
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                false,
+                org.elasticsearch.core.Map.of("child", new TestChildCircuitBreaker(7L), "otherChild", new TestChildCircuitBreaker(8L))
+            ),
+            oneOf(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [child=7/7b, otherChild=8/8b]",
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [otherChild=8/8b, child=7/7b]"
+            )
+        );
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                true,
+                org.elasticsearch.core.Map.of()
+            ),
+            equalTo(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []"
+            )
+        );
+
+        try {
+            HierarchyCircuitBreakerService.permitNegativeValues = true;
+            assertThat(
+                HierarchyCircuitBreakerService.buildParentTripMessage(
+                    -1L,
+                    "test",
+                    new HierarchyCircuitBreakerService.MemoryUsage(-2L, -3L, -4L, -5L),
+                    -6L,
+                    true,
+                    org.elasticsearch.core.Map.of("child1", new TestChildCircuitBreaker(-7L))
+                ),
+                equalTo(
+                    "[parent] Data too large, data for [test] would be [-3], which is larger than the limit of [-6], "
+                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]"
+                )
+            );
+        } finally {
+            HierarchyCircuitBreakerService.permitNegativeValues = false;
+        }
     }
 }

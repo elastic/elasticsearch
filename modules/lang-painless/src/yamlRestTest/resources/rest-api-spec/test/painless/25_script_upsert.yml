@@ -4,7 +4,7 @@
   - do:
       update:
           index:    test_1
-          id:       1
+          id:       "1"
           body:
             script:
               source: "ctx._source.foo = params.bar"
@@ -15,7 +15,7 @@
   - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
 
   - match:  { _source.foo: baz }
 
@@ -23,7 +23,7 @@
   - do:
       update:
           index:    test_1
-          id:       1
+          id:       "1"
           body:
             script:
               source: "ctx._source.foo = params.bar"
@@ -34,14 +34,14 @@
   - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
 
   - match:  { _source.foo: xxx }
 
   - do:
       update:
           index:    test_1
-          id:       2
+          id:       "2"
           body:
             script:
               source: "ctx._source.foo = params.bar"
@@ -53,14 +53,14 @@
   - do:
       get:
           index:  test_1
-          id:     2
+          id:     "2"
 
   - match:  { _source.foo: xxx }
 
   - do:
       update:
           index:    test_1
-          id:       3
+          id:       "3"
           body:
             script:
               source: "ctx._source.has_now = ctx._now > 0"
@@ -71,14 +71,14 @@
   - do:
       get:
           index:  test_1
-          id:     3
+          id:     "3"
 
   - match:  { _source.has_now: true }
 
   - do:
       update:
         index: test_1
-        id: 4
+        id: "4"
         body:
           script:
             # assume _now is an absolute clock if it's in the range [now - 1m, now]; this tolerance might need adjustment after CI cycles
@@ -90,6 +90,6 @@
   - do:
       get:
         index: test_1
-        id: 4
+        id: "4"
 
   - match: { _source.within_one_minute: true }

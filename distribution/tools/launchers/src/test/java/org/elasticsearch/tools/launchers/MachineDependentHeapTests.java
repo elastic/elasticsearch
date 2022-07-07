@@ -50,6 +50,17 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
         assertThat(options, empty());
     }
 
+    // Explicitly test odd heap sizes
+    // See: https://github.com/elastic/elasticsearch/issues/86431
+    public void testOddUserPassedHeapArgs() throws Exception {
+        MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
+        List<String> options = heap.determineHeapSettings(configPath(), Collections.singletonList("-Xmx409m"));
+        assertThat(options, empty());
+
+        options = heap.determineHeapSettings(configPath(), Collections.singletonList("-Xms409m"));
+        assertThat(options, empty());
+    }
+
     public void testMasterOnlyOptions() {
         List<String> options = calculateHeap(16, "master");
         assertThat(options, containsInAnyOrder("-Xmx9830m", "-Xms9830m"));

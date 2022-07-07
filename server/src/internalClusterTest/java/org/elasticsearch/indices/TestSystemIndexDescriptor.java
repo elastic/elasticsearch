@@ -56,6 +56,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             emptyList(),
             emptyList(),
             null,
+            false,
             false
         );
     }

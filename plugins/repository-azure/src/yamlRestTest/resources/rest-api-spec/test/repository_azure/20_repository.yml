@@ -46,17 +46,17 @@ setup:
           - index:
               _index: docs
               _type:  doc
-              _id:    1
+              _id:    "1"
           - snapshot: one
           - index:
               _index: docs
               _type:  doc
-              _id:    2
+              _id:    "2"
           - snapshot: one
           - index:
               _index: docs
               _type:  doc
-              _id:    3
+              _id:    "3"
           - snapshot: one
 
   - do:
@@ -94,22 +94,22 @@ setup:
           - index:
               _index: docs
               _type:  doc
-              _id:    4
+              _id:    "4"
           - snapshot: two
           - index:
               _index: docs
               _type:  doc
-              _id:    5
+              _id:    "5"
           - snapshot: two
           - index:
               _index: docs
               _type:  doc
-              _id:    6
+              _id:    "6"
           - snapshot: two
           - index:
               _index: docs
               _type:  doc
-              _id:    7
+              _id:    "7"
           - snapshot: two
 
   - do:

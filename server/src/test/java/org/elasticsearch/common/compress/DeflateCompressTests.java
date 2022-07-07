@@ -8,8 +8,12 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -20,6 +24,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.zip.ZipException;
 
 /**
  * Test streaming compression (e.g. used for recovery)
@@ -367,6 +372,43 @@ public class DeflateCompressTests extends ESTestCase {
         startingGun.countDown();
         for (Thread t : threads) {
             t.join();
+        }
+    }
+
+    public void testCompressUncompressWithCorruptions() throws Exception {
+        final Random r = random();
+        for (int i = 0; i < 10; i++) {
+            byte[] bytes = new byte[TestUtil.nextInt(r, 1, 100000)];
+            r.nextBytes(bytes);
+            final int offset = between(0, bytes.length - 1);
+            final int length = between(0, bytes.length - offset);
+            final BytesReference original = new BytesArray(bytes, offset, length);
+            final BytesReference compressed = compressor.compress(original);
+
+            if (randomBoolean()) {
+                int corruptIndex = between(0, compressed.length() - 1);
+                BytesRef bytesRef;
+                final BytesRefIterator iterator = compressed.iterator();
+                while ((bytesRef = iterator.next()) != null) {
+                    if (corruptIndex < bytesRef.length) {
+                        bytesRef.bytes[bytesRef.offset + corruptIndex] = randomValueOtherThan(
+                            bytesRef.bytes[bytesRef.offset + corruptIndex],
+                            () -> (byte) (r.nextInt() & 0xff)
+                        );
+                        break;
+                    } else {
+                        corruptIndex -= bytesRef.length;
+                    }
+                }
+                try {
+                    compressor.uncompress(compressed);
+                } catch (ZipException e) {
+                    // ok
+                }
+            } else {
+                BytesReference uncompressed = compressor.uncompress(compressed);
+                assertEquals(original, uncompressed);
+            }
         }
     }
 

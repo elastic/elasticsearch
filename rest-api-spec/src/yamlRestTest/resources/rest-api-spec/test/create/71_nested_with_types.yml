@@ -22,7 +22,7 @@ setup:
       create:
           index:  test_1
           type:   test_type
-          id:     1
+          id:     "1"
           body:
               "nested1" : [ { "foo": "bar" }, { "foo": "bar2" } ]
   - match:   { _version: 1}
@@ -37,6 +37,6 @@ setup:
       create:
           index:  test_1
           type:   test_type
-          id:     1
+          id:     "1"
           body:
               "nested1" : [ { "foo": "bar" }, { "foo": "bar2" }, { "foo": "bar3" } ]

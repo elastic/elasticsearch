@@ -20,7 +20,7 @@
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
   - do:
@@ -28,10 +28,10 @@
         index: test_1
         body:
           docs:
-            - { _id: 1                         }
-            - { _id: 1, stored_fields: foo            }
-            - { _id: 1, stored_fields: [foo]          }
-            - { _id: 1, stored_fields: [foo, _source] }
+            - { _id: "1"                         }
+            - { _id: "1", stored_fields: foo            }
+            - { _id: "1", stored_fields: [foo]          }
+            - { _id: "1", stored_fields: [foo, _source] }
 
   - is_false: docs.0.fields
   - match:  { docs.0._source: { foo: bar }}
@@ -51,10 +51,10 @@
         stored_fields: foo
         body:
           docs:
-            - { _id: 1                         }
-            - { _id: 1, stored_fields: foo            }
-            - { _id: 1, stored_fields: [foo]          }
-            - { _id: 1, stored_fields: [foo, _source] }
+            - { _id: "1"                         }
+            - { _id: "1", stored_fields: foo            }
+            - { _id: "1", stored_fields: [foo]          }
+            - { _id: "1", stored_fields: [foo, _source] }
 
   - match:  { docs.0.fields.foo: [bar] }
   - is_false: docs.0._source
@@ -74,10 +74,10 @@
         stored_fields: [foo]
         body:
           docs:
-            - { _id: 1                         }
-            - { _id: 1, stored_fields: foo            }
-            - { _id: 1, stored_fields: [foo]          }
-            - { _id: 1, stored_fields: [foo, _source] }
+            - { _id: "1"                         }
+            - { _id: "1", stored_fields: foo            }
+            - { _id: "1", stored_fields: [foo]          }
+            - { _id: "1", stored_fields: [foo, _source] }
 
   - match:  { docs.0.fields.foo: [bar] }
   - is_false: docs.0._source
@@ -97,10 +97,10 @@
         stored_fields: [foo, _source]
         body:
           docs:
-            - { _id: 1                         }
-            - { _id: 1, stored_fields: foo            }
-            - { _id: 1, stored_fields: [foo]          }
-            - { _id: 1, stored_fields: [foo, _source] }
+            - { _id: "1"                         }
+            - { _id: "1", stored_fields: foo            }
+            - { _id: "1", stored_fields: [foo]          }
+            - { _id: "1", stored_fields: [foo, _source] }
 
   - match:  { docs.0.fields.foo: [bar] }
   - match:  { docs.0._source: { foo: bar }}

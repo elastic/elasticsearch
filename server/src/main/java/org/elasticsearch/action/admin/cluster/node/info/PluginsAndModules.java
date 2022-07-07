@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,17 +24,17 @@ import java.util.List;
  * Information about plugins and modules
  */
 public class PluginsAndModules implements ReportingService.Info {
-    private final List<PluginInfo> plugins;
-    private final List<PluginInfo> modules;
+    private final List<PluginDescriptor> plugins;
+    private final List<PluginDescriptor> modules;
 
-    public PluginsAndModules(List<PluginInfo> plugins, List<PluginInfo> modules) {
+    public PluginsAndModules(List<PluginDescriptor> plugins, List<PluginDescriptor> modules) {
         this.plugins = Collections.unmodifiableList(plugins);
         this.modules = Collections.unmodifiableList(modules);
     }
 
     public PluginsAndModules(StreamInput in) throws IOException {
-        this.plugins = Collections.unmodifiableList(in.readList(PluginInfo::new));
-        this.modules = Collections.unmodifiableList(in.readList(PluginInfo::new));
+        this.plugins = Collections.unmodifiableList(in.readList(PluginDescriptor::new));
+        this.modules = Collections.unmodifiableList(in.readList(PluginDescriptor::new));
     }
 
     @Override
@@ -46,39 +46,39 @@ public class PluginsAndModules implements ReportingService.Info {
     /**
      * Returns an ordered list based on plugins name
      */
-    public List<PluginInfo> getPluginInfos() {
-        List<PluginInfo> plugins = new ArrayList<>(this.plugins);
-        Collections.sort(plugins, Comparator.comparing(PluginInfo::getName));
+    public List<PluginDescriptor> getPluginInfos() {
+        List<PluginDescriptor> plugins = new ArrayList<>(this.plugins);
+        Collections.sort(plugins, Comparator.comparing(PluginDescriptor::getName));
         return plugins;
     }
 
     /**
      * Returns an ordered list based on modules name
      */
-    public List<PluginInfo> getModuleInfos() {
-        List<PluginInfo> modules = new ArrayList<>(this.modules);
-        Collections.sort(modules, Comparator.comparing(PluginInfo::getName));
+    public List<PluginDescriptor> getModuleInfos() {
+        List<PluginDescriptor> modules = new ArrayList<>(this.modules);
+        Collections.sort(modules, Comparator.comparing(PluginDescriptor::getName));
         return modules;
     }
 
-    public void addPlugin(PluginInfo info) {
+    public void addPlugin(PluginDescriptor info) {
         plugins.add(info);
     }
 
-    public void addModule(PluginInfo info) {
+    public void addModule(PluginDescriptor info) {
         modules.add(info);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("plugins");
-        for (PluginInfo pluginInfo : getPluginInfos()) {
-            pluginInfo.toXContent(builder, params);
+        for (PluginDescriptor pluginDescriptor : getPluginInfos()) {
+            pluginDescriptor.toXContent(builder, params);
         }
         builder.endArray();
         // TODO: not ideal, make a better api for this (e.g. with jar metadata, and so on)
         builder.startArray("modules");
-        for (PluginInfo moduleInfo : getModuleInfos()) {
+        for (PluginDescriptor moduleInfo : getModuleInfos()) {
             moduleInfo.toXContent(builder, params);
         }
         builder.endArray();

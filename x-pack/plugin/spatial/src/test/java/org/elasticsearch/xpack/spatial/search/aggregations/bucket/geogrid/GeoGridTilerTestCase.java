@@ -105,7 +105,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
                 try {
-                    indexer.prepareForIndexing(g);
+                    indexer.indexShape(indexer.prepareForIndexing(g));
                     return false;
                 } catch (Exception e) {
                     return true;
@@ -151,7 +151,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
                 try {
-                    indexer.prepareForIndexing(g);
+                    indexer.indexShape(indexer.prepareForIndexing(g));
                     return false;
                 } catch (Exception e) {
                     return true;

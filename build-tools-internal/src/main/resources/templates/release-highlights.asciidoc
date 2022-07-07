@@ -1,13 +1,14 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming::[{minor-version}]
+// tag::notable-highlights[]
+{es} 7.17 is a compatibility release for the 7.17 Elastic Stack and contains
+no major enhancements.
+// end::notable-highlights[]
 
-Here are the highlights of what's new and improved in {es} {minor-version}!
-ifeval::[\\{release-state}\\"!=\\"unreleased\\"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-endif::[]
+
 <% if (priorVersions.size() > 0) { %>
 // Add previous release to the list
 Other versions:
@@ -17,7 +18,17 @@ print priorVersions.join("\n| ")
 print "\n"
 }
 
-if (notableHighlights.empty == false) { %>
+/* The `notable-highlights` tag needs to exist, whether or not we actually have any notable highlights. */
+if (notableHighlights.isEmpty()) { %>
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
+// tag::notable-highlights[]
+// [discrete]
+// === Heading
+//
+// Description.
+// end::notable-highlights[]
+<% } else { %>
 // tag::notable-highlights[]
 <% for (highlight in notableHighlights) { %>
 [discrete]

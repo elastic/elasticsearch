@@ -11,12 +11,21 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -30,7 +39,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.CcrAutoFollowInfoFetcher;
@@ -44,6 +56,7 @@ import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,11 +68,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -74,7 +90,10 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.core.List.of(FakeSystemIndexPlugin.class, SecondFakeSystemIndexPlugin.class);
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(FakeSystemIndexPlugin.class, SecondFakeSystemIndexPlugin.class, DataStreamsPlugin.class)
+        ).collect(Collectors.toList());
     }
 
     public static class FakeSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
@@ -740,7 +759,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     private List<String> getFollowerAutoFollowedSystemIndices() {
-        final ClusterService followerClusterService = getFollowerCluster().getMasterNodeInstance(ClusterService.class);
+        final ClusterService followerClusterService = getFollowerCluster().getAnyMasterNodeInstance(ClusterService.class);
         PlainActionFuture<List<String>> future = PlainActionFuture.newFuture();
         CcrAutoFollowInfoFetcher.getAutoFollowedSystemIndices(followerClient(), followerClusterService.state(), future);
         return future.actionGet();
@@ -748,6 +767,103 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     private boolean indexExists(String index, Client client) {
         return client.admin().indices().exists(new IndicesExistsRequest(index)).actionGet().isExists();
+    }
+
+    public void testAutoFollowDatastreamWithClosingFollowerIndex() throws Exception {
+        final String datastream = "logs-1";
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("template-id");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                org.elasticsearch.core.List.of("logs-*"),
+                new Template(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build(),
+                    null,
+                    null
+                ),
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            )
+        );
+        assertAcked(leaderClient().execute(PutComposableIndexTemplateAction.INSTANCE, request).get());
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(datastream);
+        assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
+        leaderClient().prepareIndex(datastream, "_doc")
+            .setCreate(true)
+            .setSource("foo", "bar", "@timestamp", randomNonNegativeLong())
+            .get();
+
+        PutAutoFollowPatternAction.Request followRequest = new PutAutoFollowPatternAction.Request();
+        followRequest.setName("pattern-1");
+        followRequest.setRemoteCluster("leader_cluster");
+        followRequest.setLeaderIndexPatterns(org.elasticsearch.core.List.of("logs-*"));
+        followRequest.setFollowIndexNamePattern("{{leader_index}}");
+        assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, followRequest).get().isAcknowledged());
+
+        logger.info("--> roll over once and wait for the auto-follow to pick up the new index");
+        leaderClient().admin().indices().prepareRolloverIndex("logs-1").get();
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+        });
+
+        ensureFollowerGreen("*");
+
+        final RolloverResponse rolloverResponse = leaderClient().admin().indices().prepareRolloverIndex(datastream).get();
+        final String indexInDatastream = rolloverResponse.getOldIndex();
+
+        logger.info("--> closing [{}] on follower so it will be re-opened by crr", indexInDatastream);
+        assertAcked(followerClient().admin().indices().prepareClose(indexInDatastream).setMasterNodeTimeout(TimeValue.MAX_VALUE).get());
+
+        logger.info("--> deleting and recreating index [{}] on leader to change index uuid on leader", indexInDatastream);
+        assertAcked(leaderClient().admin().indices().prepareDelete(indexInDatastream).get());
+        assertAcked(
+            leaderClient().admin()
+                .indices()
+                .prepareCreate(indexInDatastream)
+                .addMapping("_doc", MetadataIndexTemplateService.DEFAULT_TIMESTAMP_MAPPING, XContentType.JSON)
+                .get()
+        );
+        leaderClient().prepareIndex(indexInDatastream, "_doc")
+            .setCreate(true)
+            .setSource("foo", "bar", "@timestamp", randomNonNegativeLong())
+            .get();
+        leaderClient().execute(
+            ModifyDataStreamsAction.INSTANCE,
+            new ModifyDataStreamsAction.Request(
+                org.elasticsearch.core.List.of(DataStreamAction.addBackingIndex(datastream, indexInDatastream))
+            )
+        ).get();
+
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(3L));
+        });
+
+        final Metadata metadata = followerClient().admin().cluster().prepareState().get().getState().metadata();
+        final DataStream dataStream = metadata.dataStreams().get(datastream);
+        assertTrue(dataStream.getIndices().stream().anyMatch(i -> i.getName().equals(indexInDatastream)));
+        assertEquals(IndexMetadata.State.OPEN, metadata.index(indexInDatastream).getState());
+        ensureFollowerGreen("*");
+        final IndicesStatsResponse stats = followerClient().admin().indices().prepareStats(datastream).get();
+        assertThat(stats.getIndices(), aMapWithSize(2));
+
+        assertAcked(leaderClient().admin().indices().prepareDelete(indexInDatastream).get());
+        assertAcked(followerClient().admin().indices().prepareDelete(indexInDatastream).setMasterNodeTimeout(TimeValue.MAX_VALUE).get());
+        ensureFollowerGreen("*");
+        final IndicesStatsResponse statsAfterDelete = followerClient().admin().indices().prepareStats(datastream).get();
+        assertThat(statsAfterDelete.getIndices(), aMapWithSize(1));
+        assertThat(statsAfterDelete.getIndices(), hasKey(rolloverResponse.getNewIndex()));
+
+        assertAcked(leaderClient().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(datastream)).get());
+        assertAcked(followerClient().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(datastream)).get());
     }
 
     private void putAutoFollowPatterns(String name, String[] patterns) {

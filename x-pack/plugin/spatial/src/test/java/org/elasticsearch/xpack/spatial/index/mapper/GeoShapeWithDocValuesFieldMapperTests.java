@@ -247,8 +247,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
                     .startObject()
                     .field(
                         "field",
-                        "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869037, 18.9401790919517 "
-                            + "-33.9681188869037, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
+                        "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
+                            + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
                     )
                     .endObject()
             );
@@ -256,7 +256,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
             ParsedDocument document = ignoreMapper.parse(sourceToParse);
             assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
             MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
-            assertThat(exception.getCause().getMessage(), containsString("Cannot determine orientation"));
+            assertThat(exception.getCause().getMessage(), containsString("at least 4 polygon points required"));
         }
     }
 

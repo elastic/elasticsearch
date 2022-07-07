@@ -5,14 +5,14 @@ setup:
       index:
           index: test1
           type:  bar
-          id:    1
+          id:    "1"
           body:  { "bar": "bar", "baz": "baz" }
 
   - do:
       index:
           index: test2
           type:  baz
-          id:    1
+          id:    "1"
           body:  { "bar": "bar", "baz": "baz" }
 
 

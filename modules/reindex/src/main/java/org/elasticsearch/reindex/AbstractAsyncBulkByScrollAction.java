@@ -557,7 +557,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        scrollSource.close(() -> {
+        scrollSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueNanos(System.nanoTime() - startTime.get()),
@@ -569,7 +569,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             } else {
                 listener.onFailure(failure);
             }
-        });
+        }));
     }
 
     /**

@@ -88,7 +88,7 @@ public class FeatureFactory {
         // convert coordinates to MVT geometry
         convertToMvtGeometry(flatGeometries, sequenceFilter);
         // MVT geometry to MVT feature
-        final List<VectorTile.Tile.Feature> features = JtsAdapter.toFeatures(flatGeometries, layerProps, userDataIgnoreConverter);
+        final List<VectorTile.Tile.Feature> features = PatchedJtsAdapter.toFeatures(flatGeometries, layerProps, userDataIgnoreConverter);
         final List<byte[]> byteFeatures = new ArrayList<>(features.size());
         features.forEach(f -> byteFeatures.add(f.toByteArray()));
         return byteFeatures;

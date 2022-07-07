@@ -2,7 +2,7 @@ type query:
   - do:
       index:
           index:   test1
-          id:      1
+          id:      "1"
           type:    cat
           refresh: true
           body:
@@ -11,7 +11,7 @@ type query:
   - do:
       index:
           index:   test2
-          id:      1
+          id:      "1"
           type:    _doc
           refresh: true
           body:

@@ -4,7 +4,7 @@
 
 [discrete]
 [[large-parsing-trees]]
-=== Large queries may throw `ParsingExpection`
+=== Large queries may throw `ParsingException`
 
 Extremely large queries can consume too much memory during the parsing phase, in which case the {es-sql} engine will
 abort parsing and throw an error. In such cases, consider reducing the query to a smaller size by potentially

@@ -93,7 +93,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path xpackConf = home.resolve("config");
         Files.createDirectories(xpackConf);
 
-        Transport transport = internalCluster().getMasterNodeInstance(Transport.class);
+        Transport transport = internalCluster().getAnyMasterNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
@@ -133,7 +133,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
 
-        Transport transport = internalCluster().getMasterNodeInstance(Transport.class);
+        Transport transport = internalCluster().getAnyMasterNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.profileBoundAddresses().get("client").publishAddress();
         String unicastHost = NetworkAddress.format(transportAddress.address());
 

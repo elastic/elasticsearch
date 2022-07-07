@@ -9,6 +9,8 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Packages;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.BeforeClass;
 
 import java.nio.file.Paths;
@@ -89,5 +91,27 @@ public class DebPreservationTests extends PackagingTestCase {
         assertPathsDoNotExist(installation.config, installation.envFile, SYSVINIT_SCRIPT);
 
         assertThat(packageStatus(distribution()).exitCode, is(1));
+
+        installation = null;
+    }
+
+    /**
+     * Check that restarting on upgrade doesn't run into a problem where the keystore
+     * upgrade is attempted as the wrong user i.e. the restart happens at the correct
+     * point. See #82433.
+     */
+    public void test40RestartOnUpgrade() throws Exception {
+        assertRemoved(distribution());
+        installation = installPackage(sh, distribution());
+        assertInstalled(distribution());
+
+        // Ensure ES is started
+        Packages.runElasticsearchStartCommand(sh);
+        ServerUtils.waitForElasticsearch(installation);
+
+        sh.getEnv().put("RESTART_ON_UPGRADE", "true");
+        installation = installPackage(sh, distribution());
+
+        ServerUtils.waitForElasticsearch(installation);
     }
 }

@@ -14,7 +14,7 @@
     - do:
         index:
             index: test
-            id: 0
+            id: "0"
             body: { "foo": null }
 
     - do:
@@ -30,25 +30,25 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "foo": "bar" }
 
     - do:
         index:
             index: test
-            id: 2
+            id: "2"
             body: { "foo": "baz" }
 
     - do:
         index:
             index: test
-            id: 3
+            id: "3"
             body: { "foo": "quux" }
 
     - do:
         index:
             index: test
-            id: 4
+            id: "4"
             body: { "foo": "bar" }
 
     - do:

@@ -21,11 +21,11 @@
         body:
           - index:
               _index: index
-              _id:    0
+              _id:    "0"
           - foo: bar
           - index:
               _index: index
-              _id:    1
+              _id:    "1"
           - foo: bar
 
  - do:

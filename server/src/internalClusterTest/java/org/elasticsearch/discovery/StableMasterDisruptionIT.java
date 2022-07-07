@@ -128,6 +128,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
                 .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "10s")
                 .build()
         );
     }

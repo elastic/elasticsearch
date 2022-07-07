@@ -181,6 +181,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
 
+        // the index was assigned after the migration
+        ensureGreen("indexwithdatawarmrouting");
+
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
         assertThat(
             (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),

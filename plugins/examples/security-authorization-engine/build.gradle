@@ -30,8 +30,10 @@ if (!gradle.includedBuilds) {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  testImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+  testImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
-  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
   javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"

@@ -28,6 +28,11 @@ public class RestDeleteShutdownNodeAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String nodeId = request.param("nodeId");
         return channel -> client.execute(

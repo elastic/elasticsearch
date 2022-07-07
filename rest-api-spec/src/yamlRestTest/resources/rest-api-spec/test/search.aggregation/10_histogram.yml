@@ -452,25 +452,25 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "date" : "2016-01-01" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "date" : "2016-01-02" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "date" : "2016-02-01" }
 
   - do:
       index:
         index: test_1
-        id: 4
+        id: "4"
         body: { "date" : "2016-03-01" }
 
   - do:

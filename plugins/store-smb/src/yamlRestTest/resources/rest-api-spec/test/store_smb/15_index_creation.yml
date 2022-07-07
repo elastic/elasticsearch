@@ -10,13 +10,13 @@
   - do:
       index:
         index:  smb-test
-        id:     1
+        id:     "1"
         body:   { foo: bar }
 
   - do:
       get:
         index:  smb-test
-        id:     1
+        id:     "1"
 
   - match:   { _index:   smb-test }
   - match:   { _type:    _doc }

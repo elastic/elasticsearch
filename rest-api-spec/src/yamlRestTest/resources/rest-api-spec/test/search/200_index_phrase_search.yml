@@ -16,7 +16,7 @@
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { text: "peter piper picked a peck of pickled peppers" }
 
   - do:

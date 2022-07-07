@@ -227,6 +227,11 @@ public enum MissingValues {
             }
 
             @Override
+            public boolean supportsGlobalOrdinalsMapping() {
+                return valuesSource.supportsGlobalOrdinalsMapping();
+            }
+
+            @Override
             public String toString() {
                 return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
             }

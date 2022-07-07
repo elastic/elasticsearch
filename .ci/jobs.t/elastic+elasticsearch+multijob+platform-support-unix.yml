@@ -14,26 +14,23 @@
           name: os
           values:
             - amazon
-            - "centos-6&&immutable"
             - "centos-7&&immutable"
-            - "centos-8&&immutable"
             - "amazon&&immutable"
-            - "debian-8&&immutable"
             - "debian-9&&immutable"
             - "debian-10&&immutable"
             - "debian-11&&immutable"
             - "opensuse-15-1&&immutable"
-            - "oraclelinux-6&&immutable"
             - "oraclelinux-7&&immutable"
             - "oraclelinux-8&&immutable"
             - "sles-12&&immutable"
             - "sles-15&&immutable"
-            - "ubuntu-16.04&&immutable"
             - "ubuntu-18.04&&immutable"
             - "ubuntu-20.04&&immutable"
+            - "ubuntu-22.04&&immutable"
             - "rocky-linux-8&&immutable"
             - "rhel-7&&immutable"
             - "rhel-8&&immutable"
+            - "rhel-9&&immutable"
             - "almalinux-8&&immutable"
     builders:
       - inject:

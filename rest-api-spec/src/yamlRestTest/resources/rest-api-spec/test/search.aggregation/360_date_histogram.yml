@@ -17,6 +17,18 @@ setup:
                 type: date_range
 
   - do:
+      indices.create:
+        index: date_histogram_timezone_test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date
+                format: "yyyy-MM-dd HH:mm:ss"
+
+  - do:
       bulk:
         index: test_date_hist
         refresh: true
@@ -34,6 +46,32 @@ setup:
           - '{"index": {}}'
           - '{"range": {"lt": "2016-02-01"}}'
 
+  - do:
+      bulk:
+        index: date_histogram_timezone_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date": "2021-05-01 20:00:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 21:30:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 23:54:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 23:40:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:20:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 21:20:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 23:50:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:15:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:40:00" }
+          - { "index": { } }
+          - { "date": "2021-05-01 22:20:00" }
+
 ---
 "date_histogram on range with hard bounds":
   - skip:
@@ -42,6 +80,7 @@ setup:
 
   - do:
       search:
+        index: test_date_hist
         body:
           size: 0
           aggs:
@@ -61,3 +100,64 @@ setup:
   - match: { aggregations.histo.buckets.8.doc_count: 1 }
   - match: { aggregations.histo.buckets.12.key_as_string: "2016-06-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.12.doc_count: 1 }
+
+---
+"date_histogram and date_histogram_composite timezone":
+  - skip:
+      version: " - 7.16.99"
+      reason: bug fixed somewhere between 7.2 and 7.17
+  - do:
+      search:
+        index: date_histogram_timezone_test
+        body:
+          size: 0
+          aggs:
+            date_histogram_yes_tz:
+              date_histogram:
+                field: date
+                format: "yyyy-MM-dd HH:mm:ss"
+                calendar_interval: hour
+                time_zone: Asia/Jakarta
+            date_histogram_no__tz:
+              date_histogram:
+                field: date
+                format: "yyyy-MM-dd HH:mm:ss"
+                calendar_interval: hour
+
+
+  - match: { hits.total.value: 10 }
+  - match:  { hits.total.relation: "eq" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.0.key_as_string: "2021-05-02 03:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.0.key_as_string: "2021-05-01 20:00:00" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.1.key_as_string: "2021-05-02 04:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.1.key_as_string: "2021-05-01 21:00:00" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.2.key_as_string: "2021-05-02 05:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.2.key_as_string: "2021-05-01 22:00:00" }
+
+  - match:  { aggregations.date_histogram_yes_tz.buckets.3.key_as_string: "2021-05-02 06:00:00" }
+  - match:  { aggregations.date_histogram_no__tz.buckets.3.key_as_string: "2021-05-01 23:00:00" }
+
+  - length: { aggregations.date_histogram_yes_tz.buckets: 4 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.0.doc_count: 1 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.1.doc_count: 2 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.2.doc_count: 4 }
+  - match:  { aggregations.date_histogram_yes_tz.buckets.3.doc_count: 3 }
+
+  - length: { aggregations.date_histogram_no__tz.buckets: 4 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.0.doc_count: 1 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.1.doc_count: 2 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.2.doc_count: 4 }
+  - match:  { aggregations.date_histogram_no__tz.buckets.3.doc_count: 3 }
+
+  - match: { aggregations.date_histogram_yes_tz.buckets.0.key: 1619899200000 }
+  - match: { aggregations.date_histogram_yes_tz.buckets.1.key: 1619902800000 }
+  - match: { aggregations.date_histogram_yes_tz.buckets.2.key: 1619906400000 }
+  - match: { aggregations.date_histogram_yes_tz.buckets.3.key: 1619910000000 }
+
+  - match: { aggregations.date_histogram_no__tz.buckets.0.key: 1619899200000 }
+  - match: { aggregations.date_histogram_no__tz.buckets.1.key: 1619902800000 }
+  - match: { aggregations.date_histogram_no__tz.buckets.2.key: 1619906400000 }
+  - match: { aggregations.date_histogram_no__tz.buckets.3.key: 1619910000000 }

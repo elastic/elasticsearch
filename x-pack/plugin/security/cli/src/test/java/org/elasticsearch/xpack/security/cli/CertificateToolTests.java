@@ -425,10 +425,6 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     public void testHandleLongPasswords() throws Exception {
-        assumeFalse(
-            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
-            "1.8.0_292".equals(System.getProperty("java.version"))
-        );
 
         final Path tempDir = initTempDir();
 
@@ -655,10 +651,6 @@ public class CertificateToolTests extends ESTestCase {
      * - Checks that all 3 certificates have the right values based on the command line options provided during generation
      */
     public void testCreateCaAndMultipleInstances() throws Exception {
-        assumeFalse(
-            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
-            "1.8.0_292".equals(System.getProperty("java.version"))
-        );
         final Path tempDir = initTempDir();
 
         final MockTerminal terminal = new MockTerminal();
@@ -839,10 +831,6 @@ public class CertificateToolTests extends ESTestCase {
      * - Checks that the PKCS12 certificate and the PEM certificate trust one another
      */
     public void testTrustBetweenPEMandPKCS12() throws Exception {
-        assumeFalse(
-            "JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
-            "1.8.0_292".equals(System.getProperty("java.version"))
-        );
         final Path tempDir = initTempDir();
 
         final MockTerminal terminal = new MockTerminal();

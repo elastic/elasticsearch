@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +68,10 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled) {
+            ActionListener<XPackFeatureSet.Usage> preservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                listener,
+                client.threadPool().getThreadContext()
+            );
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 WatcherClient watcherClient = new WatcherClient(client);
                 WatcherStatsRequest request = new WatcherStatsRequest();
@@ -78,8 +83,8 @@ public class WatcherFeatureSet implements XPackFeatureSet {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList());
                     Counters mergedCounters = Counters.merge(countersPerNode);
-                    listener.onResponse(new WatcherFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
-                }, listener::onFailure));
+                    preservingListener.onResponse(new WatcherFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
+                }, preservingListener::onFailure));
             }
         } else {
             listener.onResponse(new WatcherFeatureSetUsage(available(), enabled(), Collections.emptyMap()));

@@ -29,20 +29,8 @@ dependencies {
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-tasks.named('forbiddenApisTest').configure {
-  replaceSignatureFiles 'jdk-signatures'
-}
-
 // we don't have additional tests for the tests themselves
 tasks.named("test").configure { enabled = false }
-// Tests are destructive and meant to run in a VM, they don't adhere to general conventions
-tasks.named("testingConventions").configure { enabled = false }
-
-// this project doesn't get published
-tasks.named("dependencyLicenses").configure { enabled = false }
-tasks.named("dependenciesInfo").configure {enabled = false }
-
-tasks.named("thirdPartyAudit").configure { ignoreMissingClasses() }
 
 tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest'

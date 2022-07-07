@@ -99,7 +99,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         return currentLicense == null
             || License.LicenseType.isBasic(currentLicense.type()) == false
             || LicenseService.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()
-            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != currentLicense.expiryDate();
+            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseService.getExpiryDate(currentLicense);
     }
 
     private License generateBasicLicense(ClusterState currentState) {

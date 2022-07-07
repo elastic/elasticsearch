@@ -147,7 +147,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
                 for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                     String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                    indexResponses.putIfAbsent(indexName, new FieldCapabilitiesIndexResponse(indexName, resp.get(), resp.canMatch()));
+                    indexResponses.putIfAbsent(indexName, new FieldCapabilitiesIndexResponse(indexName, resp.getFields(), resp.canMatch()));
                 }
                 for (FieldCapabilitiesFailure failure : response.getFailures()) {
                     Exception ex = failure.getException();
@@ -265,17 +265,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
         FieldCapabilitiesIndexResponse response
     ) {
-        for (Map.Entry<String, IndexFieldCapabilities> entry : response.get().entrySet()) {
-            final String field = entry.getKey();
+        for (IndexFieldCapabilities fieldCap : response.getFields()) {
+            final String fieldName = fieldCap.getName();
             // best effort to detect metadata field coming from older nodes
             final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0)
-                ? entry.getValue().isMetadatafield()
-                : metadataFieldPred.test(field);
-            final IndexFieldCapabilities fieldCap = entry.getValue();
-            Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
+                ? fieldCap.isMetadatafield()
+                : metadataFieldPred.test(fieldName);
+            Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(fieldName, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
                 fieldCap.getType(),
-                key -> new FieldCapabilities.Builder(field, key)
+                key -> new FieldCapabilities.Builder(fieldName, key)
             );
             builder.add(response.getIndexName(), isMetadataField, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.meta());
         }

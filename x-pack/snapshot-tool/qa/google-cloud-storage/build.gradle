@@ -7,7 +7,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import java.nio.file.Files
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(":plugins:repository-gcs")
@@ -57,9 +57,6 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
 
 if (useGCSFixture) {
   gcsThirdPartyTest.configure {
-    enabled = false
-  }
-  tasks.named('testingConventions').configure {
     enabled = false
   }
   /*

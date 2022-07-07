@@ -9,11 +9,6 @@ your application to {es} 7.17.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-* <<breaking_717_packaging_changes>>
-
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
 [discrete]
 [[breaking-changes-7.17]]
 === Breaking changes
@@ -23,18 +18,14 @@ and prevent them from operating normally.
 Before upgrading to 7.17, review these changes and take the described steps
 to mitigate the impact.
 
-NOTE: Breaking changes introduced in minor versions are
-normally limited to security and bug fixes.
-Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
-To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>.
-
+// NOTE: The notable-breaking-changes tagged regions are re-used in the
+// Installation and Upgrade Guide
 // tag::notable-breaking-changes[]
 [discrete]
 [[breaking_717_packaging_changes]]
 ==== Packaging changes
 
+[[windows_msi_installer_package_no_longer_available]]
 .The Windows MSI installer package is no longer available.
 [%collapsible]
 ====
@@ -48,21 +39,63 @@ package] instead.
 ====
 // end::notable-breaking-changes[]
 
-////
+
 [discrete]
 [[deprecated-7.17]]
 === Deprecations
 
-The following functionality has been deprecated in {es} 7.17 and will be removed
-in 8.0. While this won't have an immediate impact on your applications, we
-strongly encourage you take the described steps to update your code after
-upgrading to 7.17.
+The following functionality has been deprecated in {es} 7.17
+and will be removed in 8.0.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.17.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and the
-old behavior is supported until the next major release. To find out if you are
-using any deprecated functionality, enable <<deprecation-logging, deprecation
-logging>>.
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
 
 // tag::notable-breaking-changes[]
+[discrete]
+[[deprecations_717_cluster_and_node_setting]]
+==== Cluster and node setting deprecations
+
+[[deprecation_for_truststores_with_no_trust_entries]]
+.Deprecation for truststores with no trust entries
+[%collapsible]
+====
+*Details* +
+The use of SSL truststores that do not contain any trusted entries has been deprecated.
+The various `*.ssl.truststore.path` settings (for example
+`xpack.security.transport.ssl.truststore.path` or `xpack.http.ssl.truststore.path`) can
+be used to configure a set of "trust anchors" for SSL certificate verification. In {es}
+version 7 and earlier, it was permitted to configure a truststore that did not contain
+any trust anchors (that is, it was empty, or it contained "private key" entries only).
+In {es} version 8 and above, a `truststore.path` without any trusted certificate entries
+is no longer accepted, and will cause an error. This configuration is now deprecated in
+{es} version 7.17
+
+*Impact* +
+To avoid deprecation warnings, remove any SSL truststores that do not
+contain any trusted entries.
+====
+
+[discrete]
+[[deprecations_717_mapping]]
+==== Mapping deprecations
+
+[[camel_case_date_formats_are_deprecated]]
+.Camel case date formats are deprecated.
+[%collapsible]
+====
+*Details* +
+The use of camel case patterns on date formats is deprecated and will be removed
+in {es} 8.0.0.
+
+The corresponding snake case pattern should be used instead.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the camel case pattern.
+====
 // end::notable-breaking-changes[]
-////
+

@@ -264,7 +264,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final String message = expectThrows(
             CorruptStateException.class,
             () -> new PersistedClusterStateService(
-                Stream.of(combinedPaths).map(path -> NodeEnvironment.resolveNodePath(path, 0)).toArray(Path[]::new),
+                Stream.of(combinedPaths).map(path -> NodeEnvironment.resolveDataPath(path, 0)).toArray(Path[]::new),
                 nodeIds[0],
                 xContentRegistry(),
                 BigArrays.NON_RECYCLING_INSTANCE,

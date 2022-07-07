@@ -6,7 +6,7 @@
  */
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(":plugins:repository-s3")
@@ -49,9 +49,7 @@ def s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
 
 if (useS3Fixture) {
   apply plugin: 'elasticsearch.test.fixtures'
-  tasks.named("testingConventions").configure {
-    it.enabled = false
-  }
+
   testFixtures.useFixture(':test:fixtures:minio-fixture', "minio-fixture-for-snapshot-tool")
 
   def minioAddress = {

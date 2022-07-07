@@ -555,8 +555,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
                     );
                 }
-            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED
-                : "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+
+            if (newRouting.active() != false && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
+                // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
+                // a shard-started message in flight. When the new master is elected we start to recover our shards again and the stale
+                // shard-started message could arrive and move this shard to STARTED in the cluster state too soon. This is pretty rare so
+                // we fix it by just failing the shard and starting the recovery again.
+                //
+                // NB this can only happen on replicas - if it happened to a primary then we'd move to a new primary term and ignore the
+                // stale shard-started message.
+                assert newRouting.primary() == false
+                    : "primary routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+                throw new IllegalIndexShardStateException(shardId, state, "master processed stale shard-started event, failing shard");
+            }
+
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 

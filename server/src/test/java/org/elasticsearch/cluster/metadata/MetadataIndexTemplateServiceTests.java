@@ -2268,6 +2268,110 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
     }
 
+    public void testDataStreamsUsingTemplates() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "unreferenced",
+                            new DataStream.TimestampField("@timestamp"),
+                            Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-unreferenced-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Collections.singletonList("logs-*-*"),
+            null,
+            null,
+            100L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(state, false, "logs", template);
+
+        ClusterState stateWithDS = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-mysql-default",
+                            new DataStream.TimestampField("@timestamp"),
+                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ComposableIndexTemplate fineGrainedLogsTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("logs-mysql-*"),
+            null,
+            null,
+            200L, // Higher priority
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(stateWithDS, false, "logs2", fineGrainedLogsTemplate);
+
+        // Test replacing it with a version without the data stream config
+        final ClusterState stateWithTwoTemplates = state;
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs*")
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString("unable to remove composable templates [logs, logs2] as they are in use by a data streams [logs-mysql-default]")
+        );
+
+        assertThat(
+            MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Collections.singleton("logs")),
+            equalTo(Collections.emptySet())
+        );
+        assertThat(
+            MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Collections.singleton("logs2")),
+            equalTo(Collections.singleton("logs-mysql-default"))
+        );
+
+        // The unreferenced template can be removed without an exception
+        MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);

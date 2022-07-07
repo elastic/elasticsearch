@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -59,7 +58,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                return new MockSinglePrioritizingExecutor("mock-executor", "", deterministicTaskQueue, threadPool);
+                return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
             }
         };
 

@@ -77,14 +77,21 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
             task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
             task.setReleaseNotesFile(
-                projectDirectory.file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
+                projectDirectory.file(
+                    String.format(
+                        "docs/reference/release-notes/%d.%d.%d.asciidoc",
+                        version.getMajor(),
+                        version.getMinor(),
+                        version.getRevision()
+                    )
+                )
             );
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
             task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
             task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
-            task.setBreakingChangesFile(
+            task.setBreakingChangesMigrationFile(
                 projectDirectory.file(
                     String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
                 )

@@ -224,6 +224,7 @@ public class IndexingStateProcessor implements StateProcessor {
         SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().size(1)
+                    .fetchSource(false)
                     .trackTotalHits(false)
                     .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(documentId)))
             );

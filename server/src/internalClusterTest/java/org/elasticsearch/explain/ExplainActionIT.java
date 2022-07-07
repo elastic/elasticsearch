@@ -15,7 +15,10 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -28,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -155,7 +159,7 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testExplainWitSource() throws Exception {
+    public void testExplainWithSource() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen("test");
 
@@ -287,5 +291,32 @@ public class ExplainActionIT extends ESIntegTestCase {
 
         result = Lucene.readExplanation(esBuffer);
         assertThat(exp.toString(), equalTo(result.toString()));
+    }
+
+    public void testQueryRewrite() {
+        client().admin()
+            .indices()
+            .prepareCreate("twitter")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME, "user", "type=keyword", "followers", "type=keyword")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2))
+            .get();
+        ensureGreen("twitter");
+
+        client().prepareIndex("twitter", MapperService.SINGLE_MAPPING_NAME, "1")
+            .setSource("user", "user1", "followers", new String[] { "user2", "user3" })
+            .get();
+        client().prepareIndex("twitter", MapperService.SINGLE_MAPPING_NAME, "2")
+            .setSource("user", "user2", "followers", new String[] { "user1" })
+            .get();
+        refresh();
+
+        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "2", "followers"));
+        ExplainResponse response = client().prepareExplain("twitter", MapperService.SINGLE_MAPPING_NAME, "1")
+            .setQuery(termsLookupQuery)
+            .get();
+
+        Explanation explanation = response.getExplanation();
+        assertNotNull(explanation);
+        assertTrue(explanation.isMatch());
     }
 }

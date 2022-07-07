@@ -26,8 +26,10 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -117,7 +119,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             stateIndexName = taskState.getCurrentIndex();
             stateFeatureName = taskState.getCurrentFeature();
 
-            SystemIndices.Feature feature = systemIndices.getFeatures().get(stateFeatureName);
+            SystemIndices.Feature feature = systemIndices.getFeature(stateFeatureName);
             if (feature == null) {
                 markAsFailed(
                     new IllegalStateException(
@@ -144,7 +146,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }
 
             systemIndices.getFeatures()
-                .values()
                 .stream()
                 .flatMap(feature -> SystemIndexMigrationInfo.fromFeature(feature, clusterState.metadata(), indexScopedSettings))
                 .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().index(migrationInfo.getCurrentIndexName())))
@@ -382,6 +383,47 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
         Index oldIndex = imd.getIndex();
         String newIndexName = migrationInfo.getNextIndexName();
+
+        /**
+         * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
+         */
+        if (migrationInfo.allowsTemplates() == false) {
+            final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);
+            if (Objects.nonNull(v2template)) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match composable template [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v2template
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match composable template [" + v2template + "]"
+                    )
+                );
+                return;
+            }
+            final List<IndexTemplateMetadata> v1templates = MetadataIndexTemplateService.findV1Templates(
+                clusterState.metadata(),
+                newIndexName,
+                false
+            );
+            if (v1templates.isEmpty() == false) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match legacy templates [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v1templates
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match legacy templates [" + v1templates + "]"
+                    )
+                );
+                return;
+            }
+        }
+
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
@@ -468,7 +510,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             settingsBuilder.remove("index.blocks.metadata");
         }
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
-            .mappings(Collections.singletonMap("_doc", migrationInfo.getMappings()))
+            .mappings(Collections.singletonMap(migrationInfo.getIndexType(), migrationInfo.getMappings()))
             .settings(migrationInfo.getSettings() == null ? Settings.EMPTY : settingsBuilder.build());
         metadataCreateIndexService.createIndex(createRequest, listener);
     }

@@ -47,7 +47,9 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final Settings settings;
     private final String mapping;
     private final String origin;
+    private final String indexType;
     private final SystemIndices.Feature owningFeature;
+    private final boolean allowsTemplates;
 
     private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
         SystemIndexMigrationInfo::getFeatureName
@@ -59,14 +61,18 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         Settings settings,
         String mapping,
         String origin,
-        SystemIndices.Feature owningFeature
+        String indexType,
+        SystemIndices.Feature owningFeature,
+        boolean allowsTemplates
     ) {
         this.currentIndex = currentIndex;
         this.featureName = featureName;
         this.settings = settings;
         this.mapping = mapping;
         this.origin = origin;
+        this.indexType = indexType;
         this.owningFeature = owningFeature;
+        this.allowsTemplates = allowsTemplates;
     }
 
     /**
@@ -116,6 +122,23 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     String getOrigin() {
         return origin;
+    }
+
+    /**
+     * Gets the type that should be used for the mapping of this index
+     */
+    String getIndexType() {
+        return indexType;
+    }
+
+    /**
+     * By default, system indices should not be affected by user defined templates, so this
+     * method should return false in almost all cases. At the moment certain Kibana indices use
+     * templates, therefore we allow templates to be used on Kibana created system indices until
+     * Kibana removes the template use on system index creation.
+     */
+    boolean allowsTemplates() {
+        return allowsTemplates;
     }
 
     /**
@@ -220,7 +243,16 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             }
         }
 
-        return new SystemIndexMigrationInfo(currentIndex, feature.getName(), settings, mapping, descriptor.getOrigin(), feature);
+        return new SystemIndexMigrationInfo(
+            currentIndex,
+            feature.getName(),
+            settings,
+            mapping,
+            descriptor.getOrigin(),
+            descriptor.getIndexType(),
+            feature,
+            descriptor.allowsTemplates()
+        );
     }
 
     private static Settings copySettingsForNewIndex(Settings currentIndexSettings, IndexScopedSettings indexScopedSettings) {
@@ -263,7 +295,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         IndexScopedSettings indexScopedSettings
     ) {
         SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(taskState.getCurrentIndex());
-        SystemIndices.Feature feature = systemIndices.getFeatures().get(taskState.getCurrentFeature());
+        SystemIndices.Feature feature = systemIndices.getFeature(taskState.getCurrentFeature());
         IndexMetadata imd = metadata.index(taskState.getCurrentIndex());
 
         // It's possible for one or both of these to happen if the executing node fails during execution and:

@@ -58,7 +58,7 @@ class FieldCapabilitiesFetcher {
             );
 
             if (canMatchShard(request, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
+                return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyList(), false);
             }
 
             Set<String> fieldNames = new HashSet<>();
@@ -118,7 +118,7 @@ class FieldCapabilitiesFetcher {
                     }
                 }
             }
-            return new FieldCapabilitiesIndexResponse(request.index(), responseMap, true);
+            return new FieldCapabilitiesIndexResponse(request.index(), responseMap.values(), true);
         }
     }
 

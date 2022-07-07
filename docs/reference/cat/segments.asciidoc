@@ -4,6 +4,13 @@
 <titleabbrev>cat segments</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<indices-segments,index segments API>>.
+====
+
 Returns low-level information about the https://lucene.apache.org/core/[Lucene]
 segments in index shards, similar to the <<indices-segments, indices segments>>
 API.

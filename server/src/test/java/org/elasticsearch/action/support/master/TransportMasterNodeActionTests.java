@@ -46,6 +46,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +66,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -593,7 +593,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
             setState(clusterService, newStateBuilder.build());
         }
-        expectThrows(CancellationException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener::actionGet);
     }
 
     public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
@@ -620,7 +620,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         releaseBlockedThreads.run();
 
-        expectThrows(CancellationException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener::actionGet);
     }
 
     public void testGlobalBlocksAreCheckedAfterIndexNotFoundException() throws Exception {

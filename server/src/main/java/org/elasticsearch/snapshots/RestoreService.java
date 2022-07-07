@@ -325,9 +325,8 @@ public class RestoreService implements ClusterStateApplier {
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
 
-        final Map<String, SystemIndices.Feature> featureSet = systemIndices.getFeatures();
         final Set<String> featureStateDataStreams = featureStatesToRestore.keySet().stream().filter(featureName -> {
-            if (featureSet.containsKey(featureName)) {
+            if (systemIndices.getFeatureNames().contains(featureName)) {
                 return true;
             }
             logger.warn(
@@ -339,7 +338,7 @@ public class RestoreService implements ClusterStateApplier {
             );
             return false;
         })
-            .map(name -> systemIndices.getFeatures().get(name))
+            .map(systemIndices::getFeature)
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .collect(Collectors.toSet());
@@ -585,7 +584,7 @@ public class RestoreService implements ClusterStateApplier {
 
         final List<String> featuresNotOnThisNode = featureStatesToRestore.keySet()
             .stream()
-            .filter(featureName -> systemIndices.getFeatures().containsKey(featureName) == false)
+            .filter(s -> systemIndices.getFeatureNames().contains(s) == false)
             .collect(Collectors.toList());
         if (featuresNotOnThisNode.isEmpty() == false) {
             throw new SnapshotRestoreException(
@@ -614,7 +613,7 @@ public class RestoreService implements ClusterStateApplier {
 
         return Collections.unmodifiableSet(
             featureStatesToRestore.stream()
-                .map(featureName -> systemIndices.getFeatures().get(featureName))
+                .map(systemIndices::getFeature)
                 .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
                 .flatMap(feature -> feature.getIndexDescriptors().stream())
                 .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())

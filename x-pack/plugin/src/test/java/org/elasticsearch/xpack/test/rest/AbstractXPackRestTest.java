@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -41,7 +42,7 @@ import static java.util.Collections.singletonMap;
 /** Runs rest tests against external cluster */
 // TODO: Remove this timeout increase once this test suite is broken up
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
-public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
+public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
@@ -90,6 +91,20 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     }
 
     /**
+     * Waits for the cluster's self-generated license to be created and installed
+     */
+    protected void waitForLicense() {
+        // GET _licence returns a 404 status up until the license exists
+        awaitCallApi(
+            "license.get",
+            Collections.emptyMap(),
+            Collections.emptyList(),
+            response -> true,
+            () -> "Exception when waiting for initial license to be generated"
+        );
+    }
+
+    /**
      * Cleanup after tests.
      *
      * Feature-specific cleanup methods should be called from here rather than using
@@ -130,10 +145,16 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         try {
             final AtomicReference<ClientYamlTestResponse> response = new AtomicReference<>();
             assertBusy(() -> {
-                // The actual method call that sends the API requests returns a Future, but we immediately
-                // call .get() on it so there's no need for this method to do any other awaiting.
-                response.set(callApi(apiName, params, bodies, getApiCallHeaders()));
-                assertEquals(HttpStatus.SC_OK, response.get().getStatusCode());
+                try {
+                    // The actual method call that sends the API requests returns a Future, but we immediately
+                    // call .get() on it so there's no need for this method to do any other awaiting.
+                    response.set(callApi(apiName, params, bodies, getApiCallHeaders()));
+                    assertEquals(HttpStatus.SC_OK, response.get().getStatusCode());
+                } catch (ClientYamlTestResponseException e) {
+                    // Convert to an AssertionError so that "assertBusy" treats it as a failed assertion (and tries again)
+                    // rather than a runtime failure (which terminates the loop)
+                    throw new AssertionError("Failed to call API " + apiName, e);
+                }
             });
             success.apply(response.get());
         } catch (Exception e) {

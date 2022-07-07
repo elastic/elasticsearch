@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.List;
-import org.elasticsearch.core.Map;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -43,7 +42,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     public void setUpTest() {
         // set up a system index upgrade service
         this.service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
+            new SystemIndices(List.of(new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
             mock(ClusterService.class)
         );
     }

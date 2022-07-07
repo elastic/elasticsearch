@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -260,7 +261,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testConnectionGranted() throws Exception {
-        InetAddress inetAddress = InetAddress.getLoopbackAddress();
+        InetSocketAddress inetAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(0, 65535));
         SecurityIpFilterRule rule = randomBoolean() ? SecurityIpFilterRule.ACCEPT_ALL : IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
         service.get().connectionGranted(inetAddress, "client", rule);
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
@@ -274,7 +275,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testConnectionDenied() throws Exception {
-        InetAddress inetAddress = InetAddress.getLoopbackAddress();
+        InetSocketAddress inetAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(0, 65535));
         SecurityIpFilterRule rule = new SecurityIpFilterRule(false, "_all");
         service.get().connectionDenied(inetAddress, "client", rule);
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);

@@ -158,6 +158,11 @@ For most APIs, wildcard expressions do not match hidden data streams and indices
 by default. To match hidden data streams and indices using a wildcard
 expression, you must specify the `expand_wildcards` query parameter.
 
+Alternatively, querying an index pattern starting with a dot, such as
+`.watcher_hist*`, will match hidden indices by default. This is intended to
+mirror Unix file-globbing behavior and provide a smoother transition path to
+hidden indices.
+
 You can create hidden data streams by setting `data_stream.hidden` to `true` in
 the stream's matching <<indices-put-template,index template>>. You can hide
 indices using the <<index-hidden,`index.hidden`>> index setting.
@@ -175,7 +180,7 @@ You should not directly access or modify system indices
 as they contain data essential to the operation of the system.
 
 IMPORTANT: Direct access to system indices is deprecated and
-will no longer be allowed in the next major version.
+will no longer be allowed in a future major version.
 
 [[date-math-index-names]]
 === Date math support in index and index alias names
@@ -395,8 +400,8 @@ Responds:
 --------------------------------------------------
 
 And the `**` wildcard can be used to include fields without knowing the
-exact path of the field. For example, we can return the Lucene version
-of every segment with this request:
+exact path of the field. For example, we can return state
+of every shard with this request:
 
 [source,console]
 --------------------------------------------------

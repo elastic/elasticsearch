@@ -21,7 +21,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body:
           str: "abc"
           double: 1.0
@@ -30,7 +30,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body:
           str: "abc"
           double: 1.0
@@ -39,7 +39,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body:
           str: "bcd"
           double: 2.0

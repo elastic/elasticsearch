@@ -1,0 +1,4 @@
+TIP: These APIs are designed for indirect use by {kib}'s **Upgrade Assistant**.
+We strongly recommend you use the **Upgrade Assistant** to upgrade from
+7.17 to 8.0 and later versions. For upgrade instructions, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].

@@ -12,7 +12,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
@@ -62,7 +62,7 @@ final class Spawner implements Closeable {
          */
         List<Path> paths = PluginsService.findPluginDirs(environment.modulesFile());
         for (final Path modules : paths) {
-            final PluginInfo info = PluginInfo.readFromProperties(modules);
+            final PluginDescriptor info = PluginDescriptor.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);
             if (Files.isRegularFile(spawnPath) == false) {
                 continue;

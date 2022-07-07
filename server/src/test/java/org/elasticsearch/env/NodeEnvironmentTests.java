@@ -288,8 +288,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             SetOnce<Path[]> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
             Path[] deletedPaths = listener.get();
-            for (int i = 0; i < env.nodePaths().length; i++) {
-                assertThat(deletedPaths[i], equalTo(env.nodePaths()[i].resolve(index).resolve("1")));
+            for (int i = 0; i < env.dataPaths().length; i++) {
+                assertThat(deletedPaths[i], equalTo(env.dataPaths()[i].resolve(index).resolve("1")));
             }
         }
 
@@ -495,14 +495,14 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] paths = tmpPaths();
         // simulate some previous left over temp files
         for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
-            Files.createDirectories(nodePath);
-            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
+            final Path dataPath = NodeEnvironment.resolveDataPath(PathUtils.get(path), 0);
+            Files.createDirectories(dataPath);
+            Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME));
             if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
+                Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
             }
             if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
+                Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
             }
         }
         NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
@@ -510,12 +510,12 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // check we clean up
         for (String path : paths) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
-            final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
+            final Path dataPath = NodeEnvironment.resolveDataPath(PathUtils.get(path), 0);
+            final Path tempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME);
             assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
-            final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
+            final Path srcTempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
             assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
-            final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
+            final Path targetTempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
         }
     }

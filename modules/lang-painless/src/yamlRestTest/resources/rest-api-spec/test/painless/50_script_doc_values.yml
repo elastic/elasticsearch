@@ -41,7 +41,7 @@ setup:
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body:
                 boolean: true
                 date: 2017-01-01T12:11:12

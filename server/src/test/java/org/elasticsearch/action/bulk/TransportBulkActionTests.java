@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.Map;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -294,8 +293,7 @@ public class TransportBulkActionTests extends ESTestCase {
             new ConcreteIndex(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
         );
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "plugin",
+            org.elasticsearch.core.List.of(
                 new SystemIndices.Feature("plugin", "test feature", org.elasticsearch.core.List.of(new SystemIndexDescriptor(".test*", "")))
             )
         );

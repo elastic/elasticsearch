@@ -2,14 +2,12 @@ import org.elasticsearch.gradle.Architecture
 
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 
 testFixtures.useFixture ":x-pack:test:idp-fixture"
@@ -41,14 +39,14 @@ def setupPorts = tasks.register("setupPorts") {
   }
 }
 
-project.sourceSets.test.output.dir(outputDir, builtBy: [copyIdpFiles])
+project.sourceSets.javaRestTest.output.dir(outputDir, builtBy: [copyIdpFiles])
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   dependsOn setupPorts
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

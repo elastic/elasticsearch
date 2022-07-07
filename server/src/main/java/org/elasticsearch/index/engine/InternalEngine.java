@@ -2328,14 +2328,40 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
-        return new Engine.IndexCommitRef(lastCommit, () -> releaseIndexCommit(lastCommit));
+        store.incRef();
+        boolean success = false;
+        try {
+            final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+            final IndexCommitRef commitRef = new IndexCommitRef(
+                lastCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(lastCommit), store::decRef)
+            );
+            success = true;
+            return commitRef;
+        } finally {
+            if (success == false) {
+                store.decRef();
+            }
+        }
     }
 
     @Override
     public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
-        return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
+        store.incRef();
+        boolean success = false;
+        try {
+            final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+            final IndexCommitRef commitRef = new IndexCommitRef(
+                safeCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(safeCommit), store::decRef)
+            );
+            success = true;
+            return commitRef;
+        } finally {
+            if (success == false) {
+                store.decRef();
+            }
+        }
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {

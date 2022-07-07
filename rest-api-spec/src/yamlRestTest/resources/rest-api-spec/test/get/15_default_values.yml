@@ -7,13 +7,13 @@
   - do:
       index:
         index: test_1
-        id:    1
+        id:    "1"
         body:  { "foo": "bar" }
 
   - do:
       get:
         index: test_1
-        id:    1
+        id:    "1"
 
   - match: { _index:   test_1 }
   - match: { _type: _doc }

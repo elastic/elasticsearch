@@ -220,15 +220,17 @@ public class DeflateCompressor implements Compressor {
     @Override
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
-        final Inflater inflater = inflaterRef.get();
-        try (InflaterOutputStream ios = new InflaterOutputStream(buffer, inflater)) {
-            bytesReference.slice(HEADER.length, bytesReference.length() - HEADER.length).writeTo(ios);
+        try {
+            final Inflater inflater = inflaterRef.get();
+            try (InflaterOutputStream ios = new InflaterOutputStream(buffer, inflater)) {
+                bytesReference.slice(HEADER.length, bytesReference.length() - HEADER.length).writeTo(ios);
+            } finally {
+                inflater.reset();
+            }
+            return buffer.copyBytes();
         } finally {
-            inflater.reset();
+            buffer.reset();
         }
-        final BytesReference res = buffer.copyBytes();
-        buffer.reset();
-        return res;
     }
 
     // Reusable Deflater reference. Note: This is a separate instance from the one used for the compressing stream wrapper because we
@@ -238,15 +240,17 @@ public class DeflateCompressor implements Compressor {
     @Override
     public BytesReference compress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
-        buffer.write(HEADER);
-        final Deflater deflater = deflaterRef.get();
-        try (DeflaterOutputStream dos = new DeflaterOutputStream(buffer, deflater, true)) {
-            bytesReference.writeTo(dos);
+        try {
+            buffer.write(HEADER);
+            final Deflater deflater = deflaterRef.get();
+            try (DeflaterOutputStream dos = new DeflaterOutputStream(buffer, deflater, true)) {
+                bytesReference.writeTo(dos);
+            } finally {
+                deflater.reset();
+            }
+            return buffer.copyBytes();
         } finally {
-            deflater.reset();
+            buffer.reset();
         }
-        final BytesReference res = buffer.copyBytes();
-        buffer.reset();
-        return res;
     }
 }

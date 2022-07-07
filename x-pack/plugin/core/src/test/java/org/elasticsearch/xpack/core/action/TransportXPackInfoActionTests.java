@@ -14,7 +14,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,8 +53,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         License license = mock(License.class);
         long expiryDate = randomLong();
         when(license.expiryDate()).thenReturn(expiryDate);
-        LicenseStatus status = randomFrom(LicenseStatus.values());
-        when(license.status()).thenReturn(status);
         String licenseType = randomAlphaOfLength(10);
         when(license.type()).thenReturn(licenseType);
         License.OperationMode licenseMode = randomFrom(License.OperationMode.values());
@@ -65,7 +62,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         checkAction(categories, -1, license, (XPackInfoResponse.LicenseInfo licenseInfo) -> {
             assertThat(licenseInfo.getExpiryDate(), is(expiryDate));
-            assertThat(licenseInfo.getStatus(), is(status));
             assertThat(licenseInfo.getType(), is(licenseType));
             assertThat(licenseInfo.getMode(), is(licenseMode.name().toLowerCase(Locale.ROOT)));
             assertThat(licenseInfo.getUid(), is(uid));
@@ -77,7 +73,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         License license = mock(License.class);
         when(license.expiryDate()).thenReturn(randomLong());
-        when(license.status()).thenReturn(LicenseStatus.ACTIVE);
         when(license.type()).thenReturn("enterprise");
         when(license.operationMode()).thenReturn(License.OperationMode.ENTERPRISE);
         when(license.uid()).thenReturn(randomAlphaOfLength(30));
@@ -93,7 +88,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         License license = mock(License.class);
         when(license.expiryDate()).thenReturn(randomLong());
-        when(license.status()).thenReturn(LicenseStatus.ACTIVE);
         when(license.type()).thenReturn("enterprise");
         when(license.operationMode()).thenReturn(License.OperationMode.ENTERPRISE);
         when(license.uid()).thenReturn(randomAlphaOfLength(30));

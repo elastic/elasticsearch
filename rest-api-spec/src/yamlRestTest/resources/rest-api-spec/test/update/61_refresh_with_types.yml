@@ -13,7 +13,7 @@
       update:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:
             doc:        { foo: baz }
             upsert:     { foo: bar }
@@ -23,7 +23,7 @@
           rest_total_hits_as_int: true
           index:   test_1
           body:
-            query:   { term: { _id: 1 }}
+            query:   { term: { _id: "1" }}
 
  - match: { hits.total: 0 }
 
@@ -31,7 +31,7 @@
       update:
           index:   test_1
           type:    test
-          id:      2
+          id:      "2"
           refresh: true
           body:
             doc:        { foo: baz }
@@ -43,7 +43,7 @@
           rest_total_hits_as_int: true
           index:   test_1
           body:
-            query:   { term: { _id: 2 }}
+            query:   { term: { _id: "2" }}
 
  - match: { hits.total: 1 }
 
@@ -53,7 +53,7 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           refresh: true
           body:    { foo: bar }
  - is_true: forced_refresh
@@ -62,7 +62,7 @@
      update:
          index:   test_1
          type:    test
-         id:      1
+         id:      "1"
          refresh: ""
          body:
            doc: {cat: dog}

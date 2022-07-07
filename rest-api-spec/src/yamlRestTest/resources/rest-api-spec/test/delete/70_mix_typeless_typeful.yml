@@ -20,7 +20,7 @@
       index:
           index:  index
           type:   not_doc
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - do:
@@ -28,11 +28,11 @@
       delete:
           index:  index
           type:   some_random_type
-          id:     1
+          id:     "1"
  - do:
       delete:
           index:  index
-          id:     1
+          id:     "1"
 
  - match:   { _index:   "index" }
  - match:   { _type:    "_doc" }

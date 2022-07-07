@@ -472,8 +472,6 @@ public class SearchResponseMergerTests extends ESTestCase {
             InternalDateRange.Bucket bucket = factory.createBucket(
                 "bucket",
                 0D,
-                0D,
-                10000D,
                 10000D,
                 count,
                 InternalAggregations.EMPTY,

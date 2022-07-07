@@ -29,6 +29,13 @@ import static java.util.Comparator.reverseOrder;
  */
 public class ReleaseNotesIndexGenerator {
 
+    // Some versions where never released or were pulled. They shouldn't be listed.
+    private static Set<QualifiedVersion> EXCLUDED_VERSIONS = Set.of(
+        QualifiedVersion.of("7.0.1"),
+        QualifiedVersion.of("7.13.3"),
+        QualifiedVersion.of("7.13.4")
+    );
+
     static void update(Set<QualifiedVersion> versions, File indexTemplate, File indexFile) throws IOException {
         try (FileWriter indexFileWriter = new FileWriter(indexFile)) {
             indexFileWriter.write(generateFile(versions, Files.readString(indexTemplate.toPath())));
@@ -40,10 +47,17 @@ public class ReleaseNotesIndexGenerator {
         final Set<QualifiedVersion> versions = new TreeSet<>(reverseOrder());
 
         // For the purpose of generating the index, snapshot versions are the same as released versions. Prerelease versions are not.
-        versionsSet.stream().map(v -> v.isSnapshot() ? v.withoutQualifier() : v).forEach(versions::add);
+        versionsSet.stream()
+            .filter(v -> EXCLUDED_VERSIONS.contains(v) == false)
+            .map(v -> v.isSnapshot() ? v.withoutQualifier() : v)
+            .forEach(versions::add);
 
         final List<String> includeVersions = versions.stream()
-            .map(v -> v.hasQualifier() ? v.toString() : v.getMajor() + "." + v.getMinor())
+            .map(
+                version -> version.isBefore(QualifiedVersion.of("7.17.0")) && version.hasQualifier() == false
+                    ? version.major() + "." + version.minor()
+                    : version.toString()
+            )
             .distinct()
             .collect(Collectors.toList());
 

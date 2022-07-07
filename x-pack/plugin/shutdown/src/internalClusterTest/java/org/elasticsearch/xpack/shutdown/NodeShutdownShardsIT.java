@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.STALLED;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
@@ -83,6 +85,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * Similar to the previous test, but ensures that the status stays at `COMPLETE` when the node is offline when the shutdown is
      * registered. This may happen if {@link NodeSeenService} isn't working as expected.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76689")
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
@@ -478,6 +481,74 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().restartNode(nodeC);
 
         // All shards for the index should be allocated
+        ensureGreen("myindex");
+    }
+
+    /**
+     * Test that a node that is restarting does not affect auto-expand and that 0-1/0-all auto-expand indices stay available during
+     * shutdown for restart and restart.
+     * We used to have a bug where we would not auto-expand to a restarting node. That in essence meant that the index would contract. If
+     * the primary were on the restarting node, we would end up with one shard on that sole node. The subsequent restart would make that
+     * index unavailable.
+     */
+    public void testAutoExpandDuringRestart() throws Exception {
+        final String primaryNode = internalCluster().startNode();
+        final String primaryNodeId = getNodeId(primaryNode);
+        createIndex(
+            "myindex",
+            Settings.builder().put("index.number_of_shards", 1).put("index.auto_expand_replicas", randomFrom("0-all", "0-1")).build()
+        );
+
+        final String nodeB = internalCluster().startNode();
+        assertBusy(() -> {
+            assertThat(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("myindex")
+                    .setNames("index.number_of_replicas")
+                    .get()
+                    .getSetting("myindex", "index.number_of_replicas"),
+                equalTo("1")
+            );
+        });
+        ensureGreen("myindex");
+
+        // Mark the node for shutdown
+        assertAcked(
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(primaryNodeId, SingleNodeShutdownMetadata.Type.RESTART, this.getTestName(), null, null)
+            ).get()
+        );
+
+        // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
+        // that auto-expansion has run.
+        UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings("myindex");
+        settingsRequest.setSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"));
+        assertAcked(settingsRequest.execute().actionGet());
+
+        assertBusy(() -> {
+            assertThat(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings("myindex")
+                    .setNames("index.number_of_replicas")
+                    .get()
+                    .getSetting("myindex", "index.number_of_replicas"),
+                equalTo("1")
+            );
+        });
+
+        client().prepareIndex("myindex", "_doc").setSource("field", "value");
+
+        internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                ensureYellow("myindex");
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
         ensureGreen("myindex");
     }
 

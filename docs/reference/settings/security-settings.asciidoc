@@ -1861,7 +1861,7 @@ Defaults to `200`.
 // tag::oidc-http-tcp-keepalive-tag[]
 `http.tcp.keep_alive` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Wehther to enable TCP keepalives on HTTP connections used for back-channel communication
+Whether to enable TCP keepalives on HTTP connections used for back-channel communication
 to the OpenID Connect Provider endpoints. Defaults to `true`.
 // end::oidc-http-tcp-keepalive-tag[]
 

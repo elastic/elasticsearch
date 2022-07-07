@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -27,8 +26,6 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -82,7 +79,7 @@ public enum IndexMode {
         }
 
         @Override
-        public TimestampBounds getTimestampBound(IndexScopedSettings settings) {
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
             return null;
         }
 
@@ -108,8 +105,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata) {
-            return null;
+        public boolean shouldValidateTimestamp() {
+            return false;
         }
     },
     TIME_SERIES("time_series") {
@@ -164,8 +161,8 @@ public enum IndexMode {
         }
 
         @Override
-        public TimestampBounds getTimestampBound(IndexScopedSettings settings) {
-            return new TimestampBounds(settings);
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return new TimestampBounds(indexMetadata.getTimeSeriesStart(), indexMetadata.getTimeSeriesEnd());
         }
 
         private static String routingRequiredBad() {
@@ -194,10 +191,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata) {
-            long min = indexMetadata.getTimeSeriesStart().toEpochMilli();
-            long max = indexMetadata.getTimeSeriesEnd().toEpochMilli();
-            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max));
+        public boolean shouldValidateTimestamp() {
+            return true;
         }
     };
 
@@ -283,10 +278,11 @@ public enum IndexMode {
     public abstract IdFieldMapper buildNoFieldDataIdFieldMapper();
 
     /**
-     * Get timebounds
+     * @return the time range based on the provided index metadata and index mode implementation.
+     *         Otherwise <code>null</code> is returned.
      */
     @Nullable
-    public abstract TimestampBounds getTimestampBound(IndexScopedSettings settings);
+    public abstract TimestampBounds getTimestampBound(IndexMetadata indexMetadata);
 
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
@@ -301,12 +297,9 @@ public enum IndexMode {
     public abstract DocumentDimensions buildDocumentDimensions();
 
     /**
-     * @return the time range based on the provided index settings and index mode implementation.
-     *         Otherwise <code>null</code> is returned.
-     * @param indexMetadata
+     * @return Whether timestamps should be validated for being withing the time range of an index.
      */
-    @Nullable
-    public abstract IndexLongFieldRange getConfiguredTimestampRange(IndexMetadata indexMetadata);
+    public abstract boolean shouldValidateTimestamp();
 
     public static IndexMode fromString(String value) {
         return switch (value) {

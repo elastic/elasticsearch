@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 
 public class TestSecurityClient {
@@ -389,7 +390,7 @@ public class TestSecurityClient {
         return new TokenInvalidation(
             ((Number) responseBody.get("invalidated_tokens")).intValue(),
             ((Number) responseBody.get("previously_invalidated_tokens")).intValue(),
-            errors == null ? List.of() : errors.stream().map(this::toException).toList()
+            errors == null ? List.of() : errors.stream().map(TestSecurityClient::toException).toList()
         );
     }
 
@@ -463,11 +464,10 @@ public class TestSecurityClient {
         return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody);
     }
 
-    private ElasticsearchException toException(Map<String, ?> map) {
-        try {
-            return ElasticsearchException.fromXContent(
-                XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, toJson(map))
-            );
+    private static ElasticsearchException toException(Map<String, ?> map) {
+        try (var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, toJson(map))) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            return ElasticsearchException.fromXContent(parser);
         } catch (IOException e) {
             throw new RuntimeIoException(e);
         }

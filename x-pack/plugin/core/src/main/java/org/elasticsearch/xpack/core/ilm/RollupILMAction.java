@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +27,10 @@ import java.util.Objects;
  * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.rollup.action.RollupAction} on an index
  */
 public class RollupILMAction implements LifecycleAction {
+
     public static final String NAME = "rollup";
+    public static final String ROLLUP_INDEX_PREFIX = "rollup-";
+    public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
     private static final ParseField CONFIG_FIELD = new ParseField("config");
 
@@ -35,7 +39,6 @@ public class RollupILMAction implements LifecycleAction {
         NAME,
         a -> new RollupILMAction((RollupActionConfig) a[0])
     );
-    public static final String ROLLUP_INDEX_PREFIX = "rollup-";
     public static final String GENERATE_ROLLUP_STEP_NAME = "generate-rollup-name";
 
     private final RollupActionConfig config;
@@ -95,17 +98,60 @@ public class RollupILMAction implements LifecycleAction {
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
         StepKey rollupKey = new StepKey(phase, NAME, NAME);
+        StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
+        StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
+        StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
+        StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, readOnlyKey);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
+
+        // Generate a unique rollup index name and store it in the ILM execution state
         GenerateUniqueIndexNameStep generateRollupIndexNameStep = new GenerateUniqueIndexNameStep(
             generateRollupIndexNameKey,
             rollupKey,
             ROLLUP_INDEX_PREFIX,
             (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
         );
-        Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
-        return List.of(checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep, generateRollupIndexNameStep, rollupStep);
+        RollupStep rollupStep = new RollupStep(rollupKey, copyMetadataKey, client, config);
+
+        CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(
+            copyMetadataKey,
+            dataStreamCheckBranchingKey,
+            (sourceIndexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            deleteIndexKey
+        );
+
+        BranchingStep isDataStreamBranchingStep = new BranchingStep(
+            dataStreamCheckBranchingKey,
+            deleteIndexKey,
+            replaceDataStreamIndexKey,
+            (index, clusterState) -> {
+                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+                assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
+                return indexAbstraction.getParentDataStream() != null;
+            }
+        );
+
+        ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
+            replaceDataStreamIndexKey,
+            deleteIndexKey,
+            (sourceIndexName, lifecycleState) -> lifecycleState.rollupIndexName()
+        );
+        DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, nextStepKey, client);
+
+        return List.of(
+            checkNotWriteIndexStep,
+            waitForNoFollowersStep,
+            readOnlyStep,
+            generateRollupIndexNameStep,
+            rollupStep,
+            copyMetadata,
+            isDataStreamBranchingStep,
+            replaceDataStreamBackingIndex,
+            deleteSourceIndexStep
+        );
     }
 
     @Override

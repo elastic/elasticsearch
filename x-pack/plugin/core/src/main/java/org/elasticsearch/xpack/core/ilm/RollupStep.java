@@ -41,11 +41,6 @@ public class RollupStep extends AsyncActionStep {
     }
 
     @Override
-    public boolean indexSurvives() {
-        return false;
-    }
-
-    @Override
     public void performAction(
         IndexMetadata indexMetadata,
         ClusterState currentState,

@@ -555,6 +555,7 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkDeprecatedSetting(
+        DeprecationIssue.Level level,
         final Settings clusterSettings,
         final Settings nodeSettings,
         final Setting<?> deprecatedSetting,
@@ -571,7 +572,7 @@ class NodeDeprecationChecks {
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
         final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSettingKey, value);
         final Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, deprecatedSettingKey);
-        return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, meta);
+        return new DeprecationIssue(level, message, url, details, false, meta);
     }
 
     private static Map<String, Object> createMetaMapForRemovableSettings(boolean canAutoRemoveSetting, String removableSetting) {
@@ -1543,7 +1544,13 @@ class NodeDeprecationChecks {
         final Settings nodeSettings,
         final Setting<?> deprecated
     ) {
-        return checkDeprecatedSetting(clusterState.metadata().settings(), nodeSettings, deprecated, MONITORING_SETTING_DEPRECATION_LINK);
+        return checkDeprecatedSetting(
+            DeprecationIssue.Level.CRITICAL,
+            clusterState.metadata().settings(),
+            nodeSettings,
+            deprecated,
+            MONITORING_SETTING_DEPRECATION_LINK
+        );
     }
 
     static DeprecationIssue genericMonitoringAffixSetting(
@@ -1559,7 +1566,7 @@ class NodeDeprecationChecks {
             ),
             "Remove the following settings: [%s]",
             MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -1574,7 +1581,7 @@ class NodeDeprecationChecks {
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> SecureSetting.secureString(k, null)),
             "Remove the following settings from the keystore: [%s]",
             MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -1589,7 +1596,7 @@ class NodeDeprecationChecks {
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> Setting.groupSetting(k + ".")),
             "Remove the following settings: [%s]",
             MONITORING_SETTING_DEPRECATION_LINK,
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             clusterSettings,
             nodeSettings
         );
@@ -1888,7 +1895,7 @@ class NodeDeprecationChecks {
             Setting.affixKeySetting("xpack.monitoring.exporters.", "use_ingest", key -> Setting.boolSetting(key, true)),
             "Remove the following settings: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );
@@ -1908,7 +1915,7 @@ class NodeDeprecationChecks {
             ),
             "Remove the following settings: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );
@@ -1928,7 +1935,7 @@ class NodeDeprecationChecks {
             ),
             "Remove the following settings: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             clusterState.metadata().settings(),
             settings
         );

@@ -1,5 +1,5 @@
 pr: 88276
-summary: Update API keys - logging audit trail event
+summary: Updatable API keys - logging audit trail event
 area: Audit
 type: enhancement
 issues: []

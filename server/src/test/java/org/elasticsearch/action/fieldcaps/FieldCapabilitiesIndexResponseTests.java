@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldCapabilitiesIndexResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesIndexResponse> {
     @Override
     protected Writeable.Reader<FieldCapabilitiesIndexResponse> instanceReader() {
-        return FieldCapabilitiesIndexResponse::new;
+        return in -> new FieldCapabilitiesIndexResponse(in, new IndexFieldCapabilities.Deduplicator());
     }
 
     static FieldCapabilitiesIndexResponse randomIndexResponse() {
@@ -53,7 +53,7 @@ public class FieldCapabilitiesIndexResponseTests extends AbstractWireSerializing
         String base64 = "CWxvZ3MtMTAwMQMGcGVyaW9kBnBlcmlvZARsb25nAQABAQR1bml0BnNlY29uZApAdGltZXN0"
             + "YW1wCkB0aW1lc3RhbXAEZGF0ZQEBAAAHbWVzc2FnZQdtZXNzYWdlBHRleHQAAQAAAQAAAAAAAAAAAA==";
         StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        FieldCapabilitiesIndexResponse resp = new FieldCapabilitiesIndexResponse(in);
+        FieldCapabilitiesIndexResponse resp = new FieldCapabilitiesIndexResponse(in, new IndexFieldCapabilities.Deduplicator());
         assertTrue(resp.canMatch());
         assertThat(resp.getIndexName(), equalTo("logs-1001"));
         assertThat(

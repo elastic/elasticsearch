@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.StringLiteralDeduplicator;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -142,12 +143,38 @@ public class IndexFieldCapabilities implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexFieldCapabilities that = (IndexFieldCapabilities) o;
+        return equalsWithoutName(that) && name.equals(that.name);
+    }
+
+    private boolean equalsWithoutName(IndexFieldCapabilities that) {
         return isMetadatafield == that.isMetadatafield
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
-            && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
             && Objects.equals(meta, that.meta);
+    }
+
+    static final class Deduplicator {
+        private final Map<String, IndexFieldCapabilities> caches = new HashMap<>();
+
+        IndexFieldCapabilities deduplicate(IndexFieldCapabilities field) {
+            final IndexFieldCapabilities existing = caches.putIfAbsent(field.getName(), field);
+            if (existing != null) {
+                if (existing.equalsWithoutName(field)) {
+                    return existing;
+                }
+                return new IndexFieldCapabilities(
+                    existing.getName(),
+                    field.getType(),
+                    field.isMetadatafield,
+                    field.isSearchable,
+                    field.isAggregatable,
+                    field.meta
+                );
+            } else {
+                return field;
+            }
+        }
     }
 
     @Override

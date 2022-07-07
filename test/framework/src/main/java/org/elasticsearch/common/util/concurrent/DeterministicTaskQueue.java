@@ -431,7 +431,81 @@ public class DeterministicTaskQueue {
 
                     @Override
                     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
+                        final boolean[] canceled = { false };
+                        final boolean[] initialRun = { true };
+                        final long[] previousScheduledStart = { currentTimeMillis };
+                        Runnable repeatUntilCanceledCommand = new Runnable() {
+                            @Override
+                            public void run() {
+                                if (canceled[0] == false) {
+                                    long delay;
+                                    if (initialRun[0]) {
+                                        delay = initialDelay;
+                                        initialRun[0] = false;
+                                    } else {
+                                        delay = period;
+                                        command.run();
+                                    }
+                                    final long extraDelayMillis = RandomNumbers.randomLongBetween(
+                                        random,
+                                        0,
+                                        executionDelayVariabilityMillis
+                                    );
+                                    final long actualExecutionDelayMillis = new TimeValue(delay, unit).millis() + extraDelayMillis;
+                                    final long executionTimeMillis = Math.max(
+                                        previousScheduledStart[0] + actualExecutionDelayMillis,
+                                        currentTimeMillis
+                                    );
+                                    if (executionTimeMillis > currentTimeMillis) {
+                                        final DeferredTask deferredTask = new DeferredTask(executionTimeMillis, this);
+                                        scheduleDeferredTask(deferredTask);
+                                    } else {
+                                        runnableTasks.add(this);
+                                    }
+                                    previousScheduledStart[0] = executionTimeMillis;
+                                }
+                            }
+                        };
+                        runnableTasks.add(repeatUntilCanceledCommand);
+                        return new ScheduledFuture<>() {
+                            @Override
+                            public long getDelay(TimeUnit delayUnit) {
+                                return delayUnit.convert(new TimeValue(initialDelay, unit).millis(), TimeUnit.MILLISECONDS);
+                            }
+
+                            @Override
+                            public int compareTo(Delayed o) {
+                                return (int) (this.getDelay(TimeUnit.MILLISECONDS) - o.getDelay(TimeUnit.MILLISECONDS));
+                            }
+
+                            @Override
+                            public boolean cancel(boolean mayInterruptIfRunning) {
+                                canceled[0] = true;
+                                return true;
+                            }
+
+                            @Override
+                            public boolean isCancelled() {
+                                return canceled[0];
+                            }
+
+                            @Override
+                            public boolean isDone() {
+                                return isCancelled();
+                            }
+
+                            @Override
+                            public Object get() {
+                                // Nothing to get
+                                return null;
+                            }
+
+                            @Override
+                            public Object get(long timeout, TimeUnit unit) {
+                                // Nothing to get
+                                return null;
+                            }
+                        };
                     }
 
                     @Override

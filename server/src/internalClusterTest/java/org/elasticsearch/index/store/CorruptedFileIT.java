@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -83,6 +85,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toCollection;
@@ -95,6 +98,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -458,18 +462,10 @@ public class CorruptedFileIT extends ESIntegTestCase {
             )
             .get();
         ensureYellow("test");
-
-        // cancel recovery on unluckyNode
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put("index.routing.allocation.include._name", primariesNode.getName())
-            )
-            .get();
-        ensureGreen("test");
+        assertThatAllShards("test", shard -> {
+            assertThat(shard.primaryShard().currentNodeId(), equalTo(primariesNode.getId()));
+            assertThat(shard.replicaShards().get(0).state(), not(equalTo(ShardRoutingState.STARTED)));
+        });
 
         // can allocate on any other data node
         client().admin()
@@ -482,11 +478,25 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     .put("index.routing.allocation.exclude._name", unluckyNode.getName())
             )
             .get();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         ensureGreen("test");
+        assertThatAllShards("test", shard -> {
+            assertThat(shard.primaryShard().currentNodeId(), not(equalTo(unluckyNode.getId())));
+            assertThat(shard.replicaShards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+            assertThat(shard.replicaShards().get(0).currentNodeId(), not(equalTo(unluckyNode.getId())));
+        });
 
         final int numIterations = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIterations; i++) {
             assertHitCount(client().prepareSearch().setSize(numDocs).get(), numDocs);
+        }
+    }
+
+    private void assertThatAllShards(String index, Consumer<IndexShardRoutingTable> verifier) {
+        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest().routingTable(true)).actionGet();
+        var indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index(index);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            verifier.accept(indexRoutingTable.shard(shardId));
         }
     }
 

@@ -1384,15 +1384,22 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder put(IndexMetadata indexMetadata, boolean incrementVersion) {
-            if (indices.get(indexMetadata.getIndex().getName()) == indexMetadata) {
-                return this;
-            }
+            final String name = indexMetadata.getIndex().getName();
             indexMetadata = dedupeMapping(indexMetadata);
-            // if we put a new index metadata, increment its version
+            IndexMetadata previous;
             if (incrementVersion) {
+                if (indices.get(name) == indexMetadata) {
+                    return this;
+                }
+                // if we put a new index metadata, increment its version
                 indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
+                previous = indices.put(name, indexMetadata);
+            } else {
+                previous = indices.put(name, indexMetadata);
+                if (previous == indexMetadata) {
+                    return this;
+                }
             }
-            IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             updateAliases(previous, indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;

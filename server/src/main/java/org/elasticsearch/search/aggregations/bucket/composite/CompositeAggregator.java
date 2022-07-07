@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -436,24 +437,24 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         finishLeaf();
 
         boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
 
-        Sort indexSortPrefix = buildIndexSortPrefix(ctx);
+        Sort indexSortPrefix = buildIndexSortPrefix(aggCtx.getLeafReaderContext());
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
         SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0 && parent == null)
-            ? sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery())
+            ? sources[0].createSortedDocsProducerOrNull(aggCtx.getLeafReaderContext().reader(), topLevelQuery())
             : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket
             // in the queue.
-            DocIdSet docIdSet = sortedDocsProducer.processLeaf(topLevelQuery(), queue, ctx, fillDocIdSet);
+            DocIdSet docIdSet = sortedDocsProducer.processLeaf(topLevelQuery(), queue, aggCtx.getLeafReaderContext(), fillDocIdSet);
             if (fillDocIdSet) {
-                entries.add(new Entry(ctx, docIdSet));
+                entries.add(new Entry(aggCtx.getLeafReaderContext(), docIdSet));
             }
             // We can bypass search entirely for this segment, the processing is done in the previous call.
             // Throwing this exception will terminate the execution of the search for this root aggregation,
@@ -462,15 +463,15 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             return LeafBucketCollector.NO_OP_COLLECTOR;
         } else {
             if (fillDocIdSet) {
-                currentLeaf = ctx;
-                docIdSetBuilder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
+                currentLeaf = aggCtx.getLeafReaderContext();
+                docIdSetBuilder = new RoaringDocIdSet.Builder(aggCtx.getLeafReaderContext().reader().maxDoc());
             }
             if (rawAfterKey != null && sortPrefixLen > 0) {
                 // We have an after key and index sort is applicable so we jump directly to the doc
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
                 try {
-                    processLeafFromQuery(ctx, indexSortPrefix);
+                    processLeafFromQuery(aggCtx.getLeafReaderContext(), indexSortPrefix);
                 } catch (CollectionTerminatedException e) {
                     /*
                      * Signal that there isn't anything to collect. We're going
@@ -481,7 +482,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             } else {
                 final LeafBucketCollector inner;
                 try {
-                    inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                    inner = queue.getLeafCollector(aggCtx.getLeafReaderContext(), getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
                 } catch (CollectionTerminatedException e) {
                     return LeafBucketCollector.NO_OP_COLLECTOR;
                 }

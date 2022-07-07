@@ -5,29 +5,19 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.lucene.geo;
 
 import org.apache.lucene.util.LuceneTestCase;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 import static org.apache.lucene.geo.GeoTestUtil.nextBoxNotCrossingDateline;
 
@@ -665,31 +655,6 @@ public class XTessellatorTests extends LuceneTestCase {
         checkPolygon(wkt);
     }
 
-    private String reformat(String line, String name) {
-        StringBuilder sb = new StringBuilder("      String ");
-        sb.append(name);
-        sb.append(" =\n            \"");
-        char separator = name.equalsIgnoreCase("geojson") ? ']' : ',';
-        char[] x = line.toCharArray();
-        int index = 0;
-        int prev = 0;
-        while (index < x.length - 120) {
-            index += 119;
-            while (x[index] != separator)
-                index--;
-            if (x[index + 1] == ',') index++;
-            sb.append(x, prev, index - prev + 1);
-            sb.append("\"\n            + \"");
-            index++;
-            while (x[index] == ' ')
-                index++;
-            prev = index;
-        }
-        sb.append(x, prev, x.length - prev);
-        sb.append("\";\n");
-        return sb.toString();
-    }
-
     public void testComplexPolygon33() throws Exception {
         String wkt =
             "POLYGON((110.3240182 -7.8006815, 110.3235448 -7.8007665, 110.3233914 -7.8012355, 110.323407 -7.801519, 110.3233706 -7.8015241,"
@@ -996,6 +961,101 @@ public class XTessellatorTests extends LuceneTestCase {
         );
     }
 
+    public void testComplexPolygon45() throws Exception {
+        String geoJson = LuceneGeoTestUtil.readShape("lucene-10470.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        for (int i = 0; i < polygons.length; i++) {
+            List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygons[i]);
+            // calculate the area of big polygons have numerical error
+            assertEquals(area(polygons[i]), area(tessellation), 1e-11);
+            for (XTessellator.Triangle t : tessellation) {
+                checkTriangleEdgesFromPolygon(polygons[i], t);
+            }
+        }
+    }
+
+    public void testComplexPolygon45_unfixed() throws Exception {
+        String geoJson = LuceneGeoTestUtil.readShape("lucene-10470.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        expectThrows(
+            IllegalArgumentException.class,
+            "Expected tessellator to fail due to bug-fix - if this tests fails now it means "
+                + "Lucene has released the bugfix and we should delete the XTessellator class and usages of that (XLatLonShape, XShape)",
+            () -> { Tessellator.tessellate(polygons[0]); }
+        );
+    }
+
+    public void testComplexPolygon46() throws Exception {
+        String wkt = LuceneGeoTestUtil.readShape("lucene-10470.wkt.gz");
+        Polygon polygon = (Polygon) SimpleWKTShapeParser.parse(wkt);
+        List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);
+        // calculate the area of big polygons have numerical error
+        assertEquals(area(polygon), area(tessellation), 1e-11);
+        for (XTessellator.Triangle t : tessellation) {
+            checkTriangleEdgesFromPolygon(polygon, t);
+        }
+    }
+
+    public void testComplexPolygon47() throws Exception {
+        String geoJson = LuceneGeoTestUtil.readShape("lucene-10470-2.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        for (int i = 0; i < polygons.length; i++) {
+            List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygons[i]);
+            // calculate the area of big polygons have numerical error
+            assertEquals(area(polygons[i]), area(tessellation), 1e-11);
+            for (XTessellator.Triangle t : tessellation) {
+                checkTriangleEdgesFromPolygon(polygons[i], t);
+            }
+        }
+    }
+
+    // When 48 works it takes a long time, so we did not keep the test here, only the reverse test (which is fast)
+    public void testComplexPolygon48_unfixed() throws Exception {
+        String geoJson = LuceneGeoTestUtil.readShape("lucene-10470-3.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        expectThrows(
+            IllegalArgumentException.class,
+            "Expected tessellator to fail due to bug-fix - if this tests fails now it means "
+                + "Lucene has released the bugfix and we should delete the XTessellator class and usages of that (XLatLonShape, XShape)",
+            () -> { Tessellator.tessellate(polygons[0]); }
+        );
+    }
+
+    public void testComplexPolygon49() throws Exception {
+        String wkt = "POLYGON((77.500 13.500, 77.550 13.500, 77.530 13.470, 77.570 13.470,"
+            + "77.550 13.500, 77.600 13.500, 77.600 13.400, 77.500 13.400, 77.500 13.500))";
+        Polygon polygon = (Polygon) SimpleWKTShapeParser.parse(wkt);
+        List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);
+        assertEquals(area(polygon), area(tessellation), 1e-11);
+        for (XTessellator.Triangle t : tessellation) {
+            checkTriangleEdgesFromPolygon(polygon, t);
+        }
+    }
+
+    public void testComplexPolygon50() throws Exception {
+        String geoJson = LuceneGeoTestUtil.readShape("lucene-10563-1.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        assertEquals(1, polygons.length);
+        Polygon polygon = polygons[0];
+        List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);
+        // calculate the area of big polygons have numerical error
+        assertEquals(area(polygon), area(tessellation), 1e-11);
+        for (XTessellator.Triangle t : tessellation) {
+            checkTriangleEdgesFromPolygon(polygon, t);
+        }
+    }
+
+    public void testComplexPolygon50_unfixed() throws Exception {
+        String geoJson = LuceneGeoTestUtil.readShape("lucene-10563-1.geojson.gz");
+        Polygon[] polygons = Polygon.fromGeoJSON(geoJson);
+        expectThrows(
+            IllegalArgumentException.class,
+            "Expected tessellator to fail due to bug-fix - if this tests fails now it means "
+                + "Lucene has released the bugfix and we should delete the XTessellator class and usages of that (XLatLonShape, XShape)",
+            () -> { Tessellator.tessellate(polygons[0]); }
+        );
+    }
+
     private void checkPolygon(String wkt) throws Exception {
         Polygon polygon = (Polygon) SimpleWKTShapeParser.parse(wkt);
         List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);
@@ -1099,5 +1159,30 @@ public class XTessellatorTests extends LuceneTestCase {
             else return dyl > 0 ? aY <= lat && lat <= bY : bY <= lat && lat <= aY;
         }
         return false;
+    }
+
+    private static class LuceneGeoTestUtil {
+        private static String readShape(String name) throws IOException {
+            return LuceneGeoTestUtil.Loader.LOADER.readShape(name);
+        }
+
+        private static class Loader {
+
+            private static LuceneGeoTestUtil.Loader LOADER = new LuceneGeoTestUtil.Loader();
+
+            private String readShape(String name) throws IOException {
+                InputStream is = getClass().getResourceAsStream(name);
+                if (is == null) {
+                    throw new FileNotFoundException("classpath resource not found: " + name);
+                }
+                if (name.endsWith(".gz")) {
+                    is = new GZIPInputStream(is);
+                }
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                StringBuilder builder = new StringBuilder();
+                reader.lines().forEach(builder::append);
+                return builder.toString();
+            }
+        }
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.DiskThresholdSettingParser;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -207,8 +206,7 @@ public class DiskThresholdSettings {
     }
 
     private static void doValidate(String low, String high, String flood) {
-        // only try to validate as percentage if it isn't obviously a byte size value
-        if (DiskThresholdSettingParser.definitelyNotPercentage(low) == false) {
+        if (definitelyNotPercentage(low) == false) { // only try to validate as percentage if it isn't obviously a byte size value
             try {
                 doValidateAsPercentage(low, high, flood);
                 return; // early return so that we do not try to parse as bytes
@@ -234,9 +232,9 @@ public class DiskThresholdSettings {
     }
 
     private static void doValidateAsPercentage(final String low, final String high, final String flood) {
-        final double lowWatermarkThreshold = DiskThresholdSettingParser.parseThresholdPercentage(low, false);
-        final double highWatermarkThreshold = DiskThresholdSettingParser.parseThresholdPercentage(high, false);
-        final double floodThreshold = DiskThresholdSettingParser.parseThresholdPercentage(flood, false);
+        final double lowWatermarkThreshold = thresholdPercentageFromWatermark(low, false);
+        final double highWatermarkThreshold = thresholdPercentageFromWatermark(high, false);
+        final double floodThreshold = thresholdPercentageFromWatermark(flood, false);
         if (lowWatermarkThreshold > highWatermarkThreshold) {
             throw new IllegalArgumentException("low disk watermark [" + low + "] more than high disk watermark [" + high + "]");
         }
@@ -246,17 +244,17 @@ public class DiskThresholdSettings {
     }
 
     private static void doValidateAsBytes(final String low, final String high, final String flood) {
-        final ByteSizeValue lowWatermarkBytes = DiskThresholdSettingParser.parseThresholdBytes(
+        final ByteSizeValue lowWatermarkBytes = thresholdBytesFromWatermark(
             low,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
             false
         );
-        final ByteSizeValue highWatermarkBytes = DiskThresholdSettingParser.parseThresholdBytes(
+        final ByteSizeValue highWatermarkBytes = thresholdBytesFromWatermark(
             high,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
             false
         );
-        final ByteSizeValue floodStageBytes = DiskThresholdSettingParser.parseThresholdBytes(
+        final ByteSizeValue floodStageBytes = thresholdBytesFromWatermark(
             flood,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
             false
@@ -280,8 +278,8 @@ public class DiskThresholdSettings {
     private void setLowWatermark(String lowWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.lowWatermarkRaw = lowWatermark;
-        this.freeDiskThresholdLow = 100.0 - DiskThresholdSettingParser.parseThresholdPercentage(lowWatermark);
-        this.freeBytesThresholdLow = DiskThresholdSettingParser.parseThresholdBytes(
+        this.freeDiskThresholdLow = 100.0 - thresholdPercentageFromWatermark(lowWatermark);
+        this.freeBytesThresholdLow = thresholdBytesFromWatermark(
             lowWatermark,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
         );
@@ -290,8 +288,8 @@ public class DiskThresholdSettings {
     private void setHighWatermark(String highWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
         this.highWatermarkRaw = highWatermark;
-        this.freeDiskThresholdHigh = 100.0 - DiskThresholdSettingParser.parseThresholdPercentage(highWatermark);
-        this.freeBytesThresholdHigh = DiskThresholdSettingParser.parseThresholdBytes(
+        this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(highWatermark);
+        this.freeBytesThresholdHigh = thresholdBytesFromWatermark(
             highWatermark,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
         );
@@ -299,8 +297,8 @@ public class DiskThresholdSettings {
 
     private void setFloodStage(String floodStageRaw) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
-        this.freeDiskThresholdFloodStage = 100.0 - DiskThresholdSettingParser.parseThresholdPercentage(floodStageRaw);
-        this.freeBytesThresholdFloodStage = DiskThresholdSettingParser.parseThresholdBytes(
+        this.freeDiskThresholdFloodStage = 100.0 - thresholdPercentageFromWatermark(floodStageRaw);
+        this.freeBytesThresholdFloodStage = thresholdBytesFromWatermark(
             floodStageRaw,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
         );
@@ -400,11 +398,74 @@ public class DiskThresholdSettings {
     }
 
     /**
+     * Attempts to parse the watermark into a percentage, returning 100.0% if
+     * it cannot be parsed.
+     */
+    private static double thresholdPercentageFromWatermark(String watermark) {
+        return thresholdPercentageFromWatermark(watermark, true);
+    }
+
+    /**
+     * Attempts to parse the watermark into a percentage, returning 100.0% if it can not be parsed and the specified lenient parameter is
+     * true, otherwise throwing an {@link ElasticsearchParseException}.
+     *
+     * @param watermark the watermark to parse as a percentage
+     * @param lenient true if lenient parsing should be applied
+     * @return the parsed percentage
+     */
+    private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
+        if (lenient && definitelyNotPercentage(watermark)) {
+            // obviously not a percentage so return lenient fallback value like we would below on a parse failure
+            return 100.0;
+        }
+        try {
+            return RatioValue.parseRatioValue(watermark).getAsPercent();
+        } catch (ElasticsearchParseException ex) {
+            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
+            // cases separately
+            if (lenient) {
+                return 100.0;
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning
+     * a ByteSizeValue of 0 bytes if the value cannot be parsed.
+     */
+    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
+        return thresholdBytesFromWatermark(watermark, settingName, true);
+    }
+
+    /**
+     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
+     * parameter is true, otherwise throwing an {@link ElasticsearchParseException}.
+     *
+     * @param watermark the watermark to parse as a byte size
+     * @param settingName the name of the setting
+     * @param lenient true if lenient parsing should be applied
+     * @return the parsed byte size value
+     */
+    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName, boolean lenient) {
+        try {
+            return ByteSizeValue.parseBytesSizeValue(watermark, settingName);
+        } catch (ElasticsearchParseException ex) {
+            // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
+            // cases separately
+            if (lenient) {
+                return ByteSizeValue.ZERO;
+            }
+            throw ex;
+        }
+    }
+
+    /**
      * Checks if a watermark string is a valid percentage or byte size value,
      * @return the watermark value given
      */
     private static String validWatermarkSetting(String watermark, String settingName) {
-        if (DiskThresholdSettingParser.definitelyNotPercentage(watermark)) {
+        if (definitelyNotPercentage(watermark)) {
             // short circuit to save expensive exception on obvious byte size value below
             ByteSizeValue.parseBytesSizeValue(watermark, settingName);
             return watermark;
@@ -420,5 +481,14 @@ public class DiskThresholdSettings {
             }
         }
         return watermark;
+    }
+
+    // Checks that a value is definitely not a percentage by testing if it ends on `b` which implies that it is probably a byte size value
+    // instead. This is used to make setting validation skip attempting to parse a value as a percentage/ration for the settings in this
+    // class that accept either a byte size value. The main motivation of this method is to make tests faster. Some tests call this method
+    // frequently when starting up internal cluster nodes and using exception throwing and catching when trying to parse as a ratio as a
+    // means of identifying that a string is not a ratio is quite slow.
+    private static boolean definitelyNotPercentage(String value) {
+        return value.endsWith("b");
     }
 }

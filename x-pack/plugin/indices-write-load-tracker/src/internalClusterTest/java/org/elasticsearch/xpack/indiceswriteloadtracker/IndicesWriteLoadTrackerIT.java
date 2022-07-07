@@ -103,7 +103,7 @@ public class IndicesWriteLoadTrackerIT extends ESIntegTestCase {
 
     public static class SleepingTokenFilterPlugin extends Plugin implements AnalysisPlugin {
 
-        private final AtomicInteger sleepTime = new AtomicInteger(1000);
+        private final AtomicInteger sleepTime = new AtomicInteger(2000);
 
         public SleepingTokenFilterPlugin() {}
 
@@ -157,21 +157,36 @@ public class IndicesWriteLoadTrackerIT extends ESIntegTestCase {
         });
     }
 
+    public void testDw() {
+        AtomicInteger a = new AtomicInteger();
+        a.set(3);
+
+        int total;
+        do {
+            total = a.get();
+            logger.info("---> TOTAL {}", total);
+        } while (total > 0 && a.compareAndSet(total, 0) == false);
+    }
+
     public void testOnlyDataStreamsLoadIsCollected() throws Exception {
         int numberOfRegularIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numberOfRegularIndices; i++) {
             createIndex("test-" + i);
         }
 
-        final var dataStreams = randomList(1, 10, this::randomDataStreamName);
+        final var dataStreams = randomList(1, 1, this::randomDataStreamName);
 
         putComposableIndexTemplateWithSleepingAnalyzer(dataStreams);
 
         for (String dataStreamName : dataStreams) {
             client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get();
         }
+        logger.info("---> SENT");
+        indexDocs(dataStreams.get(0), 4);
+        logger.info("---> RECEIVED");
         long timestampAfterDataStreamsCreation = System.currentTimeMillis();
 
+        Thread.sleep(4000);
         ensureIndicesWriteLoadIndexIsSearchable();
 
         assertBusy(() -> {
@@ -182,6 +197,11 @@ public class IndicesWriteLoadTrackerIT extends ESIntegTestCase {
             List<String> collectedDataStreams = shardWriteLoadDistributions.stream()
                 .map(ShardWriteLoadHistogramSnapshot::dataStream)
                 .toList();
+            var x = shardWriteLoadDistributions.stream()
+                .map(ShardWriteLoadHistogramSnapshot::indexLoadHistogramSnapshot)
+                .toList();
+            assertThat(collectedDataStreams, is(not(empty())));
+
             for (String dataStream : dataStreams) {
                 assertThat(dataStream, is(in(collectedDataStreams)));
             }

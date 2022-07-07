@@ -331,7 +331,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
-        this.bulkOperationListener = new ShardBulkStats();
+        this.bulkOperationListener = new ShardBulkStats(shardRouting.shardId());
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(
@@ -1074,6 +1074,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexingOperationListeners.postIndex(shardId, preIndex, e);
             throw e;
         }
+        logger.info("--> RES {} {}", shardId, TimeUnit.NANOSECONDS.toMillis(result.getTook()));
         indexingOperationListeners.postIndex(shardId, preIndex, result);
         return result;
     }

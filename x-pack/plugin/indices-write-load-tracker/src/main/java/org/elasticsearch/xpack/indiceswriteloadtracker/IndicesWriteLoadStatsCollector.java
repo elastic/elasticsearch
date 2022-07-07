@@ -17,6 +17,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.indiceswriteloadtracker.IndicesWriteLoadTrackerPlugin.currentThreadIsWriterLoadCollectorThreadOrTestThread;
 
 class IndicesWriteLoadStatsCollector implements IndexEventListener {
+    private static final Logger logger = LogManager.getLogger(IndicesWriteLoadStatsCollector.class);
+
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final ConcurrentMap<ShardId, ShardWriteLoadHistogram> histograms = ConcurrentCollections.newConcurrentMap();
@@ -39,7 +43,6 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
     void collectWriteLoadStats() {
         assert currentThreadIsWriterLoadCollectorThreadOrTestThread() : Thread.currentThread().getName();
-
         for (ShardWriteLoadHistogram shardWriteLoadHistogram : histograms.values()) {
             shardWriteLoadHistogram.recordSample();
         }
@@ -105,6 +108,8 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
     }
 
     private static class ShardWriteLoadHistogram {
+        private final Logger logger = LogManager.getLogger(ShardWriteLoadHistogram.class);
+
         private final Supplier<String> parentDataStreamNameSupplier;
         private final IndexShard indexShard;
         private final boolean primary;
@@ -114,6 +119,8 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         private final Histogram mergeTimeHistogram;
         private final Histogram refreshTimeHistogram;
         private long lastTotalIndexingTimeSample;
+
+        private long lastTotalIndexingTimeSample2;
         private long lastTotalMergeTimeSample;
         private long lastTotalRefreshTimeSample;
         private long lastSampleRelativeTimeInNanos;
@@ -136,9 +143,10 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
         void recordSample() {
             long totalIndexingTimeInNanosSample = Math.addExact(
-                indexShard.getTotalIndexingTimeInNanos(),
+                indexShard.getBulkOperationListener().totalTime(),
                 indexShard.getTotalDeleteTimeInNanos()
             );
+
             long totalMergeTimeInMillisSample = indexShard.getTotalMergeTimeInMillis();
             long activeMerges = indexShard.getActiveMerges();
             long totalRefreshTimeInNanos = indexShard.getTotalRefreshTimeInNanos();
@@ -154,6 +162,19 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
             long indexingTimeDeltaInNanos = totalIndexingTimeInNanosSample - lastTotalIndexingTimeSample;
             lastTotalIndexingTimeSample = totalIndexingTimeInNanosSample;
+
+            long totalIndexingTimeInNanosSample2 = indexShard.getTotalIndexingTimeInNanos();
+            long indexingTimeDeltaInNanos2 = totalIndexingTimeInNanosSample2 - lastTotalIndexingTimeSample2;
+            lastTotalIndexingTimeSample2 = indexShard.getTotalIndexingTimeInNanos();
+
+            logger.info(
+                "--> diff {} {} {} [{} : {}]",
+                indexShard.shardId(),
+                TimeUnit.NANOSECONDS.toMillis(Math.abs(indexingTimeDeltaInNanos - indexingTimeDeltaInNanos2)),
+                indexingTimeDeltaInNanos > indexingTimeDeltaInNanos2 ? "bulk!" : "op!",
+                TimeUnit.NANOSECONDS.toMillis(indexingTimeDeltaInNanos),
+                TimeUnit.NANOSECONDS.toMillis(indexingTimeDeltaInNanos2)
+            );
 
             long totalMergeTimeInNanosSample = TimeUnit.MILLISECONDS.toNanos(totalMergeTimeInMillisSample);
             long mergeTimeDeltaInNanos = totalMergeTimeInNanosSample - lastTotalMergeTimeSample;

@@ -1008,8 +1008,8 @@ public class ApiKeyService {
             .setOpType(DocWriteRequest.OpType.INDEX)
             .request();
 
-        final boolean isNoop = indexRequest.source().equals(currentVersionedDoc.source());
-        if (isNoop) {
+        final boolean noop = indexRequest.source().equals(currentVersionedDoc.source());
+        if (noop) {
             logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
             listener.onResponse(new UpdateApiKeyResponse(false));
             return;

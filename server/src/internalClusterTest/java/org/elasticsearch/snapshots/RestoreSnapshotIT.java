@@ -11,6 +11,7 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -31,6 +32,7 @@ import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.file.Path;
@@ -62,6 +64,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -156,6 +159,73 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(restoredIndexName1, restoredIndexName2);
         assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
         assertThat(client.prepareGet(restoredIndexName2, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
+    }
+
+    @TestLogging(
+        reason = "testing the logging of the start and completion of a snapshot restore",
+        value = "org.elasticsearch.snapshots.RestoreService:INFO"
+    )
+    public void testRestoreLogging() throws IllegalAccessException {
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        try {
+            String indexName = "testindex";
+            String repoName = "test-restore-snapshot-repo";
+            String snapshotName = "test-restore-snapshot";
+            Path absolutePath = randomRepoPath().toAbsolutePath();
+            logger.info("Path [{}]", absolutePath);
+            String restoredIndexName = indexName + "-restored";
+            String expectedValue = "expected";
+
+            mockLogAppender.start();
+            Loggers.addAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
+
+            mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                String startMessageSnapshot;
+                Object startMessageIndicesList;
+                String completionMessageSnapshot;
+
+                @Override
+                public void match(LogEvent event) {
+                    final String message = event.getMessage().getFormattedMessage();
+                    if (message.startsWith("started restore of snapshot")) {
+                        startMessageSnapshot = event.getMessage().getParameters()[0].toString();
+                        startMessageIndicesList = event.getMessage().getParameters()[1];
+                    } else if (message.startsWith("completed restore of snapshot")) {
+                        completionMessageSnapshot = event.getMessage().getParameters()[0].toString();
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertThat(startMessageSnapshot, startsWith(snapshotName));
+                    assertEquals(Arrays.asList(indexName), startMessageIndicesList);
+                    assertThat(completionMessageSnapshot, startsWith(snapshotName));
+                }
+            });
+
+            Client client = client();
+            // Write a document
+            String docId = Integer.toString(randomInt());
+            indexDoc(indexName, docId, "value", expectedValue);
+            createRepository(repoName, "fs", absolutePath);
+            createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
+
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(false)
+                .setRenamePattern(indexName)
+                .setRenameReplacement(restoredIndexName)
+                .get();
+
+            assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+            ensureGreen(restoredIndexName);
+            assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
+            mockLogAppender.stop();
+        }
     }
 
     public void testRestoreIncreasesPrimaryTerms() {

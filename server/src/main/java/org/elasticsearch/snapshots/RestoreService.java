@@ -1053,7 +1053,7 @@ public class RestoreService implements ClusterStateApplier {
                 boolean changed = false;
                 for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
                     if (entry.state().completed()) {
-                        logger.log(entry.quiet() ? Level.DEBUG : Level.INFO, "restore of snapshot [{}] completed", entry.snapshot());
+                        logger.log(entry.quiet() ? Level.DEBUG : Level.INFO, "completed restore of snapshot [{}]", entry.snapshot());
                         changed = true;
                     } else {
                         restoreInProgressBuilder.add(entry);
@@ -1575,7 +1575,7 @@ public class RestoreService implements ClusterStateApplier {
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             logger.log(
                 request.quiet() ? Level.DEBUG : Level.INFO,
-                "restore of snapshot [{}] started for indices {}",
+                "started restore of snapshot [{}] for indices {}",
                 snapshot,
                 snapshotInfo.indices()
             );

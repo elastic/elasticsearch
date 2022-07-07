@@ -5,7 +5,7 @@
 <titleabbrev>Enable user profile</titleabbrev>
 ++++
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
 Enables a user profile so it's visible in
 <<security-api-suggest-user-profile,user profile searches>>.

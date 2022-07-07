@@ -6,7 +6,7 @@ issues:
  - 86022
 deprecation:
   title: Set archived cluster settings deprecation level as critical
-  area: Infra/Core
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: Cluster and node setting
+  details: Changing the deprecation level for the monitoring settings from 
+    WARN to CRITICAL.
+  impact: The upgrade assistant will block 8.0 upgrades intead of only warn.

@@ -129,7 +129,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 return createIndicator(
                     RED,
                     "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
-                    createDetails(explain, Collections.emptyList(), slmMetadata),
+                    createDetails(explain, unhealthyPolicies, slmMetadata),
                     impacts,
                     List.of(
                         new UserAction(
@@ -189,7 +189,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     "policies",
                     metadata.getSnapshotConfigurations().size(),
                     "unhealthy_policies",
-                    unhealthyPolicies
+                    unhealthyPolicies.size()
                 )
             );
         } else {

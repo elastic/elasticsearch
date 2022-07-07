@@ -41,7 +41,6 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.sp.api.analysis.TokenFilterFactoryProvider;
 import org.elasticsearch.sp.api.analysis.settings.AnalysisSettings;
 import org.elasticsearch.sp.api.analysis.settings.ClusterSettings;
 import org.elasticsearch.sp.api.analysis.settings.NodeSettings;
@@ -53,7 +52,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
@@ -169,15 +167,6 @@ public final class AnalysisModule {
         );
 
         if (pluginsService != null) {
-            List<? extends TokenFilterFactoryProvider> load = pluginsService.loadServiceProviders(TokenFilterFactoryProvider.class);
-
-            /*need to provide plugin's class loader otherwise no results??*/
-            // Optional<ServiceLoader.Provider<TokenFilterFactoryProvider>> first = load.stream().findFirst();
-            List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect = load.stream()
-                .map(AnalysisModule::mapToOldApi)
-                .collect(Collectors.toList());
-            tokenFilters.register(collect);
-
             List<? extends org.elasticsearch.sp.api.analysis.AnalysisPlugin> analysisPlugins =
                 pluginsService.loadServiceProviders(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class);
             List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect2 = new ArrayList<>();
@@ -193,16 +182,6 @@ public final class AnalysisModule {
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
-    }
-
-    @SuppressWarnings("unchecked")
-    static Map<String, AnalysisProvider<TokenFilterFactory>> mapToOldApi(TokenFilterFactoryProvider provider) {
-        // Map<String,Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> newApiMap) {
-
-        Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
-            provider.getTokenFilterFactories();
-
-        return getStringAnalysisProviderMap(tokenFilterFactories);
     }
 
     private static Map<String, AnalysisProvider<TokenFilterFactory>>

@@ -8,9 +8,17 @@
 
 package org.elasticsearch.plugin.analysis.phonetic;
 
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.sp.api.analysis.AnalysisPlugin;
+import org.elasticsearch.sp.api.analysis.TokenFilterFactory;
 
-public class NewAnalysisPhoneticPlugin extends Plugin implements AnalysisPlugin {
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
+public class NewAnalysisPhoneticPlugin implements AnalysisPlugin {
+
+    @Override
+    public Map<String, Class<? extends TokenFilterFactory>> getTokenFilterFactories() {
+        return singletonMap("phonetic2", PhoneticTokenFilterFactory.class);
+    }
 }

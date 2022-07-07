@@ -1295,13 +1295,6 @@ public class ApiKeyService {
         return elements.iterator().next();
     }
 
-    private void executeBulkRequest(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
-        );
-    }
-
     private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> userRoles) throws IOException {
         assert userRoles != null;
         builder.startObject("limited_by_role_descriptors");

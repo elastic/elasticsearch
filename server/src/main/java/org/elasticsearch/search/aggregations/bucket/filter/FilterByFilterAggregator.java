@@ -16,6 +16,7 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -217,12 +218,12 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      * top level query into account when building the filters.
      */
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert scoreMode().needsScores() == false;
         if (filters().size() == 0) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        Bits live = ctx.reader().getLiveDocs();
+        Bits live = aggCtx.getLeafReaderContext().reader().getLiveDocs();
         if (false == docCountProvider.alwaysOne()) {
             segmentsWithDocCountField++;
         }
@@ -233,10 +234,10 @@ public class FilterByFilterAggregator extends FiltersAggregator {
              * the sub-aggregators opt out of traditional collection.
              */
             segmentsCounted++;
-            collectCount(ctx, live);
+            collectCount(aggCtx.getLeafReaderContext(), live);
         } else {
             segmentsCollected++;
-            collectSubs(ctx, live, sub);
+            collectSubs(aggCtx.getLeafReaderContext(), live, sub);
         }
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }

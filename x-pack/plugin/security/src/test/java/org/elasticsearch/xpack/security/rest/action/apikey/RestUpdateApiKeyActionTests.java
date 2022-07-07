@@ -45,12 +45,13 @@ public class RestUpdateApiKeyActionTests extends RestActionTestCase {
 
     public void testAbsentRoleDescriptorsAndMetadataSetToNull() {
         final var apiKeyId = "api_key_id";
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withPath("/_security/api_key/" + apiKeyId)
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
+        final var builder = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+            .withPath("/_security/api_key/" + apiKeyId);
+        if (randomBoolean()) {
+            builder.withContent(new BytesArray("{}"), XContentType.JSON);
+        }
 
-        dispatchRequest(restRequest);
+        dispatchRequest(builder.build());
 
         assertEquals(new UpdateApiKeyRequest(apiKeyId, null, null), requestHolder.get());
     }

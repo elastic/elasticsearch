@@ -10,6 +10,7 @@ package org.elasticsearch.common.compress;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Releasable;
 
@@ -55,11 +56,6 @@ public class DeflateCompressor implements Compressor {
             }
         }
         return true;
-    }
-
-    @Override
-    public int headerLength() {
-        return HEADER.length;
     }
 
     // Reusable inflater reference for streaming decompression
@@ -132,14 +128,7 @@ public class DeflateCompressor implements Compressor {
      */
     public static InputStream inputStream(InputStream in, boolean threadLocal) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
-        int len = 0;
-        while (len < headerBytes.length) {
-            final int read = in.read(headerBytes, len, headerBytes.length - len);
-            if (read == -1) {
-                break;
-            }
-            len += read;
-        }
+        final int len = Streams.readFully(in, headerBytes);
         if (len != HEADER.length || Arrays.equals(headerBytes, HEADER) == false) {
             throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
         }
@@ -213,15 +202,17 @@ public class DeflateCompressor implements Compressor {
     @Override
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
-        final Inflater inflater = inflaterRef.get();
-        try (InflaterOutputStream ios = new InflaterOutputStream(buffer, inflater)) {
-            bytesReference.slice(HEADER.length, bytesReference.length() - HEADER.length).writeTo(ios);
+        try {
+            final Inflater inflater = inflaterRef.get();
+            try (InflaterOutputStream ios = new InflaterOutputStream(buffer, inflater)) {
+                bytesReference.slice(HEADER.length, bytesReference.length() - HEADER.length).writeTo(ios);
+            } finally {
+                inflater.reset();
+            }
+            return buffer.copyBytes();
         } finally {
-            inflater.reset();
+            buffer.reset();
         }
-        final BytesReference res = buffer.copyBytes();
-        buffer.reset();
-        return res;
     }
 
     // Reusable Deflater reference. Note: This is a separate instance from the one used for the compressing stream wrapper because we
@@ -231,15 +222,17 @@ public class DeflateCompressor implements Compressor {
     @Override
     public BytesReference compress(BytesReference bytesReference) throws IOException {
         final BytesStreamOutput buffer = baos.get();
-        buffer.write(HEADER);
-        final Deflater deflater = deflaterRef.get();
-        try (DeflaterOutputStream dos = new DeflaterOutputStream(buffer, deflater, true)) {
-            bytesReference.writeTo(dos);
+        try {
+            buffer.write(HEADER);
+            final Deflater deflater = deflaterRef.get();
+            try (DeflaterOutputStream dos = new DeflaterOutputStream(buffer, deflater, true)) {
+                bytesReference.writeTo(dos);
+            } finally {
+                deflater.reset();
+            }
+            return buffer.copyBytes();
         } finally {
-            deflater.reset();
+            buffer.reset();
         }
-        final BytesReference res = buffer.copyBytes();
-        buffer.reset();
-        return res;
     }
 }

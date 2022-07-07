@@ -127,8 +127,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
               "term" : {
                 "exact_value" : {
                   "value" : "Quick Foxes!",
-                  "case_insensitive" : true,
-                  "boost" : 1.0
+                  "case_insensitive" : true
                 }
               }
             }""";

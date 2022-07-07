@@ -22,8 +22,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -116,8 +116,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                     assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                     assertNotNull(response.getSearchResponse().getAggregations().get("min"));
                     Max max = response.getSearchResponse().getAggregations().get("max");
-                    InternalMin min = response.getSearchResponse().getAggregations().get("min");
-                    assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
+                    Min min = response.getSearchResponse().getAggregations().get("min");
+                    assertThat((float) min.value(), greaterThanOrEqualTo(minMetric));
                     assertThat((float) max.value(), lessThanOrEqualTo(maxMetric));
                 }
             }
@@ -129,12 +129,12 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                 assertNotNull(response.getSearchResponse().getAggregations().get("min"));
                 Max max = response.getSearchResponse().getAggregations().get("max");
-                InternalMin min = response.getSearchResponse().getAggregations().get("min");
+                Min min = response.getSearchResponse().getAggregations().get("min");
                 if (numFailures == 0) {
-                    assertThat((float) min.getValue(), equalTo(minMetric));
+                    assertThat((float) min.value(), equalTo(minMetric));
                     assertThat((float) max.value(), equalTo(maxMetric));
                 } else {
-                    assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
+                    assertThat((float) min.value(), greaterThanOrEqualTo(minMetric));
                     assertThat((float) max.value(), lessThanOrEqualTo(maxMetric));
                 }
             }

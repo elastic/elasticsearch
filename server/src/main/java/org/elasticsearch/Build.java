@@ -22,49 +22,13 @@ import java.util.jar.Manifest;
 /**
  * Information about a build of Elasticsearch.
  */
-public record Build(Flavor flavor, Type type, String hash, String date, boolean isSnapshot, String version) {
+public record Build(Type type, String hash, String date, boolean isSnapshot, String version) {
 
     /**
      * The current build of Elasticsearch. Filled with information scanned at
      * startup from the jar.
      */
     public static final Build CURRENT;
-
-    public enum Flavor {
-
-        DEFAULT("default"),
-        OSS("oss"),
-        UNKNOWN("unknown");
-
-        final String displayName;
-
-        Flavor(final String displayName) {
-            this.displayName = displayName;
-        }
-
-        public String displayName() {
-            return displayName;
-        }
-
-        public static Flavor fromDisplayName(final String displayName, final boolean strict) {
-            switch (displayName) {
-                case "default":
-                    return Flavor.DEFAULT;
-                case "oss":
-                    return Flavor.OSS;
-                case "unknown":
-                    return Flavor.UNKNOWN;
-                default:
-                    if (strict) {
-                        final String message = "unexpected distribution flavor [" + displayName + "]; your distribution is broken";
-                        throw new IllegalStateException(message);
-                    } else {
-                        return Flavor.UNKNOWN;
-                    }
-            }
-        }
-
-    }
 
     public enum Type {
 
@@ -111,7 +75,6 @@ public record Build(Flavor flavor, Type type, String hash, String date, boolean 
     }
 
     static {
-        final Flavor flavor;
         final Type type;
         final String hash;
         final String date;
@@ -119,7 +82,6 @@ public record Build(Flavor flavor, Type type, String hash, String date, boolean 
         final String version;
 
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
-        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"), true);
         type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
@@ -173,7 +135,7 @@ public record Build(Flavor flavor, Type type, String hash, String date, boolean 
             );
         }
 
-        CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
+        CURRENT = new Build(type, hash, date, isSnapshot, version);
     }
 
     /**
@@ -187,10 +149,12 @@ public record Build(Flavor flavor, Type type, String hash, String date, boolean 
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
-        final Flavor flavor;
         final Type type;
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        flavor = Flavor.fromDisplayName(in.readString(), false);
+        if (in.getVersion().before(Version.V_8_3_0)) {
+            // this was the flavor, which is always the default distribution now
+            in.readString();
+        }
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
         type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
@@ -199,11 +163,14 @@ public record Build(Flavor flavor, Type type, String hash, String date, boolean 
 
         final String version;
         version = in.readString();
-        return new Build(flavor, type, hash, date, snapshot, version);
+        return new Build(type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        out.writeString(build.flavor().displayName());
+        if (out.getVersion().before(Version.V_8_3_0)) {
+            // this was the flavor, which is always the default distribution now
+            out.writeString("default");
+        }
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
@@ -235,6 +202,6 @@ public record Build(Flavor flavor, Type type, String hash, String date, boolean 
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 }

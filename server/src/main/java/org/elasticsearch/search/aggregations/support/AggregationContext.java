@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -293,6 +295,25 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean isInSortOrderExecutionRequired();
 
     public abstract Set<String> sourcePath(String fullName);
+
+    /**
+     * Does this index have a {@code _doc_count} field in any segment?
+     */
+    public final boolean hasDocCountField() throws IOException {
+        /*
+         * When we add the second filter we check if there are any _doc_count
+         * fields and bail out of filter-by filter mode if there are. _doc_count
+         * fields are expensive to decode and the overhead of iterating per
+         * filter causes us to decode doc counts over and over again.
+         */
+        Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
+        for (LeafReaderContext c : searcher().getLeafContexts()) {
+            if (c.reader().docFreq(term) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Implementation of {@linkplain AggregationContext} for production usage

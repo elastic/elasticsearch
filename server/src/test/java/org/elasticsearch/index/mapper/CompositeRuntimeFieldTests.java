@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -108,7 +107,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
 
         RuntimeField rf = mapperService.mappingLookup().getMapping().getRoot().getRuntimeField("obj");
         assertEquals("obj", rf.name());
-        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().collect(Collectors.toList());
+        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().toList();
         for (MappedFieldType mappedFieldType : mappedFieldTypes) {
             if (mappedFieldType.name().equals("obj.long-subfield")) {
                 assertSame(longSubfield, mappedFieldType);
@@ -264,7 +263,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         RuntimeField rf = mapperService.mappingLookup().getMapping().getRoot().getRuntimeField("obj");
         assertEquals("obj", rf.name());
 
-        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().collect(Collectors.toList());
+        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().toList();
         assertEquals(1, mappedFieldTypes.size());
         assertSame(doubleSubField, mappedFieldTypes.iterator().next());
 

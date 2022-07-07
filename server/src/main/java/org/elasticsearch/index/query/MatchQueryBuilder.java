@@ -393,7 +393,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         }
         MappedFieldType mft = context.getFieldType(fieldName);
         if (mft != null) {
-            return mft.getTextSearchInfo().getSearchAnalyzer();
+            return mft.getTextSearchInfo().searchAnalyzer();
         }
         return null;
     }

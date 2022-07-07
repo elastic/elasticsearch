@@ -148,13 +148,19 @@ public abstract class JwtTestCase extends ESTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()),
-                randomBoolean() ? null : randomFrom("^(.*)$", "^([^@]+)@example\\.com$")
+                randomBoolean() ? null : randomFrom("^(.+)$", "^([^@]+)@example\\.com$")
             )
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), randomFrom("group", "roles", "other"))
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getPattern()),
-                randomBoolean() ? null : randomFrom("^(.*)$", "^Group-(.*)$")
+                randomBoolean() ? null : randomFrom("^(.+)$", "^Group-(.+)$")
             )
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_DN.getClaim()), randomFrom("dn", "subjectDN"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_DN.getPattern()), "^CN=(.+?),?.*$")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_MAIL.getClaim()), randomFrom("mail", "email"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_MAIL.getPattern()), randomBoolean() ? null : "^.+$")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_NAME.getClaim()), randomFrom("name", "fullname"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_NAME.getPattern()), randomBoolean() ? null : "^.+$")
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.POPULATE_USER_METADATA), populateUserMetadata)
             // Client settings for incoming connections
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)
@@ -163,6 +169,12 @@ public abstract class JwtTestCase extends ESTestCase {
                 RealmSettings.getFullSettingKey(name, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
                 randomBoolean() ? "" : "authz1, authz2"
             )
+            // Cache settings
+            .put(
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_TTL),
+                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(10, 120) + randomFrom("s", "m", "h")
+            )
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_SIZE), randomIntBetween(0, 1))
             // HTTP settings for outgoing connections
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_CONNECT_TIMEOUT),
@@ -479,7 +491,7 @@ public abstract class JwtTestCase extends ESTestCase {
         return JwtValidateUtil.buildUnsignedJwt(jwtHeader, jwtClaimsSet);
     }
 
-    public static SecureString randomJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
+    public static SecureString randomBespokeJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
             randomBoolean() ? null : JOSEObjectType.JWT.toString(),
@@ -487,9 +499,9 @@ public abstract class JwtTestCase extends ESTestCase {
             randomAlphaOfLengthBetween(10, 20), // jwtID
             randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
             randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),
-            randomBoolean() ? "principal1" : "subject1",
-            randomFrom("sub", "uid", "custom"),
-            "principal1",
+            randomBoolean() ? "principal1" : "subject1", // sub claim value
+            randomFrom("sub", "uid", "custom", "oid", "client_id", "azp", "appid", "email"), // principal claim name
+            "principal1", // principal claim value
             randomBoolean() ? null : randomFrom("groups", "roles", "other"),
             randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1")),
             Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time

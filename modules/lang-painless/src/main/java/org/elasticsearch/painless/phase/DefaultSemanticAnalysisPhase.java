@@ -2880,7 +2880,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                 prefixType,
                                 isStatic,
                                 "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1),
-                                0
+                                1
                             );
 
                         if (getter != null || setter != null) {

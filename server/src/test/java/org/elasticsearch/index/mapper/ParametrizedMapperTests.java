@@ -123,8 +123,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 throw new IllegalArgumentException("field [required] must be specified");
             }
         });
-        final Parameter<String> restricted = Parameter.restrictedStringParam("restricted", true, m -> toType(m).restricted, "foo", "bar");
-
         final Parameter<DummyEnumType> enumField = Parameter.enumParam(
             "enum_field",
             true,
@@ -151,8 +149,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 fixed,
                 fixed2,
                 variable,
@@ -162,10 +160,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 analyzer,
                 searchAnalyzer,
                 required,
-                restricted,
                 enumField,
-                restrictedEnumField
-            );
+                restrictedEnumField };
         }
 
         @Override
@@ -196,7 +192,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         private final NamedAnalyzer searchAnalyzer;
         private final boolean index;
         private final String required;
-        private final String restricted;
         private final DummyEnumType enumField;
         private final DummyEnumType restrictedEnumField;
 
@@ -217,7 +212,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             this.searchAnalyzer = builder.searchAnalyzer.getValue();
             this.index = builder.index.getValue();
             this.required = builder.required.getValue();
-            this.restricted = builder.restricted.getValue();
             this.enumField = builder.enumField.getValue();
             this.restrictedEnumField = builder.restrictedEnumField.getValue();
         }
@@ -322,7 +316,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "int_value": 5,
                 "analyzer": "_keyword",
                 "required": "value",
-                "restricted": "foo",
                 "enum_field": "name1",
                 "restricted_enum_field": "name1"
               }
@@ -338,7 +331,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper badMerge = fromMapping("""
             {"type":"test_mapper","fixed":true,"fixed2":true,"required":"value"}""");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(badMerge));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(badMerge, MapperBuilderContext.ROOT));
         String expectedError = """
             Mapper for [field] conflicts with existing mapper:
             \tCannot update parameter [fixed] from [false] to [true]
@@ -350,7 +343,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // TODO: should we have to include 'fixed' here? Or should updates take as 'defaults' the existing values?
         TestMapper goodMerge = fromMapping("""
             {"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}""");
-        TestMapper merged = (TestMapper) mapper.merge(goodMerge);
+        TestMapper merged = (TestMapper) mapper.merge(goodMerge, MapperBuilderContext.ROOT);
 
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // original mapping is unaffected
         assertEquals("""
@@ -368,7 +361,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String addSubField = """
             {"type":"test_mapper","variable":"foo","required":"value","fields":{"sub2":{"type":"keyword"}}}""";
         TestMapper toMerge = fromMapping(addSubField);
-        TestMapper merged = (TestMapper) mapper.merge(toMerge);
+        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.ROOT);
         assertEquals(XContentHelper.stripWhitespace("""
             {
               "field": {
@@ -389,7 +382,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String badSubField = """
             {"type":"test_mapper","variable":"foo","required":"value","fields":{"sub2":{"type":"binary"}}}""";
         TestMapper badToMerge = fromMapping(badSubField);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merged.merge(badToMerge));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merged.merge(badToMerge, MapperBuilderContext.ROOT)
+        );
         assertEquals("mapper [field.sub2] cannot be changed from type [keyword] to [binary]", e.getMessage());
     }
 
@@ -404,13 +400,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper toMerge = fromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}""");
-        TestMapper merged = (TestMapper) mapper.merge(toMerge);
+        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.ROOT);
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}}""", Strings.toString(merged));
 
         TestMapper removeCopyTo = fromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value"}""");
-        TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo);
+        TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo, MapperBuilderContext.ROOT);
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value"}}""", Strings.toString(noCopyTo));
     }
@@ -474,7 +470,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String conflict = """
             {"type":"test_mapper","wrapper":"new value","required":"value"}""";
         TestMapper toMerge = fromMapping(conflict);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(toMerge));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(toMerge, MapperBuilderContext.ROOT));
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n"
                 + "\tCannot update parameter [wrapper] from [wrapper_wrapped value] to [wrapper_new value]",
@@ -550,7 +546,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper original = mapper;
         TestMapper toMerge = fromMapping(mapping);
-        e = expectThrows(IllegalArgumentException.class, () -> original.merge(toMerge));
+        e = expectThrows(IllegalArgumentException.class, () -> original.merge(toMerge, MapperBuilderContext.ROOT));
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n" + "\tCannot update parameter [analyzer] from [default] to [_standard]",
             e.getMessage()
@@ -615,7 +611,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "int_value": 5,
                 "analyzer": "default",
                 "required": "value",
-                "restricted": "foo",
                 "enum_field": "name1",
                 "restricted_enum_field": "name1"
               }
@@ -633,27 +628,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 {"type":"test_mapper","required":null}""";
             MapperParsingException exc = expectThrows(MapperParsingException.class, () -> fromMapping(mapping));
             assertEquals("[required] on mapper [field] of type [test_mapper] must not have a [null] value", exc.getMessage());
-        }
-    }
-
-    public void testRestrictedField() {
-        {
-            String mapping = """
-                {"type":"test_mapper","required":"a","restricted":"baz"}""";
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping));
-            assertEquals("Unknown value [baz] for field [restricted] - accepted values are [foo, bar]", e.getMessage());
-        }
-        {
-            String mapping = """
-                {"type":"test_mapper","required":"a","restricted":"bar"}""";
-            TestMapper mapper = fromMapping(mapping);
-            assertEquals("bar", mapper.restricted);
-        }
-        {
-            String mapping = """
-                {"type":"test_mapper","required":"a"}""";
-            TestMapper mapper = fromMapping(mapping);
-            assertEquals("foo", mapper.restricted);
         }
     }
 

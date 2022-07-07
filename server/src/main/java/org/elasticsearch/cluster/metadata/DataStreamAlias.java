@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXContentFragment {
 
@@ -212,7 +211,7 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
      * data stream no longer appears in the intersection.
      */
     public DataStreamAlias intersect(Predicate<String> filter) {
-        List<String> intersectingDataStreams = this.dataStreams.stream().filter(filter).collect(Collectors.toList());
+        List<String> intersectingDataStreams = this.dataStreams.stream().filter(filter).toList();
         String writeDataStream = this.writeDataStream;
         if (intersectingDataStreams.contains(writeDataStream) == false) {
             writeDataStream = null;

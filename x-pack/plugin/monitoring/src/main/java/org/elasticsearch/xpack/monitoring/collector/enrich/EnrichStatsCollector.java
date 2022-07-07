@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -58,7 +59,7 @@ public final class EnrichStatsCollector extends Collector {
             final List<MonitoringDoc> docs = response.getCoordinatorStats()
                 .stream()
                 .map(stats -> new EnrichCoordinatorDoc(clusterUuid, timestamp, interval, node, stats))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
 
             response.getExecutingPolicies()
                 .stream()

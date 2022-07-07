@@ -81,7 +81,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 } else {
                     final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                         .map((p) -> (InternalAggregation) p)
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toCollection(ArrayList::new));
 
                     InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(), formatter, metadata());
                     aggs.add(simpleValue);

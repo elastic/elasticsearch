@@ -145,7 +145,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
             );
         }
 
-        context.validateParentAggSequentiallyOrdered(NAME, name);
+        context.validateParentAggSequentiallyOrderedWithoutSkips(NAME, name);
     }
 
     @Override

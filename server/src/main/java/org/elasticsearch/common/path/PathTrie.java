@@ -170,7 +170,7 @@ public class PathTrie<T> {
             node.insertOrUpdate(path, index + 1, value, updater);
         }
 
-        private boolean isNamedWildcard(String key) {
+        private static boolean isNamedWildcard(String key) {
             return key.indexOf('{') != -1 && key.indexOf('}') != -1;
         }
 

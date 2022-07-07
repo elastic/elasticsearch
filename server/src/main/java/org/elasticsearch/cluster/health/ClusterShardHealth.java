@@ -85,7 +85,8 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
         int computeUnassignedShards = 0;
-        for (ShardRouting shardRouting : shardRoutingTable) {
+        for (int j = 0; j < shardRoutingTable.size(); j++) {
+            ShardRouting shardRouting = shardRoutingTable.shard(j);
             if (shardRouting.active()) {
                 computeActiveShards++;
                 if (shardRouting.relocating()) {

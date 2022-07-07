@@ -148,7 +148,7 @@ public class RestIndicesAction extends AbstractCatAction {
      * as it does not provide information for all existing indices (for example recovering
      * indices or non replicated closed indices are not reported in indices stats response).
      */
-    private void sendGetSettingsRequest(
+    private static void sendGetSettingsRequest(
         final String[] indices,
         final IndicesOptions indicesOptions,
         final TimeValue masterNodeTimeout,
@@ -164,7 +164,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().indices().getSettings(request, listener);
     }
 
-    private void sendClusterStateRequest(
+    private static void sendClusterStateRequest(
         final String[] indices,
         final IndicesOptions indicesOptions,
         final TimeValue masterNodeTimeout,
@@ -180,7 +180,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().state(request, listener);
     }
 
-    private void sendClusterHealthRequest(
+    private static void sendClusterHealthRequest(
         final String[] indices,
         final IndicesOptions indicesOptions,
         final TimeValue masterNodeTimeout,
@@ -196,7 +196,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().health(request, listener);
     }
 
-    private void sendIndicesStatsRequest(
+    private static void sendIndicesStatsRequest(
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean includeUnloadedSegments,

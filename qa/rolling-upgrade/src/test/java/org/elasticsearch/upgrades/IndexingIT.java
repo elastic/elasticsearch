@@ -360,6 +360,76 @@ public class IndexingIT extends AbstractRollingTestCase {
         );
     }
 
+    public void testSyntheticSource() throws IOException {
+        assumeTrue("added in 8.3.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_0));
+
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                Request createIndex = new Request("PUT", "/synthetic");
+                XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+                indexSpec.startObject("mappings");
+                {
+                    indexSpec.startObject("_source").field("synthetic", true).endObject();
+                    indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
+                }
+                indexSpec.endObject();
+                createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
+                client().performRequest(createIndex);
+                bulk("synthetic", """
+                    {"index": {"_index": "synthetic", "_id": "old"}}
+                    {"kwd": "old", "int": -12}
+                    """);
+                break;
+            }
+            case MIXED -> {
+                if (FIRST_MIXED_ROUND) {
+                    bulk("synthetic", """
+                        {"index": {"_index": "synthetic", "_id": "mixed_1"}}
+                        {"kwd": "mixed_1", "int": 22}
+                        """);
+                } else {
+                    bulk("synthetic", """
+                        {"index": {"_index": "synthetic", "_id": "mixed_2"}}
+                        {"kwd": "mixed_2", "int": 33}
+                        """);
+                }
+                break;
+            }
+            case UPGRADED -> {
+                bulk("synthetic", """
+                    {"index": {"_index": "synthetic", "_id": "new"}}
+                    {"kwd": "new", "int": 21341325}
+                    """);
+            }
+        }
+
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/old"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "old").entry("int", -12))
+        );
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/mixed_1"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "mixed_1").entry("int", 22))
+        );
+        if (CLUSTER_TYPE == ClusterType.MIXED && FIRST_MIXED_ROUND) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/mixed_2"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "mixed_2").entry("int", 33))
+        );
+        if (CLUSTER_TYPE == ClusterType.MIXED) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/new"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "new").entry("int", 21341325))
+        );
+    }
+
     private void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");

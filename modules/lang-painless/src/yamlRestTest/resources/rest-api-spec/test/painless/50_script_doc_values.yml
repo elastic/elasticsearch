@@ -644,6 +644,18 @@ setup:
           body:
             query: { term: { _id: "1" } }
             script_fields:
+              label_position:
+                script:
+                  source: "doc['geo_point'].getLabelPosition()"
+    - match: { hits.hits.0.fields.label_position.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.label_position.0.lon: -71.34000004269183 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: "1" } }
+            script_fields:
                     topLeft:
                         script:
                             source: "doc['geo_point'].getBoundingBox().topLeft()"
@@ -661,9 +673,9 @@ setup:
           body:
             query: { term: { _id: "1" } }
             script_fields:
-                    type:
-                        script:
-                            source: "doc['geo_point'].getDimensionalType()"
+              type:
+                script:
+                  source: "doc['geo_point'].getDimensionalType()"
     - match: { hits.hits.0.fields.type.0: 0 }
 
     - do:

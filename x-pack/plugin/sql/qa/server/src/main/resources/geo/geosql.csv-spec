@@ -8,7 +8,7 @@ showTables
 SHOW TABLES "geo";
 
  catalog:s | name:s        | type:s| kind:s
-integTest  |geo            |TABLE  |INDEX
+javaRestTest  |geo            |TABLE  |INDEX
 ;
 
 // DESCRIBE

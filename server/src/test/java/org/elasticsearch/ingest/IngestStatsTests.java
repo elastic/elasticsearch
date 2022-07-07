@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class IngestStatsTests extends ESTestCase {
@@ -36,7 +35,7 @@ public class IngestStatsTests extends ESTestCase {
         IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(3, 3, 3, 3));
         IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(47, 97, 197, 297));
         IngestStats.PipelineStat pipeline3Stats = new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(0, 0, 0, 0));
-        return Stream.of(pipeline1Stats, pipeline2Stats, pipeline3Stats).collect(Collectors.toList());
+        return Stream.of(pipeline1Stats, pipeline2Stats, pipeline3Stats).toList();
     }
 
     private Map<String, List<IngestStats.ProcessorStat>> createProcessorStats(List<IngestStats.PipelineStat> pipelineStats) {
@@ -50,7 +49,7 @@ public class IngestStatsTests extends ESTestCase {
         );
         // pipeline1 -> processor1,processor2; pipeline2 -> processor3
         return MapBuilder.<String, List<IngestStats.ProcessorStat>>newMapBuilder()
-            .put(pipelineStats.get(0).getPipelineId(), Stream.of(processor1Stat, processor2Stat).collect(Collectors.toList()))
+            .put(pipelineStats.get(0).getPipelineId(), Stream.of(processor1Stat, processor2Stat).toList())
             .put(pipelineStats.get(1).getPipelineId(), Collections.singletonList(processor3Stat))
             .map();
     }

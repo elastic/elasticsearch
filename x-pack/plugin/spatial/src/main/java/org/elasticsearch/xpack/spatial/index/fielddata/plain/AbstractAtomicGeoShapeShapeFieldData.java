@@ -100,6 +100,11 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         }
 
         @Override
+        public GeoPoint getLabelPosition() {
+            return gsSupplier.getInternal(0) == null ? null : gsSupplier.getInternalLabelPosition();
+        }
+
+        @Override
         public GeoShapeValues.GeoShapeValue get(int index) {
             return gsSupplier.getInternal(0);
         }

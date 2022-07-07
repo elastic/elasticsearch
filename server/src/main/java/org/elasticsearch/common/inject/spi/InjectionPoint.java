@@ -60,12 +60,6 @@ public final class InjectionPoint {
     private final Member member;
     private final List<Dependency<?>> dependencies;
 
-    private InjectionPoint(Member member, List<Dependency<?>> dependencies, boolean optional) {
-        this.member = member;
-        this.dependencies = dependencies;
-        this.optional = optional;
-    }
-
     InjectionPoint(TypeLiteral<?> type, Method method) {
         this.member = method;
 
@@ -98,7 +92,7 @@ public final class InjectionPoint {
         }
         errors.throwConfigurationExceptionIfErrorsExist();
 
-        this.dependencies = Collections.<Dependency<?>>singletonList(newDependency(key, Nullability.allowsNull(annotations), -1));
+        this.dependencies = Collections.singletonList(newDependency(key, Nullability.allowsNull(annotations), -1));
     }
 
     private List<Dependency<?>> forMember(Member member, TypeLiteral<?> type, Annotation[][] parameterAnnotations) {
@@ -226,59 +220,6 @@ public final class InjectionPoint {
     }
 
     /**
-     * Returns a new injection point for the injectable constructor of {@code type}.
-     *
-     * @param type a concrete type with exactly one constructor annotated {@literal @}{@link Inject},
-     *             or a no-arguments constructor that is not private.
-     * @throws ConfigurationException if there is no injectable constructor, more than one injectable
-     *                                constructor, or if parameters of the injectable constructor are malformed, such as a
-     *                                parameter with multiple binding annotations.
-     */
-    public static InjectionPoint forConstructorOf(Class<?> type) {
-        return forConstructorOf(TypeLiteral.get(type));
-    }
-
-    /**
-     * Returns all static method and field injection points on {@code type}.
-     *
-     * @return a possibly empty set of injection points. The set has a specified iteration order. All
-     *         fields are returned and then all methods. Within the fields, supertype fields are returned
-     *         before subtype fields. Similarly, supertype methods are returned before subtype methods.
-     * @throws ConfigurationException if there is a malformed injection point on {@code type}, such as
-     *                                a field with multiple binding annotations. The exception's {@link
-     *                                ConfigurationException#getPartialValue() partial value} is a {@code Set<InjectionPoint>}
-     *                                of the valid injection points.
-     */
-    public static Set<InjectionPoint> forStaticMethodsAndFields(TypeLiteral type) {
-        Set<InjectionPoint> result = new HashSet<>();
-        Errors errors = new Errors();
-
-        addInjectionPoints(type, Factory.FIELDS, true, result, errors);
-        addInjectionPoints(type, Factory.METHODS, true, result, errors);
-
-        result = unmodifiableSet(result);
-        if (errors.hasErrors()) {
-            throw new ConfigurationException(errors.getMessages()).withPartialValue(result);
-        }
-        return result;
-    }
-
-    /**
-     * Returns all static method and field injection points on {@code type}.
-     *
-     * @return a possibly empty set of injection points. The set has a specified iteration order. All
-     *         fields are returned and then all methods. Within the fields, supertype fields are returned
-     *         before subtype fields. Similarly, supertype methods are returned before subtype methods.
-     * @throws ConfigurationException if there is a malformed injection point on {@code type}, such as
-     *                                a field with multiple binding annotations. The exception's {@link
-     *                                ConfigurationException#getPartialValue() partial value} is a {@code Set<InjectionPoint>}
-     *                                of the valid injection points.
-     */
-    public static Set<InjectionPoint> forStaticMethodsAndFields(Class<?> type) {
-        return forStaticMethodsAndFields(TypeLiteral.get(type));
-    }
-
-    /**
      * Returns all instance method and field injection points on {@code type}.
      *
      * @return a possibly empty set of injection points. The set has a specified iteration order. All
@@ -393,7 +334,7 @@ public final class InjectionPoint {
     }
 
     private interface Factory<M extends Member & AnnotatedElement> {
-        Factory<Field> FIELDS = new Factory<Field>() {
+        Factory<Field> FIELDS = new Factory<>() {
             @Override
             public Field[] getMembers(Class<?> type) {
                 return type.getFields();
@@ -405,7 +346,7 @@ public final class InjectionPoint {
             }
         };
 
-        Factory<Method> METHODS = new Factory<Method>() {
+        Factory<Method> METHODS = new Factory<>() {
             @Override
             public Method[] getMembers(Class<?> type) {
                 return type.getMethods();

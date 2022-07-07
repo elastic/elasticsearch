@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -16,20 +15,23 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.hamcrest.Matchers;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.any;
@@ -49,6 +51,7 @@ public class InternalRealmsTests extends ESTestCase {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(
             mock(ThreadPool.class),
+            Settings.EMPTY,
             mock(ResourceWatcherService.class),
             mock(SSLService.class),
             mock(NativeUsersStore.class),
@@ -89,13 +92,20 @@ public class InternalRealmsTests extends ESTestCase {
         }
     }
 
-    public void testJwtRealmDependsOnBuildType() {
-        // Whether the JWT realm is registered depends on the build type
-        if (Build.CURRENT.isSnapshot()) {
-            assertThat(InternalRealms.isInternalRealm(JwtRealmSettings.TYPE), is(true));
-        } else {
-            assertThat(InternalRealms.isInternalRealm(JwtRealmSettings.TYPE), is(false));
-        }
+    public void testEachRealmHasRegisteredOrderSetting() {
+        final Set<String> registeredOrderKeys = InternalRealmsSettings.getSettings()
+            .stream()
+            .map(affix -> affix.getConcreteSettingForNamespace("the_name"))
+            .map(concrete -> concrete.getKey())
+            .filter(key -> key.endsWith(".order"))
+            .collect(Collectors.toSet());
+
+        final Set<String> configurableOrderKeys = InternalRealms.getConfigurableRealmsTypes()
+            .stream()
+            .map(type -> RealmSettings.realmSettingPrefix(type) + "the_name.order")
+            .collect(Collectors.toSet());
+
+        assertThat(registeredOrderKeys, Matchers.equalTo(configurableOrderKeys));
     }
 
     private boolean isStandardRealm(String type) {

@@ -133,13 +133,13 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-    Path nodePath(final int nodeOrdinal) {
+    Path homePath(final int nodeOrdinal) {
         return parentFolder.resolve(subfolderPrefix + "-" + nodeOrdinal);
     }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        final Path home = nodePath(nodeOrdinal);
+        final Path home = homePath(nodeOrdinal);
         final Path xpackConf = home.resolve("config");
         try {
             Files.createDirectories(xpackConf);
@@ -155,8 +155,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         Settings.Builder builder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), home)
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-            .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
+            .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
             // TODO: for now isolate security tests from watcher (randomize this later)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
@@ -175,7 +175,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     @Override
     public Path nodeConfigPath(int nodeOrdinal) {
-        return nodePath(nodeOrdinal).resolve("config");
+        return homePath(nodeOrdinal).resolve("config");
     }
 
     @Override
@@ -257,7 +257,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-    private static void addSSLSettingsForStore(
+    public static void addSSLSettingsForStore(
         Settings.Builder builder,
         String prefix,
         String resourcePathToStore,

@@ -7,15 +7,14 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.RollupILMAction.GENERATE_ROLLUP_STEP_NAME;
@@ -82,9 +81,11 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         String newRollupPolicy = rollupILMAction.rollupPolicy();
         switch (randomIntBetween(0, 1)) {
             case 0 -> {
-                List<MetricConfig> metricConfigs = new ArrayList<>(rollupILMAction.config().getMetricsConfig());
-                metricConfigs.add(new MetricConfig(randomAlphaOfLength(4), Collections.singletonList("max")));
-                newConfig = new RollupActionConfig(rollupILMAction.config().getGroupConfig(), metricConfigs);
+                DateHistogramInterval fixedInterval = randomValueOtherThan(
+                    rollupILMAction.config().getFixedInterval(),
+                    ConfigTestHelpers::randomInterval
+                );
+                newConfig = new RollupActionConfig(fixedInterval);
             }
             case 1 -> newRollupPolicy = randomAlphaOfLength(3);
             default -> throw new IllegalStateException("unreachable branch");

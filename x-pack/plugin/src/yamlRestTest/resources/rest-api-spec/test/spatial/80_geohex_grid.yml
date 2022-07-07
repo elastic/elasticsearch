@@ -135,8 +135,8 @@ setup:
               geohex_grid:
                 field: location
                 bounds:
-                  top_left: "52.4, 4.9"
-                  bottom_right: "52.3, 5.0"
+                  top_left: "POINT (4.9 52.4)"
+                  bottom_right: "POINT (5.0 52.3)"
   - match: {hits.total.value:      6    }
   - length: { aggregations.grid.buckets: 1 }
   - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }

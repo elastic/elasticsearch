@@ -88,7 +88,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         builder.field(QUERY_FIELD.getPreferredName());
         queryBuilder.toXContent(builder, params);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

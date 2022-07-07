@@ -16,9 +16,9 @@ import java.util.Objects;
 
 public class WeightFactorFunction extends ScoreFunction {
 
-    private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULTIPLY);
+    private static final ScoreFunction SCORE_ONE = new ScoreOne();
     private final ScoreFunction scoreFunction;
-    private float weight = 1.0f;
+    private final float weight;
 
     public WeightFactorFunction(float weight, ScoreFunction scoreFunction) {
         super(CombineFunction.MULTIPLY);
@@ -89,8 +89,8 @@ public class WeightFactorFunction extends ScoreFunction {
 
     private static class ScoreOne extends ScoreFunction {
 
-        protected ScoreOne(CombineFunction scoreCombiner) {
-            super(scoreCombiner);
+        protected ScoreOne() {
+            super(CombineFunction.MULTIPLY);
         }
 
         @Override

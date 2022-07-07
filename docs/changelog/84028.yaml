@@ -1,5 +1,0 @@
-pr: 84028
-summary: Mark `GeoIpDownloaderTask` as completed after cancellation
-area: Ingest
-type: bug
-issues: []

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeographyValidator;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.List;
 import java.util.function.Supplier;
 
 /**

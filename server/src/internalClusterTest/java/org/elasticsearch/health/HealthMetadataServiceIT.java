@@ -41,8 +41,8 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             Map<String, String> watermarkByNode = new HashMap<>();
             for (int i = 0; i < numberOfNodes; i++) {
                 String customWatermark = percentageMode
-                    ? randomIntBetween(86, 80) + "%"
-                    : new ByteSizeValue(randomIntBetween(10, 100)).toString();
+                    ? randomIntBetween(86, 94) + "%"
+                    : new ByteSizeValue(randomIntBetween(6, 19)).toString();
                 String nodeName = startNode(internalCluster, customWatermark);
                 watermarkByNode.put(nodeName, customWatermark);
             }
@@ -72,7 +72,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             int numberOfNodes = 3;
             String initialWatermark = percentageMode
                 ? randomIntBetween(86, 94) + "%"
-                : new ByteSizeValue(randomIntBetween(4, 19)).toString();
+                : new ByteSizeValue(randomIntBetween(6, 19)).toString();
             for (int i = 0; i < numberOfNodes; i++) {
                 startNode(internalCluster, initialWatermark);
             }

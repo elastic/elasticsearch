@@ -10,6 +10,8 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
 
+import java.util.Objects;
+
 /**
  * A byte size value that allows specification using either of:
  * 1. Absolute value (200GB for instance)
@@ -94,5 +96,18 @@ public class RelativeByteSizeValue {
         } else {
             return absolute.getStringRep();
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RelativeByteSizeValue that = (RelativeByteSizeValue) o;
+        return Objects.equals(absolute, that.absolute) && Objects.equals(ratio, that.ratio);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(absolute, ratio);
     }
 }

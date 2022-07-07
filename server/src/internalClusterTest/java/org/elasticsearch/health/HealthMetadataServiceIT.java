@@ -50,10 +50,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             String electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.Disk.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
-                    internalCluster.clusterService().state()
-                ).getDiskMetadata().lowWatermark();
-                assertThat(lowWatermark.getStringRep(), equalTo(watermarkByNode.get(electedMaster)));
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                    .getDiskMetadata();
+                assertThat(diskMetadata.describeLowWatermark(), equalTo(watermarkByNode.get(electedMaster)));
             }
 
             // Stop the master to ensure another node will become master with a different watermark
@@ -61,10 +60,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             ensureStableCluster(numberOfNodes - 1);
             electedMaster = internalCluster.getMasterName();
             {
-                HealthMetadata.Disk.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
-                    internalCluster.clusterService().state()
-                ).getDiskMetadata().lowWatermark();
-                assertThat(lowWatermark.getStringRep(), equalTo(watermarkByNode.get(electedMaster)));
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                    .getDiskMetadata();
+                assertThat(diskMetadata.describeLowWatermark(), equalTo(watermarkByNode.get(electedMaster)));
             }
         }
     }
@@ -91,10 +89,9 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
             ensureStableCluster(numberOfNodes);
             {
-                HealthMetadata.Disk.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
-                    internalCluster.clusterService().state()
-                ).getDiskMetadata().lowWatermark();
-                assertThat(lowWatermark.getStringRep(), equalTo(initialWatermark));
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                    .getDiskMetadata();
+                assertThat(diskMetadata.describeLowWatermark(), equalTo(initialWatermark));
             }
             internalCluster.client()
                 .admin()
@@ -115,18 +112,11 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 )
                 .actionGet();
             assertBusy(() -> {
-                HealthMetadata.Disk.Threshold lowWatermark = HealthMetadata.getHealthCustomMetadata(
-                    internalCluster.clusterService().state()
-                ).getDiskMetadata().lowWatermark();
-                assertThat(lowWatermark.getStringRep(), equalTo(updatedLowWatermark));
-                HealthMetadata.Disk.Threshold highWatermark = HealthMetadata.getHealthCustomMetadata(
-                    internalCluster.clusterService().state()
-                ).getDiskMetadata().highWatermark();
-                assertThat(highWatermark.getStringRep(), equalTo(updatedHighWatermark));
-                HealthMetadata.Disk.Threshold floodStageWatermark = HealthMetadata.getHealthCustomMetadata(
-                    internalCluster.clusterService().state()
-                ).getDiskMetadata().floodStageWatermark();
-                assertThat(floodStageWatermark.getStringRep(), equalTo(updatedFloodStageWatermark));
+                HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
+                    .getDiskMetadata();
+                assertThat(diskMetadata.describeLowWatermark(), equalTo(updatedLowWatermark));
+                assertThat(diskMetadata.describeHighWatermark(), equalTo(updatedHighWatermark));
+                assertThat(diskMetadata.describeFloodStageWatermark(), equalTo(updatedFloodStageWatermark));
             });
         }
     }

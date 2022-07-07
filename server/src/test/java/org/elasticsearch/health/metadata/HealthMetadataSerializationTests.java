@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -62,33 +64,33 @@ public class HealthMetadataSerializationTests extends SimpleDiffableSerializatio
 
     private static HealthMetadata.Disk randomDiskMetadata() {
         return new HealthMetadata.Disk(
-            randomDiskThreshold(),
-            randomDiskThreshold(),
-            randomDiskThreshold(),
-            randomDiskThreshold(),
+            randomRelativeByteSizeValue(),
+            randomRelativeByteSizeValue(),
+            randomRelativeByteSizeValue(),
+            randomRelativeByteSizeValue(),
             ByteSizeValue.ofGb(randomIntBetween(10, 999))
         );
     }
 
-    private static HealthMetadata.Disk.Threshold randomDiskThreshold() {
+    private static RelativeByteSizeValue randomRelativeByteSizeValue() {
         if (randomBoolean()) {
-            return new HealthMetadata.Disk.Threshold(ByteSizeValue.ofGb(randomIntBetween(10, 999)));
+            return new RelativeByteSizeValue(ByteSizeValue.ofGb(randomIntBetween(10, 999)));
         } else {
-            return new HealthMetadata.Disk.Threshold(randomDouble());
+            return new RelativeByteSizeValue(new RatioValue(randomDouble()));
         }
     }
 
     static HealthMetadata.Disk mutateDiskMetadata(HealthMetadata.Disk base) {
-        HealthMetadata.Disk.Threshold lowWatermark = base.lowWatermark();
-        HealthMetadata.Disk.Threshold highWatermark = base.highWatermark();
-        HealthMetadata.Disk.Threshold floodStageWatermark = base.floodStageWatermark();
-        HealthMetadata.Disk.Threshold floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
+        RelativeByteSizeValue lowWatermark = base.lowWatermark();
+        RelativeByteSizeValue highWatermark = base.highWatermark();
+        RelativeByteSizeValue floodStageWatermark = base.floodStageWatermark();
+        RelativeByteSizeValue floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
         ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.frozenFloodStageMaxHeadroom();
         switch (randomInt(4)) {
-            case 0 -> lowWatermark = randomDiskThreshold();
-            case 1 -> highWatermark = randomDiskThreshold();
-            case 2 -> floodStageWatermark = randomDiskThreshold();
-            case 3 -> floodStageWatermarkFrozen = randomDiskThreshold();
+            case 0 -> lowWatermark = randomRelativeByteSizeValue();
+            case 1 -> highWatermark = randomRelativeByteSizeValue();
+            case 2 -> floodStageWatermark = randomRelativeByteSizeValue();
+            case 3 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
             case 4 -> ByteSizeValue.ofGb(randomIntBetween(10, 999));
         }
         return new HealthMetadata.Disk(

@@ -24,6 +24,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -240,19 +241,19 @@ public class HealthMetadataService {
             HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
             final var finalHealthMetadata = new HealthMetadata(
                 new HealthMetadata.Disk(
-                    HealthMetadata.Disk.Threshold.parse(
+                    RelativeByteSizeValue.parseRelativeByteSizeValue(
                         CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings),
                         CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
                     ),
-                    HealthMetadata.Disk.Threshold.parse(
+                    RelativeByteSizeValue.parseRelativeByteSizeValue(
                         CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
                         CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
                     ),
-                    HealthMetadata.Disk.Threshold.parse(
+                    RelativeByteSizeValue.parseRelativeByteSizeValue(
                         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
                         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
                     ),
-                    new HealthMetadata.Disk.Threshold(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings)),
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings),
                     CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
                 )
             );

@@ -16,9 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.DiskThresholdSettingParser;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -126,10 +124,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
      * master.
      */
     public record Disk(
-        Threshold lowWatermark,
-        Threshold highWatermark,
-        Threshold floodStageWatermark,
-        Threshold frozenFloodStageWatermark,
+        RelativeByteSizeValue lowWatermark,
+        RelativeByteSizeValue highWatermark,
+        RelativeByteSizeValue floodStageWatermark,
+        RelativeByteSizeValue frozenFloodStageWatermark,
         ByteSizeValue frozenFloodStageMaxHeadroom
     ) implements ToXContentFragment, Writeable {
 
@@ -145,10 +143,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             TYPE,
             true,
             (args) -> new Disk(
-                Threshold.parse((String) args[0], LOW_WATERMARK_FIELD.getPreferredName()),
-                Threshold.parse((String) args[1], HIGH_WATERMARK_FIELD.getPreferredName()),
-                Threshold.parse((String) args[2], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
-                Threshold.parse((String) args[3], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[0], LOW_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[1], HIGH_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[2], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[3], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
                 ByteSizeValue.parseBytesSizeValue((String) args[4], FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName())
             )
         );
@@ -163,10 +161,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         Disk(StreamInput in) throws IOException {
             this(
-                Threshold.readFrom(in, LOW_WATERMARK_FIELD.getPreferredName()),
-                Threshold.readFrom(in, HIGH_WATERMARK_FIELD.getPreferredName()),
-                Threshold.readFrom(in, FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
-                Threshold.readFrom(in, FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), LOW_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), HIGH_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
                 new ByteSizeValue(in)
             );
         }
@@ -177,10 +175,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            lowWatermark.writeTo(out);
-            highWatermark.writeTo(out);
-            floodStageWatermark.writeTo(out);
-            frozenFloodStageWatermark.writeTo(out);
+            out.writeString(describeLowWatermark());
+            out.writeString(describeHighWatermark());
+            out.writeString(describeFloodStageWatermark());
+            out.writeString(describeFrozenFloodStageWatermark());
             frozenFloodStageMaxHeadroom.writeTo(out);
         }
 
@@ -191,12 +189,36 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(LOW_WATERMARK_FIELD.getPreferredName(), lowWatermark.getStringRep());
-            builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), highWatermark.getStringRep());
-            builder.field(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), floodStageWatermark.getStringRep());
-            builder.field(FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), frozenFloodStageWatermark.getStringRep());
+            builder.field(LOW_WATERMARK_FIELD.getPreferredName(), describeLowWatermark());
+            builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), describeHighWatermark());
+            builder.field(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), describeFloodStageWatermark());
+            builder.field(FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), describeFrozenFloodStageWatermark());
             builder.field(FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName(), frozenFloodStageMaxHeadroom);
             return builder;
+        }
+
+        private String getThresholdStringRep(RelativeByteSizeValue relativeByteSizeValue) {
+            if (relativeByteSizeValue.isAbsolute()) {
+                return relativeByteSizeValue.getAbsolute().getStringRep();
+            } else {
+                return relativeByteSizeValue.getRatio().formatNoTrailingZerosPercent();
+            }
+        }
+
+        public String describeLowWatermark() {
+            return getThresholdStringRep(lowWatermark);
+        }
+
+        public String describeHighWatermark() {
+            return getThresholdStringRep(highWatermark);
+        }
+
+        public String describeFloodStageWatermark() {
+            return getThresholdStringRep(floodStageWatermark);
+        }
+
+        public String describeFrozenFloodStageWatermark() {
+            return getThresholdStringRep(frozenFloodStageWatermark);
         }
 
         static Builder newBuilder() {
@@ -209,10 +231,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         public static class Builder {
 
-            private Threshold lowWatermark;
-            private Threshold highWatermark;
-            private Threshold floodStageWatermark;
-            private Threshold frozenFloodStageWatermark;
+            private RelativeByteSizeValue lowWatermark;
+            private RelativeByteSizeValue highWatermark;
+            private RelativeByteSizeValue floodStageWatermark;
+            private RelativeByteSizeValue frozenFloodStageWatermark;
             private ByteSizeValue frozenFloodStageMaxHeadroom;
 
             private Builder(Disk disk) {
@@ -226,39 +248,39 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             private Builder() {}
 
             Disk.Builder lowWatermark(String lowWatermark, String setting) {
-                return lowWatermark(Threshold.parse(lowWatermark, setting));
+                return lowWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(lowWatermark, setting));
             }
 
-            Disk.Builder lowWatermark(Threshold lowWatermark) {
+            Disk.Builder lowWatermark(RelativeByteSizeValue lowWatermark) {
                 this.lowWatermark = lowWatermark;
                 return this;
             }
 
-            Disk.Builder highWatermark(Threshold highWatermark) {
+            Disk.Builder highWatermark(RelativeByteSizeValue highWatermark) {
                 this.highWatermark = highWatermark;
                 return this;
             }
 
             Disk.Builder highWatermark(String highWatermark, String setting) {
-                return highWatermark(Threshold.parse(highWatermark, setting));
+                return highWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(highWatermark, setting));
             }
 
-            Disk.Builder floodStageWatermark(Threshold floodStageWatermark) {
+            Disk.Builder floodStageWatermark(RelativeByteSizeValue floodStageWatermark) {
                 this.floodStageWatermark = floodStageWatermark;
                 return this;
             }
 
             public Disk.Builder floodStageWatermark(String floodStageWatermark, String setting) {
-                return floodStageWatermark(Threshold.parse(floodStageWatermark, setting));
+                return floodStageWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(floodStageWatermark, setting));
             }
 
-            Disk.Builder frozenFloodStageWatermark(Threshold frozenFloodStageWatermark) {
+            Disk.Builder frozenFloodStageWatermark(RelativeByteSizeValue frozenFloodStageWatermark) {
                 this.frozenFloodStageWatermark = frozenFloodStageWatermark;
                 return this;
             }
 
             Disk.Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
-                return frozenFloodStageWatermark(Threshold.parse(frozenFloodStageWatermark, setting));
+                return frozenFloodStageWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(frozenFloodStageWatermark, setting));
             }
 
             Disk.Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
@@ -272,57 +294,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
             Disk build() {
                 return new Disk(lowWatermark, highWatermark, floodStageWatermark, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
-            }
-        }
-
-        /* Represents a disk space threshold in one of two ways:
-         * - Percent of maximum disk usage allowed, for example, if disk usage is more than 90% it's over the threshold
-         * - Minimum of free disk space allowed, for example free disk space is less than 10GB it's over the threshold
-         */
-        public record Threshold(double maxUsedPercent, ByteSizeValue minFreeBytes) implements Writeable {
-
-            public Threshold {
-                assert maxUsedPercent == 100.0 || minFreeBytes.getBytes() == 0
-                    : "only one of the values in a disk threshold can be set, the other one needs to have the default value";
-            }
-
-            public Threshold(double maxUsedPercent) {
-                this(maxUsedPercent, ByteSizeValue.ZERO);
-            }
-
-            public Threshold(ByteSizeValue minFreeBytes) {
-                this(100.0, minFreeBytes);
-            }
-
-            public Threshold(RelativeByteSizeValue value) {
-                this(
-                    value.isAbsolute() ? 100.0 : value.getRatio().getAsPercent(),
-                    value.isAbsolute() ? value.getAbsolute() : ByteSizeValue.ZERO
-                );
-            }
-
-            public static Threshold readFrom(StreamInput in, String setting) throws IOException {
-                String description = in.readString();
-                return parse(description, setting);
-            }
-
-            static Threshold parse(String description, String setting) {
-                if (DiskThresholdSettingParser.definitelyNotPercentage(description)) {
-                    return new Threshold(DiskThresholdSettingParser.parseThresholdBytes(description, setting));
-                } else {
-                    return new Threshold(DiskThresholdSettingParser.parseThresholdPercentage(description));
-                }
-            }
-
-            public String getStringRep() {
-                return minFreeBytes.equals(ByteSizeValue.ZERO)
-                    ? RatioValue.formatPercentNoTrailingZeros(maxUsedPercent)
-                    : minFreeBytes.toString();
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(this.getStringRep());
             }
         }
     }

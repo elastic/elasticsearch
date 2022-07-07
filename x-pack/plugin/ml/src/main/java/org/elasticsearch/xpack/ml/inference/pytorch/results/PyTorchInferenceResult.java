@@ -29,10 +29,11 @@ public class PyTorchInferenceResult implements ToXContentObject {
 
     private static final ParseField INFERENCE = new ParseField("inference");
     private static final ParseField TIME_MS = new ParseField("time_ms");
+    private static final ParseField CACHE_HIT = new ParseField("cache_hit");
 
     public static final ConstructingObjectParser<PyTorchInferenceResult, Void> PARSER = new ConstructingObjectParser<>(
         "pytorch_inference_result",
-        a -> new PyTorchInferenceResult((String) a[0], (double[][][]) a[1], (Long) a[2])
+        a -> new PyTorchInferenceResult((String) a[0], (double[][][]) a[1], (Long) a[2], (Boolean) a[3])
     );
 
     static {
@@ -44,6 +45,7 @@ public class PyTorchInferenceResult implements ToXContentObject {
             ObjectParser.ValueType.VALUE_ARRAY
         );
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TIME_MS);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CACHE_HIT);
     }
 
     public static PyTorchInferenceResult fromXContent(XContentParser parser) throws IOException {
@@ -53,11 +55,13 @@ public class PyTorchInferenceResult implements ToXContentObject {
     private final String requestId;
     private final double[][][] inference;
     private final Long timeMs;
+    private final boolean cacheHit;
 
-    public PyTorchInferenceResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs) {
+    public PyTorchInferenceResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs, @Nullable Boolean cacheHit) {
         this.requestId = Objects.requireNonNull(requestId);
         this.inference = inference;
         this.timeMs = timeMs;
+        this.cacheHit = cacheHit != null && cacheHit;
     }
 
     public String getRequestId() {
@@ -70,6 +74,10 @@ public class PyTorchInferenceResult implements ToXContentObject {
 
     public Long getTimeMs() {
         return timeMs;
+    }
+
+    public boolean isCacheHit() {
+        return cacheHit;
     }
 
     @Override
@@ -90,13 +98,14 @@ public class PyTorchInferenceResult implements ToXContentObject {
         if (timeMs != null) {
             builder.field(TIME_MS.getPreferredName(), timeMs);
         }
+        builder.field(CACHE_HIT.getPreferredName(), cacheHit);
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestId, timeMs, Arrays.deepHashCode(inference));
+        return Objects.hash(requestId, timeMs, Arrays.deepHashCode(inference), cacheHit);
     }
 
     @Override
@@ -107,6 +116,7 @@ public class PyTorchInferenceResult implements ToXContentObject {
         PyTorchInferenceResult that = (PyTorchInferenceResult) other;
         return Objects.equals(requestId, that.requestId)
             && Arrays.deepEquals(inference, that.inference)
-            && Objects.equals(timeMs, that.timeMs);
+            && Objects.equals(timeMs, that.timeMs)
+            && cacheHit == that.cacheHit;
     }
 }

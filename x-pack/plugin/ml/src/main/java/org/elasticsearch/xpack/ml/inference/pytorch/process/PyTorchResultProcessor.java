@@ -35,6 +35,7 @@ public class PyTorchResultProcessor {
     public record ResultStats(
         LongSummaryStatistics timingStats,
         int errorCount,
+        long cacheHitCount,
         int numberOfPendingResults,
         Instant lastUsed,
         long peakThroughput,
@@ -50,6 +51,7 @@ public class PyTorchResultProcessor {
     private volatile boolean isStopping;
     private final LongSummaryStatistics timingStats;
     private int errorCount;
+    private long cacheHitCount;
     private long peakThroughput;
 
     private LongSummaryStatistics lastPeriodSummaryStats;
@@ -207,6 +209,7 @@ public class PyTorchResultProcessor {
         return new ResultStats(
             new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum()),
             errorCount,
+            cacheHitCount,
             pendingResults.size(),
             lastResultTimeMs > 0 ? Instant.ofEpochMilli(lastResultTimeMs) : null,
             this.peakThroughput,
@@ -216,6 +219,9 @@ public class PyTorchResultProcessor {
 
     private synchronized void processResult(PyTorchInferenceResult result) {
         timingStats.accept(result.getTimeMs());
+        if (result.isCacheHit()) {
+            cacheHitCount++;
+        }
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
         if (lastResultTimeMs > currentPeriodEndTimeMs) {

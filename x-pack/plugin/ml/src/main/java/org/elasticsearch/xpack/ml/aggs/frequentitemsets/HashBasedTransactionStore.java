@@ -189,6 +189,8 @@ public final class HashBasedTransactionStore extends TransactionStore {
                     itemCounts.increment(id, 1);
                     ++totalItemCount;
                     scratchTransactionBytesStreamOutput.writeVLong(id);
+                    // unreachable: BytesRefStreamOutput does not throw an IOException,
+                    // the catch is required because StreamOutput defines it
                 } catch (IOException e) {
                     throw new AggregationExecutionException("Failed to add items", e);
                 }

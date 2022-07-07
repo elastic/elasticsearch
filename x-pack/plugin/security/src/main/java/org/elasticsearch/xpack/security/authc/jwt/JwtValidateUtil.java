@@ -275,13 +275,14 @@ public class JwtValidateUtil {
                 );
                 return;
             } else {
+                // TODO change to debug
                 LOGGER.info(
-                    "JWT signature validation failed with JWK kty=[{}], alg=[{}], kid=[{}], use=[{}], ops=[{}]",
+                    "JWT signature validation failed with JWK kty=[{}], alg=[{}], kid=[{}], use=[{}], ops={}",
                     jwk.getKeyType(),
                     jwk.getAlgorithm(),
                     jwk.getKeyID(),
                     jwk.getKeyUse(),
-                    jwk.getKeyOperations()
+                    jwk.getKeyOperations() == null ? "[null]" : jwk.getKeyOperations()
                 );
             }
         }

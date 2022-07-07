@@ -133,6 +133,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final UserRoleMapper userRoleMapper
     ) throws SettingsException {
         super(realmConfig);
+        LOGGER.debug("Creating JwtRealm");
         this.jwtRealmsService = jwtRealmsService; // common configuration settings shared by all JwtRealm instances
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);

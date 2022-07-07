@@ -14,7 +14,6 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyOperation;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
@@ -50,28 +49,23 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -241,16 +235,6 @@ public abstract class JwtTestCase extends ESTestCase {
             .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), realmOrder)
             .build();
         return new RealmConfig(realmIdentifier, settings, this.env, this.threadContext);
-    }
-
-    protected Answer<Class<Void>> getAnswer(AtomicReference<UserRoleMapper.UserData> userData) {
-        return invocation -> {
-            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
-            @SuppressWarnings("unchecked")
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
-            return null;
-        };
     }
 
     protected UserRoleMapper buildRoleMapper(final Map<String, User> registeredUsers) {
@@ -617,21 +601,5 @@ public abstract class JwtTestCase extends ESTestCase {
             throw new IllegalArgumentException("resource not found: " + relativePath, e);
         }
         return null;
-    }
-
-    protected void printJwt(final String signedJwtContents, final boolean includeClaimsWithNullValues) throws ParseException {
-        this.printJwt(signedJwtContents == null ? null : SignedJWT.parse(signedJwtContents), includeClaimsWithNullValues);
-    }
-
-    protected void printJwt(final SignedJWT signedJwt, final boolean includeClaimsWithNullValues) throws ParseException {
-        LOGGER.info("JWT: {}\n{}", signedJwt.getHeader(), signedJwt.getJWTClaimsSet().toJSONObject(includeClaimsWithNullValues));
-    }
-
-    protected void printJwkSet(final String jwkSetContents, final boolean publicKeysOnly) throws ParseException {
-        this.printJwkSet(jwkSetContents == null ? null : JWKSet.parse(jwkSetContents), publicKeysOnly);
-    }
-
-    protected void printJwkSet(final JWKSet jwkSet, boolean publicKeysOnly) throws ParseException {
-        LOGGER.info("JWKSet: {}", jwkSet.toJSONObject(publicKeysOnly));
     }
 }

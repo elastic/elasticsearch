@@ -209,17 +209,14 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return jwtIssuer;
     }
 
-    protected void updateJwks(final JwtIssuerAndRealm jwtIssuerAndRealm, final List<String> algorithms) throws Exception {
-        LOGGER.info("Updating JwtIssuer JWKs [{}]", String.join(",", algorithms));
-        jwtIssuerAndRealm.issuer.generateJwks(algorithms);
-
+    protected void copyIssuerJwksToRealmConfig(final JwtIssuerAndRealm jwtIssuerAndRealm) throws Exception {
         if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.httpClient == null)) {
             LOGGER.info("Updating JwtRealm PKC public JWKSet local file");
             final Path path = PathUtils.get(jwtIssuerAndRealm.realm.jwkSetPath);
             Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublicOnly);
         }
 
-        // TODO Update JwtRealm from Elasticsearch Keystore requires the x-pack Security plug-in to add support for reloadable settings
+        // TODO If x-pack Security plug-in add supports for reloadable settings, update HMAC JWKSet and HMAC OIDC JWK in ES Keystore
     }
 
     protected JwtRealmsServiceSettingsBuilder createJwtRealmsSettingsBuilder() throws Exception {
@@ -673,20 +670,14 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + "]."
         );
         for (final JWK jwk : jwtRealm.contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().jwks()) {
-            LOGGER.info("REALM HMAC JWK: {}", jwk);
+            LOGGER.info("REALM HMAC: jwk=[{}]", jwk);
         }
         for (final JWK jwk : jwtRealm.contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().jwks()) {
-            LOGGER.info("REALM PKC JWK: {}", jwk);
+            LOGGER.info("REALM PKC: jwk=[{}]", jwk);
         }
     }
 
     protected void printJwtIssuer(final JwtIssuer jwtIssuer) {
-        // LOGGER.info("Issuer: {}", jwtIssuer.issuerClaimValue);
-        // LOGGER.info("Audiences: {}", jwtIssuer.audiencesClaimValue);
-        // LOGGER.info("Principal: {}", jwtIssuer.principalClaimName);
-        // LOGGER.info("Algorithms: {}", String.join(",", jwtIssuer.algorithms));
-        // super.printJwkSet(jwtIssuer.encodedJwkSetPkcPublicPrivate, false);
-        // super.printJwkSet(jwtIssuer.encodedJwkSetHmac, false);
         LOGGER.info(
             "ISSUER: iss=["
                 + jwtIssuer.issuerClaimValue
@@ -700,14 +691,14 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + (jwtIssuer.httpsServer != null)
                 + "]."
         );
-        for (final JwtIssuer.AlgJwkPair pair : jwtIssuer.algAndJwksHmac) {
-            LOGGER.info("ISSUER HMAC JWKSet: {}", pair.jwk());
+        if (jwtIssuer.algAndJwkHmacOidc != null) {
+            LOGGER.info("ISSUER HMAC OIDC: alg=[{}] jwk=[{}]", jwtIssuer.algAndJwkHmacOidc.alg(), jwtIssuer.encodedKeyHmacOidc);
         }
-        if (jwtIssuer.encodedKeyHmacOidc != null) {
-            LOGGER.info("ISSUER HMAC OIDC JWK: {}", jwtIssuer.encodedKeyHmacOidc);
+        for (final JwtIssuer.AlgJwkPair pair : jwtIssuer.algAndJwksHmac) {
+            LOGGER.info("ISSUER HMAC: alg=[{}] jwk=[{}]", pair.alg(), pair.jwk());
         }
         for (final JwtIssuer.AlgJwkPair pair : jwtIssuer.algAndJwksPkc) {
-            LOGGER.info("ISSUER PKC JWKSet: {}", pair.jwk());
+            LOGGER.info("ISSUER PKC: alg=[{}] jwk=[{}]", pair.alg(), pair.jwk());
         }
     }
 }

@@ -69,6 +69,7 @@ public class JwtIssuer implements Closeable {
     }
 
     void generateJwks(final List<String> algorithms) throws JOSEException {
+        LOGGER.info("Generating JWKs, algorithms=[{}]", String.join(",", algorithms));
         final List<AlgJwkPair> algAndJwks = JwtTestCase.randomJwks(algorithms);
 
         // randomly condition none, some, or all HMAC JWKs for OIDC UTF8 encoding safety
@@ -87,6 +88,7 @@ public class JwtIssuer implements Closeable {
     // The flag areHmacJwksOidcSafe indicates if all provided HMAC JWKs are UTF8, for HMAC OIDC JWK encoding compatibility.
     void setJwks(final List<AlgJwkPair> algAndJwks, final boolean areHmacJwksOidcSafe) throws JOSEException {
         this.algorithms = algAndJwks.stream().map(e -> e.alg).toList();
+        LOGGER.info("Setting JWKs: algorithms=[{}], areHmacJwksOidcSafe=[{}]", String.join(",", this.algorithms), areHmacJwksOidcSafe);
         this.algAndJwksAll = algAndJwks;
         this.algAndJwksPkc = this.algAndJwksAll.stream()
             .filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(e.alg))

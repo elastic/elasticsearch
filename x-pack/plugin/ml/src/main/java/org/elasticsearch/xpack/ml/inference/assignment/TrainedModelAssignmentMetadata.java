@@ -129,7 +129,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+        return Version.V_8_0_0;
     }
 
     @Override
@@ -274,7 +274,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return Version.V_8_3_0;
+            return Version.V_8_0_0;
         }
 
         @Override

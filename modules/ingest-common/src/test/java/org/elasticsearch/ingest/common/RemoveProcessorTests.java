@@ -28,8 +28,10 @@ public class RemoveProcessorTests extends ESTestCase {
 
     public void testRemoveFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String field = randomValueOtherThanMany(name -> name.startsWith("_"),
-            () -> RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument));
+        String field = randomValueOtherThanMany(
+            name -> name.startsWith("_"),
+            () -> RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument)
+        );
         Processor processor = new RemoveProcessor(
             randomAlphaOfLength(10),
             null,

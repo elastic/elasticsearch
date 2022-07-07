@@ -11,8 +11,10 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.sort.SortOrder;
@@ -86,7 +88,9 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
             .cluster()
             .getSnapshots(
                 getSnapshotsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request).map(
+                    r -> StatusToXContentObject.withStatus(RestStatus.OK, r)
+                )
             );
     }
 }

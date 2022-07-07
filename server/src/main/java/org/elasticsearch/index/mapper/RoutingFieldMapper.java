@@ -16,7 +16,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
@@ -56,8 +55,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(required);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { required };
         }
 
         @Override

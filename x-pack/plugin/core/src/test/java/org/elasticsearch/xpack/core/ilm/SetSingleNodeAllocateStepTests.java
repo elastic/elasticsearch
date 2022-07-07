@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -132,12 +131,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionAttrsAllNodesValid() throws Exception {
-        int numAttrs = randomIntBetween(1, 10);
         final int numNodes = randomIntBetween(1, 20);
-        String[][] validAttrs = new String[numAttrs][2];
-        for (int i = 0; i < numAttrs; i++) {
-            validAttrs[i] = new String[] { randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
-        }
+        String[][] validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10));
         Settings.Builder indexSettings = settings(Version.CURRENT);
         for (String[] attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
@@ -265,12 +260,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         }
         DiscoveryNodes discoveryNodes = nodes.build();
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
         IndexRoutingTable indexRoutingTable = createRoutingTable(indexMetadata, index, discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(discoveryNodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
@@ -316,10 +310,6 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             validNodeIds.add(nodeId);
 
         }
-        DiscoveryNodes discoveryNodes = nodes.build();
-
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
 
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int primary = 0; primary < indexMetadata.getNumberOfShards(); primary++) {
@@ -329,9 +319,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 TestShardRouting.newShardRouting(new ShardId(index, primary), currentNode, true, ShardRoutingState.STARTED)
             );
         }
+
+        DiscoveryNodes discoveryNodes = nodes.build();
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(discoveryNodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
@@ -390,12 +383,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         }
         DiscoveryNodes discoveryNodes = nodes.build();
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
         IndexRoutingTable indexRoutingTable = createRoutingTable(indexMetadata, index, discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(discoveryNodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
@@ -444,14 +436,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         DiscoveryNodes discoveryNodes = nodes.build();
 
         Settings clusterSettings = Settings.builder().put("cluster.routing.allocation.exclude._id", "node_id_0").build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
-
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()).transientSettings(clusterSettings))
+            .metadata(Metadata.builder().indices(indices).transientSettings(clusterSettings))
             .nodes(discoveryNodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
@@ -497,22 +487,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionAttrsRequestFails() {
         final int numNodes = randomIntBetween(1, 20);
-        int numAttrs = randomIntBetween(1, 10);
-        Map<String, String> validAttributes = new HashMap<>();
-        for (int i = 0; i < numAttrs; i++) {
-            validAttributes.put(
-                randomValueOtherThanMany(
-                    attr -> validAttributes.containsKey(attr) || DiscoveryNodeRole.roleNames().contains(attr),
-                    () -> randomAlphaOfLengthBetween(1, 20)
-                ),
-                randomAlphaOfLengthBetween(1, 20)
-            );
-        }
+        String[][] validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10));
         Settings.Builder indexSettings = settings(Version.CURRENT);
-        validAttributes.forEach((k, v) -> {
-            indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-
-        });
+        for (String[] attr : validAttrs) {
+            indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
+        }
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
             .numberOfShards(randomIntBetween(1, 5))
@@ -526,25 +505,22 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
             int nodePort = 9300 + i;
-            Map.Entry<String, String> nodeAttr = randomFrom(validAttributes.entrySet());
+            String[] nodeAttr = randomFrom(validAttrs);
             Settings nodeSettings = Settings.builder()
                 .put(validNodeSettings)
                 .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
-                .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr.getKey(), nodeAttr.getValue())
+                .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr[0], nodeAttr[1])
                 .build();
             nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
             validNodeIds.add(nodeId);
         }
-
         DiscoveryNodes discoveryNodes = nodes.build();
-
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(discoveryNodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
@@ -587,12 +563,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionAttrsNoShard() {
-        int numAttrs = randomIntBetween(1, 10);
         final int numNodes = randomIntBetween(1, 20);
-        String[][] validAttrs = new String[numAttrs][2];
-        for (int i = 0; i < numAttrs; i++) {
-            validAttrs[i] = new String[] { "na_" + randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
-        }
+        String[][] validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10), "na_");
         Settings.Builder indexSettings = settings(Version.CURRENT);
         for (String[] attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
@@ -618,11 +590,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
         }
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(nodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
@@ -862,6 +833,21 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertEquals("node2", nodeSelected.get());
     }
 
+    private String[][] generateRandomValidAttributes(int numAttrs) {
+        return generateRandomValidAttributes(numAttrs, "");
+    }
+
+    private String[][] generateRandomValidAttributes(int numAttrs, String prefix) {
+        Set<String> reservedNames = new HashSet<>(DiscoveryNodeRole.roleNames());
+        String[][] validAttrs = new String[numAttrs][2];
+        for (int i = 0; i < numAttrs; i++) {
+            validAttrs[i] = new String[] {
+                prefix + randomValueOtherThanMany(attr -> reservedNames.contains(prefix + attr), () -> randomAlphaOfLengthBetween(1, 20)),
+                randomAlphaOfLengthBetween(1, 20) };
+        }
+        return validAttrs;
+    }
+
     private void assertNodeSelected(IndexMetadata indexMetadata, Index index, Set<String> validNodeIds, DiscoveryNodes.Builder nodes)
         throws Exception {
         DiscoveryNodes discoveryNodes = nodes.build();
@@ -876,10 +862,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         DiscoveryNodes nodes,
         IndexRoutingTable indexRoutingTable
     ) throws Exception {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(nodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();
@@ -1007,7 +992,6 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 null,
                 null,
                 null,
-                null,
                 null
             );
             nodeStatsList.add(nodeStats);
@@ -1025,10 +1009,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     private void assertNoValidNode(IndexMetadata indexMetadata, Index index, DiscoveryNodes nodes, IndexRoutingTable indexRoutingTable) {
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(nodes)
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
             .build();

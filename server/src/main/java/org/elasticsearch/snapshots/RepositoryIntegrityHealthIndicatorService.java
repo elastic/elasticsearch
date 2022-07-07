@@ -17,6 +17,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
@@ -43,6 +44,15 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String NAME = "repository_integrity";
 
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
+    public static final UserAction.Definition CORRUPTED_REPOSITORY = new UserAction.Definition(
+        "corrupt-repo-integrity",
+        "Multiple clusters are writing to the same repository. Remove the repository "
+            + "from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository to this cluster.",
+        HELP_URL
+    );
+
+    public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
+    public static final String NO_CORRUPT_REPOS = "No corrupted snapshot repositories.";
 
     private final ClusterService clusterService;
 
@@ -72,7 +82,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         if (snapshotMetadata.repositories().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No repositories configured.",
+                NO_REPOS_CONFIGURED,
                 HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -91,7 +101,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         if (corrupted.isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No corrupted repositories.",
+                "No corrupted snapshot repositories.",
                 explain ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -125,12 +135,12 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            Collections.emptyList()
+            List.of(new UserAction(CORRUPTED_REPOSITORY, corrupted))
         );
     }
 
     private static String createCorruptedRepositorySummary(List<String> corrupted) {
-        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted repositories: ");
+        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted snapshot repositories: ");
         collectionToDelimitedStringWithLimit(corrupted, ",", "[", "].", 1024, message);
         return message.toString();
     }

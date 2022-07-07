@@ -122,7 +122,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
             ),
@@ -145,7 +144,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: true",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake"
             ),
@@ -169,7 +167,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "fake_plugin2",
@@ -181,7 +178,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
-                "Type: isolated",
                 "Extended Plugins: []",
                 " * Classname: org.fake2"
             ),

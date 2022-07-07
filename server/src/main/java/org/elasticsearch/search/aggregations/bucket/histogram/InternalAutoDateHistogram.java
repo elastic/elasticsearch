@@ -166,10 +166,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         }
 
         void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(roundingInfos.length);
-            for (RoundingInfo roundingInfo : roundingInfos) {
-                roundingInfo.writeTo(out);
-            }
+            out.writeArray(roundingInfos);
             out.writeVInt(roundingIdx);
             emptySubAggregations.writeTo(out);
         }

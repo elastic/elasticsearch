@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -71,6 +70,8 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -157,7 +158,7 @@ public class JobManager {
      * @param jobsListener The jobs listener
      */
     public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, jobsListener);
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, null, jobsListener);
     }
 
     /**
@@ -434,16 +435,16 @@ public class JobManager {
                     } else {
                         logger.error("[{}] Updating autodetect failed for job update [{}]", jobUpdate.getJobId(), jobUpdate);
                     }
-                }, e -> {
-                    logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Updating autodetect failed with an exception, job update [{}] ",
+                },
+                    e -> logger.error(
+                        () -> format(
+                            "[%s] Updating autodetect failed with an exception, job update [%s] ",
                             jobUpdate.getJobId(),
                             jobUpdate
                         ),
                         e
-                    );
-                }));
+                    )
+                ));
             }
         } else {
             logger.debug("[{}] No process update required for job update: {}", jobUpdate::getJobId, jobUpdate::toString);
@@ -634,7 +635,7 @@ public class JobManager {
             updateJobProcessNotifier.submitJobUpdate(
                 UpdateParams.scheduledEventsUpdate(jobId),
                 ActionListener.wrap(
-                    isUpdated -> { auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)); },
+                    isUpdated -> auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)),
                     e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
                 )
             );

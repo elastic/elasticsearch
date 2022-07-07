@@ -388,12 +388,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         out.writeString(hostAddress);
         address.writeTo(out);
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeVInt(roles.size());
-        for (final DiscoveryNodeRole role : roles) {
-            out.writeString(role.roleName());
-            out.writeString(role.roleNameAbbreviation());
-            out.writeBoolean(role.canContainData());
-        }
+        out.writeCollection(roles, (o, role) -> {
+            o.writeString(role.roleName());
+            o.writeString(role.roleNameAbbreviation());
+            o.writeBoolean(role.canContainData());
+        });
         Version.writeVersion(version, out);
         if (out.getVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             out.writeString(externalId);

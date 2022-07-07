@@ -47,9 +47,13 @@ restResources {
   }
 }
 
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling repository-old-versions tests because we can't get the pid file on windows")
-  tasks.named("testingConventions").configure { enabled = false }
 } else {
   /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
    * zip files here. Using artifact transforms allow a better caching of the downloaded distros as the

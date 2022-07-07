@@ -156,8 +156,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 index,
                 store,
                 docValues,
@@ -169,8 +169,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 indexOptions,
                 norms,
                 termVectors,
-                meta
-            );
+                meta };
         }
 
         @Override

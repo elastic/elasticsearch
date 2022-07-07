@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -611,9 +610,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
         if (type.equals(repository.getMetadata().type()) == false) {
             logger.warn(
-                new ParameterizedMessage(
-                    "internal repository [{}][{}] already registered. this prevented the registration of "
-                        + "internal repository [{}][{}].",
+                () -> format(
+                    "internal repository [%s][%s] already registered. this prevented the registration of "
+                        + "internal repository [%s][%s].",
                     name,
                     repository.getMetadata().type(),
                     name,
@@ -622,9 +621,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             );
         } else if (repositories.containsKey(name)) {
             logger.warn(
-                new ParameterizedMessage(
-                    "non-internal repository [{}] already registered. this repository will block the "
-                        + "usage of internal repository [{}][{}].",
+                () -> format(
+                    "non-internal repository [%s] already registered. this repository will block the "
+                        + "usage of internal repository [%s][%s].",
                     name,
                     metadata.type(),
                     name
@@ -679,10 +678,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return repository;
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(repository);
-            logger.warn(
-                new ParameterizedMessage("failed to create repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name()),
-                e
-            );
+            logger.warn(() -> format("failed to create repository [%s][%s]", repositoryMetadata.type(), repositoryMetadata.name()), e);
             throw new RepositoryException(repositoryMetadata.name(), "failed to create repository", e);
         }
     }

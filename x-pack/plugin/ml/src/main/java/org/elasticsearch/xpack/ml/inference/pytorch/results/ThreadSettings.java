@@ -16,8 +16,8 @@ import java.io.IOException;
 
 public record ThreadSettings(int numThreadsPerAllocation, int numAllocations, String requestId) implements ToXContentObject {
 
-    private static final ParseField NUM_ALLOCATIONS = new ParseField("num_threads_per_allocation");
-    private static final ParseField NUM_THREADS_PER_ALLOCATION = new ParseField("num_allocations");
+    private static final ParseField NUM_ALLOCATIONS = new ParseField("num_allocations");
+    private static final ParseField NUM_THREADS_PER_ALLOCATION = new ParseField("num_threads_per_allocation");
 
     public static ConstructingObjectParser<ThreadSettings, Void> PARSER = new ConstructingObjectParser<>(
         "thread_settings",

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -1174,8 +1173,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithIncludeRouting = new IndexTemplateMetadata(
@@ -1184,8 +1183,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithExcludeRouting = new IndexTemplateMetadata(
@@ -1194,8 +1193,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithRequireAndIncludeRoutings = new IndexTemplateMetadata(
@@ -1208,8 +1207,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .put(includeRoutingSetting, "rack1")
                 .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
                 .build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         IndexTemplateMetadata templateWithoutCustomRoutings = new IndexTemplateMetadata(
@@ -1221,8 +1220,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
                 .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                 .build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1492,8 +1491,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             randomInt(),
             List.of("test-*"),
             Settings.builder().put(requireRoutingSetting, "hot").build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            Map.of(),
+            Map.of()
         );
 
         ComponentTemplate compTemplateWithoutCustomRoutings = new ComponentTemplate(

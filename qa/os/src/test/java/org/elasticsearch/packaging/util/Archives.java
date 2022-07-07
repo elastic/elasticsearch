@@ -51,10 +51,6 @@ public class Archives {
     // in the future we'll run as a role user on Windows
     public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
 
-    /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
-     *  errors to the console if they occur before the logging framework is initialized. */
-    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "25";
-
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
         return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion(), false);
     }
@@ -276,7 +272,6 @@ public class Archives {
             keystoreScript,
             checkStartupScript
         );
-        sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
         return sh.runIgnoreExitCode(expectScript);
     }
 
@@ -300,9 +295,6 @@ public class Archives {
             if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {
                 sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
             }
-
-            // We need to give Elasticsearch enough time to print failures to stderr before exiting
-            sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
 
             List<String> command = new ArrayList<>();
             command.add("sudo -E -u ");

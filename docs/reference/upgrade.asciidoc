@@ -19,12 +19,15 @@ from 7.x].
 [[upgrade-index-compatibility]]
 === Index compatibility
 
-{es} can read indices created in the previous major version. If you
-have indices created in 6.x or earlier, you must reindex or delete them
-before upgrading to {version}. {es} nodes will fail to start if
-incompatible indices are present. Snapshots of 6.x or earlier indices cannot be
-restored to a 8.x cluster even if they were created by a 7.x cluster. 
-The **Upgrade Assistant** in {prev-major-last} identifies any indices 
+{es} has full query and write support for indices created in the previous major
+version. If you have indices created in 6.x or earlier, you might use the
+<<archive-indices,archive functionality>> to import them into newer {es}
+versions, or you must reindex or delete them before upgrading to {version}.
+{es} nodes will fail to start if incompatible indices are present.
+Snapshots of 6.x or earlier indices can only restored using the
+<<archive-indices,archive functionality>> to a 8.x cluster even if they
+were created by a 7.x cluster.
+The **Upgrade Assistant** in {prev-major-last} identifies any indices
 that need to be reindexed or removed.
 
 [discrete]
@@ -42,3 +45,5 @@ the REST API.
 include::{xes-repo-dir}/security/fips-java17.asciidoc[]
 
 include::upgrade/archived-settings.asciidoc[]
+
+include::upgrade/archive-indices.asciidoc[]

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
@@ -42,6 +43,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Test runner for testing continuous transforms, testing
@@ -82,6 +85,7 @@ import static org.hamcrest.Matchers.greaterThan;
  *      - repeat
  */
 @SuppressWarnings("removal")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88063")
 public class TransformContinuousIT extends TransformRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
@@ -99,7 +103,8 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 "xpack.transform.num_transform_failure_retries": "0",
                 "logger.org.elasticsearch.action.bulk": "info",
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
-                "logger.org.elasticsearch.xpack.transform": "debug"
+                "logger.org.elasticsearch.xpack.transform": "debug",
+                "logger.org.elasticsearch.xpack.transform.transforms.scheduling": "trace"
               }
             }""");
         client().performRequest(addFailureRetrySetting);
@@ -135,7 +140,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
-    public void testContinousEvents() throws Exception {
+    public void testContinuousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));
         String dateType = randomBoolean() ? "date_nanos" : "date";
@@ -257,7 +262,6 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
-
             waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
             stopTransforms();
 
@@ -481,16 +485,20 @@ public class TransformContinuousIT extends TransformRestTestCase {
         for (ContinuousTestCase testCase : transformTestCases) {
             assertBusy(() -> {
                 var stats = getTransformStats(testCase.getName());
-                long lastSearchTime = (long) XContentMapValues.extractValue("checkpointing.last_search_time", stats);
+                Object lastSearchTimeObj = XContentMapValues.extractValue("checkpointing.last_search_time", stats);
+                assertThat(lastSearchTimeObj, is(notNullValue()));
+                long lastSearchTime = (long) lastSearchTimeObj;
                 assertThat(
                     "transform ["
                         + testCase.getName()
-                        + "] does not progress, state: "
+                        + "] does not progress, iteration: "
+                        + iteration
+                        + ", state: "
                         + stats.get("state")
                         + ", reason: "
                         + stats.get("reason"),
                     Instant.ofEpochMilli(lastSearchTime),
-                    greaterThan(waitUntil)
+                    is(greaterThan(waitUntil))
                 );
             }, 30, TimeUnit.SECONDS);
         }

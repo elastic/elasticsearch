@@ -300,7 +300,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 6 -> {
                 Map<String, IndexId> indices = new HashMap<>(entry.indices());
-                ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
+                Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
                 IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
                 indices.put(indexId.getName(), indexId);
                 ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder(shards);
@@ -524,7 +524,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         }
     }
 
-    public static State randomState(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
+    public static State randomState(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
         return SnapshotsInProgress.completed(shards.values())
             ? randomFrom(State.SUCCESS, State.FAILED)
             : randomFrom(State.STARTED, State.INIT, State.ABORTED);

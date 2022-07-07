@@ -307,8 +307,6 @@ public class PluginDescriptorTests extends ESTestCase {
             null,
             Collections.singletonList("foo"),
             randomBoolean(),
-            PluginType.ISOLATED,
-            "-Dfoo=bar",
             randomBoolean()
         );
         BytesStreamOutput output = new BytesStreamOutput();
@@ -330,8 +328,6 @@ public class PluginDescriptorTests extends ESTestCase {
             "some.module",
             Collections.singletonList("foo"),
             randomBoolean(),
-            PluginType.ISOLATED,
-            "-Dfoo=bar",
             randomBoolean()
         );
         BytesStreamOutput output = new BytesStreamOutput();
@@ -342,92 +338,32 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(info2.toString(), equalTo(info.toString()));
     }
 
+    PluginDescriptor newMockDescriptor(String name) {
+        return new PluginDescriptor(
+            name,
+            "foo",
+            "dummy",
+            Version.CURRENT,
+            "1.8",
+            "dummyclass",
+            null,
+            List.of(),
+            randomBoolean(),
+            randomBoolean()
+        );
+    }
+
     public void testPluginListSorted() {
-        List<PluginDescriptor> plugins = new ArrayList<>();
-        plugins.add(
-            new PluginDescriptor(
-                "c",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.ISOLATED,
-                "-Da",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "b",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.BOOTSTRAP,
-                "-Db",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "e",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.ISOLATED,
-                "-Dc",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "a",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.BOOTSTRAP,
-                "-Dd",
-                randomBoolean()
-            )
-        );
-        plugins.add(
-            new PluginDescriptor(
-                "d",
-                "foo",
-                "dummy",
-                Version.CURRENT,
-                "1.8",
-                "dummyclass",
-                null,
-                Collections.emptyList(),
-                randomBoolean(),
-                PluginType.ISOLATED,
-                "-De",
-                randomBoolean()
-            )
-        );
+        List<PluginRuntimeInfo> plugins = new ArrayList<>();
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("c")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("b")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("e")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("a")));
+        plugins.add(new PluginRuntimeInfo(newMockDescriptor("d")));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
-        final List<PluginDescriptor> infos = pluginsInfo.getPluginInfos();
-        List<String> names = infos.stream().map(PluginDescriptor::getName).toList();
+        final List<PluginRuntimeInfo> infos = pluginsInfo.getPluginInfos();
+        List<String> names = infos.stream().map(p -> p.descriptor().getName()).toList();
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }
 
@@ -456,127 +392,6 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown properties for plugin [my_plugin] in plugin descriptor"));
     }
 
-    public void testMissingType() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "classname",
-            "Foo",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version")
-        );
-
-        final PluginDescriptor pluginDescriptor = PluginDescriptor.readFromProperties(pluginDir);
-        assertThat(pluginDescriptor.getType(), equalTo(PluginType.ISOLATED));
-    }
-
-    public void testInvalidType() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "classname",
-            "Foo",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "type",
-            "invalid"
-        );
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("[type] must be unspecified or one of [isolated, bootstrap] but found [invalid]"));
-    }
-
-    public void testJavaOptsAreAcceptedWithBootstrapPlugin() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "type",
-            "bootstrap",
-            "java.opts",
-            "-Dfoo=bar"
-        );
-
-        final PluginDescriptor pluginDescriptor = PluginDescriptor.readFromProperties(pluginDir);
-        assertThat(pluginDescriptor.getType(), equalTo(PluginType.BOOTSTRAP));
-        assertThat(pluginDescriptor.getJavaOpts(), equalTo("-Dfoo=bar"));
-    }
-
-    public void testJavaOptsAreRejectedWithNonBootstrapPlugin() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "classname",
-            "Foo",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "type",
-            "isolated",
-            "java.opts",
-            "-Dfoo=bar"
-        );
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("[java.opts] can only have a value when [type] is set to [bootstrap]"));
-    }
-
-    public void testClassnameIsRejectedWithBootstrapPlugin() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "classname",
-            "Foo",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "type",
-            "bootstrap"
-        );
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("[classname] can only have a value when [type] is set to [bootstrap]"));
-    }
-
     /**
      * This is important because {@link PluginsUtils#getPluginBundles(Path)} will
      * use the hashcode to catch duplicate names
@@ -592,8 +407,6 @@ public class PluginDescriptorTests extends ESTestCase {
             null,
             Collections.singletonList("foo"),
             randomBoolean(),
-            PluginType.ISOLATED,
-            "-Dfoo=bar",
             randomBoolean()
         );
         // everything but name is different from descriptor1
@@ -609,8 +422,6 @@ public class PluginDescriptorTests extends ESTestCase {
                 randomValueOtherThanMany(v -> descriptor1.getExtendedPlugins().contains(v), () -> randomAlphaOfLengthBetween(4, 12))
             ),
             descriptor1.hasNativeController() == false,
-            randomValueOtherThan(descriptor1.getType(), () -> randomFrom(PluginType.values())),
-            randomValueOtherThan(descriptor1.getJavaOpts(), () -> randomAlphaOfLengthBetween(4, 12)),
             descriptor1.isLicensed() == false
         );
         // only name is different from descriptor1
@@ -624,8 +435,6 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.getModuleName().orElse(null),
             descriptor1.getExtendedPlugins(),
             descriptor1.hasNativeController(),
-            descriptor1.getType(),
-            descriptor1.getJavaOpts(),
             descriptor1.isLicensed()
         );
 

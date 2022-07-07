@@ -24,7 +24,7 @@ subprojects {
     apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
     dependencies {
-      yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")
+      yamlRestTestImplementation project(":x-pack:qa:runtime-fields")
     }
 
     restResources {
@@ -106,6 +106,7 @@ subprojects {
           'field_caps/40_time_series/*',
           // Synthetic source needs doc values that runtime fields tests disable
           'search/400_synthetic_source/*',
+          'search.highlight/50_synthetic_source/*',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

@@ -96,6 +96,8 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                     String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
                 )
             );
+            task.setMigrationIndexTemplate(projectDirectory.file(RESOURCES + "templates/migration-index.asciidoc"));
+            task.setMigrationIndexFile(projectDirectory.file("docs/reference/migration/index.asciidoc"));
 
             task.dependsOn(validateChangelogsTask);
         });

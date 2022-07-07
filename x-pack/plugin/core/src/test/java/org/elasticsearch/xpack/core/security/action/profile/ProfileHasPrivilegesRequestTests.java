@@ -61,7 +61,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
     public void testValidateNullPrivileges() {
         ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(
             randomList(1, 3, () -> randomAlphaOfLengthBetween(0, 5)),
-            new PrivilegesToCheck(null, null, null)
+            new PrivilegesToCheck(null, null, null, randomBoolean())
         );
         ActionRequestValidationException exception = request.validate();
         assertThat(exception, notNullValue());
@@ -83,7 +83,8 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
             new PrivilegesToCheck(
                 new String[0],
                 new RoleDescriptor.IndicesPrivileges[0],
-                new RoleDescriptor.ApplicationResourcePrivileges[0]
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
             )
         );
         final ActionRequestValidationException exception = request.validate();
@@ -98,7 +99,12 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
                 new String[0],
                 new RoleDescriptor.IndicesPrivileges[0],
                 new RoleDescriptor.ApplicationResourcePrivileges[] {
-                    RoleDescriptor.ApplicationResourcePrivileges.builder().privileges("read").application("*").resources("item/1").build() }
+                    RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .privileges("read")
+                        .application("*")
+                        .resources("item/1")
+                        .build() },
+                randomBoolean()
             )
         );
         final ActionRequestValidationException exception = request.validate();
@@ -114,7 +120,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
             // try again
             return randomValidPrivilegesToCheckRequest();
         } else {
-            return new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
+            return new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges, randomBoolean());
         }
     }
 
@@ -153,56 +159,83 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
 
     private PrivilegesToCheck randomInvalidPrivilegesToCheckRequest() {
         return randomFrom(
-            new PrivilegesToCheck(null, randomIndicesPrivileges(true), randomApplicationResourcePrivileges(true)),
-            new PrivilegesToCheck(randomClusterPrivileges(true), null, randomApplicationResourcePrivileges(true)),
-            new PrivilegesToCheck(randomClusterPrivileges(true), randomIndicesPrivileges(true), null),
+            new PrivilegesToCheck(null, randomIndicesPrivileges(true), randomApplicationResourcePrivileges(true), randomBoolean()),
+            new PrivilegesToCheck(randomClusterPrivileges(true), null, randomApplicationResourcePrivileges(true), randomBoolean()),
+            new PrivilegesToCheck(randomClusterPrivileges(true), randomIndicesPrivileges(true), null, randomBoolean()),
             new PrivilegesToCheck(
                 new String[0],
                 new RoleDescriptor.IndicesPrivileges[0],
-                new RoleDescriptor.ApplicationResourcePrivileges[0]
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
             )
         );
     }
 
     private PrivilegesToCheck newMutatePrivileges(PrivilegesToCheck toMutate) {
-        final int choice = randomIntBetween(1, 3);
+        final int choice = randomIntBetween(1, 4);
         switch (choice) {
             case 1 -> {
                 if (toMutate.cluster() == null || toMutate.cluster().length == 0) {
-                    return new PrivilegesToCheck(randomClusterPrivileges(false), toMutate.index(), toMutate.application());
+                    return new PrivilegesToCheck(
+                        randomClusterPrivileges(false),
+                        toMutate.index(),
+                        toMutate.application(),
+                        toMutate.runDetailedCheck()
+                    );
                 } else {
                     return new PrivilegesToCheck(
                         randomSubsetOf(randomIntBetween(0, toMutate.cluster().length - 1), toMutate.cluster()).toArray(new String[0]),
                         toMutate.index(),
-                        toMutate.application()
+                        toMutate.application(),
+                        toMutate.runDetailedCheck()
                     );
                 }
             }
             case 2 -> {
                 if (toMutate.index() == null || toMutate.index().length == 0) {
-                    return new PrivilegesToCheck(toMutate.cluster(), randomIndicesPrivileges(false), toMutate.application());
+                    return new PrivilegesToCheck(
+                        toMutate.cluster(),
+                        randomIndicesPrivileges(false),
+                        toMutate.application(),
+                        toMutate.runDetailedCheck()
+                    );
                 } else {
                     return new PrivilegesToCheck(
                         toMutate.cluster(),
                         randomSubsetOf(randomIntBetween(0, toMutate.index().length - 1), toMutate.index()).toArray(
                             new RoleDescriptor.IndicesPrivileges[0]
                         ),
-                        toMutate.application()
+                        toMutate.application(),
+                        toMutate.runDetailedCheck()
                     );
                 }
             }
-            default -> {
+            case 3 -> {
                 if (toMutate.application() == null || toMutate.application().length == 0) {
-                    return new PrivilegesToCheck(toMutate.cluster(), toMutate.index(), randomApplicationResourcePrivileges(false));
+                    return new PrivilegesToCheck(
+                        toMutate.cluster(),
+                        toMutate.index(),
+                        randomApplicationResourcePrivileges(false),
+                        toMutate.runDetailedCheck()
+                    );
                 } else {
                     return new PrivilegesToCheck(
                         toMutate.cluster(),
                         toMutate.index(),
                         randomSubsetOf(randomIntBetween(0, toMutate.application().length - 1), toMutate.application()).toArray(
                             new RoleDescriptor.ApplicationResourcePrivileges[0]
-                        )
+                        ),
+                        toMutate.runDetailedCheck()
                     );
                 }
+            }
+            default -> {
+                return new PrivilegesToCheck(
+                    toMutate.cluster(),
+                    toMutate.index(),
+                    toMutate.application(),
+                    false == toMutate.runDetailedCheck()
+                );
             }
         }
     }

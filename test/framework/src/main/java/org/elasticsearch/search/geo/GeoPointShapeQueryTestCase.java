@@ -704,7 +704,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         ensureGreen();
 
         Line line = randomValueOtherThanMany(
-            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l),
+            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l) || ignoreLons(l.getLons()),
             () -> GeometryTestUtils.randomLine(false)
         );
         for (int i = 0; i < line.length(); i++) {
@@ -729,7 +729,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         ensureGreen();
 
         Polygon polygon = randomValueOtherThanMany(
-            p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p),
+            p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p) || ignoreLons(p.getPolygon().getLons()),
             () -> GeometryTestUtils.randomPolygon(false)
         );
         LinearRing linearRing = polygon.getPolygon();
@@ -748,5 +748,10 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         assertSearchResponse(searchResponse);
         SearchHits searchHits = searchResponse.getHits();
         assertThat(searchHits.getTotalHits().value, equalTo((long) linearRing.length()));
+    }
+
+    /** Only LegacyGeoShape has limited support, so other tests will ignore nothing */
+    protected boolean ignoreLons(double[] lons) {
+        return false;
     }
 }

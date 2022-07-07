@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -64,6 +63,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
 
 /**
@@ -316,7 +316,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     Files.delete(tempFile);
                 } catch (IOException ex) {
-                    logger.warn(() -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
+                    logger.warn(() -> format("failed to delete temp file %s", tempFile), ex);
                 }
             }
         }

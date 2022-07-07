@@ -14,8 +14,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.BooleanFieldScript;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -197,33 +197,33 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport() {
+            Boolean nullValue = usually() ? null : randomBoolean();
+
             @Override
-            public SyntheticSourceExample example() throws IOException {
-                switch (randomInt(3)) {
-                    case 0:
-                        boolean v = randomBoolean();
-                        return new SyntheticSourceExample(v, v, BooleanFieldMapperTests.this::minimalMapping);
-                    case 1:
-                        List<Boolean> in = randomList(1, 5, ESTestCase::randomBoolean);
-                        Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
-                        return new SyntheticSourceExample(in, out, BooleanFieldMapperTests.this::minimalMapping);
-                    case 2:
-                        v = randomBoolean();
-                        return new SyntheticSourceExample(null, v, b -> {
-                            minimalMapping(b);
-                            b.field("null_value", v);
-                        });
-                    case 3:
-                        boolean nullValue = randomBoolean();
-                        List<Boolean> vals = randomList(1, 5, ESTestCase::randomBoolean);
-                        in = vals.stream().map(b -> b == nullValue ? null : b).toList();
-                        out = vals.size() == 1 ? vals.get(0) : vals.stream().sorted().toList();
-                        return new SyntheticSourceExample(in, out, b -> {
-                            minimalMapping(b);
-                            b.field("null_value", nullValue);
-                        });
-                    default:
-                        throw new IllegalArgumentException();
+            public SyntheticSourceExample example(int maxVals) throws IOException {
+                if (randomBoolean()) {
+                    Tuple<Boolean, Boolean> v = generateValue();
+                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                }
+                List<Tuple<Boolean, Boolean>> values = randomList(1, maxVals, this::generateValue);
+                List<Boolean> in = values.stream().map(Tuple::v1).toList();
+                List<Boolean> outList = values.stream().map(Tuple::v2).sorted().toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            private Tuple<Boolean, Boolean> generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return Tuple.tuple(null, nullValue);
+                }
+                boolean b = randomBoolean();
+                return Tuple.tuple(b, b);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                minimalMapping(b);
+                if (nullValue != null) {
+                    b.field("null_value", nullValue);
                 }
             }
 

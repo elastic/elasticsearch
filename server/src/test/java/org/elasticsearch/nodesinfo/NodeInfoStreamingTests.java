@@ -26,7 +26,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.PluginType;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
@@ -156,8 +156,6 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
                         randomBoolean()
                     )
                 );
@@ -176,13 +174,11 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
                         randomBoolean()
                     )
                 );
             }
-            pluginsAndModules = new PluginsAndModules(plugins, modules);
+            pluginsAndModules = new PluginsAndModules(plugins.stream().map(PluginRuntimeInfo::new).toList(), modules);
         }
 
         IngestInfo ingestInfo = null;

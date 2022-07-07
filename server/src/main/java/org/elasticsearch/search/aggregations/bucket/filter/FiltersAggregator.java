@@ -124,7 +124,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public static FiltersAggregator build(
         String name,
         AggregatorFactories factories,
-        List<QueryToFilterAdapter<?>> filters,
+        List<QueryToFilterAdapter> filters,
         boolean keyed,
         String otherBucketKey,
         AggregationContext context,
@@ -149,7 +149,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     return delegate.apply(factories);
                 }
             };
-        for (QueryToFilterAdapter<?> f : filters) {
+        for (QueryToFilterAdapter f : filters) {
             filterByFilterBuilder.add(f);
         }
         FilterByFilterAggregator filterByFilter = filterByFilterBuilder.build();
@@ -159,14 +159,14 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return new FiltersAggregator.Compatible(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
     }
 
-    private final List<QueryToFilterAdapter<?>> filters;
+    private final List<QueryToFilterAdapter> filters;
     private final boolean keyed;
     protected final String otherBucketKey;
 
     FiltersAggregator(
         String name,
         AggregatorFactories factories,
-        List<QueryToFilterAdapter<?>> filters,
+        List<QueryToFilterAdapter> filters,
         boolean keyed,
         String otherBucketKey,
         AggregationContext context,
@@ -180,7 +180,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         this.otherBucketKey = otherBucketKey;
     }
 
-    List<QueryToFilterAdapter<?>> filters() {
+    List<QueryToFilterAdapter> filters() {
         return filters;
     }
 
@@ -208,7 +208,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
-        for (QueryToFilterAdapter<?> filter : filters) {
+        for (QueryToFilterAdapter filter : filters) {
             InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key().toString(), 0, subAggs, keyed);
             buckets.add(bucket);
         }
@@ -225,7 +225,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         List<Map<String, Object>> filtersDebug = new ArrayList<>(filters.size());
-        for (QueryToFilterAdapter<?> filter : filters) {
+        for (QueryToFilterAdapter filter : filters) {
             Map<String, Object> debug = new HashMap<>();
             filter.collectDebugInfo(debug::put);
             filtersDebug.add(debug);
@@ -245,7 +245,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Compatible(
             String name,
             AggregatorFactories factories,
-            List<QueryToFilterAdapter<?>> filters,
+            List<QueryToFilterAdapter> filters,
             boolean keyed,
             String otherBucketKey,
             AggregationContext context,

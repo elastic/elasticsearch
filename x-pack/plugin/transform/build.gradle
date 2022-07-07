@@ -26,4 +26,4 @@ restResources {
   }
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
@@ -523,7 +522,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     logger.debug("{} file [{}] prewarmed", shardId, file.physicalName());
                     input.close();
                 }, e -> {
-                    logger.warn(() -> new ParameterizedMessage("{} prewarming failed for file [{}]", shardId, file.physicalName()), e);
+                    logger.warn(() -> format("%s prewarming failed for file [%s]", shardId, file.physicalName()), e);
                     IOUtils.closeWhileHandlingException(input);
                 });
 
@@ -556,7 +555,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     }));
                 }
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("{} unable to prewarm file [{}]", shardId, file.physicalName()), e);
+                logger.warn(() -> format("%s unable to prewarm file [%s]", shardId, file.physicalName()), e);
                 if (submitted == false) {
                     completionListener.onFailure(e);
                 }
@@ -581,7 +580,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             executor.execute(ActionRunnable.run(ActionListener.runAfter(next.v1(), () -> prewarmNext(executor, queue)), next.v2()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.warn(() -> new ParameterizedMessage("{} prewarming worker has been interrupted", shardId), e);
+            logger.warn(() -> format("%s prewarming worker has been interrupted", shardId), e);
         }
     }
 

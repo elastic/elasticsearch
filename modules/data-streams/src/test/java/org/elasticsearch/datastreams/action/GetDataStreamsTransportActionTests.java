@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.contains;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class GetDataStreamsTransportActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-    private final SystemIndices systemIndices = new SystemIndices(Map.of());
+    private final SystemIndices systemIndices = new SystemIndices(List.of());
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";

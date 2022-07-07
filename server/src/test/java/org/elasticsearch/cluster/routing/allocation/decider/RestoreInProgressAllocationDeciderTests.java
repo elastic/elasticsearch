@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -214,7 +214,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             decision = decider.canAllocate(shardRouting, allocation);
         } else {
             DiscoveryNode node = clusterState.getNodes().getMasterNode();
-            decision = decider.canAllocate(shardRouting, new RoutingNode(node.getId(), node), allocation);
+            decision = decider.canAllocate(shardRouting, RoutingNodesHelper.routingNode(node.getId(), node), allocation);
         }
         return decision;
     }

@@ -154,13 +154,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "ids": [ "1", "2" ],
-                "boost": 1.0
+                "ids": [ "1", "2" ]
               }
             }""";
 
@@ -178,13 +176,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ],
-                "boost": 1.0
+                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ]
               }
             }""";
 

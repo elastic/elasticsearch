@@ -88,16 +88,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDouble(metricScore);
-        out.writeVInt(details.size());
-        for (String queryId : details.keySet()) {
-            out.writeString(queryId);
-            details.get(queryId).writeTo(out);
-        }
-        out.writeVInt(failures.size());
-        for (String queryId : failures.keySet()) {
-            out.writeString(queryId);
-            out.writeException(failures.get(queryId));
-        }
+        out.writeMap(details, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
     }
 
     @Override

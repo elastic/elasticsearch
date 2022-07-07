@@ -1,6 +1,0 @@
-pr: 85248
-summary: Warn on SAML attributes with special attribute names
-area: Authentication
-type: enhancement
-issues:
- - 48613

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
@@ -99,6 +100,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         } else if (qb instanceof final TermQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.termQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
+        } else if (qb instanceof final ExistsQueryBuilder query) {
+            final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
+            return QueryBuilders.existsQuery(translatedFieldName);
         } else if (qb instanceof final TermsQueryBuilder query) {
             if (query.termsLookup() != null) {
                 throw new IllegalArgumentException("terms query with terms lookup is not supported for API Key query");

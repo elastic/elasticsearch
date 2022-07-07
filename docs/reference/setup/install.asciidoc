@@ -2,12 +2,27 @@
 == Installing Elasticsearch
 
 [discrete]
-=== Hosted Elasticsearch
+[[hosted-elasticsearch-service]]
+=== Hosted Elasticsearch Service
 
-{ess-leadin}
+{ecloud} offers all of the features of {es}, {kib}, and  Elastic’s {observability}, {ents}, and {elastic-sec} solutions as a hosted service 
+available on AWS, GCP, and Azure. 
+
+To set up Elasticsearch in {ecloud}, sign up for a {ess-trial}[free {ecloud} trial].
 
 [discrete]
-=== Installing Elasticsearch Yourself
+[[elasticsearch-deployment-options]]
+=== Self-managed {es} options
+
+If you want to install and manage {es} yourself, you can:
+
+* Run {es} on any Linux, MacOS, or Windows machine.
+* Run {es} in a <<docker, Docker container>>. 
+* Set up and manage {es}, {kib}, {agent}, and the rest of the Elastic Stack on Kubernetes with {eck-ref}[{eck}].
+
+[discrete]
+[[elasticsearch-install-packages]]
+=== Elasticsearch install packages
 
 Elasticsearch is provided in the following package formats:
 

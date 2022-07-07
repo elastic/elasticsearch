@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -65,17 +64,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
             }
-            taskContext.success(new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {
-                    task.onClusterStateProcessed.run();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    task.onFailure(e);
-                }
-            });
+            taskContext.success(() -> task.onClusterStateProcessed.run());
         }
 
         final ClusterState finalState;

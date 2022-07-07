@@ -135,7 +135,7 @@
           index_patterns: test-*
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             dynamic_templates:
               - no_subobjects:
                   match: metrics
@@ -202,7 +202,7 @@
           index_patterns: test-*
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             subobjects: false
             properties:
               host.name:

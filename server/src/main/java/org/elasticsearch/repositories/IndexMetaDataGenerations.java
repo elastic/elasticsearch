@@ -134,19 +134,19 @@ public final class IndexMetaDataGenerations {
      * @return new instance without the given snapshot
      */
     public IndexMetaDataGenerations withRemovedSnapshots(Collection<SnapshotId> snapshotIds) {
-        final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = lookup.entrySet()
+        final Map<SnapshotId, Map<IndexId, String>> retainedIndexMetaLookup = lookup.entrySet()
             .stream()
             .filter(e -> snapshotIds.contains(e.getKey()) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-        final Set<String> retainedBlobUUIDs = updatedIndexMetaLookup.values()
+        final Set<String> retainedBlobUUIDs = retainedIndexMetaLookup.values()
             .stream()
             .flatMap(e -> e.values().stream())
             .collect(Collectors.toSet());
-        final Map<String, String> updatedIndexMetaIdentifiers = identifiers.entrySet()
+        final Map<String, String> retainedIndexMetaIdentifiers = identifiers.entrySet()
             .stream()
             .filter(e -> retainedBlobUUIDs.contains(e.getKey()))
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-        return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
+        return new IndexMetaDataGenerations(retainedIndexMetaLookup, retainedIndexMetaIdentifiers);
     }
 
     @Override

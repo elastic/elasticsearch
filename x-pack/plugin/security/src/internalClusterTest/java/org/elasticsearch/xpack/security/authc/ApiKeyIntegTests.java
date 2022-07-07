@@ -1691,10 +1691,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
-        final var initialRequest = new UpdateApiKeyRequest(apiKeyId, randomRoleDescriptors(), ApiKeyTests.randomMetadata());
+        final var initialRequest = new UpdateApiKeyRequest(
+            apiKeyId,
+            List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)),
+            ApiKeyTests.randomMetadata()
+        );
         UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
         assertNotNull(response);
-        // First update may or may not be a noop, so not asserting on `isUpdated` here
+        // First update is not noop, because role descriptors changed and possibly metadata
+        assertTrue(response.isUpdated());
 
         // Update with same request is a noop
         response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
@@ -1722,7 +1727,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Update with different metadata is not a noop
         response = executeUpdateApiKey(
             TEST_USER_NAME,
-            new UpdateApiKeyRequest(apiKeyId, null, randomValueOtherThan(initialRequest.getMetadata(), ApiKeyTests::randomMetadata)),
+            new UpdateApiKeyRequest(
+                apiKeyId,
+                null,
+                randomValueOtherThanMany(md -> md == null || md.equals(initialRequest.getMetadata()), ApiKeyTests::randomMetadata)
+            ),
             new PlainActionFuture<>()
         );
         assertNotNull(response);

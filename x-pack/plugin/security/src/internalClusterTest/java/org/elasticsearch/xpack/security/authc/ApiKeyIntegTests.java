@@ -1687,6 +1687,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(response.isUpdated());
     }
 
+    public void testNoopUpdateApiKey() throws ExecutionException, InterruptedException {
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
+        final var apiKeyId = createdApiKey.v1().getId();
+
+        final var initialRequest = new UpdateApiKeyRequest(apiKeyId, randomRoleDescriptors(), ApiKeyTests.randomMetadata());
+        UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
+        assertNotNull(response);
+        // First update may or may not be noop, so not asserting on `isUpdated` here
+
+        // Update with same request is a noop
+        response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
+        assertNotNull(response);
+        assertFalse(response.isUpdated());
+
+        // Update with empty request is a noop
+        response = executeUpdateApiKey(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), new PlainActionFuture<>());
+        assertNotNull(response);
+        assertFalse(response.isUpdated());
+    }
+
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
         final List<ServiceWithNodeName> services = Arrays.stream(internalCluster().getNodeNames())
             .map(n -> new ServiceWithNodeName(internalCluster().getInstance(ApiKeyService.class, n), n))

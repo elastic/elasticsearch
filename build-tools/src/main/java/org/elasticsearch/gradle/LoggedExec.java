@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gradle;
 
-import org.apache.commons.io.output.TeeOutputStream;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -100,12 +99,14 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @TaskAction
     public void run() {
+        if (spoolOutput && getCaptureOutput().get()) {
+            throw new GradleException("Capturing output is not supported when spoolOutput is true.");
+        }
         Consumer<Logger> outputLogger;
-        OutputStream out = getCaptureOutput().get() ? new ByteArrayOutputStream() : System.out;
-        OutputStream effectiveOutputStream = out;
+        OutputStream out;
         if (spoolOutput) {
             File spoolFile = new File(projectLayout.getBuildDirectory().dir("buffered-output").get().getAsFile(), this.getName());
-            effectiveOutputStream = new TeeOutputStream(out, new LazyFileOutputStream(spoolFile));
+            out = new LazyFileOutputStream(spoolFile);
             outputLogger = logger -> {
                 try {
                     // the file may not exist if the command never output anything
@@ -117,12 +118,13 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 }
             };
         } else {
-            outputLogger = logger -> { logger.error(byteStreamToString(out)); };
+            out = new ByteArrayOutputStream();
+            outputLogger = logger -> logger.error(byteStreamToString(out));
         }
 
         OutputStream finalOutputStream = getOutputIndenting().isPresent()
-            ? new IndentingOutputStream(effectiveOutputStream, getOutputIndenting().get())
-            : effectiveOutputStream;
+            ? new IndentingOutputStream(out, getOutputIndenting().get())
+            : out;
         ExecResult execResult = execOperations.exec(execSpec -> {
             execSpec.setIgnoreExitValue(true);
             execSpec.setStandardOutput(finalOutputStream);
@@ -149,21 +151,18 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             output = byteStreamToString(out);
         }
         if (getLogger().isInfoEnabled() == false) {
-            // We use an anonymous inner class here because Gradle cannot properly snapshot this input for the purposes of
-            // incremental build if we use a lambda. This ensures LoggedExec tasks that declare output can be UP-TO-DATE.
-
             if (exitValue != 0) {
                 try {
-                    LoggedExec.this.getLogger().error("Output for " + getExecutableProperty().get() + ":");
-                    outputLogger.accept(LoggedExec.this.getLogger());
+                    getLogger().error("Output for " + getExecutableProperty().get() + ":");
+                    outputLogger.accept(getLogger());
                 } catch (Exception e) {
                     throw new GradleException("Failed to read exec output", e);
                 }
                 throw new GradleException(
                     String.format(
                         "Process '%s %s' finished with non-zero exit value %d",
-                        LoggedExec.this.getExecutableProperty().get(),
-                        LoggedExec.this.getArgs().get(),
+                        getExecutableProperty().get(),
+                        getArgs().get(),
                         exitValue
                     )
                 );
@@ -224,7 +223,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     public String getOutput() {
         if (getCaptureOutput().get() == false) {
             throw new GradleException(
-                "Capturing output was not enabled. Use " + getName() + ".getCapturedOutput.set(true) to enable output capturing"
+                "Capturing output was not enabled. Use " + getName() + ".getCapturedOutput.set(true) to enable output capturing."
             );
         }
         return output;
@@ -273,8 +272,8 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     }
 
     public void commandLine(List<Object> args) {
-        if (args.size() == 0) {
-            throw new IllegalArgumentException("Cannot set commandline with of entry size 0");
+        if (args.isEmpty()) {
+            throw new IllegalArgumentException("Cannot set commandline with empty list.");
         }
         getExecutableProperty().set(args.get(0).toString());
         getArgs().set(args.subList(1, args.size()));

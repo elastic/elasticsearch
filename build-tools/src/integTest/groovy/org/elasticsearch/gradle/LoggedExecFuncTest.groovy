@@ -47,6 +47,29 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         spooling << [false, true]
     }
 
+    @Unroll
+    def "failed tasks output logged to console when spooling #spooling"() {
+        setup:
+        buildFile << """
+        import org.elasticsearch.gradle.LoggedExec
+        tasks.register('loggedExec', LoggedExec) {
+          commandLine 'ls', 'wtf'
+          spoolOutput = $spooling
+        }
+        """
+        when:
+        def result = gradleRunner("loggedExec").buildAndFail()
+        then:
+        result.task(':loggedExec').outcome == TaskOutcome.FAILED
+        file("build/buffered-output/loggedExec").exists() == spooling
+        assertOutputContains(result.output, """\
+            > Task :loggedExec FAILED
+            Output for ls:
+            ls: wtf: No such file or directory""".stripIndent())
+        where:
+        spooling << [false, true]
+    }
+
     def "can capture output"() {
         setup:
         buildFile << """
@@ -67,16 +90,43 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         result.getOutput().contains("OUTPUT HELLO")
     }
 
+    def "capturing output with spooling enabled is not supported"() {
+        setup:
+        buildFile << """
+        import org.elasticsearch.gradle.LoggedExec
+        tasks.register('loggedExec', LoggedExec) {
+          commandLine 'echo', 'HELLO'
+          getCaptureOutput().set(true)
+          spoolOutput = true
+        }
+        """
+        when:
+        def result = gradleRunner("loggedExec").buildAndFail()
+        then:
+        result.task(':loggedExec').outcome == TaskOutcome.FAILED
+        assertOutputContains(result.output, '''\
+            FAILURE: Build failed with an exception.
+            
+            * What went wrong:
+            Execution failed for task ':loggedExec'.
+            > Capturing output is not supported when spoolOutput is true.'''.stripIndent())
+    }
+
+
     def "can configure output indenting"() {
         setup:
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
+          getCaptureOutput().set(true)
           getOutputIndenting().set("CUSTOM")
           commandLine('echo', '''
             HELLO
             Darkness
             my old friend''')
+            doLast {
+                print output
+            }
         }
         """
         when:
@@ -86,7 +136,8 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         normalized(result.output) == '''
           [CUSTOM]             HELLO
           [CUSTOM]             Darkness
-          [CUSTOM]             my old friend'''.stripIndent(9)
+          [CUSTOM]             my old friend
+          [CUSTOM] '''.stripIndent(9)
     }
 
     def "can provide standard input"() {
@@ -103,8 +154,12 @@ echo "The user input is \$userInput"
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
+          getCaptureOutput().set(true)
           commandLine 'bash', 'script.sh'
           getStandardInput().set('FooBar')
+          doLast {
+            println output
+          }
         }
         """
         when:

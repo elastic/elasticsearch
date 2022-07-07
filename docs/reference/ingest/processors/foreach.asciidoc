@@ -163,9 +163,8 @@ After processing the result is:
 --------------------------------------------------
 // NOTCONSOLE
 
-For another array of objects example, see
-{plugins}/ingest-attachment-with-arrays.html[attachment processor
-documentation].
+For another array of objects example, refer to the 
+<<attachment-with-arrays,attachment processor documentation>>.
 
 [discrete]
 [[foreach-object-ex]]

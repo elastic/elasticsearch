@@ -1160,11 +1160,9 @@ public class Security extends Plugin
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
                  * overwrite the query cache implementation to prevent data leakage to unauthorized users.
                  */
-                module.forceQueryCacheProvider((indexSettings, cache) -> {
-                    final OptOutQueryCache queryCache = new OptOutQueryCache(indexSettings, cache, threadContext.get());
-
-                    return queryCache;
-                });
+                module.forceQueryCacheProvider(
+                    (indexSettings, cache) -> new OptOutQueryCache(indexSettings.getIndex(), cache, threadContext.get())
+                );
             }
 
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that

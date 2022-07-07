@@ -85,16 +85,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     private final DiskThresholdSettings diskThresholdSettings;
     private final AllocationDeciders allocationDeciders;
 
-    private static final Set<String> NODE_LOCKED_SETTINGS = DiscoveryNodeFilters.SINGLE_NODE_NAMES.stream()
-        .flatMap(
-            suffix -> Stream.of(
-                IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
-                IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX,
-                IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey()
-            ).map(prefix -> prefix + suffix)
-        )
-        .collect(Collectors.toSet());
-
     private static final Predicate<String> REMOVE_NODE_LOCKED_FILTER_INITIAL = removeNodeLockedFilterPredicate(
         IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey()
     );
@@ -191,24 +181,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     static boolean isResizeOnlyNoDecision(Decision decision) {
         return singleNoDecision(decision, single -> true).map(ResizeAllocationDecider.NAME::equals).orElse(false);
-    }
-
-    enum DiskResizeNoDecision {
-        UNDECIDED,
-        DISK,
-        RESIZE;
-
-        static DiskResizeNoDecision of(String label) {
-            return switch (label) {
-                case DiskThresholdDecider.NAME -> DISK;
-                case ResizeAllocationDecider.NAME -> RESIZE;
-                default -> UNDECIDED;
-            };
-        }
-    }
-
-    static DiskResizeNoDecision diskResizeNoDecision(Decision decision) {
-        return singleNoDecision(decision, single -> true).map(DiskResizeNoDecision::of).orElse(DiskResizeNoDecision.UNDECIDED);
     }
 
     static boolean isFilterTierOnlyDecision(Decision decision, IndexMetadata indexMetadata) {
@@ -807,17 +779,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
         }
 
-        private static boolean isCloneOrSplit(IndexMetadata indexMetadata, Metadata metadata) {
-            // mimicks behavior in ResizeAllocationDecider
-            Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
-            if (resizeSourceIndex != null) {
-                IndexMetadata sourceIndexMetadata = metadata.getIndexSafe(resizeSourceIndex);
-                // ResizeAllocationDecider only handles clone or split, do the same here.
-                return indexMetadata.getNumberOfShards() >= sourceIndexMetadata.getNumberOfShards();
-            }
-            return false;
-        }
-
         private static boolean isNodeLocked(IndexMetadata indexMetadata) {
             return isNodeLocked(indexMetadata.requireFilters())
                 || isNodeLocked(indexMetadata.includeFilters())
@@ -826,15 +787,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         private static boolean isNodeLocked(DiscoveryNodeFilters filters) {
             return filters != null && filters.isSingleNodeFilter();
-        }
-
-        private static ShardRouting removeResizeRecoverySource(ShardRouting shardRouting) {
-            if (shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS && shardRouting.unassigned()) {
-                assert shardRouting.primary();
-                return shardRouting.updateUnassigned(shardRouting.unassignedInfo(), RecoverySource.LocalShardsRecoverySource.INSTANCE);
-            } else {
-                return shardRouting;
-            }
         }
 
         private static class ExtendedClusterInfo extends ClusterInfo {

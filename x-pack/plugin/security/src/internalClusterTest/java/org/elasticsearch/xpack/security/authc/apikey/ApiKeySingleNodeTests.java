@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.client.RequestOptions;
@@ -258,26 +260,46 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     public void testGrantApiKeyForUserWithRunAs() throws IOException {
         final TestSecurityClient securityClient = getSecurityClient();
         securityClient.putRole(new RoleDescriptor("user1_role", new String[] { "manage_token" }, null, new String[] { "user2", "user4" }));
-        securityClient.putRole(new RoleDescriptor("user2_role", new String[] { "monitor" }, null, null));
+        securityClient.putRole(new RoleDescriptor("user2_role", new String[] { "monitor", "read_pipeline" }, null, null));
         final SecureString user1Password = new SecureString("user1-strong-password".toCharArray());
         securityClient.putUser(new User("user1", "user1_role"), user1Password);
         securityClient.putUser(new User("user2", "user2_role"), new SecureString("user2-strong-password".toCharArray()));
         securityClient.putUser(new User("user3", "user3_role"), new SecureString("user3-strong-password".toCharArray()));
 
         // Success: user1 runas user2
-        final GrantApiKeyRequest grantApiKeyRequest = buildGrantApiKeyRequest("user1", user1Password, "user2", securityClient);
+        final GrantApiKeyRequest grantApiKeyRequest = buildGrantApiKeyRequest("user1", user1Password, "user2");
         final CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
         final String apiKeyId = createApiKeyResponse.getId();
         final String base64ApiKeyKeyValue = Base64.getEncoder()
             .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
         assertThat(securityClient.getApiKey(apiKeyId).getUsername(), equalTo("user2"));
+        final Client clientWithGrantedKey = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         // The API key has privileges (inherited from user2) to check cluster health
-        client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
-            .execute(ClusterHealthAction.INSTANCE, new ClusterHealthRequest())
-            .actionGet();
+        clientWithGrantedKey.execute(ClusterHealthAction.INSTANCE, new ClusterHealthRequest()).actionGet();
+        // If the API key is granted with limiting descriptors, it should not be able to read pipeline
+        if (grantApiKeyRequest.getApiKeyRequest().getRoleDescriptors().isEmpty()) {
+            clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet();
+        } else {
+            assertThat(
+                expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet()
+                ).getMessage(),
+                containsString("unauthorized")
+            );
+        }
+        // The API key does not have privileges to create oauth2 token (i.e. it does not inherit privileges from user1)
+        assertThat(
+            expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> new CreateTokenRequestBuilder(clientWithGrantedKey, CreateTokenAction.INSTANCE).setGrantType("client_credentials")
+                    .get()
+            ).getMessage(),
+            containsString("unauthorized")
+        );
 
         // Failure 1: user1 run-as user3 but does not have the corresponding run-as privilege
-        final GrantApiKeyRequest grantApiKeyRequest1 = buildGrantApiKeyRequest("user1", user1Password, "user3", securityClient);
+        final GrantApiKeyRequest grantApiKeyRequest1 = buildGrantApiKeyRequest("user1", user1Password, "user3");
         final ElasticsearchSecurityException e1 = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest1).actionGet()
@@ -291,7 +313,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         );
 
         // Failure 2: user1 run-as user4 but user4 does not exist
-        final GrantApiKeyRequest grantApiKeyRequest2 = buildGrantApiKeyRequest("user1", user1Password, "user4", securityClient);
+        final GrantApiKeyRequest grantApiKeyRequest2 = buildGrantApiKeyRequest("user1", user1Password, "user4");
         final ElasticsearchSecurityException e2 = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest2).actionGet()
@@ -351,16 +373,15 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         );
     }
 
-    private GrantApiKeyRequest buildGrantApiKeyRequest(
-        String username,
-        SecureString password,
-        String runAsUsername,
-        TestSecurityClient securityClient
-    ) throws IOException {
+    private GrantApiKeyRequest buildGrantApiKeyRequest(String username, SecureString password, String runAsUsername) throws IOException {
         final SecureString clonedPassword = password.clone();
         final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
         // randomly use either password or access token grant
         grantApiKeyRequest.getApiKeyRequest().setName("granted-api-key-for-" + username + "-runas-" + runAsUsername);
+        if (randomBoolean()) {
+            grantApiKeyRequest.getApiKeyRequest()
+                .setRoleDescriptors(List.of(new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "monitor" }, null, null)));
+        }
         final Grant grant = grantApiKeyRequest.getGrant();
         grant.setRunAsUsername(runAsUsername);
         if (randomBoolean()) {
@@ -370,7 +391,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         } else {
             final TestSecurityClient.OAuth2Token oAuth2Token;
             if (randomBoolean()) {
-                oAuth2Token = securityClient.createToken(new UsernamePasswordToken(username, clonedPassword));
+                oAuth2Token = getSecurityClient().createToken(new UsernamePasswordToken(username, clonedPassword));
             } else {
                 oAuth2Token = getSecurityClient(
                     RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(username, clonedPassword)).build()

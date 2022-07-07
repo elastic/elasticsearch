@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.RollupILMAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
 import static org.elasticsearch.xpack.core.ilm.RollupILMAction.GENERATE_ROLLUP_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -57,18 +58,45 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(5, steps.size());
+        assertEquals(9, steps.size());
+
+        assertTrue(steps.get(0) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(0).getKey().getName(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
-        assertThat(steps.get(0).getNextStepKey().getName(), equalTo(ReadOnlyStep.NAME));
+        assertThat(steps.get(0).getNextStepKey().getName(), equalTo(WaitForNoFollowersStep.NAME));
+
+        assertTrue(steps.get(1) instanceof WaitForNoFollowersStep);
         assertThat(steps.get(1).getKey().getName(), equalTo(WaitForNoFollowersStep.NAME));
         assertThat(steps.get(1).getNextStepKey().getName(), equalTo(ReadOnlyStep.NAME));
 
+        assertTrue(steps.get(2) instanceof ReadOnlyStep);
         assertThat(steps.get(2).getKey().getName(), equalTo(ReadOnlyStep.NAME));
         assertThat(steps.get(2).getNextStepKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
+
+        assertTrue(steps.get(3) instanceof GenerateUniqueIndexNameStep);
         assertThat(steps.get(3).getKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
         assertThat(steps.get(3).getNextStepKey().getName(), equalTo(RollupStep.NAME));
+
+        assertTrue(steps.get(4) instanceof RollupStep);
         assertThat(steps.get(4).getKey().getName(), equalTo(RollupStep.NAME));
-        assertThat(steps.get(4).getNextStepKey(), equalTo(nextStepKey));
+        assertThat(steps.get(4).getNextStepKey().getName(), equalTo(CopyExecutionStateStep.NAME));
+
+        assertTrue(steps.get(5) instanceof CopyExecutionStateStep);
+        assertThat(steps.get(5).getKey().getName(), equalTo(CopyExecutionStateStep.NAME));
+        assertThat(steps.get(5).getNextStepKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+
+        assertTrue(steps.get(6) instanceof BranchingStep);
+        assertThat(steps.get(6).getKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+        expectThrows(IllegalStateException.class, () -> steps.get(6).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(6)).getNextStepKeyOnFalse().getName(), equalTo(DeleteStep.NAME));
+        assertThat(((BranchingStep) steps.get(6)).getNextStepKeyOnTrue().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+
+        assertTrue(steps.get(7) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(7).getKey().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+        assertThat(steps.get(7).getNextStepKey().getName(), equalTo(DeleteStep.NAME));
+
+        assertTrue(steps.get(8) instanceof DeleteStep);
+        assertThat(steps.get(8).getKey().getName(), equalTo(DeleteStep.NAME));
+        assertThat(steps.get(8).getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testEqualsAndHashCode() {

@@ -103,7 +103,10 @@ public class RollupILMAction implements LifecycleAction {
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
-        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, readOnlyKey);
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
+            checkNotWriteIndex,
+            waitForNoFollowerStepKey
+        );
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
 
@@ -116,7 +119,7 @@ public class RollupILMAction implements LifecycleAction {
         );
         RollupStep rollupStep = new RollupStep(rollupKey, copyMetadataKey, client, config);
 
-        CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(
+        CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
             dataStreamCheckBranchingKey,
             (sourceIndexName, lifecycleState) -> lifecycleState.rollupIndexName(),
@@ -147,7 +150,7 @@ public class RollupILMAction implements LifecycleAction {
             readOnlyStep,
             generateRollupIndexNameStep,
             rollupStep,
-            copyMetadata,
+            copyExecutionStateStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep

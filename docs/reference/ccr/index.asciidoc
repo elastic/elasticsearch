@@ -307,6 +307,95 @@ and use {ccr}:
 * <<ccr-auto-follow>>
 * <<ccr-upgrading>>
 
+[discrete]
+[[ccr-limitations]]
+=== {ccr-cap} limitations
+{ccr-cap} is designed to replicate user-generated indices only and doesn't 
+currently replicate any of the following:
+
+* <<ccr-system-indices>>
+* <<ccr-ml-jobs>>
+* <<ccr-index-templates>>
+* <<ccr-ilm-slm-policies>>
+* <<ccr-user-role-permission-mapping>>
+* <<ccr-snapshot-settings>>
+* <<ccr-cluster-settings>>
+* <<ccr-searchable-snapshots>>
+* <<ccr-restored-indices>>
+
+[discrete]
+[[ccr-system-indices]]
+==== System indices
+<<system-indices,System indices>> store configurations and internal data for
+Elastic features. Generally, system indices are reserved only for internal use
+by these features. {ccr-cap} doesn't replicate these indices as a security
+precaution.
+
+[discrete]
+[[ccr-ml-jobs]]
+==== Machine learning jobs
+{ccr-cap} doesn't support replicating
+{ml-docs}/machine-learning-intro.html[machine learning jobs] across clusters. If
+you want to replicate index templates, replicate them to a remote cluster manually.
+
+[discrete]
+[[ccr-index-templates]]
+==== Index templates
+{ccr-cap} doesn't support replicating <<index-templates,index templates>> across
+clusters. If you want to replicate index templates, replicate them to a remote
+cluster manually.
+
+[discrete]
+[[ccr-ilm-slm-policies]]
+==== ILM/SLM policies
+Both <<index-lifecycle-management,{ilm}>> and
+<<snapshot-lifecycle-management-api,{slm}>> polices are stored locally in the
+cluster state. If you want to replicate these policies, you must replicate them
+to a remote cluster manually. 
+
+[discrete]
+[[ccr-user-role-permission-mapping]]
+==== User permissions and role mappings
+{ref}/mapping-roles.html[User permissions and role mappings] are stored as part
+of the cluster state. If you want to replicate these settings, you must
+replicate them to a remote cluster manually. 
+
+[discrete]
+[[ccr-snapshot-settings]]
+==== Snapshot repository settings
+<<snapshots-register-repository,Snapshot repository settings>> are stored
+locally in the cluster state. If you want to replicate these settings, you must
+{ccr} replicate them to a remote cluster manually. 
+
+[discrete]
+[[ccr-cluster-settings]]
+==== Cluster settings
+If you want to replicate <<modules-cluster,cluster settings>>, you must replicate
+them to a remote cluster manually. 
+
+[discrete]
+[[ccr-searchable-snapshots]]
+==== Searchable snapshots
+The actual data for <<searchable-snapshots,searchable snapshot>> indices are 
+stored in the snapshot repository. While indices are either partially-cached or
+fully-cached on the {es} nodes, {ccr} will not replicate the searchable
+snapshot correctly. You can still set up snapshot repositories on the remote
+cluster and use the same {ilm} policy to move data into the cold or frozen tiers
+to achieve searchable snapshots in the remote cluster.
+
+Data stored in the cold and frozen tier is expected to be read-only. To achieve
+searchable snapshots in these tiers, replicate the data in the hot and warm
+tiers and then move them into searchable snapshots in the cold or frozen tiers.
+Use the <<ilm-searchable-snapshot,{ilm} searchable snapshot action>> to take a
+snapshot of the indices and mount them as a searchable snapshot.
+
+[discrete]
+[[ccr-restored-indices]]
+==== Restored indices
+{ccr-cap} auto-follow patterns don't automatically replicate restored indices. If
+you want to replicate restored indices, you must replicate them to a remote
+cluster manually.
+
 include::getting-started.asciidoc[]
 include::managing.asciidoc[]
 include::auto-follow.asciidoc[]

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -334,7 +333,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
     private static ClusterState addRestoredIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         ClusterState newState = addOpenedIndex(index, numShards, numReplicas, state);
 
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = new HashMap<>();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
             shardsBuilder.put(shardRouting.shardId(), new RestoreInProgress.ShardRestoreStatus(shardRouting.currentNodeId()));
         }
@@ -345,7 +344,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             snapshot,
             RestoreInProgress.State.INIT,
             Collections.singletonList(index),
-            shardsBuilder.build()
+            shardsBuilder
         );
         return ClusterState.builder(newState).putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build()).build();
     }
@@ -353,7 +352,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
     private static ClusterState addSnapshotIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         ClusterState newState = addOpenedIndex(index, numShards, numReplicas, state);
 
-        final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
+        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = new HashMap<>();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
             shardsBuilder.put(
                 shardRouting.shardId(),
@@ -372,7 +371,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             Collections.emptyList(),
             randomNonNegativeLong(),
             randomLong(),
-            shardsBuilder.build(),
+            shardsBuilder,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
             VersionUtils.randomVersion(random())

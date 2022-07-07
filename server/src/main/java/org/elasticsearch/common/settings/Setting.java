@@ -1002,7 +1002,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns a map of all namespaces to it's values give the provided settings
+         * Returns a map of all namespaces to its values given the provided settings
          */
         public Map<String, T> getAsMap(Settings settings) {
             Map<String, T> map = new HashMap<>();

@@ -130,7 +130,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp, null);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, builder.build());
@@ -799,7 +799,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             .get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", null, future::onResponse, future::onFailure);
         List<ModelSnapshot> snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertNull(snapshots.get(0).getQuantiles());
@@ -807,7 +807,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(1).getQuantiles());
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
@@ -815,21 +815,21 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(1).getQuantiles());
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*,other_snap", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*,other_snap", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
         assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "*", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "*", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
         assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("11"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));

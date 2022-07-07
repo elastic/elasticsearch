@@ -17,6 +17,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -135,10 +136,11 @@ public final class IndexMetaDataGenerations {
      * @return new instance without the given snapshot
      */
     public IndexMetaDataGenerations withRemovedSnapshots(Collection<SnapshotId> snapshotIds) {
+        final Set<SnapshotId> snapshotIdsSet = new HashSet<>(snapshotIds);
         final Map<SnapshotId, Map<IndexId, String>> retainedIndexMetaLookup = Maps.newMapWithExpectedSize(lookup.size());
         final Set<String> retainedBlobUUIDs = Sets.newHashSetWithExpectedSize(identifiers.size());
         for (Map.Entry<SnapshotId, Map<IndexId, String>> e : lookup.entrySet()) {
-            if (snapshotIds.contains(e.getKey()) == false) {
+            if (snapshotIdsSet.contains(e.getKey()) == false) {
                 retainedIndexMetaLookup.put(e.getKey(), e.getValue());
                 retainedBlobUUIDs.addAll(e.getValue().values());
             }

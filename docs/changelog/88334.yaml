@@ -1,0 +1,5 @@
+pr: 88334
+summary: Synthetic source error on script loads
+area: Geo
+type: bug
+issues: []

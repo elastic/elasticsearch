@@ -9,7 +9,7 @@
     - is_true:    version.number
 
 ---
-"Info build flavor"
+"Info build flavor":
     - skip:
         version: "8.3.0 - 8.3.2"
         reason: "build flavor in info was missing in 8.3.0 to 8.3.2"

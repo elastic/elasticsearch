@@ -35,7 +35,6 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.health.node.selection.HealthNodeTaskExecutor.ENABLED_SETTING;
 
 /**
@@ -68,10 +67,6 @@ public class HealthMetadataService {
         }
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-            value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), value)
-        );
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), value)
@@ -202,9 +197,6 @@ public class HealthMetadataService {
             HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
             assert initialHealthMetadata != null : "health metadata should have been initialized";
             HealthMetadata.Disk.Builder builder = HealthMetadata.Disk.newBuilder(initialHealthMetadata.getDiskMetadata());
-            if (CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
-                builder.lowWatermark(value, setting);
-            }
             if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
                 builder.highWatermark(value, setting);
             }
@@ -241,10 +233,6 @@ public class HealthMetadataService {
             HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
             final var finalHealthMetadata = new HealthMetadata(
                 new HealthMetadata.Disk(
-                    RelativeByteSizeValue.parseRelativeByteSizeValue(
-                        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings),
-                        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
-                    ),
                     RelativeByteSizeValue.parseRelativeByteSizeValue(
                         CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
                         CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()

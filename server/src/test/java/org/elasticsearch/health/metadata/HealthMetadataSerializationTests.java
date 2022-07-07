@@ -67,7 +67,6 @@ public class HealthMetadataSerializationTests extends SimpleDiffableSerializatio
             randomRelativeByteSizeValue(),
             randomRelativeByteSizeValue(),
             randomRelativeByteSizeValue(),
-            randomRelativeByteSizeValue(),
             ByteSizeValue.ofGb(randomIntBetween(10, 999))
         );
     }
@@ -81,25 +80,17 @@ public class HealthMetadataSerializationTests extends SimpleDiffableSerializatio
     }
 
     static HealthMetadata.Disk mutateDiskMetadata(HealthMetadata.Disk base) {
-        RelativeByteSizeValue lowWatermark = base.lowWatermark();
         RelativeByteSizeValue highWatermark = base.highWatermark();
         RelativeByteSizeValue floodStageWatermark = base.floodStageWatermark();
         RelativeByteSizeValue floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
         ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.frozenFloodStageMaxHeadroom();
-        switch (randomInt(4)) {
-            case 0 -> lowWatermark = randomRelativeByteSizeValue();
-            case 1 -> highWatermark = randomRelativeByteSizeValue();
-            case 2 -> floodStageWatermark = randomRelativeByteSizeValue();
-            case 3 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
-            case 4 -> ByteSizeValue.ofGb(randomIntBetween(10, 999));
+        switch (randomInt(3)) {
+            case 0 -> highWatermark = randomRelativeByteSizeValue();
+            case 1 -> floodStageWatermark = randomRelativeByteSizeValue();
+            case 2 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
+            case 3 -> ByteSizeValue.ofGb(randomIntBetween(10, 999));
         }
-        return new HealthMetadata.Disk(
-            lowWatermark,
-            highWatermark,
-            floodStageWatermark,
-            floodStageWatermarkFrozen,
-            floodStageWatermarkFrozenMaxHeadRoom
-        );
+        return new HealthMetadata.Disk(highWatermark, floodStageWatermark, floodStageWatermarkFrozen, floodStageWatermarkFrozenMaxHeadRoom);
     }
 
     private HealthMetadata mutate(HealthMetadata base) {

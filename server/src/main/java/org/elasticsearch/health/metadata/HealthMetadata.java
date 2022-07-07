@@ -125,7 +125,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
      * master.
      */
     public record Disk(
-        RelativeByteSizeValue lowWatermark,
         RelativeByteSizeValue highWatermark,
         RelativeByteSizeValue floodStageWatermark,
         RelativeByteSizeValue frozenFloodStageWatermark,
@@ -134,7 +133,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         public static final String TYPE = "disk";
 
-        private static final ParseField LOW_WATERMARK_FIELD = new ParseField("low_watermark");
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
         private static final ParseField FLOOD_STAGE_WATERMARK_FIELD = new ParseField("flood_stage_watermark");
         private static final ParseField FROZEN_FLOOD_STAGE_WATERMARK_FIELD = new ParseField("frozen_flood_stage_watermark");
@@ -144,7 +142,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             TYPE,
             true,
             (args) -> new Disk(
-                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[0], LOW_WATERMARK_FIELD.getPreferredName()),
                 RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[1], HIGH_WATERMARK_FIELD.getPreferredName()),
                 RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[2], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
                 RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[3], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
@@ -153,7 +150,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         );
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), LOW_WATERMARK_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), HIGH_WATERMARK_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FLOOD_STAGE_WATERMARK_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_WATERMARK_FIELD);
@@ -162,7 +158,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         Disk(StreamInput in) throws IOException {
             this(
-                RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), LOW_WATERMARK_FIELD.getPreferredName()),
                 RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), HIGH_WATERMARK_FIELD.getPreferredName()),
                 RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
                 RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
@@ -176,7 +171,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(describeLowWatermark());
             out.writeString(describeHighWatermark());
             out.writeString(describeFloodStageWatermark());
             out.writeString(describeFrozenFloodStageWatermark());
@@ -190,7 +184,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(LOW_WATERMARK_FIELD.getPreferredName(), describeLowWatermark());
             builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), describeHighWatermark());
             builder.field(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), describeFloodStageWatermark());
             builder.field(FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), describeFrozenFloodStageWatermark());
@@ -204,10 +197,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             } else {
                 return RatioValue.formatNoTrailingZerosPercent(relativeByteSizeValue.getRatio().getAsPercent());
             }
-        }
-
-        public String describeLowWatermark() {
-            return getThresholdStringRep(lowWatermark);
         }
 
         public String describeHighWatermark() {
@@ -227,8 +216,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Disk disk = (Disk) o;
-            return Objects.equals(describeLowWatermark(), disk.describeLowWatermark())
-                && Objects.equals(describeHighWatermark(), disk.describeHighWatermark())
+            return Objects.equals(describeHighWatermark(), disk.describeHighWatermark())
                 && Objects.equals(describeFloodStageWatermark(), disk.describeFloodStageWatermark())
                 && Objects.equals(describeFrozenFloodStageWatermark(), disk.describeFrozenFloodStageWatermark())
                 && Objects.equals(frozenFloodStageMaxHeadroom, disk.frozenFloodStageMaxHeadroom);
@@ -237,7 +225,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         @Override
         public int hashCode() {
             return Objects.hash(
-                describeLowWatermark(),
                 describeHighWatermark(),
                 describeFloodStageWatermark(),
                 describeFrozenFloodStageWatermark(),
@@ -255,14 +242,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         public static class Builder {
 
-            private RelativeByteSizeValue lowWatermark;
             private RelativeByteSizeValue highWatermark;
             private RelativeByteSizeValue floodStageWatermark;
             private RelativeByteSizeValue frozenFloodStageWatermark;
             private ByteSizeValue frozenFloodStageMaxHeadroom;
 
             private Builder(Disk disk) {
-                this.lowWatermark = disk.lowWatermark;
                 this.highWatermark = disk.highWatermark;
                 this.floodStageWatermark = disk.floodStageWatermark;
                 this.frozenFloodStageWatermark = disk.frozenFloodStageWatermark;
@@ -270,15 +255,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             }
 
             private Builder() {}
-
-            Disk.Builder lowWatermark(String lowWatermark, String setting) {
-                return lowWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(lowWatermark, setting));
-            }
-
-            Disk.Builder lowWatermark(RelativeByteSizeValue lowWatermark) {
-                this.lowWatermark = lowWatermark;
-                return this;
-            }
 
             Disk.Builder highWatermark(RelativeByteSizeValue highWatermark) {
                 this.highWatermark = highWatermark;
@@ -317,7 +293,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             }
 
             Disk build() {
-                return new Disk(lowWatermark, highWatermark, floodStageWatermark, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
+                return new Disk(highWatermark, floodStageWatermark, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
             }
         }
     }

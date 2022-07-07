@@ -5,7 +5,7 @@
 <titleabbrev>Activate user profile</titleabbrev>
 ++++
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
 Creates or updates a user profile on behalf of another user.
 

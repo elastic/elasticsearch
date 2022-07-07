@@ -8,53 +8,23 @@
 
 package org.elasticsearch.script;
 
-import java.time.ZonedDateTime;
+import java.util.List;
 
 /**
  * Ingest and update metadata available to write scripts
  */
-public interface Metadata {
-    /**
-     * The destination index
-     */
-    String getIndex();
+public abstract class Metadata {
+    public abstract Object put(String key, Object value);
 
-    void setIndex(String index);
+    public abstract boolean isMetadata(Object key);
 
-    /**
-     * The document id
-     */
-    String getId();
+    public abstract Object get(Object key);
 
-    void setId(String id);
+    public abstract Object remove(Object key);
 
-    /**
-     * The document routing string
-     */
-    String getRouting();
+    public abstract boolean exists(Object key);
 
-    void setRouting(String routing);
+    public abstract List<String> keys();
 
-    /**
-     * The version of the document
-     */
-    long getVersion();
-
-    void setVersion(long version);
-
-    /**
-     * The version type of the document, {@link org.elasticsearch.index.VersionType} as a lower-case string.
-     */
-    String getVersionType();
-
-    /**
-     * Set the version type of the document.
-     * @param versionType {@link org.elasticsearch.index.VersionType} as a lower-case string
-     */
-    void setVersionType(String versionType);
-
-    /**
-     * Timestamp of this ingestion or update
-     */
-    ZonedDateTime getTimestamp();
+    public abstract int size();
 }

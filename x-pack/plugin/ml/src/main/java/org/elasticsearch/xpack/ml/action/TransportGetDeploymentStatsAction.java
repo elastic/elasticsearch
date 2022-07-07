@@ -143,6 +143,12 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 TrainedModelAssignment trainedModelAssignment = assignment.getModelAssignment(stats.getModelId());
                 if (trainedModelAssignment != null) {
                     stats.setState(trainedModelAssignment.getAssignmentState()).setReason(trainedModelAssignment.getReason().orElse(null));
+                    if (trainedModelAssignment.getNodeRoutingTable()
+                        .values()
+                        .stream()
+                        .allMatch(ri -> ri.getState().equals(RoutingState.FAILED))) {
+                        stats.setState(AssignmentState.FAILED).setReason("All node routes are failed; see node route reason for details");
+                    }
                     if (trainedModelAssignment.getAssignmentState().isAnyOf(AssignmentState.STARTED, AssignmentState.STARTING)) {
                         stats.setAllocationStatus(trainedModelAssignment.calculateAllocationStatus().orElse(null));
                     }

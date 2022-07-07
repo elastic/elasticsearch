@@ -31,8 +31,8 @@
       ]
     },
     "body": {
-      "description": "The API key request to update attributes of an API key",
-      "required": true
+      "description": "The API key request to update attributes of an API key.",
+      "required": false
     }
   }
 }

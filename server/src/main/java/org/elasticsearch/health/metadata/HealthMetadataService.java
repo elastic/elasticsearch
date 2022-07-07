@@ -167,23 +167,19 @@ public class HealthMetadataService {
             logger.error("failure during health metadata update", e);
         }
 
-        abstract HealthMetadata execute(HealthMetadata initialHealthMetadata);
+        abstract ClusterState execute(ClusterState currentState);
 
         static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
 
             @Override
             public ClusterState execute(ClusterState currentState, List<TaskContext<UpsertHealthMetadataTask>> taskContexts)
                 throws Exception {
-                final HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(currentState);
-                HealthMetadata currentHealthMetadata = initialHealthMetadata;
+                ClusterState updatedState = currentState;
                 for (TaskContext<UpsertHealthMetadataTask> taskContext : taskContexts) {
-                    currentHealthMetadata = taskContext.getTask().execute(currentHealthMetadata);
+                    updatedState = taskContext.getTask().execute(updatedState);
                     taskContext.success(() -> {});
                 }
-                final var finalHealthMetadata = currentHealthMetadata;
-                return finalHealthMetadata == initialHealthMetadata
-                    ? currentState
-                    : currentState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+                return updatedState;
             }
         }
     }
@@ -201,7 +197,8 @@ public class HealthMetadataService {
         }
 
         @Override
-        HealthMetadata execute(HealthMetadata initialHealthMetadata) {
+        ClusterState execute(ClusterState clusterState) {
+            HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
             assert initialHealthMetadata != null : "health metadata should have been initialized";
             HealthMetadata.Disk.Builder builder = HealthMetadata.Disk.newBuilder(initialHealthMetadata.getDiskMetadata());
             if (CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
@@ -219,7 +216,10 @@ public class HealthMetadataService {
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
                 builder.frozenFloodStageMaxHeadroom(value, setting);
             }
-            return new HealthMetadata(builder.build());
+            final var finalHealthMetadata = new HealthMetadata(builder.build());
+            return finalHealthMetadata.equals(initialHealthMetadata)
+                ? clusterState
+                : clusterState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
     }
 
@@ -236,8 +236,9 @@ public class HealthMetadataService {
         }
 
         @Override
-        HealthMetadata execute(HealthMetadata ignored) {
-            return new HealthMetadata(
+        ClusterState execute(ClusterState clusterState) {
+            HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
+            final var finalHealthMetadata = new HealthMetadata(
                 new HealthMetadata.Disk(
                     HealthMetadata.Disk.Threshold.parse(
                         CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings),
@@ -255,6 +256,9 @@ public class HealthMetadataService {
                     CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
                 )
             );
+            return finalHealthMetadata.equals(initialHealthMetadata)
+                ? clusterState
+                : clusterState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
     }
 }

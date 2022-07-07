@@ -461,7 +461,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName())
             )
             .get();
-        ensureYellow("test");
+        ensureYellowAndNoInitializingShards("test");
         assertThatAllShards("test", shard -> {
             assertThat(shard.primaryShard().currentNodeId(), equalTo(primariesNode.getId()));
             assertThat(shard.replicaShards().get(0).state(), not(equalTo(ShardRoutingState.STARTED)));

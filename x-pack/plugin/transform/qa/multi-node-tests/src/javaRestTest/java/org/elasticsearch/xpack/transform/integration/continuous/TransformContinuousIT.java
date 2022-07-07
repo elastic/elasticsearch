@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
@@ -42,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -84,8 +84,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *          to check that optimizations worked
  *      - repeat
  */
-@SuppressWarnings("removal")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88063")
 public class TransformContinuousIT extends TransformRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
@@ -500,6 +498,9 @@ public class TransformContinuousIT extends TransformRestTestCase {
                     Instant.ofEpochMilli(lastSearchTime),
                     is(greaterThan(waitUntil))
                 );
+                // assert a checkpoint isn't in progress
+                Object state = XContentMapValues.extractValue("state", stats);
+                assertThat(state, is(equalTo("started")));
             }, 30, TimeUnit.SECONDS);
         }
     }

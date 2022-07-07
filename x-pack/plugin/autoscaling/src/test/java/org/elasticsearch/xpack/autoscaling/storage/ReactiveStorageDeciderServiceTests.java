@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -425,9 +424,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         long minShardSize = randomLongBetween(1, 10);
 
-        ImmutableOpenMap.Builder<String, DiskUsage> diskUsagesBuilder = ImmutableOpenMap.builder();
-        diskUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
-        ImmutableOpenMap<String, DiskUsage> diskUsages = diskUsagesBuilder.build();
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
         Map<String, Long> shardSize = new HashMap<>();
         ShardRouting missingShard = randomBoolean() ? randomFrom(shards) : null;
         Collection<ShardRouting> shardsWithSizes = shards.stream().filter(s -> s != missingShard).collect(Collectors.toSet());

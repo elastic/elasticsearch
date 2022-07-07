@@ -81,7 +81,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Override
     public void sendResponse(RestResponse restResponse) {
         try (var ignored = tracer.withScope(this)) {
-            // We're sending a response so we know we won't be needing the request content again and release it
+            // We're sending a response so we know we won't be needing
+            // the request content again and release it
             httpRequest.release();
 
             final ArrayList<Releasable> toClose = new ArrayList<>(3);

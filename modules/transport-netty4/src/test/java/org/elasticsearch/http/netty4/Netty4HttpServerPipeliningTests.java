@@ -46,22 +46,20 @@ import java.util.concurrent.Executors;
 import static org.hamcrest.Matchers.contains;
 
 /**
- * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
+ * This test just tests whether the pipelining works in general without any connection to the Elasticsearch handler
  */
 public class Netty4HttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private PageCacheRecycler recycler;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        recycler = new MockPageCacheRecycler(Settings.EMPTY);
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         if (threadPool != null) {
             threadPool.shutdownNow();
         }

@@ -167,7 +167,7 @@
             mode: stored
 
 ---
-"enabling synthetic source from explicit fails":
+"enabling synthetic source from explicit succeeds":
   - skip:
       version:     " - 8.3.99"
       reason:      "Added in 8.4.0"
@@ -181,15 +181,14 @@
               mode: stored
 
   - do:
-      catch: /Cannot update parameter \[synthetic\] from \[false\] to \[true\]/
       indices.put_mapping:
         index: test_index
         body:
           _source:
-            synthetic: true
+            mode: synthetic
 
 ---
-"enabling synthetic source fails":
+"enabling synthetic source succeeds":
   - skip:
       version:     " - 8.3.99"
       reason:      "Added in 8.4.0"
@@ -205,15 +204,14 @@
         id:      1
         refresh: true
         body:
-          kwd: foo
+          value: 4
 
   - do:
-      catch: /Cannot update parameter \[synthetic\] from \[false\] to \[true\]/
       indices.put_mapping:
         index: test_index
         body:
           _source:
-            synthetic: true
+            mode: synthetic
 
 ---
 "enabling synthetic source when no mapping succeeds":
@@ -233,4 +231,4 @@
         index: test_index
         body:
           _source:
-            synthetic: true
+            mode: synthetic

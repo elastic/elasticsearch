@@ -47,7 +47,7 @@ import javax.inject.Inject;
 
 /**
  * A wrapper around gradle's exec functionality to capture output and log on error.
- * This Task is configuration cache compatible in contrast to Gradles' build in
+ * This Task is configuration cache-compatible in contrast to Gradle's built-in
  * Exec task implementation.
  */
 @SuppressWarnings("unchecked")

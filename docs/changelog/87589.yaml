@@ -1,6 +1,6 @@
 pr: 87589
 summary: Deserialising timezones with DateUtils
 area: Infra/Core
-type: refactoring
+type: enhancement
 issues:
   - 38449

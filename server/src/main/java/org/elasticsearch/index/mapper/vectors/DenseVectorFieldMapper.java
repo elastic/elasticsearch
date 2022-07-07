@@ -14,7 +14,6 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;

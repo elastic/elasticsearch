@@ -343,6 +343,7 @@ import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
+import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.process.DummyController;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlControllerHolder;
@@ -445,7 +446,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
-import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.Factory.countNumberInferenceProcessors;
+import static org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
 
 public class MachineLearning extends Plugin
     implements
@@ -1070,7 +1071,13 @@ public class MachineLearning extends Plugin
             threadPool
         );
         trainedModelAllocationClusterServiceSetOnce.set(
-            new TrainedModelAssignmentClusterService(settings, clusterService, threadPool, new NodeLoadDetector(memoryTracker))
+            new TrainedModelAssignmentClusterService(
+                settings,
+                clusterService,
+                threadPool,
+                new NodeLoadDetector(memoryTracker),
+                new SystemAuditor(client, clusterService)
+            )
         );
 
         mlAutoscalingDeciderService.set(
@@ -1910,7 +1917,7 @@ public class MachineLearning extends Plugin
 
         // validate no pipelines are using machine learning models
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(acknowledgedResponse -> {
-            int numberInferenceProcessors = countNumberInferenceProcessors(clusterService.state());
+            int numberInferenceProcessors = countInferenceProcessors(clusterService.state());
             if (numberInferenceProcessors > 0) {
                 unsetResetModeListener.onFailure(
                     new RuntimeException(

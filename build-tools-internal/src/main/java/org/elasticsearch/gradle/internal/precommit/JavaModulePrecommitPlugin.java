@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
@@ -17,7 +16,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
-public class JavaModulePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class JavaModulePrecommitPlugin extends PrecommitPlugin {
 
     public static final String TASK_NAME = "validateModule";
 

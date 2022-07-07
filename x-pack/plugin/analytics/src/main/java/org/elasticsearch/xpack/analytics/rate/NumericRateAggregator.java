@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -40,14 +40,14 @@ public class NumericRateAggregator extends AbstractRateAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         if (computeWithDocCount) {
             // No field or script has been set at the rate agg. So, rate will be computed based on the doc_counts.
             // This implementation hard-wires the DocCountProvider and reads the _doc_count fields when available.
             // A better approach would be to create a DOC_COUNT ValuesSource type and use that as valuesSource
             // In that case the computeRateOnDocs variable and this branch of the if-statement are not required.
-            docCountProvider.setLeafReaderContext(ctx);
+            docCountProvider.setLeafReaderContext(aggCtx.getLeafReaderContext());
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -66,7 +66,7 @@ public class NumericRateAggregator extends AbstractRateAggregator {
                 }
             };
         } else {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(aggCtx.getLeafReaderContext());
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {

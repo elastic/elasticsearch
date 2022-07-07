@@ -108,9 +108,19 @@ class CliToolLauncher {
      * logging will be written to the console.
      */
     private static void configureLoggingWithoutConfig(Map<String, String> sysprops) {
+        final Settings.Builder settingsBuilder = Settings.builder();
+        for (final Map.Entry<String, String> sysprop : sysprops.entrySet()) {
+            final String key = sysprop.getKey();
+            if (key.startsWith("es.logger.") && key.endsWith(".level")) {
+                // es.logger.level => logger.level
+                // es.logger.org.elasticsearch.discovery.level => logger.org.elasticsearch.discovery.level
+                // es.logger.org.elasticsearch.xpack.security.level => logger.org.elasticsearch.xpack.security.level
+                settingsBuilder.put(key.substring("es.".length()), sysprop.getValue());
+            }
+        }
         // initialize default for es.logger.level because we will not read the log4j2.properties
         final String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
-        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        final Settings settings = settingsBuilder.put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
     }
 

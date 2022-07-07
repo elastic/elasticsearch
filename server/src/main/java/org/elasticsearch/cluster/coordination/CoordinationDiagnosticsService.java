@@ -598,7 +598,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         clusterFormationResponses = new ConcurrentHashMap<>();
     }
 
-    private Scheduler.Cancellable beginPollingClusterFormationInfo(
+    Scheduler.Cancellable beginPollingClusterFormationInfo(
+        // Non-private for testing
         DiscoveryNode node,
         final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
     ) {

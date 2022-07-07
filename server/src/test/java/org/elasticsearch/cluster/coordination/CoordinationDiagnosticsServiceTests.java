@@ -32,7 +32,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
+import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
+import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.ClusterFormationStateOrException;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -673,6 +676,44 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 logger.debug("--> stabilising again after delivering blackholed requests");
                 cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             }
+        }
+    }
+
+    public void testPollClusterFormationInfo() throws Exception {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            List<DiscoveryNode> masterNodes = cluster.clusterNodes.stream()
+                .map(Cluster.ClusterNode::getLocalNode)
+                .filter(DiscoveryNode::isMasterNode)
+                .toList();
+            cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
+                ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
+                masterNodes.stream()
+                    .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
+                    .forEach(
+                        masterNode -> {
+                            node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
+                                masterNode,
+                                nodeToClusterFormationStateMap
+                            );
+                        }
+                    );
+                cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+                cluster.stabilise();
+                // We're not calling the method on the local node:
+                assertThat(nodeToClusterFormationStateMap.size(), equalTo(masterNodes.size() - 1));
+                masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
+                    ClusterFormationStateOrException clusterFormationStateOrException = nodeToClusterFormationStateMap.get(masterNode);
+                    assertNotNull(clusterFormationStateOrException);
+                    assertNotNull(clusterFormationStateOrException.clusterFormationState());
+                    assertNull(clusterFormationStateOrException.exception());
+                    ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = clusterFormationStateOrException
+                        .clusterFormationState();
+                    assertThat(clusterFormationState.getDescription(), not(emptyOrNullString()));
+                });
+            });
         }
     }
 

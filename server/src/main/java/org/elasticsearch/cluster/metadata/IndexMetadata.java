@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1006,8 +1007,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public IndexLongFieldRange getTimeSeriesTimestampRange() {
-        if (indexMode != null) {
-            return indexMode.getConfiguredTimestampRange(this);
+        var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
+        if (bounds != null) {
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
         } else {
             return null;
         }

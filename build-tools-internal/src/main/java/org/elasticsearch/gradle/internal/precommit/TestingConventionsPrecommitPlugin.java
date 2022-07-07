@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
@@ -19,7 +18,7 @@ import org.gradle.api.tasks.testing.Test;
 
 import java.util.stream.Collectors;
 
-public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()

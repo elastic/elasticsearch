@@ -8,9 +8,12 @@
 
 package org.elasticsearch.gradle.internal;
 
+<<<<<<< HEAD
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
+=======
 import org.gradle.api.Plugin;
+>>>>>>> 75b7fbda39c (Remove unused InternalPlugin interface (#88330))
 import org.gradle.api.Project;
 
 public class InternalPluginBuildPlugin implements Plugin<Project> {

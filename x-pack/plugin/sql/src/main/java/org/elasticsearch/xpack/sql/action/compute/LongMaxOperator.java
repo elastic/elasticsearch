@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.sql.action.compute;
 
-public class MaxOperator implements Operator {
+public class LongMaxOperator implements Operator {
     boolean finished;
     boolean returnedResult;
-    int max = Integer.MIN_VALUE;
+    long max = Long.MIN_VALUE;
     private final int channel;
 
-    public MaxOperator(int channel) {
+    public LongMaxOperator(int channel) {
         this.channel = channel;
     }
 
@@ -21,7 +21,7 @@ public class MaxOperator implements Operator {
     public Page getOutput() {
         if (finished && returnedResult == false) {
             returnedResult = true;
-            return new Page(new IntBlock(new int[] {max}, 1));
+            return new Page(new LongBlock(new long[] {max}, 1));
         }
         return null;
     }
@@ -45,7 +45,7 @@ public class MaxOperator implements Operator {
     public void addInput(Page page) {
         Block block = page.getBlock(channel);
         for (int i = 0; i < block.getPositionCount(); i++) {
-            max = Math.max(block.getInt(i), max);
+            max = Math.max(block.getLong(i), max);
         }
     }
 }

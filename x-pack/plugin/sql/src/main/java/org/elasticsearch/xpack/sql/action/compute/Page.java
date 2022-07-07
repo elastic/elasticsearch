@@ -66,4 +66,10 @@ public class Page {
         return new Page(false, positionCount, blocks);
     }
 
+    @Override
+    public String toString() {
+        return "Page{" +
+            "blocks=" + Arrays.toString(blocks) +
+            '}';
+    }
 }

@@ -7,20 +7,20 @@
 
 package org.elasticsearch.xpack.sql.action.compute;
 
-import java.util.function.IntFunction;
+import java.util.function.LongFunction;
 
-public class IntTransformer implements Operator {
+public class LongTransformer implements Operator {
 
     private final int channel;
-    private final IntFunction<Integer> intTransformer;
+    private final LongFunction<Long> longTransformer;
 
     boolean finished;
 
     Page lastInput;
 
-    public IntTransformer(int channel, IntFunction<Integer> intTransformer) {
+    public LongTransformer(int channel, LongFunction<Long> longTransformer) {
         this.channel = channel;
-        this.intTransformer = intTransformer;
+        this.longTransformer = longTransformer;
     }
 
     @Override
@@ -29,11 +29,11 @@ public class IntTransformer implements Operator {
             return null;
         }
         Block block = lastInput.getBlock(channel);
-        int[] newBlock = new int[block.getPositionCount()];
+        long[] newBlock = new long[block.getPositionCount()];
         for (int i = 0; i < block.getPositionCount(); i++) {
-            newBlock[i] = intTransformer.apply(block.getInt(i));
+            newBlock[i] = longTransformer.apply(block.getLong(i));
         }
-        return lastInput.appendColumn(new IntBlock(newBlock, block.getPositionCount()));
+        return lastInput.appendColumn(new LongBlock(newBlock, block.getPositionCount()));
     }
 
     @Override

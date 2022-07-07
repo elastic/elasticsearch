@@ -26,4 +26,8 @@ public class Block {
     public int getInt(int position) {
         throw new UnsupportedOperationException(getClass().getName());
     }
+
+    public long getLong(int position) {
+        throw new UnsupportedOperationException(getClass().getName());
+    }
 }

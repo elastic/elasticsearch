@@ -14,7 +14,7 @@ import org.apache.lucene.search.SimpleCollector;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class PageCollector extends SimpleCollector implements Operator {
+public class LucenePageCollector extends SimpleCollector implements Operator {
 
     public static final int PAGE_SIZE = 4096;
 
@@ -25,7 +25,7 @@ public class PageCollector extends SimpleCollector implements Operator {
 
     public final BlockingQueue<Page> pages = new LinkedBlockingQueue<>(2);
 
-    PageCollector() {}
+    LucenePageCollector() {}
 
     @Override
     public void collect(int doc) {

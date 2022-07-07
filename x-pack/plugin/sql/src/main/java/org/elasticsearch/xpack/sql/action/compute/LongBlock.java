@@ -9,22 +9,23 @@ package org.elasticsearch.xpack.sql.action.compute;
 
 import java.util.Arrays;
 
-public class IntBlock extends Block {
-    private final int[] values;
+public class LongBlock extends Block {
 
-    public IntBlock(int[] values, int positionCount) {
+    private final long[] values;
+
+    public LongBlock(long[] values, int positionCount) {
         super(positionCount);
         this.values = values;
     }
 
     @Override
-    public int getInt(int position) {
+    public long getLong(int position) {
         return values[position];
     }
 
     @Override
     public String toString() {
-        return "IntBlock{" +
+        return "LongBlock{" +
             "values=" + Arrays.toString(values) +
             '}';
     }

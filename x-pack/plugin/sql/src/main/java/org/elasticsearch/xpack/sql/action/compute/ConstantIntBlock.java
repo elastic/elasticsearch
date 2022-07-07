@@ -19,4 +19,11 @@ public class ConstantIntBlock extends Block {
     public int getInt(int position) {
         return constant;
     }
+
+    @Override
+    public String toString() {
+        return "ConstantIntBlock{" +
+            "constant=" + constant +
+            '}';
+    }
 }

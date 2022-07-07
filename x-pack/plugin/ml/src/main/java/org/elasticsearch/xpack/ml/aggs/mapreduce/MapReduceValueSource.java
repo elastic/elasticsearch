@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Interface to extract values from Lucene in order to feed it into the MapReducer.
@@ -95,6 +96,30 @@ public abstract class MapReduceValueSource {
             out.writeNamedWriteable(format);
             out.writeEnum(valueFormatter);
         }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            final Field that = (Field) other;
+
+            return this.id == that.id
+                && this.valueFormatter.ordinal() == that.valueFormatter.ordinal()
+                && Objects.equals(this.name, that.name)
+                && Objects.equals(this.format, that.format);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, valueFormatter, name, format);
+        }
+
     };
 
     private final Field field;

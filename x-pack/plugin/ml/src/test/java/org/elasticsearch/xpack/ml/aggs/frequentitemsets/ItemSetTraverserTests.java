@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceTests.createKeywordFieldForTesting;
+import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceTests.createKeywordFieldTestInstance;
 
 public class ItemSetTraverserTests extends ESTestCase {
 
@@ -40,7 +40,7 @@ public class ItemSetTraverserTests extends ESTestCase {
 
     public void testIteration() throws IOException {
         transactionStore = new HashBasedTransactionStore(mockBigArrays());
-        Field field = createKeywordFieldForTesting("field", 0);
+        Field field = createKeywordFieldTestInstance("field", 0);
 
         // create some transactions, for simplicity all with the same key
         transactionStore.add(
@@ -157,7 +157,7 @@ public class ItemSetTraverserTests extends ESTestCase {
 
     public void testPruning() throws IOException {
         transactionStore = new HashBasedTransactionStore(mockBigArrays());
-        Field field = createKeywordFieldForTesting("field", 0);
+        Field field = createKeywordFieldTestInstance("field", 0);
 
         // create some transactions, for simplicity all with the same key
         transactionStore.add(

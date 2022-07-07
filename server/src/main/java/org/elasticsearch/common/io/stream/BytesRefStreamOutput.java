@@ -31,17 +31,17 @@ public class BytesRefStreamOutput extends StreamOutput implements Accountable {
     }
 
     @Override
-    public long position(){
+    public long position() {
         return builder.length();
     }
 
     @Override
-    public void writeByte(byte b){
+    public void writeByte(byte b) {
         builder.append(b);
     }
 
     @Override
-    public void writeBytes(byte[] b, int offset, int length){
+    public void writeBytes(byte[] b, int offset, int length) {
         builder.append(b, offset, length);
     }
 

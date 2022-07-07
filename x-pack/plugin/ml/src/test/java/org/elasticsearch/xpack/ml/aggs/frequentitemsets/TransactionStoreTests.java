@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceTests.createKeywordFieldForTesting;
+import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceTests.createKeywordFieldTestInstance;
 
 public class TransactionStoreTests extends ESTestCase {
 
@@ -231,7 +231,7 @@ public class TransactionStoreTests extends ESTestCase {
 
         int id = 0;
         for (String fieldName : randomFieldNames) {
-            randomFields.add(createKeywordFieldForTesting(fieldName, id++));
+            randomFields.add(createKeywordFieldTestInstance(fieldName, id++));
         }
 
         for (int i = 0; i < n; ++i) {

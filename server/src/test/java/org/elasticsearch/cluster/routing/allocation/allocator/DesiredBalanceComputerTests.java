@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -373,8 +372,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         assertDesiredAssignments(desiredBalance, Map.of());
     }
 
-    public void testShouldDesiredBalanceConverges() {
-        var nodes = 3;//randomIntBetween(3, 7);
+    public void testDesiredBalanceShouldConvergeInABigCluster() {
+        var nodes = randomIntBetween(3, 7);
         var nodeIds = new ArrayList<String>(nodes);
         var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int node = 0; node < nodes; node++) {
@@ -392,19 +391,15 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 )
             );
         }
-        nodeIds.add(null);
 
-        int index = randomIntBetween(0, nodeIds.size() - 1);
-        IntUnaryOperator next = operand -> (operand + 1) % nodeIds.size();
-
-        var indices = 25;//scaledRandomIntBetween(1, 1000);
+        var indices = scaledRandomIntBetween(1, 1000);
         var totalShards = 0;
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < indices; i++) {
             var indexName = "index-" + i;
-            var shards = 5;//randomIntBetween(1, 10);
-            var replicas = 1;//randomIntBetween(1, nodes - 1);
+            var shards = randomIntBetween(1, 10);
+            var replicas = randomIntBetween(1, nodes - 1);
             totalShards += shards * (replicas + 1);
             var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
 
@@ -428,13 +423,10 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var indexRoutingTableBuilder = IndexRoutingTable.builder(indexId);
 
             for (int shard = 0; shard < shards; shard++) {
-//                var remainingNodeIds = new ArrayList<>(nodeIds);
-//                remainingNodeIds.add(null);// disconnected node
+                var remainingNodeIds = new ArrayList<>(nodeIds);
+                remainingNodeIds.add(null);// disconnected node
                 var shardId = new ShardId(indexId, shard);
-
-                var primaryNodeId = nodeIds.get(index);
-                index = next.applyAsInt(index);
-
+                var primaryNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
                 indexRoutingTableBuilder.addShard(
                     TestShardRouting.newShardRouting(
                         shardId,
@@ -446,10 +438,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                     )
                 );
                 for (int replica = 0; replica < replicas; replica++) {
-
-                    var replicaNodeId = nodeIds.get(index);
-                    index = next.applyAsInt(index);
-
+                    var replicaNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
                     indexRoutingTableBuilder.addShard(
                         TestShardRouting.newShardRouting(
                             shardId,

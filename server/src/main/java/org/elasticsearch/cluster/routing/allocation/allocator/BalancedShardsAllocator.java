@@ -539,7 +539,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                             if (logger.isTraceEnabled()) {
                                 logger.trace(
-                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}]  delta: [{}]",
+                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}] delta: [{}]",
                                     index,
                                     maxNode.getNodeId(),
                                     weights[highIdx],

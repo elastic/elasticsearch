@@ -1834,7 +1834,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
-        client.execute(UpdateApiKeyAction.INSTANCE, new UpdateApiKeyRequest(apiKey1.v1(), List.of(), null), listener);
+        client.execute(
+            UpdateApiKeyAction.INSTANCE,
+            // Set metadata to ensure update
+            new UpdateApiKeyRequest(apiKey1.v1(), List.of(), Map.of(randomAlphaOfLength(5), randomAlphaOfLength(10))),
+            listener
+        );
         final var response = listener.get();
         assertNotNull(response);
         assertTrue(response.isUpdated());

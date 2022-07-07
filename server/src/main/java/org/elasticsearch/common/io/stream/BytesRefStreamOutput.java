@@ -58,7 +58,6 @@ public class BytesRefStreamOutput extends StreamOutput implements Accountable {
     @Override
     public void close() {}
 
-    @Override
     public void reset() {
         builder.clear();
     }

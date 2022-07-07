@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
+import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
@@ -32,7 +33,6 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
-import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -492,6 +492,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
         Coordinator.PUBLISH_TIMEOUT_SETTING,
         Coordinator.PUBLISH_INFO_TIMEOUT_SETTING,
+        Coordinator.SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING,
         JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING,
         FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
         FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,
@@ -514,9 +515,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingPressure.MAX_INDEXING_BYTES,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
-        StableMasterHealthIndicatorService.IDENTITY_CHANGES_THRESHOLD_SETTING,
-        StableMasterHealthIndicatorService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
-        StableMasterHealthIndicatorService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
+        CoordinationDiagnosticsService.IDENTITY_CHANGES_THRESHOLD_SETTING,
+        CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING,
+        CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
         HealthNodeTaskExecutor.ENABLED_SETTING

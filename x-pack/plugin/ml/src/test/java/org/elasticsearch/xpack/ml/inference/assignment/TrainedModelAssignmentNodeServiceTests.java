@@ -32,9 +32,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
@@ -55,6 +55,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
@@ -101,15 +102,21 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testLoadQueuedModels() {
+    public void testLoadQueuedModels_GivenNoQueuedModels() {
         TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
 
         // When there are no queued models
         trainedModelAssignmentNodeService.loadQueuedModels();
         verify(deploymentManager, never()).startDeployment(any(), any());
+    }
+
+    public void testLoadQueuedModels() {
+        TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
 
         String modelToLoad = "loading-model";
         String anotherModel = "loading-model-again";
+
+        givenAssignmentsInClusterStateForModels(modelToLoad, anotherModel);
 
         // Should only load each model once
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(modelToLoad));
@@ -119,8 +126,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.loadQueuedModels();
 
         ArgumentCaptor<TrainedModelDeploymentTask> taskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-        ArgumentCaptor<UpdateTrainedModelAssignmentStateAction.Request> requestCapture = ArgumentCaptor.forClass(
-            UpdateTrainedModelAssignmentStateAction.Request.class
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
         verify(deploymentManager, times(2)).startDeployment(taskCapture.capture(), any());
         verify(trainedModelAssignmentService, times(2)).updateModelAssignmentState(requestCapture.capture(), any());
@@ -128,12 +135,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(taskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingState().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         assertThat(taskCapture.getAllValues().get(1).getModelId(), equalTo(anotherModel));
         assertThat(requestCapture.getAllValues().get(1).getModelId(), equalTo(anotherModel));
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(1).getRoutingState().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(1).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         // Since models are loaded, there shouldn't be any more loadings to occur
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(anotherModel));
@@ -144,6 +151,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
     public void testLoadQueuedModelsWhenFailureIsRetried() {
         String modelToLoad = "loading-model";
         String failedModelToLoad = "failed-search-loading-model";
+        givenAssignmentsInClusterStateForModels(modelToLoad, failedModelToLoad);
         withSearchingLoadFailure(failedModelToLoad);
         TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
 
@@ -155,8 +163,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.loadQueuedModels();
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-        ArgumentCaptor<UpdateTrainedModelAssignmentStateAction.Request> requestCapture = ArgumentCaptor.forClass(
-            UpdateTrainedModelAssignmentStateAction.Request.class
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
         verify(deploymentManager, times(3)).startDeployment(startTaskCapture.capture(), any());
         // Only the successful one is notifying, the failed one keeps retrying but not notifying as it is never successful
@@ -165,7 +173,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingState().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         assertThat(startTaskCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(startTaskCapture.getAllValues().get(2).getModelId(), equalTo(failedModelToLoad));
@@ -194,6 +202,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         String modelToLoad = "loading-model";
         String stoppedModelToLoad = "stopped-loading-model";
 
+        givenAssignmentsInClusterStateForModels(modelToLoad, stoppedModelToLoad);
+
         // Only one model should be loaded, the other should be stopped
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(stoppedModelToLoad));
@@ -206,26 +216,26 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             assertThat(stoppedTaskCapture.getValue().getModelId(), equalTo(stoppedModelToLoad));
         });
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-        ArgumentCaptor<UpdateTrainedModelAssignmentStateAction.Request> requestCapture = ArgumentCaptor.forClass(
-            UpdateTrainedModelAssignmentStateAction.Request.class
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
         verify(deploymentManager, times(1)).startDeployment(startTaskCapture.capture(), any());
         assertBusy(() -> verify(trainedModelAssignmentService, times(3)).updateModelAssignmentState(requestCapture.capture(), any()));
 
         boolean seenStopping = false;
         for (int i = 0; i < 3; i++) {
-            UpdateTrainedModelAssignmentStateAction.Request request = requestCapture.getAllValues().get(i);
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request request = requestCapture.getAllValues().get(i);
             assertThat(request.getNodeId(), equalTo(NODE_ID));
             if (request.getModelId().equals(stoppedModelToLoad)) {
                 if (seenStopping) {
-                    assertThat(request.getRoutingState().getState(), equalTo(RoutingState.STOPPED));
+                    assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STOPPED));
                 } else {
-                    assertThat(request.getRoutingState().getState(), equalTo(RoutingState.STOPPING));
+                    assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STOPPING));
                     seenStopping = true;
                 }
             } else {
                 assertThat(request.getModelId(), equalTo(modelToLoad));
-                assertThat(request.getRoutingState().getState(), equalTo(RoutingState.STARTED));
+                assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
             }
         }
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
@@ -236,6 +246,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
     public void testLoadQueuedModelsWhenOneFails() throws InterruptedException {
         String modelToLoad = "loading-model";
         String failedModelToLoad = "failed-loading-model";
+        givenAssignmentsInClusterStateForModels(modelToLoad, failedModelToLoad);
         withLoadFailure(failedModelToLoad);
         TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
 
@@ -253,8 +264,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         latch.await(5, TimeUnit.SECONDS);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-        ArgumentCaptor<UpdateTrainedModelAssignmentStateAction.Request> requestCapture = ArgumentCaptor.forClass(
-            UpdateTrainedModelAssignmentStateAction.Request.class
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
         verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
         verify(trainedModelAssignmentService, times(2)).updateModelAssignmentState(requestCapture.capture(), any());
@@ -265,12 +276,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingState().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         assertThat(startTaskCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(requestCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(1).getRoutingState().getState(), equalTo(RoutingState.FAILED));
+        assertThat(requestCapture.getAllValues().get(1).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.FAILED));
 
         assertThat(stopTaskCapture.getValue().getModelId(), equalTo(failedModelToLoad));
 
@@ -306,15 +317,18 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     modelOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                    TrainedModelAssignment.Builder.empty(newParams(modelOne))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     modelTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(modelTwo)).addNewRoutingEntry(NODE_ID)
+                                    TrainedModelAssignment.Builder.empty(newParams(modelTwo))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     notUsedModel,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedModel))
+                                        .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
                         )
@@ -349,6 +363,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         String modelTwo = "model-2";
         String notUsedModel = "model-3";
         String previouslyUsedModel = "model-4";
+        givenAssignmentsInClusterStateForModels(modelOne, modelTwo, previouslyUsedModel);
         ClusterChangedEvent event = new ClusterChangedEvent(
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
@@ -360,15 +375,18 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     modelOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                    TrainedModelAssignment.Builder.empty(newParams(modelOne))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     modelTwo,
                                     TrainedModelAssignment.Builder.empty(newParams(modelTwo))
-                                        .addNewRoutingEntry(NODE_ID)
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
-                                            new RoutingStateAndReason(
+                                            new RoutingInfo(
+                                                1,
+                                                1,
                                                 randomFrom(RoutingState.STARTED, RoutingState.STARTING),
                                                 randomAlphaOfLength(10)
                                             )
@@ -377,10 +395,12 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 .addNewAssignment(
                                     previouslyUsedModel,
                                     TrainedModelAssignment.Builder.empty(newParams(modelTwo))
-                                        .addNewRoutingEntry(NODE_ID)
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
-                                            new RoutingStateAndReason(
+                                            new RoutingInfo(
+                                                1,
+                                                1,
                                                 randomFrom(RoutingState.STOPPED, RoutingState.FAILED, RoutingState.STOPPING),
                                                 randomAlphaOfLength(10)
                                             )
@@ -388,7 +408,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAssignment(
                                     notUsedModel,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedModel))
+                                        .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
                         )
@@ -411,15 +432,18 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     modelOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                    TrainedModelAssignment.Builder.empty(newParams(modelOne))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     modelTwo,
-                                    TrainedModelAssignment.Builder.empty(newParams(modelTwo)).addNewRoutingEntry("some-other-node")
+                                    TrainedModelAssignment.Builder.empty(newParams(modelTwo))
+                                        .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .addNewAssignment(
                                     notUsedModel,
-                                    TrainedModelAssignment.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                    TrainedModelAssignment.Builder.empty(newParams(notUsedModel))
+                                        .addRoutingEntry("some-other-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
                         )
@@ -438,8 +462,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             assertThat(stoppedTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelTwo));
         });
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-        ArgumentCaptor<UpdateTrainedModelAssignmentStateAction.Request> requestCapture = ArgumentCaptor.forClass(
-            UpdateTrainedModelAssignmentStateAction.Request.class
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
         verify(deploymentManager, times(1)).startDeployment(startTaskCapture.capture(), any());
         verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(requestCapture.capture(), any());
@@ -447,7 +471,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
-        assertThat(requestCapture.getAllValues().get(0).getRoutingState().getState(), equalTo(RoutingState.STARTED));
+        assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
         event = new ClusterChangedEvent(
             "testClusterChanged",
@@ -460,7 +484,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
                                     modelOne,
-                                    TrainedModelAssignment.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                    TrainedModelAssignment.Builder.empty(newParams(modelOne))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )
                                 .build()
                         )
@@ -474,6 +499,100 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.loadQueuedModels();
 
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
+    }
+
+    public void testClusterChanged_GivenAllStartedAssignments_AndNonMatchingTargetAllocations() throws Exception {
+        final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId(NODE_ID)
+            .add(
+                new DiscoveryNode(
+                    NODE_ID,
+                    NODE_ID,
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    DiscoveryNodeRole.roles(),
+                    Version.CURRENT
+                )
+            )
+            .build();
+        String modelOne = "model-1";
+        String modelTwo = "model-2";
+        givenAssignmentsInClusterStateForModels(modelOne, modelTwo);
+        trainedModelAssignmentNodeService.prepareModelToLoad(newParams(modelOne));
+        trainedModelAssignmentNodeService.prepareModelToLoad(newParams(modelTwo));
+        trainedModelAssignmentNodeService.loadQueuedModels();
+
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "shouldUpdateAllocations",
+            ClusterState.builder(new ClusterName("shouldUpdateAllocations"))
+                .nodes(nodes)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            TrainedModelAssignmentMetadata.NAME,
+                            TrainedModelAssignmentMetadata.Builder.empty()
+                                .addNewAssignment(
+                                    modelOne,
+                                    TrainedModelAssignment.Builder.empty(newParams(modelOne))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 3, RoutingState.STARTED, ""))
+                                )
+                                .addNewAssignment(
+                                    modelTwo,
+                                    TrainedModelAssignment.Builder.empty(newParams(modelTwo))
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(2, 1, RoutingState.STARTED, ""))
+                                )
+                                .build()
+                        )
+                        .build()
+                )
+                .build(),
+            ClusterState.EMPTY_STATE
+        );
+
+        trainedModelAssignmentNodeService.clusterChanged(event);
+
+        assertBusy(() -> {
+            ArgumentCaptor<TrainedModelDeploymentTask> updatedTasks = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+            ArgumentCaptor<Integer> updatedAllocations = ArgumentCaptor.forClass(Integer.class);
+            verify(deploymentManager, times(2)).updateNumAllocations(updatedTasks.capture(), updatedAllocations.capture(), any(), any());
+            assertThat(updatedTasks.getAllValues().get(0).getModelId(), equalTo(modelOne));
+            assertThat(updatedTasks.getAllValues().get(1).getModelId(), equalTo(modelTwo));
+        });
+        ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> updateCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
+        );
+        verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
+        verify(trainedModelAssignmentService, times(2)).updateModelAssignmentState(updateCapture.capture(), any());
+
+        assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
+        assertThat(startTaskCapture.getAllValues().get(1).getModelId(), equalTo(modelTwo));
+        assertThat(updateCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
+        assertThat(updateCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
+        assertThat(updateCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
+        assertThat(updateCapture.getAllValues().get(1).getModelId(), equalTo(modelTwo));
+        assertThat(updateCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
+        assertThat(updateCapture.getAllValues().get(1).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
+
+        verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
+    }
+
+    private void givenAssignmentsInClusterStateForModels(String... modelIds) {
+        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.empty();
+        for (String modelId : modelIds) {
+            builder.addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(newParams(modelId))
+                    .addRoutingEntry("test-node", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+            );
+        }
+
+        ClusterState currentState = ClusterState.builder(new ClusterName("testLoadQueuedModels"))
+            .metadata(Metadata.builder().putCustom(TrainedModelAssignmentMetadata.NAME, builder.build()).build())
+            .build();
+
+        when(clusterService.state()).thenReturn(currentState);
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

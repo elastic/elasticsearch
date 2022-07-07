@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -32,6 +33,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,8 +59,8 @@ public class JoinHelperTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
-            Collections.emptySet(),
-            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext())
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
+            new TaskManager(Settings.EMPTY, threadPool, Set.of())
         );
         JoinHelper joinHelper = new JoinHelper(
             null,

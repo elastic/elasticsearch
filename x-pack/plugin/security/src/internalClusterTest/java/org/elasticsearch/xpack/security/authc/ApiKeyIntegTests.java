@@ -1453,7 +1453,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
 
         assertNotNull(response);
-        // In this test, non-null roleDescriptors always result in an update since the role descriptors assigned to the key
+        // In this test, non-null roleDescriptors always result in an update since the role descriptor assigned to the key
         // before the update has a role name "role", whereas the randomly generated role descriptors for the update have longer
         // random role names. As such null descriptors (plus matching or null metadata) is the only way we can get a noop here
         final boolean isUpdated = nullRoleDescriptors == false

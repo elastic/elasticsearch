@@ -431,20 +431,29 @@ public class DeterministicTaskQueue {
 
                     @Override
                     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-                        final boolean[] canceled = { false };
+                        final boolean[] cancelled = { false };
                         final boolean[] initialRun = { true };
                         final long[] previousScheduledStart = { currentTimeMillis };
+                        /*
+                         * The following wrapper Runnable runs the command passed in repeatedly until it is cancelled. The first time the
+                         * underlying command is executed is after the amount of time specified by initialDelay, and it repeats the
+                         * command based on the given period.
+                         */
                         Runnable repeatUntilCanceledCommand = new Runnable() {
                             @Override
                             public void run() {
-                                if (canceled[0] == false) {
+                                if (cancelled[0] == false) {
                                     long delay;
                                     if (initialRun[0]) {
+                                        /*
+                                         * On the initial run of this wrapper, we don't actually run the underlying command. Instead we look
+                                         * at the initialDelay, and schedule the command to run at that time.
+                                         */
                                         delay = initialDelay;
                                         initialRun[0] = false;
                                     } else {
-                                        delay = period;
                                         command.run();
+                                        delay = period;
                                     }
                                     final long extraDelayMillis = RandomNumbers.randomLongBetween(
                                         random,
@@ -452,6 +461,7 @@ public class DeterministicTaskQueue {
                                         executionDelayVariabilityMillis
                                     );
                                     final long actualExecutionDelayMillis = new TimeValue(delay, unit).millis() + extraDelayMillis;
+                                    // Making sure we never schedule something in the past:
                                     final long executionTimeMillis = Math.max(
                                         previousScheduledStart[0] + actualExecutionDelayMillis,
                                         currentTimeMillis
@@ -460,12 +470,17 @@ public class DeterministicTaskQueue {
                                         final DeferredTask deferredTask = new DeferredTask(executionTimeMillis, this);
                                         scheduleDeferredTask(deferredTask);
                                     } else {
+                                        /*
+                                         * More time than the period has passed since the last command was scheduled, so it's time to run it
+                                         * again immediately
+                                         */
                                         runnableTasks.add(this);
                                     }
                                     previousScheduledStart[0] = executionTimeMillis;
                                 }
                             }
                         };
+                        // We schedule the wrapped runnable immediately, and it will reschedule its first run after the correct initialDelay
                         runnableTasks.add(repeatUntilCanceledCommand);
                         return new ScheduledFuture<>() {
                             @Override
@@ -480,13 +495,13 @@ public class DeterministicTaskQueue {
 
                             @Override
                             public boolean cancel(boolean mayInterruptIfRunning) {
-                                canceled[0] = true;
+                                cancelled[0] = true;
                                 return true;
                             }
 
                             @Override
                             public boolean isCancelled() {
-                                return canceled[0];
+                                return cancelled[0];
                             }
 
                             @Override

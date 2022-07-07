@@ -365,7 +365,9 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;
         } else if (authentication.isApiKey()) {
-            listener.onFailure(new IllegalArgumentException("authentication via an API key is not supported for updating API keys"));
+            listener.onFailure(
+                new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
+            );
             return;
         }
 
@@ -378,10 +380,12 @@ public class ApiKeyService {
                 throw new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]");
             }
 
-            validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, single(apiKeyId, versionedDocs).doc());
+            final VersionedApiKeyDoc versionedDoc = singleDoc(apiKeyId, versionedDocs);
+
+            validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
             executeBulkRequest(
-                buildBulkRequestForUpdate(versionedDocs, authentication, request, userRoles),
+                buildBulkRequestForUpdate(versionedDoc, authentication, request, userRoles),
                 ActionListener.wrap(bulkResponse -> translateResponseAndClearCache(apiKeyId, bulkResponse, listener), listener::onFailure)
             );
         }, listener::onFailure));
@@ -1216,7 +1220,7 @@ public class ApiKeyService {
         }
     }
 
-    private static VersionedApiKeyDoc single(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
+    private static VersionedApiKeyDoc singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
         if (elements.size() != 1) {
             final var message = "expected single API key doc with ID ["
                 + apiKeyId
@@ -1230,50 +1234,47 @@ public class ApiKeyService {
     }
 
     private BulkRequest buildBulkRequestForUpdate(
-        final Collection<VersionedApiKeyDoc> currentVersionedDocs,
+        final VersionedApiKeyDoc versionedDoc,
         final Authentication authentication,
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles
     ) throws IOException {
-        assert currentVersionedDocs.isEmpty() == false;
+        logger.trace(
+            "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
+            request.getId(),
+            versionedDoc.seqNo(),
+            versionedDoc.primaryTerm()
+        );
+        final var currentDocVersion = Version.fromId(versionedDoc.doc().version);
         final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
-        final var bulkRequestBuilder = client.prepareBulk();
-        for (final VersionedApiKeyDoc apiKeyDoc : currentVersionedDocs) {
-            logger.trace(
-                "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
+        assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
+        if (currentDocVersion.before(targetDocVersion)) {
+            logger.debug(
+                "API key update for [{}] will update version from [{}] to [{}]",
                 request.getId(),
-                apiKeyDoc.seqNo(),
-                apiKeyDoc.primaryTerm()
-            );
-            final var currentDocVersion = Version.fromId(apiKeyDoc.doc().version);
-            assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
-            if (currentDocVersion.before(targetDocVersion)) {
-                logger.debug(
-                    "API key update for [{}] will update version from [{}] to [{}]",
-                    request.getId(),
-                    currentDocVersion,
-                    targetDocVersion
-                );
-            }
-            bulkRequestBuilder.add(
-                client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setId(request.getId())
-                    .setSource(
-                        buildUpdatedDocument(
-                            apiKeyDoc.doc(),
-                            authentication,
-                            userRoles,
-                            request.getRoleDescriptors(),
-                            targetDocVersion,
-                            request.getMetadata()
-                        )
-                    )
-                    .setIfSeqNo(apiKeyDoc.seqNo())
-                    .setIfPrimaryTerm(apiKeyDoc.primaryTerm())
-                    .setOpType(DocWriteRequest.OpType.INDEX)
-                    .request()
+                currentDocVersion,
+                targetDocVersion
             );
         }
+        final var bulkRequestBuilder = client.prepareBulk();
+        bulkRequestBuilder.add(
+            client.prepareIndex(SECURITY_MAIN_ALIAS)
+                .setId(request.getId())
+                .setSource(
+                    buildUpdatedDocument(
+                        versionedDoc.doc(),
+                        authentication,
+                        userRoles,
+                        request.getRoleDescriptors(),
+                        targetDocVersion,
+                        request.getMetadata()
+                    )
+                )
+                .setIfSeqNo(versionedDoc.seqNo())
+                .setIfPrimaryTerm(versionedDoc.primaryTerm())
+                .setOpType(DocWriteRequest.OpType.INDEX)
+                .request()
+        );
         bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         return bulkRequestBuilder.request();
     }

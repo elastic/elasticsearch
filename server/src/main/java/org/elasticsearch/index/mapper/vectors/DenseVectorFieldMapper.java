@@ -284,11 +284,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new FieldExistsQuery(name());
-        }
-
-        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }

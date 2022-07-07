@@ -126,16 +126,10 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        throw new UnsupportedOperationException("Shouldn't be here");
-    }
-
-    @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert sub.isNoop() : "Expected noop but was " + sub.toString();
 
-        BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
+        BucketedSort.Leaf leafSort = sort.forLeaf(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollector() {
 
@@ -145,7 +139,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             public DocIdSetIterator competitiveIterator() throws IOException {
                 if (aggCtx != null && aggCtx.getTsid() != null) {
                     // TODO: we need to check that the sorting is that in @timestamp in descending order
-                    SortedDocValues tsids = DocValues.getSorted(ctx.reader(), TimeSeriesIdFieldMapper.NAME);
+                    SortedDocValues tsids = DocValues.getSorted(aggCtx.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
                     docsPerOrdIterator = new DocsPerOrdIterator(tsids, size);
                 }
                 return docsPerOrdIterator;

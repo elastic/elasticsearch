@@ -212,7 +212,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
                 if (startNormalized[i] == 0) {
                     continue;
                 }
-                for (int j = i + 1; j < (maxAnswerLength + i) && j < tokenSize; j++) {
+                for (int j = i; j < (maxAnswerLength + i) && j < tokenSize; j++) {
                     double score = startNormalized[i] * endNormalized[j];
                     if (score > maxScore) {
                         maxScore = score;

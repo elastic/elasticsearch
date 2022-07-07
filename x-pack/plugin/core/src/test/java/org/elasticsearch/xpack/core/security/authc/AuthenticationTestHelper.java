@@ -90,6 +90,18 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static User userWithRandomContactDetails(final String username, final String... roles) {
+        return new User(
+            username,
+            roles,
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            // Not a very realistic email address, but we don't validate this nor rely on correct format, so keeping it simple
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            null,
+            true
+        );
+    }
+
     public static RealmDomain randomDomain(boolean includeInternal) {
         final Supplier<String> randomRealmTypeSupplier = randomRealmTypeSupplier(includeInternal);
         final Set<RealmConfig.RealmIdentifier> domainRealms = new HashSet<>(

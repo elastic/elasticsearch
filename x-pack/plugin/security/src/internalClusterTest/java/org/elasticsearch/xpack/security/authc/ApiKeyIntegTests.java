@@ -1730,13 +1730,33 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Update with different creator info is not a noop
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
-        final String randomFullName = randomAlphaOfLengthBetween(1, 100);
+        final User updatedUser = AuthenticationTestHelper.userWithRandomContactDetails(TEST_USER_NAME, TEST_ROLE);
+        final Authentication.RealmRef realmRef;
+        final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
+        final boolean noUserChanges = updatedUser.equals(new User(TEST_USER_NAME, TEST_ROLE));
+        if (randomBoolean() || noUserChanges) {
+            final RealmConfig.RealmIdentifier otherRealmInDomain = AuthenticationTestHelper.randomRealmIdentifier(true);
+            final var realmDomain = new RealmDomain(
+                ESTestCase.randomAlphaOfLengthBetween(3, 8),
+                Set.of(creatorRealmOnCreatedApiKey, otherRealmInDomain)
+            );
+            // Using other realm from domain should result in update
+            realmRef = new Authentication.RealmRef(
+                otherRealmInDomain.getName(),
+                otherRealmInDomain.getType(),
+                serviceWithNodeName.nodeName(),
+                realmDomain
+            );
+        } else {
+            realmRef = new Authentication.RealmRef(
+                creatorRealmOnCreatedApiKey.getName(),
+                creatorRealmOnCreatedApiKey.getType(),
+                serviceWithNodeName.nodeName()
+            );
+        }
         final var authentication = randomValueOtherThanMany(
             Authentication::isApiKey,
-            () -> AuthenticationTestHelper.builder()
-                .user(new User(TEST_USER_NAME, new String[] { TEST_ROLE }, randomFullName, null, null, true))
-                .realmRef(new Authentication.RealmRef("file", FileRealmSettings.TYPE, serviceWithNodeName.nodeName()))
-                .build()
+            () -> AuthenticationTestHelper.builder().user(updatedUser).realmRef(realmRef).build()
         );
         final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         serviceWithNodeName.service()

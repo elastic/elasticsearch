@@ -1450,8 +1450,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, listener);
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
 
         assertNotNull(response);
         // In this test, non-null roleDescriptors always result in an update since the role descriptors assigned to the key
@@ -1543,8 +1542,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
 
         // Update API key
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), listener);
+        final UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1558,8 +1556,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, listener);
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -1696,30 +1693,35 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)),
             ApiKeyTests.randomMetadata()
         );
-        UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
+        UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         // First update is not noop, because role descriptors changed and possibly metadata
         assertTrue(response.isUpdated());
 
         // Update with same request is a noop
-        response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
+        response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         assertFalse(response.isUpdated());
 
         // Update with empty request is a noop
-        response = executeUpdateApiKey(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), new PlainActionFuture<>());
+        response = executeUpdateApiKey(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
         assertNotNull(response);
         assertFalse(response.isUpdated());
 
         // Update with different role descriptors is not a noop
-        final RoleDescriptor newRoleDescriptor = randomValueOtherThanMany(
-            rd -> (RoleDescriptorRequestValidator.validate(rd) != null) && initialRequest.getRoleDescriptors().contains(rd) == false,
-            () -> RoleDescriptorTests.randomRoleDescriptor(false)
-        );
         response = executeUpdateApiKey(
             TEST_USER_NAME,
-            new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptor), null),
-            new PlainActionFuture<>()
+            new UpdateApiKeyRequest(
+                apiKeyId,
+                List.of(
+                    randomValueOtherThanMany(
+                        rd -> (RoleDescriptorRequestValidator.validate(rd) != null)
+                            && initialRequest.getRoleDescriptors().contains(rd) == false,
+                        () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                    )
+                ),
+                null
+            )
         );
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1731,8 +1733,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 apiKeyId,
                 null,
                 randomValueOtherThanMany(md -> md == null || md.equals(initialRequest.getMetadata()), ApiKeyTests::randomMetadata)
-            ),
-            new PlainActionFuture<>()
+            )
         );
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -2179,11 +2180,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private UpdateApiKeyResponse executeUpdateApiKey(
-        final String username,
-        final UpdateApiKeyRequest request,
-        final PlainActionFuture<UpdateApiKeyResponse> listener
-    ) throws InterruptedException, ExecutionException {
+    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws InterruptedException,
+        ExecutionException {
+        final var listener = new PlainActionFuture<UpdateApiKeyResponse>();
         final Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING))
         );

@@ -1731,9 +1731,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Update with different creator info is not a noop
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
         final User updatedUser = AuthenticationTestHelper.userWithRandomContactDetails(TEST_USER_NAME, TEST_ROLE);
-        final Authentication.RealmRef realmRef;
         final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
         final boolean noUserChanges = updatedUser.equals(new User(TEST_USER_NAME, TEST_ROLE));
+        final Authentication.RealmRef realmRef;
         if (randomBoolean() || noUserChanges) {
             final RealmConfig.RealmIdentifier otherRealmInDomain = AuthenticationTestHelper.randomRealmIdentifier(true);
             final var realmDomain = new RealmDomain(

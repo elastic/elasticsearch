@@ -48,7 +48,7 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_security/api_key/{id}"));
+        return List.of(new Route(PUT, "/_security/api_key/{ids}"));
     }
 
     @Override
@@ -58,8 +58,11 @@ public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final var apiKeyId = request.param("id");
-        final var payload = PARSER.parse(request.contentParser(), null);
+        // Note that we use `ids` here even though we only support a single id. This is because this route shares a path prefix with
+        // `RestClearApiKeyCacheAction` and our current REST implementation requires that path params have the same wildcard if their paths
+        // share a prefix
+        final var apiKeyId = request.param("ids");
+        final var payload = request.hasContent() == false ? new Payload(null, null) : PARSER.parse(request.contentParser(), null);
         return channel -> client.execute(
             UpdateApiKeyAction.INSTANCE,
             new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata),

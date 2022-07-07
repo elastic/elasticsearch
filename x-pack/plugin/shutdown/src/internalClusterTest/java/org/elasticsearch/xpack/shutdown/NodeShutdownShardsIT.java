@@ -167,7 +167,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
         ).get();
         ensureGreen(indexName);
-        indexRandomData();
+        indexRandomData(indexName);
 
         String nodeToStopId = findIdOfNodeWithPrimaryShard(indexName);
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
@@ -536,7 +536,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             );
         });
 
-        client().prepareIndex("myindex").setSource("field", "value");
+        indexRandomData("myindex");
 
         internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback() {
             @Override
@@ -549,11 +549,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ensureGreen("myindex");
     }
 
-    private void indexRandomData() throws Exception {
+    private void indexRandomData(String index) throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = client().prepareIndex(index).setSource("field", "value");
         }
         indexRandom(true, builders);
     }

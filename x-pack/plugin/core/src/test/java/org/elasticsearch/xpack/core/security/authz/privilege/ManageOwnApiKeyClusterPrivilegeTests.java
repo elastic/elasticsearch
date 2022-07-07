@@ -41,7 +41,6 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
-        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
@@ -52,16 +51,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
-        final User userJoe = new User("joe");
-        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
-        final Authentication authenticationWithUser = AuthenticationTests.randomAuthentication(new User("joe"), realmRef);
-        final Authentication apiKeyAuthentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
-        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(
-            randomValueOtherThan(apiKeyId, () -> randomAlphaOfLengthBetween(4, 7))
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
 
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, apiKeyAuthentication));
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authenticationWithUser));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
     }
 
     public void testAuthenticationWithApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {

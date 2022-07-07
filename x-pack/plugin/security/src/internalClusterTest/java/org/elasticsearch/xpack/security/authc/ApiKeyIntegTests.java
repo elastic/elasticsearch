@@ -1510,8 +1510,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
         );
         final List<String> clusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
-        // At a minimum include `manage_own_api_key` to ensure no 403
-        clusterPrivileges.add("manage_own_api_key");
+        // At a minimum include privilege to manage own API key to ensure no 403
+        clusterPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
         final RoleDescriptor roleDescriptorBeforeUpdate = putRoleWithClusterPrivileges(
             nativeRealmRole,
             clusterPrivileges.toArray(new String[0])
@@ -1528,8 +1528,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorBeforeUpdate), getApiKeyDocument(apiKeyId));
 
         final List<String> newClusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
-        // At a minimum include `manage_own_api_key` to ensure no 403
-        newClusterPrivileges.add("manage_own_api_key");
+        // At a minimum include privilege to manage own API key to ensure no 403
+        newClusterPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
         // Update user role
         final RoleDescriptor roleDescriptorAfterUpdate = putRoleWithClusterPrivileges(
             nativeRealmRole,
@@ -1590,8 +1590,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     public void testInvalidUpdateApiKeyScenarios() throws ExecutionException, InterruptedException {
         final List<String> apiKeyPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
-        // At a minimum include `manage_own_api_key` to ensure no 403
-        apiKeyPrivileges.add("manage_own_api_key");
+        // At a minimum include privilege to manage own API key to ensure no 403
+        apiKeyPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
         final CreateApiKeyResponse createdApiKey = createApiKeys(TEST_USER_NAME, 1, null, apiKeyPrivileges.toArray(new String[0])).v1()
             .get(0);
         final var apiKeyId = createdApiKey.getId();

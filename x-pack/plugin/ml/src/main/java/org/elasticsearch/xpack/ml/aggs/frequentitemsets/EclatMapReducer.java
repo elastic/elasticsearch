@@ -224,11 +224,8 @@ public final class EclatMapReducer extends AbstractMapReducer<
     }
 
     @Override
-    public EclatResult reduceFinalize(
-        HashBasedTransactionStore transactionStore,
-        List<String> fieldNames,
-        Supplier<Boolean> isCanceledSupplier
-    ) throws IOException {
+    public EclatResult reduceFinalize(HashBasedTransactionStore transactionStore, List<Field> fields, Supplier<Boolean> isCanceledSupplier)
+        throws IOException {
         transactionStore.prune(minimumSupport);
 
         if (isCanceledSupplier.get()) {
@@ -243,7 +240,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
                 minimumSupport,
                 minimumSetSize,
                 size,
-                fieldNames,
+                fields,
                 isCanceledSupplier
             );
             return frequentItemSets;
@@ -263,7 +260,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
         double minimumSupport,
         int minimumSetSize,
         int size,
-        List<String> fieldNames,
+        List<Field> fields,
         Supplier<Boolean> isCanceledSupplier
     ) throws IOException {
         final long relativeStartNanos = System.nanoTime();
@@ -387,7 +384,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
             }
         }
 
-        FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fieldNames);
+        FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);
 
         final long eclatRuntimeNanos = System.nanoTime() - relativeStartNanos;
 

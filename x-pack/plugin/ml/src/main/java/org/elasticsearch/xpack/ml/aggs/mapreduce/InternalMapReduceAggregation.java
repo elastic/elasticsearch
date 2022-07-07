@@ -17,7 +17,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.DelegatingMapParams;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,7 +36,7 @@ public final class InternalMapReduceAggregation<
 
     private final AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
-    private final List<String> fieldNames;
+    private final List<Field> fields;
     private final boolean profiling;
 
     private MapFinalContext mapFinalContext = null;
@@ -46,14 +48,14 @@ public final class InternalMapReduceAggregation<
         AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
         MapFinalContext mapFinalContext,
         Result mapReduceResult,
-        List<String> fieldNames,
+        List<Field> fields,
         boolean profiling
     ) {
         super(name, metadata);
         this.mapReducer = Objects.requireNonNull(mapReducer);
         this.mapFinalContext = mapFinalContext;
         this.mapReduceResult = mapReduceResult;
-        this.fieldNames = Objects.requireNonNull(fieldNames);
+        this.fields = Objects.requireNonNull(fields);
         this.profiling = profiling;
 
         // we use the `NON_RECYCLING_INSTANCE` here, which has no circuit breaker attached
@@ -86,7 +88,7 @@ public final class InternalMapReduceAggregation<
             this.mapReduceResult = this.mapReducer.readResult(in, bigArraysForMapReduce);
         }
 
-        this.fieldNames = in.readStringList();
+        this.fields = in.readList(Field::new);
         this.profiling = in.readBoolean();
     }
 
@@ -100,7 +102,7 @@ public final class InternalMapReduceAggregation<
         mapReducer.writeTo(out);
         out.writeOptionalWriteable(mapFinalContext);
         out.writeOptionalWriteable(mapReduceResult);
-        out.writeStringCollection(fieldNames);
+        out.writeList(fields);
         out.writeBoolean(profiling);
     }
 
@@ -119,19 +121,19 @@ public final class InternalMapReduceAggregation<
             // we can use the reduce context big arrays, because we finalize here
             try (ReduceContext reduceContext = mapReducer.reduceInit(aggReduceContext.bigArrays())) {
                 mapReducer.reduce(contexts, reduceContext, aggReduceContext.isCanceled());
-                mapReduceResult = mapReducer.reduceFinalize(reduceContext, fieldNames, aggReduceContext.isCanceled());
+                mapReduceResult = mapReducer.reduceFinalize(reduceContext, fields, aggReduceContext.isCanceled());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Final reduction failed", e);
             }
 
-            return new InternalMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fieldNames, profiling);
+            return new InternalMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fields, profiling);
         }
         // else: combine
         // can't use the bigarray from the agg reduce context, because we don't finalize it here
         ReduceContext newMapReduceContext = mapReducer.reduceInit(bigArraysForMapReduce);
         MapFinalContext newMapFinalContext = mapReducer.combine(contexts, newMapReduceContext, aggReduceContext.isCanceled());
 
-        return new InternalMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fieldNames, profiling);
+        return new InternalMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fields, profiling);
     }
 
     @Override

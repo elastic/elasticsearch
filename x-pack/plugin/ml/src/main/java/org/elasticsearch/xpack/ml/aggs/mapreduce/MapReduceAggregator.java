@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -40,7 +41,7 @@ public abstract class MapReduceAggregator<
     Result extends ToXContent & Writeable> extends AggregatorBase {
 
     private final List<MapReduceValueSource> extractors;
-    private final List<String> fieldNames;
+    private final List<Field> fields;
     private final AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
     private final LongObjectPagedHashMap<Object> mapReduceContextByBucketOrdinal;
@@ -59,18 +60,18 @@ public abstract class MapReduceAggregator<
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
         List<MapReduceValueSource> extractors = new ArrayList<>();
-        List<String> fieldNames = new ArrayList<>();
+        List<Field> fields = new ArrayList<>();
         int id = 0;
         for (ValuesSourceConfig c : configs) {
             MapReduceValueSource e = context.getValuesSourceRegistry().getAggregator(registryKey, c).build(c, id++);
             if (e.getField().getName() != null) {
-                fieldNames.add(e.getField().getName());
+                fields.add(e.getField());
                 extractors.add(e);
             }
         }
 
         this.extractors = Collections.unmodifiableList(extractors);
-        this.fieldNames = Collections.unmodifiableList(fieldNames);
+        this.fields = Collections.unmodifiableList(fields);
         this.mapReducer = mapReducer;
         this.profiling = context.profiling();
 
@@ -84,7 +85,7 @@ public abstract class MapReduceAggregator<
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, null, null, fieldNames, profiling);
+        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, null, null, fields, profiling);
     }
 
     @Override
@@ -163,7 +164,7 @@ public abstract class MapReduceAggregator<
             return buildEmptyAggregation();
         }
 
-        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fieldNames, profiling);
+        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fields, profiling);
     }
 
 }

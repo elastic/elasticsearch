@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
@@ -35,13 +37,43 @@ public abstract class MapReduceValueSource {
         MapReduceValueSource build(ValuesSourceConfig config, int id);
     }
 
+    enum ValueFormatter {
+        BYTES_REF {
+            @Override
+            public Object format(DocValueFormat format, Object obj) {
+                return format.format((BytesRef) obj);
+            }
+        },
+        LONG {
+            @Override
+            public Object format(DocValueFormat format, Object obj) {
+                return format.format((Long) obj);
+            }
+        };
+
+        Object format(DocValueFormat format, Object obj) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     public static class Field implements Writeable {
         private final String name;
         private final int id;
+        private final DocValueFormat format;
+        private final ValueFormatter valueFormatter;
 
-        public Field(String name, int id) {
+        Field(String name, int id, DocValueFormat format, ValueFormatter valueFormatter) {
             this.name = name;
             this.id = id;
+            this.format = format;
+            this.valueFormatter = valueFormatter;
+        }
+
+        Field(StreamInput in) throws IOException {
+            this.name = in.readString();
+            this.id = in.readVInt();
+            this.format = in.readNamedWriteable(DocValueFormat.class);
+            this.valueFormatter = in.readEnum(ValueFormatter.class);
         }
 
         public String getName() {
@@ -52,43 +84,42 @@ public abstract class MapReduceValueSource {
             return id;
         }
 
+        public Object formatValue(Object value) {
+            return valueFormatter.format(format, value);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeInt(id);
-
+            out.writeVInt(id);
+            out.writeNamedWriteable(format);
+            out.writeEnum(valueFormatter);
         }
     };
 
     private final Field field;
-    private final DocValueFormat format;
 
     abstract Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException;
 
-    MapReduceValueSource(ValuesSourceConfig config, int id) {
+    MapReduceValueSource(ValuesSourceConfig config, int id, ValueFormatter valueFormatter) {
         String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
 
         if (Strings.isNullOrEmpty(fieldName)) {
             throw new IllegalArgumentException("scripts are not supported");
         }
 
-        this.field = new Field(fieldName, id);
-        this.format = config.format();
+        this.field = new Field(fieldName, id, config.format(), valueFormatter);
     }
 
-    public Field getField() {
+    Field getField() {
         return field;
-    }
-
-    DocValueFormat getFormat() {
-        return format;
     }
 
     public static class KeywordValueSource extends MapReduceValueSource {
         private final ValuesSource.Bytes source;
 
         public KeywordValueSource(ValuesSourceConfig config, int id) {
-            super(config, id);
+            super(config, id, ValueFormatter.BYTES_REF);
             this.source = (Bytes) config.getValuesSource();
         }
 
@@ -101,7 +132,7 @@ public abstract class MapReduceValueSource {
                 List<Object> objects = new ArrayList<>(valuesCount);
 
                 for (int i = 0; i < valuesCount; ++i) {
-                    objects.add(getFormat().format(values.nextValue()));
+                    objects.add(BytesRef.deepCopyOf(values.nextValue()));
                 }
                 return new Tuple<>(getField(), objects);
             }
@@ -113,7 +144,7 @@ public abstract class MapReduceValueSource {
         private final ValuesSource.Numeric source;
 
         public NumericValueSource(ValuesSourceConfig config, int id) {
-            super(config, id);
+            super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();
         }
 
@@ -126,7 +157,7 @@ public abstract class MapReduceValueSource {
                 List<Object> objects = new ArrayList<>(valuesCount);
 
                 for (int i = 0; i < valuesCount; ++i) {
-                    objects.add(getFormat().format(values.nextValue()));
+                    objects.add(values.nextValue());
                 }
                 return new Tuple<>(getField(), objects);
             }

@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,17 +171,20 @@ public final class FrequentItemSetCollector {
             this.docCount = -1;
         }
 
-        FrequentItemSet toFrequentItemSet(List<String> fieldNames) throws IOException {
+        FrequentItemSet toFrequentItemSet(List<Field> fields) throws IOException {
             Map<String, List<Object>> frequentItemsKeyValues = new HashMap<>();
 
             for (int i = 0; i < items.length; ++i) {
                 Tuple<Integer, Object> item = transactionStore.getItem(items.longs[i]);
-                String fieldName = fieldNames.get(item.v1());
+                final Field field = fields.get(item.v1());
+                Object formattedValue = field.formatValue(item.v2());
+                String fieldName = fields.get(item.v1()).getName();
+
                 if (frequentItemsKeyValues.containsKey(fieldName)) {
-                    frequentItemsKeyValues.get(fieldName).add(item.v2());
+                    frequentItemsKeyValues.get(fieldName).add(formattedValue);
                 } else {
                     List<Object> l = new ArrayList<>();
-                    l.add(item.v2());
+                    l.add(formattedValue);
                     frequentItemsKeyValues.put(fieldName, l);
                 }
             }
@@ -255,10 +259,10 @@ public final class FrequentItemSetCollector {
         frequentItemsByCount = Maps.newMapWithExpectedSize(size / 10);
     }
 
-    public FrequentItemSet[] finalizeAndGetResults(List<String> fieldNames) throws IOException {
+    public FrequentItemSet[] finalizeAndGetResults(List<Field> fields) throws IOException {
         FrequentItemSet[] topFrequentItems = new FrequentItemSet[size()];
         for (int i = topFrequentItems.length - 1; i >= 0; i--) {
-            topFrequentItems[i] = queue.pop().toFrequentItemSet(fieldNames);
+            topFrequentItems[i] = queue.pop().toFrequentItemSet(fields);
         }
         return topFrequentItems;
     }

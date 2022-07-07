@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -28,6 +29,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregationTests.WordCountMapReducer.WordCounts;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.ValueFormatter;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -134,7 +136,7 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
 
         @Override
-        public WordCounts reduceFinalize(WordCounts wordCounts, List<String> fieldNames, Supplier<Boolean> isCanceledSupplier)
+        public WordCounts reduceFinalize(WordCounts wordCounts, List<Field> fields, Supplier<Boolean> isCanceledSupplier)
             throws IOException {
             return wordCounts;
         }
@@ -208,9 +210,10 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
 
         WordCounts context = mr.mapInit(/* unused: bigarrays */ null);
-        context = mr.map(randomText.stream().map(word -> Tuple.tuple(new Field("text", 0), Collections.singletonList(word))), context);
+        Field field1 = new Field("field", 0, DocValueFormat.RAW, ValueFormatter.BYTES_REF);
 
-        return new InternalMapReduceAggregation<>(name, metadata, mr, context, context, Collections.singletonList("field"), false);
+        context = mr.map(randomText.stream().map(word -> Tuple.tuple(field1, Collections.singletonList(word))), context);
+        return new InternalMapReduceAggregation<>(name, metadata, mr, context, context, Collections.singletonList(field1), false);
     }
 
     @Override

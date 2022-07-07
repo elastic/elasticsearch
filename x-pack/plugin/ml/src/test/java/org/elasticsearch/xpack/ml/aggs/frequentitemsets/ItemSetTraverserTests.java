@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceTests.createKeywordFieldForTesting;
 
 public class ItemSetTraverserTests extends ESTestCase {
 
@@ -39,20 +40,21 @@ public class ItemSetTraverserTests extends ESTestCase {
 
     public void testIteration() throws IOException {
         transactionStore = new HashBasedTransactionStore(mockBigArrays());
+        Field field = createKeywordFieldForTesting("field", 0);
 
         // create some transactions, for simplicity all with the same key
         transactionStore.add(
             Stream.of(
-                tuple(new Field("k", 0), List.of("a", "d", "f")),
-                tuple(new Field("k", 0), List.of("a", "c", "d", "e")),
-                tuple(new Field("k", 0), List.of("b", "d")),
-                tuple(new Field("k", 0), List.of("b", "c", "d")),
-                tuple(new Field("k", 0), List.of("b", "c")),
-                tuple(new Field("k", 0), List.of("a", "b", "d")),
-                tuple(new Field("k", 0), List.of("b", "d", "e")),
-                tuple(new Field("k", 0), List.of("b", "c", "e", "g")),
-                tuple(new Field("k", 0), List.of("c", "d", "f")),
-                tuple(new Field("k", 0), List.of("a", "b", "d"))
+                tuple(field, List.of("a", "d", "f")),
+                tuple(field, List.of("a", "c", "d", "e")),
+                tuple(field, List.of("b", "d")),
+                tuple(field, List.of("b", "c", "d")),
+                tuple(field, List.of("b", "c")),
+                tuple(field, List.of("a", "b", "d")),
+                tuple(field, List.of("b", "d", "e")),
+                tuple(field, List.of("b", "c", "e", "g")),
+                tuple(field, List.of("c", "d", "f")),
+                tuple(field, List.of("a", "b", "d"))
             )
         );
 
@@ -155,20 +157,21 @@ public class ItemSetTraverserTests extends ESTestCase {
 
     public void testPruning() throws IOException {
         transactionStore = new HashBasedTransactionStore(mockBigArrays());
+        Field field = createKeywordFieldForTesting("field", 0);
 
         // create some transactions, for simplicity all with the same key
         transactionStore.add(
             Stream.of(
-                tuple(new Field("k", 0), List.of("a", "d", "f")),
-                tuple(new Field("k", 0), List.of("a", "c", "d", "e")),
-                tuple(new Field("k", 0), List.of("b", "d")),
-                tuple(new Field("k", 0), List.of("b", "c", "d")),
-                tuple(new Field("k", 0), List.of("b", "c")),
-                tuple(new Field("k", 0), List.of("a", "b", "d")),
-                tuple(new Field("k", 0), List.of("b", "d", "e")),
-                tuple(new Field("k", 0), List.of("b", "c", "e", "g")),
-                tuple(new Field("k", 0), List.of("c", "d", "f")),
-                tuple(new Field("k", 0), List.of("a", "b", "d"))
+                tuple(field, List.of("a", "d", "f")),
+                tuple(field, List.of("a", "c", "d", "e")),
+                tuple(field, List.of("b", "d")),
+                tuple(field, List.of("b", "c", "d")),
+                tuple(field, List.of("b", "c")),
+                tuple(field, List.of("a", "b", "d")),
+                tuple(field, List.of("b", "d", "e")),
+                tuple(field, List.of("b", "c", "e", "g")),
+                tuple(field, List.of("c", "d", "f")),
+                tuple(field, List.of("a", "b", "d"))
             )
         );
 

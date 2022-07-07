@@ -125,11 +125,11 @@ public abstract class AbstractMapReducer<
      * Definition of code to execute after the reducer processed all input.
      *
      * @param reduceContext the result object returned from doReduce
-     * @param fieldNames list of field names from the input
+     * @param fields list of fields from the input
      * @param isCanceledSupplier supplier to check whether the request has been canceled
      * @throws IOException
      */
-    protected abstract Result reduceFinalize(ReduceContext reduceContext, List<String> fieldNames, Supplier<Boolean> isCanceledSupplier)
+    protected abstract Result reduceFinalize(ReduceContext reduceContext, List<Field> fields, Supplier<Boolean> isCanceledSupplier)
         throws IOException;
 
     /**

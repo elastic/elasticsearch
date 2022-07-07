@@ -212,7 +212,6 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
      *
      * @param id the item id
      * @return the item as key value pair
-     * TODO: currently field values are hardcoded to strings
      */
     public Tuple<Integer, Object> getItem(long id) throws IOException {
         getItems().get(id, scratchBytesRef);

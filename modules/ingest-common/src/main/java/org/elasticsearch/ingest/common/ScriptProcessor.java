@@ -40,26 +40,26 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
-    private final IngestScript precompiledIngestScript;
+    private final IngestScript.Factory precompiledIngestScriptFactory;
 
     /**
      * Processor that evaluates a script with an ingest document in its context
      *  @param tag The processor's tag.
      * @param description The processor's description.
      * @param script The {@link Script} to execute.
-     * @param precompiledIngestScript The {@link Script} precompiled
+     * @param precompiledIngestScriptFactory The {@link Script} precompiled script
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
     ScriptProcessor(
         String tag,
         String description,
         Script script,
-        @Nullable IngestScript precompiledIngestScript,
+        @Nullable IngestScript.Factory precompiledIngestScriptFactory,
         ScriptService scriptService
     ) {
         super(tag, description);
         this.script = script;
-        this.precompiledIngestScript = precompiledIngestScript;
+        this.precompiledIngestScriptFactory = precompiledIngestScriptFactory;
         this.scriptService = scriptService;
     }
 
@@ -71,14 +71,11 @@ public final class ScriptProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) {
         document.doNoSelfReferencesCheck(true);
-        final IngestScript ingestScript;
-        if (precompiledIngestScript == null) {
-            IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-            ingestScript = factory.newInstance(script.getParams());
-        } else {
-            ingestScript = precompiledIngestScript;
+        IngestScript.Factory factory = precompiledIngestScriptFactory;
+        if (factory == null) {
+            factory = scriptService.compile(script, IngestScript.CONTEXT);
         }
-        ingestScript.execute(document.getSourceAndMetadata());
+        factory.newInstance(script.getParams(), document.getMetadata(), document.getSourceAndMetadata()).execute();
         return document;
     }
 
@@ -91,8 +88,8 @@ public final class ScriptProcessor extends AbstractProcessor {
         return script;
     }
 
-    IngestScript getPrecompiledIngestScript() {
-        return precompiledIngestScript;
+    IngestScript.Factory getPrecompiledIngestScriptFactory() {
+        return precompiledIngestScriptFactory;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -120,16 +117,17 @@ public final class ScriptProcessor extends AbstractProcessor {
                 Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
 
                 // verify script is able to be compiled before successfully creating processor.
-                IngestScript ingestScript = null;
+                IngestScript.Factory ingestScriptFactory = null;
                 try {
-                    final IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-                    if (ScriptType.INLINE.equals(script.getType())) {
-                        ingestScript = factory.newInstance(script.getParams());
+                    ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
+                    if (ScriptType.STORED.equals(script.getType())) {
+                        // do not cache stored scripts lest they change and invalidate the cached value
+                        ingestScriptFactory = null;
                     }
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
-                return new ScriptProcessor(processorTag, description, script, ingestScript, scriptService);
+                return new ScriptProcessor(processorTag, description, script, ingestScriptFactory, scriptService);
             }
         }
     }

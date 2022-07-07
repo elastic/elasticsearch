@@ -395,7 +395,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     @Override
     public void triggered(TransformScheduler.Event event) {
-        logger.trace(() -> format("[{}] triggered(event={}) ", getTransformId(), event));
+        logger.trace(() -> format("[%s] triggered(event=%s) ", getTransformId(), event));
         // Ignore if event is not for this job
         if (event.transformId().equals(getTransformId()) == false) {
             return;

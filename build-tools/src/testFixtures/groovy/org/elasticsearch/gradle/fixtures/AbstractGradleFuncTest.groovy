@@ -34,7 +34,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     File propertiesFile
     File projectDir
 
-    boolean configurationCacheCompatible = false
+    boolean configurationCacheCompatible = true
 
     def setup() {
         projectDir = testProjectDir.root

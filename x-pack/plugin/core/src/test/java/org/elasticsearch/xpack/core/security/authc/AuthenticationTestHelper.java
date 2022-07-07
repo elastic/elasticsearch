@@ -136,6 +136,10 @@ public class AuthenticationTestHelper {
         }
     }
 
+    public static RealmConfig.RealmIdentifier randomRealmIdentifier(boolean includeInternal) {
+        return new RealmConfig.RealmIdentifier(randomRealmTypeSupplier(includeInternal).get(), ESTestCase.randomAlphaOfLengthBetween(3, 8));
+    }
+
     private static Supplier<String> randomRealmTypeSupplier(boolean includeInternal) {
         final Supplier<String> randomAllRealmTypeSupplier = () -> ESTestCase.randomFrom(
             "reserved",

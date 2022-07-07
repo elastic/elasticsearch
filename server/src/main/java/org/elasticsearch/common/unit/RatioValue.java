@@ -10,8 +10,6 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
 
-import java.util.Objects;
-
 /**
  * Utility class to represent ratio and percentage values between 0 and 100
  */
@@ -68,8 +66,10 @@ public class RatioValue {
 
     /**
      * Formats the input to a string with no trailing zeros and the '%' suffix.
+     * Note: this is not converting a ratio to a percentage. The input 0.75 will
+     * be formatted as 0.75%.
      */
-    public String formatNoTrailingZerosPercent() {
+    public static String formatNoTrailingZerosPercent(double percent) {
         String value = String.valueOf(percent);
         int i = value.length() - 1;
         while (i >= 0 && value.charAt(i) == '0') {
@@ -82,18 +82,5 @@ public class RatioValue {
         } else {
             return value.substring(0, Math.min(i + 1, value.length())) + "%";
         }
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RatioValue that = (RatioValue) o;
-        return Double.compare(that.percent, percent) == 0;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(percent);
     }
 }

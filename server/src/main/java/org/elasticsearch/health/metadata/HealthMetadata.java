@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -201,7 +202,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             if (relativeByteSizeValue.isAbsolute()) {
                 return relativeByteSizeValue.getAbsolute().getStringRep();
             } else {
-                return relativeByteSizeValue.getRatio().formatNoTrailingZerosPercent();
+                return RatioValue.formatNoTrailingZerosPercent(relativeByteSizeValue.getRatio().getAsPercent());
             }
         }
 
@@ -219,6 +220,29 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         public String describeFrozenFloodStageWatermark() {
             return getThresholdStringRep(frozenFloodStageWatermark);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Disk disk = (Disk) o;
+            return Objects.equals(describeLowWatermark(), disk.describeLowWatermark())
+                && Objects.equals(describeHighWatermark(), disk.describeHighWatermark())
+                && Objects.equals(describeFloodStageWatermark(), disk.describeFloodStageWatermark())
+                && Objects.equals(describeFrozenFloodStageWatermark(), disk.describeFrozenFloodStageWatermark())
+                && Objects.equals(frozenFloodStageMaxHeadroom, disk.frozenFloodStageMaxHeadroom);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                describeLowWatermark(),
+                describeHighWatermark(),
+                describeFloodStageWatermark(),
+                describeFrozenFloodStageWatermark(),
+                frozenFloodStageMaxHeadroom
+            );
         }
 
         static Builder newBuilder() {

@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -135,18 +134,18 @@ public final class IndexMetaDataGenerations {
      * @return new instance without the given snapshot
      */
     public IndexMetaDataGenerations withRemovedSnapshots(Collection<SnapshotId> snapshotIds) {
-        final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = Maps.newMapWithExpectedSize(lookup.size());
-        final Set<String> updatedBlobUuids = Sets.newHashSetWithExpectedSize(identifiers.size());
-        for (Map.Entry<SnapshotId, Map<IndexId, String>> e : lookup.entrySet()) {
-            if (snapshotIds.contains(e.getKey()) == false) {
-                updatedIndexMetaLookup.put(e.getKey(), e.getValue());
-                updatedBlobUuids.addAll(e.getValue().values());
-            }
-        }
+        final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = lookup.entrySet()
+            .stream()
+            .filter(e -> snapshotIds.contains(e.getKey()) == false)
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        final Set<String> updatedBlobUuids = updatedIndexMetaLookup.values()
+            .stream()
+            .flatMap(e -> e.values().stream())
+            .collect(Collectors.toSet());
         final Map<String, String> updatedIndexMetaIdentifiers = identifiers.entrySet()
             .stream()
             .filter(e -> updatedBlobUuids.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }
 

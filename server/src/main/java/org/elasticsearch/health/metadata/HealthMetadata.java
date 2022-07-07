@@ -142,10 +142,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             TYPE,
             true,
             (args) -> new Disk(
-                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[1], HIGH_WATERMARK_FIELD.getPreferredName()),
-                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[2], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
-                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[3], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
-                ByteSizeValue.parseBytesSizeValue((String) args[4], FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName())
+                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[0], HIGH_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[1], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[2], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
+                ByteSizeValue.parseBytesSizeValue((String) args[3], FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName())
             )
         );
 

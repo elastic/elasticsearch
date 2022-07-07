@@ -56,7 +56,7 @@ class LocalRepositoryFixture extends ExternalResource{
         repositories {
           maven {
             name = "local-test"
-            url = "${getRepoDir()}"
+            url = "${getRepoDir().toURI()}"
             metadataSources {
               artifact()
             }

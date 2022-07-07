@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1000,6 +1001,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return timestampRange;
     }
 
+    /**
+     * @return the time range this index represents if this index is in time series mode.
+     *         Otherwise <code>null</code> is returned.
+     */
+    @Nullable
+    public IndexLongFieldRange getTimeSeriesTimestampRange() {
+        var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
+        if (bounds != null) {
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
+        } else {
+            return null;
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -1745,8 +1760,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
+            final String indexMode = settings.get(IndexSettings.MODE.getKey());
             final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
-                && IndexMode.TIME_SERIES.getName().equals(settings.get(IndexSettings.MODE.getKey()));
+                && indexMode != null
+                && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

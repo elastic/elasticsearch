@@ -961,6 +961,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testCheckSearchRemoteSettings() {
+        DiscoveryNode node1 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1);
+
         // test for presence of deprecated exporter passwords
         final int numClusters = randomIntBetween(1, 3);
         final String[] clusterNames = new String[numClusters];
@@ -1011,7 +1014,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, state, licenseState);
         assertThat(issue, nullValue());
     }
 

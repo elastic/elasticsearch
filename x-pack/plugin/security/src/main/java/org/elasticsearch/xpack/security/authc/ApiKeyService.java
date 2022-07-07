@@ -1010,7 +1010,7 @@ public class ApiKeyService {
 
         final boolean isNoop = indexRequest.source().equals(currentVersionedDoc.source());
         if (isNoop) {
-            logger.trace("Noop update request for API key [{}] detected. Skipping index request.", request.getId());
+            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
             listener.onResponse(new UpdateApiKeyResponse(false));
             return;
         }

@@ -1694,7 +1694,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var initialRequest = new UpdateApiKeyRequest(apiKeyId, randomRoleDescriptors(), ApiKeyTests.randomMetadata());
         UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
         assertNotNull(response);
-        // First update may or may not be noop, so not asserting on `isUpdated` here
+        // First update may or may not be a noop, so not asserting on `isUpdated` here
 
         // Update with same request is a noop
         response = executeUpdateApiKey(TEST_USER_NAME, initialRequest, new PlainActionFuture<>());
@@ -1705,6 +1705,64 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         response = executeUpdateApiKey(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), new PlainActionFuture<>());
         assertNotNull(response);
         assertFalse(response.isUpdated());
+
+        // Update with different role descriptors is not a noop
+        final RoleDescriptor newRoleDescriptor = randomValueOtherThanMany(
+            rd -> (RoleDescriptorRequestValidator.validate(rd) != null) && initialRequest.getRoleDescriptors().contains(rd) == false,
+            () -> RoleDescriptorTests.randomRoleDescriptor(false)
+        );
+        response = executeUpdateApiKey(
+            TEST_USER_NAME,
+            new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptor), null),
+            new PlainActionFuture<>()
+        );
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+
+        // Update with different metadata is not a noop
+        response = executeUpdateApiKey(
+            TEST_USER_NAME,
+            new UpdateApiKeyRequest(apiKeyId, null, randomValueOtherThan(initialRequest.getMetadata(), ApiKeyTests::randomMetadata)),
+            new PlainActionFuture<>()
+        );
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+
+        // Update with different creator info is not a noop
+        final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
+        final String randomFullName = randomAlphaOfLengthBetween(1, 100);
+        final var authentication = randomValueOtherThanMany(
+            Authentication::isApiKey,
+            () -> AuthenticationTestHelper.builder()
+                .user(new User(TEST_USER_NAME, new String[] { TEST_ROLE }, randomFullName, null, null, true))
+                .realmRef(new Authentication.RealmRef("file", FileRealmSettings.TYPE, serviceWithNodeName.nodeName()))
+                .build()
+        );
+        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        serviceWithNodeName.service()
+            .updateApiKey(
+                authentication,
+                UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+                // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML to ensure that these stay the same and
+                // don't cause an update
+                Set.of(
+                    new RoleDescriptor(
+                        TEST_ROLE,
+                        new String[] { "ALL" },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("*")
+                                .allowRestrictedIndices(true)
+                                .privileges("ALL")
+                                .build() },
+                        null
+                    )
+                ),
+                listener
+            );
+        response = listener.get();
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
     }
 
     public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {

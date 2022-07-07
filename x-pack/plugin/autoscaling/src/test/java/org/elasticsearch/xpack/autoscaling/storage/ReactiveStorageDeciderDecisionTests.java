@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +66,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.hamcrest.Matchers.equalTo;
@@ -526,7 +526,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 List<ShardRouting> started = RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED);
                 if (started.isEmpty() == false) {
                     ShardRouting toMove = randomFrom(started);
-                    Set<RoutingNode> candidates = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                    Set<RoutingNode> candidates = allocation.routingNodes()
+                        .stream()
                         .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
                         .collect(Collectors.toSet());
                     if (candidates.isEmpty() == false) {
@@ -537,10 +538,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         });
     }
 
-    private TestAutoscalingDeciderContext createContext(DiscoveryNodeRole role) {
-        return createContext(state, Set.of(role));
-    }
-
     private static TestAutoscalingDeciderContext createContext(ClusterState state, Set<DiscoveryNodeRole> roles) {
         return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity());
     }
@@ -549,9 +546,14 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         if (randomInt(4) > 0) {
             // we only rely on storage.
             boolean includeMemory = randomBoolean();
+            boolean includeProcessors = randomBoolean();
             return AutoscalingCapacity.builder()
-                .total(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null)
-                .node(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null)
+                .total(
+                    randomByteSizeValue(),
+                    includeMemory ? randomByteSizeValue() : null,
+                    includeProcessors ? (float) randomInt(64) : null
+                )
+                .node(randomByteSizeValue(), includeMemory ? randomByteSizeValue() : null, includeProcessors ? (float) randomInt(64) : null)
                 .build();
         } else {
             return null;
@@ -614,20 +616,17 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         // the diskusage is set such that the disk threshold decider never rejects an allocation.
         Map<String, DiskUsage> diskUsages = state.nodes()
             .stream()
-            .collect(Collectors.toMap(DiscoveryNode::getId, node -> new DiskUsage(node.getId(), null, "the_path", 1000, 1000)));
-        ImmutableOpenMap<String, DiskUsage> immutableDiskUsages = ImmutableOpenMap.<String, DiskUsage>builder()
-            .putAllFromMap(diskUsages)
-            .build();
+            .collect(toUnmodifiableMap(DiscoveryNode::getId, node -> new DiskUsage(node.getId(), null, "the_path", 1000, 1000)));
 
         return new ClusterInfo() {
             @Override
             public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
-                return immutableDiskUsages;
+                return diskUsages;
             }
 
             @Override
             public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
-                return immutableDiskUsages;
+                return diskUsages;
             }
 
             @Override
@@ -685,12 +684,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {
-        return randomFrom(
-            StreamSupport.stream(routingNodes.spliterator(), false)
-                .map(RoutingNode::node)
-                .filter(n -> n.getRoles().contains(role))
-                .collect(Collectors.toSet())
-        ).getId();
+        return randomFrom(routingNodes.stream().map(RoutingNode::node).filter(n -> n.getRoles().contains(role)).collect(Collectors.toSet()))
+            .getId();
     }
 
     private static Set<ShardId> shardIds(Iterable<ShardRouting> candidateShards) {

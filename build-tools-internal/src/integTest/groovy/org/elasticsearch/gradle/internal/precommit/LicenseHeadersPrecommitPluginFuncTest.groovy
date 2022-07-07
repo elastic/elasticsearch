@@ -18,7 +18,6 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
     Class<? extends PrecommitPlugin> pluginClassUnderTest = LicenseHeadersPrecommitPlugin.class
 
     def setup() {
-        configurationCacheCompatible = true
         buildFile << """
         apply plugin:'java'
         """

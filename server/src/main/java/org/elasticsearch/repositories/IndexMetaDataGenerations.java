@@ -138,13 +138,13 @@ public final class IndexMetaDataGenerations {
             .stream()
             .filter(e -> snapshotIds.contains(e.getKey()) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-        final Set<String> updatedBlobUuids = updatedIndexMetaLookup.values()
+        final Set<String> retainedBlobUUIDs = updatedIndexMetaLookup.values()
             .stream()
             .flatMap(e -> e.values().stream())
             .collect(Collectors.toSet());
         final Map<String, String> updatedIndexMetaIdentifiers = identifiers.entrySet()
             .stream()
-            .filter(e -> updatedBlobUuids.contains(e.getKey()))
+            .filter(e -> retainedBlobUUIDs.contains(e.getKey()))
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }

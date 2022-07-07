@@ -168,27 +168,28 @@ public final class AnalysisModule {
             )
         );
 
-        List<? extends TokenFilterFactoryProvider> load = pluginsService.loadServiceProviders(TokenFilterFactoryProvider.class);
+        if (pluginsService != null) {
+            List<? extends TokenFilterFactoryProvider> load = pluginsService.loadServiceProviders(TokenFilterFactoryProvider.class);
 
-        /*need to provide plugin's class loader otherwise no results??*/
-        // Optional<ServiceLoader.Provider<TokenFilterFactoryProvider>> first = load.stream().findFirst();
-        List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect = load.stream()
-            .map(AnalysisModule::mapToOldApi)
-            .collect(Collectors.toList());
-        tokenFilters.register(collect);
+            /*need to provide plugin's class loader otherwise no results??*/
+            // Optional<ServiceLoader.Provider<TokenFilterFactoryProvider>> first = load.stream().findFirst();
+            List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect = load.stream()
+                .map(AnalysisModule::mapToOldApi)
+                .collect(Collectors.toList());
+            tokenFilters.register(collect);
 
-        List<? extends org.elasticsearch.sp.api.analysis.AnalysisPlugin> analysisPlugins =
-            pluginsService.loadServiceProviders(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class);
-        List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect2 = new ArrayList<>();
-        for (org.elasticsearch.sp.api.analysis.AnalysisPlugin analysisPlugin : analysisPlugins) {
-            Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
-                analysisPlugin.getTokenFilterFactories();
-            Map<String, AnalysisProvider<TokenFilterFactory>> stringAnalysisProviderMap =
-                getStringAnalysisProviderMap(tokenFilterFactories);
-            collect2.add(stringAnalysisProviderMap);
+            List<? extends org.elasticsearch.sp.api.analysis.AnalysisPlugin> analysisPlugins =
+                pluginsService.loadServiceProviders(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class);
+            List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect2 = new ArrayList<>();
+            for (org.elasticsearch.sp.api.analysis.AnalysisPlugin analysisPlugin : analysisPlugins) {
+                Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
+                    analysisPlugin.getTokenFilterFactories();
+                Map<String, AnalysisProvider<TokenFilterFactory>> stringAnalysisProviderMap =
+                    getStringAnalysisProviderMap(tokenFilterFactories);
+                collect2.add(stringAnalysisProviderMap);
+            }
+            tokenFilters.register(collect2);
         }
-        tokenFilters.register(collect2);
-
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;

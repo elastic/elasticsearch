@@ -224,7 +224,7 @@ public class MultiBucketCollector extends BucketCollector {
 
         @Override
         public DocIdSetIterator competitiveIterator() throws IOException {
-            List<DocIdSetIterator> subIterators = new ArrayList<>(collectors.length);
+            final List<DocIdSetIterator> subIterators = new ArrayList<>(collectors.length);
             for (LeafBucketCollector collector : collectors) {
                 final DocIdSetIterator iterator = collector.competitiveIterator();
                 if (iterator == null) {

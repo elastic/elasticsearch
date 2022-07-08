@@ -352,6 +352,7 @@ This command should give you a JSON result:
     "number" : "{version_qualified}",
     "build_type" : "{build_type}",
     "build_hash" : "f27399d",
+    "build_flavor": "default",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
     "lucene_version" : "{lucene_version}",

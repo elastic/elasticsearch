@@ -137,6 +137,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
     private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
 
+    private static final RoleDescriptor DEFAULT_API_KEY_ROLE_DESCRIPTOR = new RoleDescriptor(
+        "role",
+        new String[] { "monitor" },
+        null,
+        null
+    );
+
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
@@ -1454,10 +1461,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertNotNull(response);
         // In this test, non-null roleDescriptors always result in an update since the role descriptor assigned to the key
-        // before the update has a role name "role", whereas the randomly generated role descriptors for the update have longer
-        // random role names. As such null descriptors (plus matching or null metadata) is the only way we can get a noop here
+        // either update the role name, or associated privileges.
+        // As such null descriptors (plus matching or null metadata) is the only way we can get a noop here
         final boolean isUpdated = nullRoleDescriptors == false
-            || (request.getMetadata() != null && request.getMetadata().equals(oldMetadata));
+            || (request.getMetadata() != null && false == request.getMetadata().equals(oldMetadata));
         assertEquals(isUpdated, response.isUpdated());
 
         final PlainActionFuture<GetApiKeyResponse> getListener = new PlainActionFuture<>();
@@ -1480,27 +1487,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
         expectMetadataForApiKey(expectedMetadata, updatedApiKeyDoc);
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, updatedApiKeyDoc);
-        if (nullRoleDescriptors) {
-            // Default role descriptor assigned to api key in `createApiKey`
-            final var expectedRoleDescriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-            expectRoleDescriptorsForApiKey("role_descriptors", List.of(expectedRoleDescriptor), updatedApiKeyDoc);
-
-            // Create user action unauthorized because we did not update key role; it only has `monitor` cluster priv
-            final Map<String, String> authorizationHeaders = Collections.singletonMap(
-                "Authorization",
-                "ApiKey " + getBase64EncodedApiKeyValue(createdApiKey.v1().getId(), createdApiKey.v1().getKey())
-            );
+        final var expectedRoleDescriptors = nullRoleDescriptors ? List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR) : newRoleDescriptors;
+        expectRoleDescriptorsForApiKey("role_descriptors", expectedRoleDescriptors, updatedApiKeyDoc);
+        // Check if role updated resulted in going from `monitor` to `all` cluster privilege and assert that action that requires
+        // `all` is authorized or denied accordingly
+        final boolean hasAllPriv = expectedRoleDescriptors.stream()
+            .filter(rd -> Arrays.asList(rd.getClusterPrivileges()).contains("all"))
+            .toList()
+            .isEmpty() == false;
+        final var authorizationHeaders = Collections.singletonMap(
+            "Authorization",
+            "ApiKey " + getBase64EncodedApiKeyValue(createdApiKey.v1().getId(), createdApiKey.v1().getKey())
+        );
+        if (hasAllPriv) {
+            createUserWithRunAsRole(authorizationHeaders);
+        } else {
             ExecutionException e = expectThrows(ExecutionException.class, () -> createUserWithRunAsRole(authorizationHeaders));
             assertThat(e.getMessage(), containsString("unauthorized"));
             assertThat(e.getCause(), instanceOf(ElasticsearchSecurityException.class));
-        } else {
-            expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, updatedApiKeyDoc);
-            // Create user action authorized because we updated key role to `all` cluster priv
-            final var authorizationHeaders = Collections.singletonMap(
-                "Authorization",
-                "ApiKey " + getBase64EncodedApiKeyValue(createdApiKey.v1().getId(), createdApiKey.v1().getKey())
-            );
-            createUserWithRunAsRole(authorizationHeaders);
         }
     }
 
@@ -1882,7 +1886,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private List<RoleDescriptor> randomRoleDescriptors() {
-        int caseNo = randomIntBetween(0, 2);
+        int caseNo = randomIntBetween(0, 3);
         return switch (caseNo) {
             case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
             case 1 -> List.of(
@@ -1893,6 +1897,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 )
             );
             case 2 -> null;
+            // vary default role descriptor assigned to created API keys by name only
+            case 3 -> List.of(
+                new RoleDescriptor(
+                    randomValueOtherThan(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), () -> randomAlphaOfLength(10)),
+                    DEFAULT_API_KEY_ROLE_DESCRIPTOR.getClusterPrivileges(),
+                    DEFAULT_API_KEY_ROLE_DESCRIPTOR.getIndicesPrivileges(),
+                    DEFAULT_API_KEY_ROLE_DESCRIPTOR.getRunAs()
+                )
+            );
             default -> throw new IllegalStateException("unexpected case no");
         };
     }
@@ -2081,12 +2094,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private Tuple<CreateApiKeyResponse, Map<String, Object>> createApiKey(String user, TimeValue expiration) {
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> res = createApiKeys(user, 1, expiration, "monitor");
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> res = createApiKeys(
+            user,
+            1,
+            expiration,
+            DEFAULT_API_KEY_ROLE_DESCRIPTOR.getClusterPrivileges()
+        );
         return new Tuple<>(res.v1().get(0), res.v2().get(0));
     }
 
     private Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> createApiKeys(int noOfApiKeys, TimeValue expiration) {
-        return createApiKeys(ES_TEST_ROOT_USER, noOfApiKeys, expiration, "monitor");
+        return createApiKeys(ES_TEST_ROOT_USER, noOfApiKeys, expiration, DEFAULT_API_KEY_ROLE_DESCRIPTOR.getClusterPrivileges());
     }
 
     private Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> createApiKeys(
@@ -2137,7 +2155,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<Map<String, Object>> metadatas = new ArrayList<>(noOfApiKeys);
         List<CreateApiKeyResponse> responses = new ArrayList<>();
         for (int i = 0; i < noOfApiKeys; i++) {
-            final RoleDescriptor descriptor = new RoleDescriptor("role", clusterPrivileges, null, null);
+            final RoleDescriptor descriptor = new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), clusterPrivileges, null, null);
             Client client = client().filterWithHeader(headers);
             final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
             metadatas.add(metadata);

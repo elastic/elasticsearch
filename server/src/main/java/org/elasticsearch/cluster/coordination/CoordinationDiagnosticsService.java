@@ -492,7 +492,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         private final List<Scheduler.Cancellable> delegates;
         private final AtomicBoolean isCancelled;
 
-        public CancellableWrapper(AtomicBoolean isCancelled, List<Scheduler.Cancellable> delegates) {
+        CancellableWrapper(AtomicBoolean isCancelled, List<Scheduler.Cancellable> delegates) {
             this.isCancelled = isCancelled;
             this.delegates = delegates;
         }

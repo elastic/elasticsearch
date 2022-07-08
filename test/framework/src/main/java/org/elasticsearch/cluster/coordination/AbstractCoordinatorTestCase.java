@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
@@ -1232,22 +1233,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-                client.initialize(
-                    Map.of(
-                        NodesHotThreadsAction.INSTANCE,
-                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
-                        MasterHistoryAction.INSTANCE,
-                        new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService)
-                    ),
-                    transportService.getTaskManager(),
-                    localNode::getId,
-                    transportService.getLocalNodeConnection(),
-                    null,
-                    getNamedWriteableRegistry()
-                );
                 coordinator = new Coordinator(
                     "test_node",
-                    settings,
+                      settings,
                     clusterSettings,
                     transportService,
                     client,
@@ -1262,6 +1250,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (s, p, r) -> {},
                     getElectionStrategy(),
                     nodeHealthService
+                );
+                client.initialize(
+                    Map.of(
+                        NodesHotThreadsAction.INSTANCE,
+                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
+                        MasterHistoryAction.INSTANCE,
+                        new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),
+                        ClusterFormationInfoAction.INSTANCE,
+                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator)
+                    ),
+                    transportService.getTaskManager(),
+                    localNode::getId,
+                    transportService.getLocalNodeConnection(),
+                    null,
+                    getNamedWriteableRegistry()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,

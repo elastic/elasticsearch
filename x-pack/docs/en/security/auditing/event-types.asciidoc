@@ -245,7 +245,7 @@ event action.
 [source,js]
 {"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":
 "9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":
-"update_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "change":{"apikey_update":
+"update_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "change":{"apikey":
 {"id":"zcwN3YEBBmnjw-K-hW5_","role_descriptors":[{"cluster":
 ["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
 ["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
@@ -663,8 +663,8 @@ ones), which is specific to the `event.type` attribute. The attribute's value is
                             `role_mapping` or for application `privileges`.
 `change`              ::    The object representation of the security config that
                             is being changed. It can be the `password`, `enable` or `disable`,
-                            config object for native or built-in users, or `apikey_update` if
-                            an API key is updated.
+                            config object for native or built-in users. If an API key is updated,
+                            the config object will be an `apikey`.
 `create`              ::    The object representation of the new security config that is being
                             created. This is currently only used for API keys auditing.
                             If the API key is created using the
@@ -764,6 +764,9 @@ the <<mapping-roles, API request for mapping roles>>.
 The `role_descriptors` objects have the same schema as the `role_descriptor`
 object that is part of the above `role` config object.
 
+The object for an API key update will differ in that it will include an `id`
+field instead of `name` and will not include `expiration`.
+
 `grant`               ::     An object like:
 +
 [source,js]
@@ -779,14 +782,6 @@ object that is part of the above `role` config object.
 ----
 `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
 <boolean>, "user":{"name": <string>, "realm": <string>}}`
-----
-// NOTCONSOLE
-
-`apikey_update`             ::     An object like:
-+
-[source,js]
-----
-`{"id": <string>, "role_descriptors" [<object>]}`
 ----
 // NOTCONSOLE
 

@@ -616,7 +616,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
         final var expectedUpdateKeyAuditEventString = """
-            "change":{"apikey_update":{"id":"%s"%s}}\
+            "change":{"apikey":{"id":"%s"%s}}\
             """.formatted(keyId, updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));

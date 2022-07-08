@@ -1245,7 +1245,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
-            builder.startObject("apikey_update").field("id", updateApiKeyRequest.getId());
+            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
             if (updateApiKeyRequest.getRoleDescriptors() != null) {
                 builder.startArray("role_descriptors");
                 for (RoleDescriptor roleDescriptor : updateApiKeyRequest.getRoleDescriptors()) {

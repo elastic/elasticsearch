@@ -45,7 +45,6 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.junit.Assert.assertNotNull;
 
 public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
 
@@ -391,7 +390,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD1).build());
         fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD2).build());
         fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD3).build());
-        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).setFormat("yyyy-MM-dd").build());
+        fields.add(new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build());
 
         double minimumSupport = randomDoubleBetween(0.13, 0.51, true);
         int minimumSetSize = randomIntBetween(2, 6);
@@ -482,7 +481,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.1")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-1")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-1")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03T14:55:12.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03"))
                 )
             );
             iw.addDocument(
@@ -491,7 +490,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.4")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-1")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-2")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03T10:53:12.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03"))
                 )
             );
             iw.addDocument(
@@ -500,7 +499,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.4")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-1")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-1")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-01T14:55:12.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-01"))
                 )
             );
             iw.addDocument(
@@ -509,7 +508,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.22")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-3")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-2")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-01T02:53:22.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-01"))
                 )
             );
             iw.addDocument(
@@ -518,7 +517,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.12")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-2")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-1")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03T21:55:12.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03"))
                 )
             );
             iw.addDocument(
@@ -527,7 +526,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.1")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-2")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-3")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02T03:15:12.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02"))
                 )
             );
             iw.addDocument(
@@ -536,7 +535,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.5")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-2")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-3")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02T14:41:22.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02"))
                 )
             );
             iw.addDocument(
@@ -545,7 +544,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.5")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-1")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-1")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03T09:07:00.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-03"))
                 )
             );
             iw.addDocument(
@@ -554,7 +553,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.5")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-2")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-1")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-01T07:14:11.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-01"))
                 )
             );
             iw.addDocument(
@@ -563,7 +562,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(IP_FIELD, encodeIp("192.168.0.15")),
                     new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("client-3")),
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-2")),
-                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02T12:03:16.000Z"))
+                    new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02"))
                 )
             );
         }, (InternalMapReduceAggregation<?, ?, ?, EclatResult> results) -> {

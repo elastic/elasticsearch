@@ -134,8 +134,8 @@ public class RBACEngineTests extends ESTestCase {
         final boolean changePasswordRequest = randomBoolean();
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request()
-            : AuthenticateRequest.INSTANCE;
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
+            : new HasPrivilegesRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final String action = changePasswordRequest ? ChangePasswordAction.NAME : HasPrivilegesAction.NAME;
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
             changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),

@@ -8,11 +8,15 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -24,6 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LookupRuntimeFieldIT extends ESIntegTestCase {
@@ -242,6 +247,60 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         // "author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"
         assertThat(hit0.field("title").getValues(), equalTo(List.of("the first book")));
         assertThat(hit0.field("author").getValues(), equalTo(List.of(Map.of("first_name", List.of("John"), "joined", List.of("03/2020")))));
+    }
+
+    public void testFailToAggregateOnLookupField() throws Exception {
+        Map<String, Object> runtimeMappings = parseMapping("""
+            {
+                "author": {
+                    "type": "lookup",
+                    "target_index": "authors",
+                    "input_field": "author_id",
+                    "target_field": "author",
+                    "fetch_fields": ["first_name", {"field": "joined", "format": "MM/yyyy"}]
+                }
+            }
+            """);
+        ElasticsearchException error = expectThrows(ElasticsearchException.class, () -> {
+            client().prepareSearch("books")
+                .setRuntimeMappings(runtimeMappings)
+                .addAggregation(new TermsAggregationBuilder("locations").field("author"))
+                .addFetchField("author")
+                .addFetchField("title")
+                .addSort("published_date", SortOrder.ASC)
+                .setSize(1)
+                .get();
+        });
+        Throwable failure = ExceptionsHelper.unwrap(error, IllegalArgumentException.class);
+        assertNotNull(failure);
+        assertThat(failure.getMessage(), containsString("Fielddata is not supported on field [author] of type [lookup]"));
+    }
+
+    public void testFailToQueryOnLookupField() throws Exception {
+        Map<String, Object> runtimeMappings = parseMapping("""
+            {
+                "author": {
+                    "type": "lookup",
+                    "target_index": "authors",
+                    "input_field": "author_id",
+                    "target_field": "author",
+                    "fetch_fields": ["first_name", {"field": "joined", "format": "MM/yyyy"}]
+                }
+            }
+            """);
+        ElasticsearchException error = expectThrows(ElasticsearchException.class, () -> {
+            client().prepareSearch("books")
+                .setRuntimeMappings(runtimeMappings)
+                .setQuery(new MatchQueryBuilder("author", "john"))
+                .addFetchField("author")
+                .addFetchField("title")
+                .addSort("published_date", SortOrder.ASC)
+                .setSize(1)
+                .get();
+        });
+        Throwable failure = ExceptionsHelper.unwrap(error, IllegalArgumentException.class);
+        assertNotNull(failure);
+        assertThat(failure.getMessage(), containsString("Field [author] of type [lookup] does not support match queries"));
     }
 
     private Map<String, Object> parseMapping(String mapping) throws IOException {

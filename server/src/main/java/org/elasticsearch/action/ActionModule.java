@@ -910,25 +910,25 @@ public class ActionModule extends AbstractModule {
         handlers.add(new ImmutableClusterSettingsAction(clusterSettings));
 
         Map<Class<? extends Plugin>, ImmutableClusterStateHandlerProvider> classToProviderMap = new HashMap<>();
-        Map<ImmutableClusterStateHandlerProvider, List<Plugin>> loadedPluginsForProvider = new HashMap<>();
+        Map<ImmutableClusterStateHandlerProvider, Plugin> loadedPluginForProvider = new HashMap<>();
 
         // Get all plugin handler providers, map the plugin class they need to the provider
         for (var pluginHandlerProvider : pluginHandlerProviders) {
-            pluginHandlerProvider.providedPlugins().forEach((c) -> classToProviderMap.put(c, pluginHandlerProvider));
+            classToProviderMap.put(pluginHandlerProvider.parentPlugin(), pluginHandlerProvider);
         }
 
-        // Iterate over the plugins, find loaded plugin instances for what the handler providers need
+        // Iterate over the plugins, find loaded plugin instances for what the handler provider needs
         pluginsService.forEach((plugin) -> {
             ImmutableClusterStateHandlerProvider handlerProvider = classToProviderMap.get(plugin.getClass());
             if (handlerProvider != null) {
                 assert plugin.getClass().getClassLoader().equals(handlerProvider.getClass().getClassLoader());
-                loadedPluginsForProvider.computeIfAbsent(handlerProvider, k -> new ArrayList<>()).add(plugin);
+                loadedPluginForProvider.put(handlerProvider, plugin);
             }
         });
 
-        // Once we have the loaded plugins for each handler provider, get the handler instances and add them to the
+        // Once we have the loaded plugin for each handler provider, get the handler instances and add them to the
         // overall handler list
-        for (var providerPluginsEntry : loadedPluginsForProvider.entrySet()) {
+        for (var providerPluginsEntry : loadedPluginForProvider.entrySet()) {
             handlers.addAll(providerPluginsEntry.getKey().handlers(providerPluginsEntry.getValue()));
         }
 

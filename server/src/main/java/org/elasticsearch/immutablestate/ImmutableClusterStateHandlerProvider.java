@@ -23,7 +23,12 @@ public interface ImmutableClusterStateHandlerProvider {
      *
      * @return a list of ${@link ImmutableClusterStateHandler}s
      */
-    Collection<ImmutableClusterStateHandler<?>> handlers(Collection<? extends Plugin> loadedPlugins);
+    Collection<ImmutableClusterStateHandler<?>> handlers(Plugin loadedPlugin);
 
-    Collection<Class<? extends Plugin>> providedPlugins();
+    /**
+     * Returns the class of the plugin which this service provider will use to return the handler list
+     *
+     * @return a class of the plugin related to the service provider
+     */
+    Class<? extends Plugin> parentPlugin();
 }

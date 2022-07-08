@@ -263,6 +263,42 @@ setup:
   - match: { aggregations.filter_error.fi.buckets.1.support: 0.4 }
   - match: { aggregations.filter_error.fi.buckets.0.key.error_message: ["compressor low pressure"] }
 
+---
+"Test frequent items as multi-bucket subagg":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "weekly": {
+                "date_histogram": {
+                  "field": "timestamp",
+                  "calendar_interval": "1w"
+                },
+                "aggs": {
+                  "fi": {
+                    "frequent_items": {
+                      "minimum_set_size": 3,
+                      "minimum_support": 0.3,
+                      "fields": [
+                        {"field": "features"},
+                        {"field": "error_message"}
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { aggregations.weekly.buckets: 5 }
+  - match: { aggregations.weekly.buckets.0.fi.buckets.0.doc_count: 3 }
+  - match: { aggregations.weekly.buckets.0.fi.buckets.0.support: 0.6 }
+  - match: { aggregations.weekly.buckets.0.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+  - length: { aggregations.weekly.buckets.0.fi.buckets: 4 }
+  - match: { aggregations.weekly.buckets.2.fi.buckets.0.doc_count: 1 }
 
 ---
 "Test frequent items unsupported types":

@@ -70,6 +70,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -119,6 +120,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -380,7 +382,7 @@ public class ApiKeyService {
                 throw new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]");
             }
 
-            final VersionedApiKeyDocWithSource versionedDoc = singleDoc(apiKeyId, versionedDocs);
+            final VersionedApiKeyDoc versionedDoc = singleDoc(apiKeyId, versionedDocs);
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
@@ -968,11 +970,62 @@ public class ApiKeyService {
         }
     }
 
+    private boolean isUpdateNoop(
+        final ApiKeyDoc apiKeyDoc,
+        final Version targetDocVersion,
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles
+    ) {
+        if (apiKeyDoc.version != targetDocVersion.id) {
+            return true;
+        }
+
+        final Map<String, Object> currentCreator = apiKeyDoc.creator;
+        final var user = authentication.getEffectiveSubject().getUser();
+        final var sourceRealm = authentication.getEffectiveSubject().getRealm();
+        if (false == (Objects.equals(user.principal(), currentCreator.get("principal"))
+            && Objects.equals(user.fullName(), currentCreator.get("full_name"))
+            && Objects.equals(user.email(), currentCreator.get("email"))
+            && Objects.equals(user.metadata(), currentCreator.get("metadata"))
+            && Objects.equals(sourceRealm.getName(), currentCreator.get("realm"))
+            && Objects.equals(sourceRealm.getType(), currentCreator.get("realm_type")))) {
+            return false;
+        }
+
+        if (request.getMetadata() != null) {
+            if (apiKeyDoc.metadataFlattened == null) {
+                return false;
+            }
+            final Map<String, Object> currentMetadata = XContentHelper.convertToMap(apiKeyDoc.metadataFlattened, false, XContentType.JSON)
+                .v2();
+            if (request.getMetadata().equals(currentMetadata) == false) {
+                return false;
+            }
+        }
+
+        if (request.getRoleDescriptors() != null) {
+            final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
+                request.getId(),
+                apiKeyDoc.roleDescriptorsBytes,
+                RoleReference.ApiKeyRoleType.ASSIGNED
+            );
+            if (currentRoleDescriptors.equals(request.getRoleDescriptors()) == false) {
+                return false;
+            }
+        }
+
+        final Set<RoleDescriptor> currentLimitedByRoleDescriptors = new HashSet<>(
+            parseRoleDescriptorsBytes(request.getId(), apiKeyDoc.limitedByRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY)
+        );
+        return userRoles.equals(currentLimitedByRoleDescriptors) != false;
+    }
+
     private void doUpdateApiKey(
         final Authentication authentication,
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles,
-        final VersionedApiKeyDocWithSource currentVersionedDoc,
+        final VersionedApiKeyDoc currentVersionedDoc,
         final ActionListener<UpdateApiKeyResponse> listener
     ) throws IOException {
         logger.trace(
@@ -981,8 +1034,15 @@ public class ApiKeyService {
             currentVersionedDoc.seqNo(),
             currentVersionedDoc.primaryTerm()
         );
-        final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
         final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
+
+        if (isUpdateNoop(currentVersionedDoc.doc, targetDocVersion, authentication, request, userRoles)) {
+            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
+            listener.onResponse(new UpdateApiKeyResponse(false));
+            return;
+        }
+
+        final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
             logger.debug(
@@ -1009,13 +1069,6 @@ public class ApiKeyService {
             .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
             .setOpType(DocWriteRequest.OpType.INDEX)
             .request();
-
-        final boolean noop = indexRequest.source().equals(currentVersionedDoc.source());
-        if (noop) {
-            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
-            listener.onResponse(new UpdateApiKeyResponse(false));
-            return;
-        }
 
         logger.trace("Executing index request to update API key [{}]", request.getId());
         securityIndex.prepareIndexIfNeededThenExecute(
@@ -1139,7 +1192,7 @@ public class ApiKeyService {
     private void findVersionedApiKeyDocsForSubject(
         final Authentication authentication,
         final String[] apiKeyIds,
-        final ActionListener<Collection<VersionedApiKeyDocWithSource>> listener
+        final ActionListener<Collection<VersionedApiKeyDoc>> listener
     ) {
         assert authentication.isApiKey() == false;
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
@@ -1284,7 +1337,7 @@ public class ApiKeyService {
         }
     }
 
-    private static VersionedApiKeyDocWithSource singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDocWithSource> elements) {
+    private static VersionedApiKeyDoc singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
         if (elements.size() != 1) {
             final var message = "expected single API key doc with ID ["
                 + apiKeyId
@@ -1533,22 +1586,17 @@ public class ApiKeyService {
         );
     }
 
-    private static VersionedApiKeyDocWithSource convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
+    private static VersionedApiKeyDoc convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
         try (
             XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, hit.getSourceRef(), XContentType.JSON)
         ) {
-            return new VersionedApiKeyDocWithSource(
-                ApiKeyDoc.fromXContent(parser),
-                hit.getSeqNo(),
-                hit.getPrimaryTerm(),
-                hit.getSourceRef()
-            );
+            return new VersionedApiKeyDoc(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm());
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
 
-    private record VersionedApiKeyDocWithSource(ApiKeyDoc doc, long seqNo, long primaryTerm, BytesReference source) {}
+    private record VersionedApiKeyDoc(ApiKeyDoc doc, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {

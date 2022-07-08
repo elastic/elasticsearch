@@ -26,7 +26,7 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -181,7 +181,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
         }, max -> {
@@ -191,7 +191,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -222,7 +222,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -234,7 +234,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testUnmappedWithMissingField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
 
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
@@ -263,7 +263,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {

@@ -35,9 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +43,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -61,6 +60,7 @@ import java.util.stream.Collectors;
  * requires the existence of a master).
  */
 public class CoordinationDiagnosticsService implements ClusterStateListener {
+
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Coordinator coordinator;
@@ -485,7 +485,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         private final List<Scheduler.Cancellable> delegates;
 
         MultipleCancellablesWrapper() {
-            this.delegates = Collections.synchronizedList(new ArrayList<>());
+            this.delegates = new CopyOnWriteArrayList<>();
         }
 
         @Override

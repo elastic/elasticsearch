@@ -229,7 +229,7 @@ public class JwtValidateUtil {
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
         if (jwks == null || jwks.isEmpty()) {
-            throw new VerifySignatureNoJwksProvidedException("Verify requires a non-empty JWK list.");
+            throw new Exception("Verify requires a non-empty JWK list.");
         }
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
@@ -260,7 +260,7 @@ public class JwtValidateUtil {
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
         if (jwksStrength.isEmpty()) {
-            throw new VerifySignatureAllJwksFilteredException("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
+            throw new Exception("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
         }
 
         LOGGER.debug("JWKs [{}] remaining after filtering for use in JWT signature verification.", jwksStrength.size());
@@ -350,18 +350,6 @@ public class JwtValidateUtil {
         final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
         signedJwt.sign(JwtValidateUtil.createJwsSigner(jwk));
         return new SecureString(signedJwt.serialize().toCharArray());
-    }
-
-    public static class VerifySignatureNoJwksProvidedException extends Exception {
-        public VerifySignatureNoJwksProvidedException(String errorMessage) {
-            super(errorMessage);
-        }
-    }
-
-    public static class VerifySignatureAllJwksFilteredException extends Exception {
-        public VerifySignatureAllJwksFilteredException(String errorMessage) {
-            super(errorMessage);
-        }
     }
 
     public static class VerifySignatureRemainingJwksFailedException extends Exception {

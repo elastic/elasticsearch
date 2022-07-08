@@ -62,10 +62,9 @@ public class BwcSetupExtension {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.usesService(bwcTaskThrottleProvider);
             loggedExec.getWorkingDir().set(checkoutDir.get());
-            // Execution time so that the checkouts are available
-            loggedExec.getEnvironment().put("JAVA_HOME", project.provider(() -> {
-                String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version());
-                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
+
+            loggedExec.getEnvironment().put("JAVA_HOME", unreleasedVersionInfo.zip(checkoutDir, (version, checkoutDir) -> {
+                String minimumCompilerVersion = readFromFile(new File(checkoutDir, minimumCompilerVersionPath(version.version())));
                 return getJavaHome(Integer.parseInt(minimumCompilerVersion));
             }));
 
@@ -102,7 +101,7 @@ public class BwcSetupExtension {
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
             }
-            loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.get().version().toString());
+            loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.map(v -> v.version().toString()));
             configAction.execute(loggedExec);
         });
     }

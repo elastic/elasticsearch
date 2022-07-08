@@ -162,12 +162,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                     throw new GradleException("Failed to read exec output", e);
                 }
                 throw new GradleException(
-                    String.format(
-                        "Process '%s %s' finished with non-zero exit value %d",
-                        getExecutable().get(),
-                        getArgs().get(),
-                        exitValue
-                    )
+                    String.format("Process '%s %s' finished with non-zero exit value %d", getExecutable().get(), getArgs().get(), exitValue)
                 );
             }
         }

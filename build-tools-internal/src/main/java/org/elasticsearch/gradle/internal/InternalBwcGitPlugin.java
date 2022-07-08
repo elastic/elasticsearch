@@ -75,7 +75,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
             findRemote.dependsOn(createCloneTaskProvider);
-            findRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
+            findRemote.getWorkingDir().set(gitExtension.getCheckoutDir());
             findRemote.commandLine("git", "remote", "-v");
             findRemote.getCaptureOutput().set(true);
             findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });

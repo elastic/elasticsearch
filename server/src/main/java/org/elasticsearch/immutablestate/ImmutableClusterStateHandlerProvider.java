@@ -25,5 +25,5 @@ public interface ImmutableClusterStateHandlerProvider {
      */
     Collection<ImmutableClusterStateHandler<?>> handlers(Collection<? extends Plugin> loadedPlugins);
 
-    Collection<Class<? extends Plugin>> supportedPlugins();
+    Collection<Class<? extends Plugin>> providedPlugins();
 }

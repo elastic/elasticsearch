@@ -32,7 +32,7 @@ public class ILMImmutableStateHandlerProvider implements ImmutableClusterStateHa
     }
 
     @Override
-    public Collection<Class<? extends Plugin>> supportedPlugins() {
+    public Collection<Class<? extends Plugin>> providedPlugins() {
         return List.of(IndexLifecycle.class);
     }
 }

@@ -224,7 +224,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             return;
         }
         for (int i = seq2Start; i < tokenSize; i++) {
-            for (int j = i + 1; j < (maxAnswerLength + i) && j < tokenSize; j++) {
+            for (int j = i; j < (maxAnswerLength + i) && j < tokenSize; j++) {
                 topScoresCollector.accept(
                     new ScoreAndIndices(i - seq2Start, j - seq2Start, startNormalized[i] * endNormalized[j], spanIndex)
                 );

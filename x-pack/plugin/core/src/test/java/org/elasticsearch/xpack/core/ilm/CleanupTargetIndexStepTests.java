@@ -58,7 +58,7 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
     public CleanupTargetIndexStep mutateInstance(CleanupTargetIndexStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        Function<IndexMetadata, String>  sourceIndexNameSupplier = instance.getSourceIndexNameSupplier();
+        Function<IndexMetadata, String> sourceIndexNameSupplier = instance.getSourceIndexNameSupplier();
         Function<IndexMetadata, String> targetIndexNameSupplier = instance.getTargetIndexNameSupplier();
 
         switch (between(0, 3)) {

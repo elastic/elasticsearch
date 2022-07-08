@@ -10,6 +10,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -19,7 +23,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -30,7 +41,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +61,7 @@ import java.util.stream.Collectors;
  */
 public class CoordinationDiagnosticsService implements ClusterStateListener {
     private final ClusterService clusterService;
+    private final TransportService transportService;
     private final Coordinator coordinator;
     private final MasterHistoryService masterHistoryService;
     /**
@@ -62,6 +77,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * health status.
      */
     private final int unacceptableIdentityChanges;
+
+    /*
+     * This is a list of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
+     * diagnosis.
+     * This field is only ever accessed on the cluster change event thread, so there no need to protect it for thread safety.
+     */
+    private List<Scheduler.Cancellable> clusterFormationInfoTasks = List.of();
+    /*
+     * This field holds the results of the tasks in the clusterFormationInfoTasks field above. The field is accessed (reads/writes) from
+     * multiple threads, but is only ever replaced on the cluster change event thread.
+     */
+    // Non-private for testing
+    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -98,10 +126,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     public CoordinationDiagnosticsService(
         ClusterService clusterService,
+        TransportService transportService,
         Coordinator coordinator,
         MasterHistoryService masterHistoryService
     ) {
         this.clusterService = clusterService;
+        this.transportService = transportService;
         this.coordinator = coordinator;
         this.masterHistoryService = masterHistoryService;
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
@@ -409,6 +439,217 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     masterHistoryService.refreshRemoteMasterHistory(master);
                 }
             }
+        }
+        if (currentMaster == null && clusterService.localNode().isMasterNode()) {
+            /*
+             * This begins polling all master-eligible nodes for cluster formation information. However there's a 10-second delay before it
+             * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
+             * polling tasks will be canceled before any requests are actually made.
+             */
+            beginPollingClusterFormationInfo();
+        } else {
+            cancelPollingClusterFormationInfo();
+        }
+    }
+
+    private void beginPollingClusterFormationInfo() {
+        cancelPollingClusterFormationInfo();
+        clusterFormationInfoTasks = getMasterEligibleNodes().stream()
+            .map(masterNode -> beginPollingClusterFormationInfo(masterNode, clusterFormationResponses))
+            .collect(Collectors.toList());
+    }
+
+    private void cancelPollingClusterFormationInfo() {
+        clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
+        /*
+         * Recreates the map so that we don't read old information, or worse get stuck with information about a node that has been
+         * removed from the cluster.
+         */
+        clusterFormationResponses = new ConcurrentHashMap<>();
+    }
+
+    Scheduler.Cancellable beginPollingClusterFormationInfo(
+        // Non-private for testing
+        DiscoveryNode node,
+        final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
+    ) {
+        final AtomicBoolean isCancelled = new AtomicBoolean(false);
+        final Scheduler.ScheduledCancellable[] topLevelScheduledCancellable = { null };
+        new PollClusterFormationStateRunnable(
+            isCancelled,
+            node,
+            nodeToClusterFormationStateMap,
+            new ActionListener<Scheduler.ScheduledCancellable>() {
+                @Override
+                public void onResponse(Scheduler.ScheduledCancellable scheduledCancellable) {
+                    topLevelScheduledCancellable[0] = scheduledCancellable;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            }
+        ).run();
+        return new CancellableWrapper(isCancelled, topLevelScheduledCancellable[0]);
+
+    }
+
+    private static class CancellableWrapper implements Scheduler.Cancellable {
+        private final Scheduler.Cancellable delegate;
+        private final AtomicBoolean isCancelled;
+
+        public CancellableWrapper(AtomicBoolean isCancelled, Scheduler.Cancellable delegate) {
+            this.isCancelled = isCancelled;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean cancel() {
+            isCancelled.set(true);
+            return delegate.cancel();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return delegate.isCancelled();
+        }
+    }
+
+    private class PollClusterFormationStateRunnable implements Runnable {
+        private final DiscoveryNode node;
+        private final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap;
+        private final AtomicBoolean isCancelled;
+        private final ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener;
+
+        public PollClusterFormationStateRunnable(
+            AtomicBoolean isCancelled,
+            DiscoveryNode node,
+            final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
+            ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener
+        ) {
+            this.isCancelled = isCancelled;
+            this.node = node;
+            this.nodeToClusterFormationStateMap = nodeToClusterFormationStateMap;
+            this.cancellableExistsListener = cancellableExistsListener;
+        }
+
+        @Override
+        public void run() {
+            if (isCancelled.get()) {
+                logger.trace("Task cancelled");
+            } else {
+                Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
+                    Version minSupportedVersion = Version.V_8_4_0;
+                    if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                        logger.trace(
+                            "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                            node,
+                            node.getVersion(),
+                            minSupportedVersion
+                        );
+                    } else {
+                        long startTime = System.nanoTime();
+                        transportService.connectToNode(
+                            // Note: This connection must be explicitly closed below
+                            node,
+                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(Releasable releasable) {
+                                    if (isCancelled.get()) {
+                                        logger.trace("Task cancelled");
+                                    } else {
+                                        logger.trace("Opened connection to {}, making cluster coordination info request", node);
+                                        // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                                        final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+                                        transportService.sendRequest(
+                                            node,
+                                            ClusterFormationInfoAction.NAME,
+                                            new ClusterFormationInfoAction.Request(),
+                                            TransportRequestOptions.timeout(transportTimeout),
+                                            new ActionListenerResponseHandler<>(
+                                                ActionListener.runAfter(ActionListener.runBefore(new ActionListener<>() {
+
+                                                    @Override
+                                                    public void onResponse(ClusterFormationInfoAction.Response response) {
+                                                        if (isCancelled.get()) {
+                                                            logger.trace("Task cancelled");
+                                                        } else {
+                                                            long endTime = System.nanoTime();
+                                                            logger.trace(
+                                                                "Received cluster coordination info from {} in {}",
+                                                                node,
+                                                                TimeValue.timeValueNanos(endTime - startTime)
+                                                            );
+                                                            nodeToClusterFormationStateMap.put(
+                                                                node,
+                                                                new ClusterFormationStateOrException(response.getClusterFormationState())
+                                                            );
+                                                        }
+                                                    }
+
+                                                    @Override
+                                                    public void onFailure(Exception e) {
+                                                        if (isCancelled.get()) {
+                                                            logger.trace("Task cancelled");
+                                                        } else {
+                                                            logger.warn("Exception in cluster coordination info request to master node", e);
+                                                            nodeToClusterFormationStateMap.put(
+                                                                node,
+                                                                new ClusterFormationStateOrException(e)
+                                                            );
+                                                        }
+                                                    }
+                                                }, () -> Releasables.close(releasable)),
+                                                    new PollClusterFormationStateRunnable(
+                                                        isCancelled,
+                                                        node,
+                                                        nodeToClusterFormationStateMap,
+                                                        null
+                                                    )
+                                                ),
+                                                ClusterFormationInfoAction.Response::new
+                                            )
+                                        );
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn("Exception connecting to master node", e);
+                                    nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+                                    new PollClusterFormationStateRunnable(isCancelled, node, nodeToClusterFormationStateMap, null).run();
+                                }
+                            }
+                        );
+                    }
+                }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+                if (cancellableExistsListener != null) {
+                    cancellableExistsListener.onResponse(scheduledCancellable);
+                }
+            }
+
+        }
+    }
+
+    record ClusterFormationStateOrException(
+        ClusterFormationFailureHelper.ClusterFormationState clusterFormationState,
+        Exception exception
+    ) { // non-private for testing
+
+        public ClusterFormationStateOrException {
+            if (clusterFormationState != null && exception != null) {
+                throw new IllegalArgumentException("Cluster formation state and exception cannot both be non-null");
+            }
+        }
+
+        ClusterFormationStateOrException(ClusterFormationFailureHelper.ClusterFormationState clusterFormationState) {
+            this(clusterFormationState, null);
+        }
+
+        ClusterFormationStateOrException(Exception exception) {
+            this(null, exception);
         }
     }
 

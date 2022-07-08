@@ -1059,7 +1059,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             settingsBuilder.put(
                 getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
                 "-"
-                    + Strings.collectionToDelimitedString(randomList(0, 10, () -> "0"), "")
+                    + "0".repeat(randomIntBetween(0,10))
                     + "1"
                     + randomFrom("", "nanos", "micros", "ms", "s", "m", "h", "d")
             );

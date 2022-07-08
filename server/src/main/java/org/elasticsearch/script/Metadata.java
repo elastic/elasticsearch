@@ -37,6 +37,7 @@ public class Metadata {
     protected static final String ROUTING = "_routing";
     protected static final String VERSION_TYPE = "_version_type";
     protected static final String VERSION = "_version";
+    protected static final String TYPE = "_type"; // type is deprecated so it's supported in the map but not available as a getter
     protected static final String IF_SEQ_NO = "_if_seq_no";
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
@@ -52,6 +53,8 @@ public class Metadata {
         Metadata::stringValidator,
         VERSION,
         Metadata::notNullLongValidator,
+        TYPE,
+        Metadata::stringValidator,
         IF_SEQ_NO,
         Metadata::longValidator,
         IF_PRIMARY_TERM,
@@ -360,5 +363,18 @@ public class Metadata {
     @FunctionalInterface
     public interface Validator {
         void accept(MapOperation op, String key, Object value);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Metadata metadata = (Metadata) o;
+        return Objects.equals(map, metadata.map) && Objects.equals(timestamp, metadata.timestamp);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(map, timestamp);
     }
 }

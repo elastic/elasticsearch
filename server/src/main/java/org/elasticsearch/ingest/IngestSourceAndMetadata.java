@@ -317,4 +317,18 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
             return metadata.put(key, value);
         }
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        IngestSourceAndMetadata that = (IngestSourceAndMetadata) o;
+        return Objects.equals(source, that.source) && Objects.equals(metadata, that.metadata);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(source, metadata);
+    }
 }

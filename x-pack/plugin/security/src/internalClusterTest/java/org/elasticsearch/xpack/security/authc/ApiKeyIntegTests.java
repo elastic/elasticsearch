@@ -1541,12 +1541,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             newClusterPrivileges.toArray(new String[0])
         );
 
-        // Update API key
-        final UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorAfterUpdate), getApiKeyDocument(apiKeyId));
+
+        // Update user role name only
+        final RoleDescriptor roleDescriptorWithNewName = putRoleWithClusterPrivileges(
+            randomValueOtherThan(nativeRealmRole, () -> randomAlphaOfLength(10)),
+            // Keep old privileges
+            newClusterPrivileges.toArray(new String[0])
+        );
+        updateUser(new User(nativeRealmUser, roleDescriptorWithNewName.getName()));
+
+        // Update API key
+        response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+
+        assertNotNull(response);
+        assertTrue(response.isUpdated());
+        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorWithNewName), getApiKeyDocument(apiKeyId));
     }
 
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
@@ -1748,7 +1762,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Update with different creator info is not a noop
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
-        final User updatedUser = AuthenticationTestHelper.userWithRandomContactDetails(TEST_USER_NAME, TEST_ROLE);
+        final User updatedUser = AuthenticationTestHelper.userWithRandomMetadataAndDetails(TEST_USER_NAME, TEST_ROLE);
         final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
         final boolean noUserChanges = updatedUser.equals(new User(TEST_USER_NAME, TEST_ROLE));
         final Authentication.RealmRef realmRef;
@@ -2166,6 +2180,22 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
         final PutUserResponse putUserResponse = listener.get();
         assertTrue(putUserResponse.created());
+    }
+
+    private void updateUser(User user) throws ExecutionException, InterruptedException {
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(user.principal());
+        putUserRequest.roles(user.roles());
+        putUserRequest.metadata(user.metadata());
+        putUserRequest.fullName(user.fullName());
+        putUserRequest.email(user.email());
+        final PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
+        final Client client = client().filterWithHeader(
+            Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
+        );
+        client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
+        final PutUserResponse putUserResponse = listener.get();
+        assertFalse(putUserResponse.created());
     }
 
     private RoleDescriptor putRoleWithClusterPrivileges(final String nativeRealmRoleName, String... clusterPrivileges)

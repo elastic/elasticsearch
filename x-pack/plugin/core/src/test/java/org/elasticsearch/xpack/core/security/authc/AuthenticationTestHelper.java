@@ -90,15 +90,33 @@ public class AuthenticationTestHelper {
         );
     }
 
-    public static User userWithRandomContactDetails(final String username, final String... roles) {
+    public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
         return new User(
             username,
             roles,
             ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
             // Not a very realistic email address, but we don't validate this nor rely on correct format, so keeping it simple
             ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
-            null,
+            randomUserMetadata(),
             true
+        );
+    }
+
+    public static Map<String, Object> randomUserMetadata() {
+        return ESTestCase.randomFrom(
+            Map.of(
+                "employee_id",
+                ESTestCase.randomAlphaOfLength(5),
+                "number",
+                1,
+                "numbers",
+                List.of(1, 3, 5),
+                "extra",
+                Map.of("favorite pizza", "hawaii", "age", 42)
+            ),
+            Map.of(ESTestCase.randomAlphaOfLengthBetween(3, 8), ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+            Map.of(),
+            null
         );
     }
 

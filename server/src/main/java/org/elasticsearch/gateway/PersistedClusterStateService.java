@@ -9,7 +9,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -23,6 +22,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -39,10 +39,13 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -58,10 +61,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -80,6 +83,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,6 +95,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by master-eligible nodes
@@ -122,7 +128,7 @@ public class PersistedClusterStateService {
     private static final String CURRENT_TERM_KEY = "current_term";
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
-    private static final String NODE_VERSION_KEY = "node_version";
+    static final String NODE_VERSION_KEY = "node_version";
     private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     public static final String TYPE_FIELD_NAME = "type";
     public static final String GLOBAL_TYPE_NAME = "global";
@@ -212,7 +218,7 @@ public class PersistedClusterStateService {
 
                 final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(directory, indexWriter));
+                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter));
             }
             success = true;
         } finally {
@@ -220,7 +226,18 @@ public class PersistedClusterStateService {
                 IOUtils.closeWhileHandlingException(closeables);
             }
         }
-        return new Writer(metadataIndexWriters, nodeId, documentPageSize, relativeTimeMillisSupplier, () -> slowWriteLoggingThreshold);
+        return new Writer(
+            metadataIndexWriters,
+            nodeId,
+            documentPageSize,
+            relativeTimeMillisSupplier,
+            () -> slowWriteLoggingThreshold,
+            getAssertOnCommit()
+        );
+    }
+
+    CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+        return Assertions.ENABLED ? this::loadOnDiskState : null;
     }
 
     private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
@@ -315,7 +332,7 @@ public class PersistedClusterStateService {
                         }
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(() -> format("no on-disk state at %s", indexPath), e);
                 }
             }
         }
@@ -343,7 +360,7 @@ public class PersistedClusterStateService {
                         indexWriter.commit();
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(() -> format("no on-disk state at %s", indexPath), e);
                 }
             }
         }
@@ -374,6 +391,9 @@ public class PersistedClusterStateService {
             if (Files.exists(indexPath)) {
                 try (Directory directory = createDirectory(indexPath)) {
                     if (checkClean) {
+
+                        logger.debug("checking cluster state integrity in [{}]", indexPath);
+
                         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
                             final boolean isClean;
                             try (
@@ -400,6 +420,41 @@ public class PersistedClusterStateService {
                     }
 
                     try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+
+                        if (logger.isDebugEnabled()) {
+                            final var indexCommit = directoryReader.getIndexCommit();
+                            final var segmentsFileName = indexCommit.getSegmentsFileName();
+                            try {
+                                final var attributes = Files.readAttributes(indexPath.resolve(segmentsFileName), BasicFileAttributes.class);
+                                logger.debug(
+                                    "loading cluster state from commit ["
+                                        + segmentsFileName
+                                        + "] in ["
+                                        + directory
+                                        + "]: creationTime="
+                                        + attributes.creationTime()
+                                        + ", lastModifiedTime="
+                                        + attributes.lastModifiedTime()
+                                        + ", lastAccessTime="
+                                        + attributes.lastAccessTime()
+                                );
+                            } catch (Exception e) {
+                                logger.debug(
+                                    "loading cluster state from commit ["
+                                        + segmentsFileName
+                                        + "] in ["
+                                        + directory
+                                        + "] but could not get file attributes",
+                                    e
+                                );
+                            }
+                            logger.debug("cluster state commit user data: {}", indexCommit.getUserData());
+
+                            for (final var segmentCommitInfo : SegmentInfos.readCommit(directory, segmentsFileName)) {
+                                logger.debug("loading cluster state from segment: {}", segmentCommitInfo);
+                            }
+                        }
+
                         final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                         if (nodeId.equals(onDiskState.nodeId) == false) {
@@ -449,7 +504,7 @@ public class PersistedClusterStateService {
                         }
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(() -> format("no on-disk state at %s", indexPath), e);
                 }
             }
         }
@@ -647,10 +702,12 @@ public class PersistedClusterStateService {
     private static class MetadataIndexWriter implements Closeable {
 
         private final Logger logger;
+        private final Path path;
         private final Directory directory;
         private final IndexWriter indexWriter;
 
-        MetadataIndexWriter(Directory directory, IndexWriter indexWriter) {
+        MetadataIndexWriter(Path path, Directory directory, IndexWriter indexWriter) {
+            this.path = path;
             this.directory = directory;
             this.indexWriter = indexWriter;
             this.logger = Loggers.getLogger(MetadataIndexWriter.class, directory.toString());
@@ -715,19 +772,24 @@ public class PersistedClusterStateService {
         boolean fullStateWritten = false;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final byte[] documentBuffer;
+        @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+        private final CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit;
 
         private Writer(
             List<MetadataIndexWriter> metadataIndexWriters,
             String nodeId,
             ByteSizeValue documentPageSize,
             LongSupplier relativeTimeMillisSupplier,
-            Supplier<TimeValue> slowWriteLoggingThresholdSupplier
+            Supplier<TimeValue> slowWriteLoggingThresholdSupplier,
+            @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+            CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit
         ) {
             this.metadataIndexWriters = metadataIndexWriters;
             this.nodeId = nodeId;
             this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
             this.slowWriteLoggingThresholdSupplier = slowWriteLoggingThresholdSupplier;
             this.documentBuffer = new byte[ByteSizeUnit.BYTES.toIntBytes(documentPageSize.getBytes())];
+            this.assertOnCommit = assertOnCommit;
         }
 
         private void ensureOpen() {
@@ -845,10 +907,10 @@ public class PersistedClusterStateService {
             }
 
             final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(previouslyWrittenMetadata.indices().size());
-            for (IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
+            previouslyWrittenMetadata.indices().forEach((name, indexMetadata) -> {
                 final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                 assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
-            }
+            });
 
             int numIndicesAdded = 0;
             int numIndicesUpdated = 0;
@@ -984,6 +1046,22 @@ public class PersistedClusterStateService {
             ensureOpen();
             prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
             completeCommit();
+            assert assertOnCommit();
+        }
+
+        private boolean assertOnCommit() {
+            if (assertOnCommit != null && Randomness.get().nextInt(100) == 0) {
+                // only rarely run this assertion since reloading the whole state can be quite expensive
+                for (final var metadataIndexWriter : metadataIndexWriters) {
+                    try (var directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {
+                        assertOnCommit.accept(metadataIndexWriter.path, directoryReader);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+
+            return true;
         }
 
         private void prepareCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {

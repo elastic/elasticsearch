@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.After;
 
 import java.time.ZonedDateTime;
@@ -57,14 +57,17 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
     private final Set<String> createdPipelines = new HashSet<>();
 
     @After
-    public void cleanup() {
+    public void cleanup() throws Exception {
         for (String pipeline : createdPipelines) {
             try {
                 client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("error cleaning up pipeline [{}]", pipeline), ex);
+                logger.warn(() -> "error cleaning up pipeline [" + pipeline + "]", ex);
             }
         }
+        // Some of the tests have async side effects. We need to wait for these to complete before continuing
+        // the cleanup, otherwise unexpected indices may get created during the cleanup process.
+        BaseMlIntegTestCase.waitForPendingTasks(client());
     }
 
     public void testFeatureTrackingAnomalyJob() throws Exception {
@@ -125,7 +128,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             .setInferenceConfig(new ClassificationConfig(3))
             .setParsedDefinition(
                 new TrainedModelDefinition.Builder().setPreProcessors(
-                    Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
+                    List.of(new OneHotEncoding("other.categorical", oneHotEncoding, false))
                 ).setTrainedModel(buildClassification(true))
             )
             .build();

@@ -22,22 +22,33 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Helper class for parsing JWT claims.
  */
 public final class ClaimParser {
-    private final String name;
+    private final String setting;
+    private final String claimName;
+    private final String regexPattern;
     private final Function<JWTClaimsSet, List<String>> parser;
 
-    public ClaimParser(String name, Function<JWTClaimsSet, List<String>> parser) {
-        this.name = name;
+    public ClaimParser(String setting, String claimName, String regexPattern, Function<JWTClaimsSet, List<String>> parser) {
+        this.setting = setting;
+        this.claimName = claimName;
+        this.regexPattern = regexPattern;
         this.parser = parser;
     }
 
-    public String getName() {
-        return this.name;
+    public String getSetting() {
+        return this.setting;
+    }
+
+    public String getClaimName() {
+        return this.claimName;
+    }
+
+    public String getRegexPattern() {
+        return this.regexPattern;
     }
 
     public Function<JWTClaimsSet, List<String>> getParser() {
@@ -59,7 +70,13 @@ public final class ClaimParser {
 
     @Override
     public String toString() {
-        return name;
+        if (this.claimName == null) {
+            return "No claim for [" + this.setting + "]";
+        } else if (this.regexPattern == null) {
+            return "Claim [" + this.claimName + "] for [" + this.setting + "]";
+        } else {
+            return "Claim [" + this.claimName + "] with pattern [" + this.regexPattern + "] for [" + this.setting + "]";
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -85,44 +102,38 @@ public final class ClaimParser {
             String claimName = realmConfig.getSetting(setting.getClaim());
             if (realmConfig.hasSetting(setting.getPattern())) {
                 Pattern regex = Pattern.compile(realmConfig.getSetting(setting.getPattern()));
-                return new ClaimParser(
-                    "Claim [" + claimName + "] with pattern [" + regex.pattern() + "] for [" + setting.name(realmConfig) + "]",
-                    claims -> {
-                        Collection<String> values = parseClaimValues(
-                            claims,
-                            claimName,
-                            RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                        );
-                        return values.stream().map(s -> {
-                            if (s == null) {
-                                logger.debug("Claim [{}] is null", claimName);
-                                return null;
-                            }
-                            final Matcher matcher = regex.matcher(s);
-                            if (matcher.find() == false) {
-                                logger.debug("Claim [{}] is [{}], which does not match [{}]", claimName, s, regex.pattern());
-                                return null;
-                            }
-                            final String value = matcher.group(1);
-                            if (Strings.isNullOrEmpty(value)) {
-                                logger.debug(
-                                    "Claim [{}] is [{}], which does match [{}] but group(1) is empty",
-                                    claimName,
-                                    s,
-                                    regex.pattern()
-                                );
-                                return null;
-                            }
-                            return value;
-                        }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList());
-                    }
-                );
+                return new ClaimParser(setting.name(realmConfig), claimName, regex.pattern(), claims -> {
+                    Collection<String> values = parseClaimValues(
+                        claims,
+                        claimName,
+                        RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
+                    );
+                    return values.stream().map(s -> {
+                        if (s == null) {
+                            logger.debug("Claim [{}] is null", claimName);
+                            return null;
+                        }
+                        final Matcher matcher = regex.matcher(s);
+                        if (matcher.find() == false) {
+                            logger.debug("Claim [{}] is [{}], which does not match [{}]", claimName, s, regex.pattern());
+                            return null;
+                        }
+                        final String value = matcher.group(1);
+                        if (Strings.isNullOrEmpty(value)) {
+                            logger.debug("Claim [{}] is [{}], which does match [{}] but group(1) is empty", claimName, s, regex.pattern());
+                            return null;
+                        }
+                        return value;
+                    }).filter(Objects::nonNull).toList();
+                });
             } else {
                 return new ClaimParser(
-                    "Claim [" + claimName + "] for [" + setting.name(realmConfig) + "]",
+                    setting.name(realmConfig),
+                    claimName,
+                    null,
                     claims -> parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())).stream()
                         .filter(Objects::nonNull)
-                        .collect(Collectors.toUnmodifiableList())
+                        .toList()
                 );
             }
         } else if (required) {
@@ -136,7 +147,7 @@ public final class ClaimParser {
                     + "] is also set"
             );
         } else {
-            return new ClaimParser("No Claim for [" + setting.name(realmConfig) + "]", attributes -> List.of());
+            return new ClaimParser(setting.name(realmConfig), null, null, attributes -> List.of());
         }
     }
 }

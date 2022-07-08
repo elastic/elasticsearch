@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
@@ -433,8 +432,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(localShards.get(0))
             .addShard(localShards.get(1))
-            .addShard(TestShardRouting.newShardRouting(firstShardId, "node2", true, STARTED))
-            .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", true, STARTED))
+            .addShard(TestShardRouting.newShardRouting(firstShardId, "node2", false, STARTED))
+            .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", false, STARTED))
             .build();
 
         Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(localShards, indexRoutingTable);
@@ -652,7 +651,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         // index bar pointing to .watches
         Index barIndex = new Index("bar", "someuuid2");
-        ShardId barShardId = new ShardId(fooIndex, 0);
+        ShardId barShardId = new ShardId(barIndex, 0);
         IndexMetadata.Builder barIndexMetadata = createIndexBuilder("bar", 1, 0).putAlias(AliasMetadata.builder(Watch.INDEX));
         ShardRouting barShardRouting = TestShardRouting.newShardRouting(barShardId, node1.getId(), true, STARTED);
         IndexRoutingTable.Builder barIndexRoutingTable = IndexRoutingTable.builder(barIndex).addShard(barShardRouting);
@@ -721,9 +720,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 AliasMetadata aliasMetadata = mock(AliasMetadata.class);
                 when(aliasMetadata.writeIndex()).thenReturn(true);
                 when(aliasMetadata.getAlias()).thenReturn(Watch.INDEX);
-                ImmutableOpenMap.Builder<String, AliasMetadata> aliases = ImmutableOpenMap.builder();
-                aliases.put(Watch.INDEX, aliasMetadata);
-                when(indexMetadata.getAliases()).thenReturn(aliases.build());
+                when(indexMetadata.getAliases()).thenReturn(Map.of(Watch.INDEX, aliasMetadata));
                 indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, List.of(indexMetadata)));
                 when(metadata.index(any(Index.class))).thenReturn(indexMetadata);
             }

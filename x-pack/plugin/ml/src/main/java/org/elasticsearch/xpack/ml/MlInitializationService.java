@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -36,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -121,6 +118,12 @@ public class MlInitializationService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // Wait until the gateway has recovered from disk.
+            return;
+        }
+
         final boolean prevIsMaster = this.isMaster;
         if (prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
@@ -129,11 +132,6 @@ public class MlInitializationService implements ClusterStateListener {
             } else {
                 offMaster();
             }
-        }
-
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // Wait until the gateway has recovered from disk.
-            return;
         }
 
         // The atomic flag prevents multiple simultaneous attempts to create the
@@ -172,22 +170,21 @@ public class MlInitializationService implements ClusterStateListener {
         // Step 5: Handle errors encountered on the way.
         ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
             if (updateAliasesResponse.isAcknowledged() == false) {
-                logger.error("One or more of the ML internal aliases could not be made hidden.");
+                logger.warn("One or more of the ML internal aliases could not be made hidden.");
                 return;
             }
             mlInternalIndicesHidden.set(true);
-        }, e -> logger.error("An error occurred while making ML internal indices and aliases hidden", e));
+        }, e -> logger.warn("An error occurred while making ML internal indices and aliases hidden", e));
 
         // Step 4: Extract ML internal aliases that are not hidden and make them hidden.
         ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(getAliasesResponse -> {
             IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
-                String index = entry.key;
-                for (AliasMetadata existingAliasMetadata : entry.value) {
+            for (var entry : getAliasesResponse.getAliases().entrySet()) {
+                for (AliasMetadata existingAliasMetadata : entry.getValue()) {
                     if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {
                         continue;
                     }
-                    indicesAliasesRequest.addAliasAction(aliasReplacementAction(index, existingAliasMetadata));
+                    indicesAliasesRequest.addAliasAction(aliasReplacementAction(entry.getKey(), existingAliasMetadata));
                 }
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {
@@ -206,7 +203,7 @@ public class MlInitializationService implements ClusterStateListener {
         // Step 3: Once indices are hidden, fetch ML internal aliases to find out whether the aliases are hidden or not.
         ActionListener<AcknowledgedResponse> updateSettingsListener = ActionListener.wrap(updateSettingsResponse -> {
             if (updateSettingsResponse.isAcknowledged() == false) {
-                logger.error("One or more of the ML internal indices could not be made hidden.");
+                logger.warn("One or more of the ML internal indices could not be made hidden.");
                 return;
             }
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(mlHiddenIndexPatterns)
@@ -217,6 +214,7 @@ public class MlInitializationService implements ClusterStateListener {
         // Step 2: Extract ML internal indices that are not hidden and make them hidden.
         ActionListener<GetSettingsResponse> getSettingsListener = ActionListener.wrap(getSettingsResponse -> {
             String[] nonHiddenIndices = getSettingsResponse.getIndexToSettings()
+                .entrySet()
                 .stream()
                 .filter(e -> e.getValue().getAsBoolean(SETTING_INDEX_HIDDEN, false) == false)
                 .map(Map.Entry::getKey)

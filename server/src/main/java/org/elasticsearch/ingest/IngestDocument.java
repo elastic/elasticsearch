@@ -11,6 +11,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -26,15 +28,14 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -48,44 +49,67 @@ public final class IngestDocument {
 
     static final String TIMESTAMP = "timestamp";
 
-    private final Map<String, Object> sourceAndMetadata;
+    private final IngestSourceAndMetadata sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
-    public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
-        // source + at max 5 extra fields
-        this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
-        this.sourceAndMetadata.putAll(source);
-        this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
-        if (routing != null) {
-            this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (version != null) {
-            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
-        }
-        if (versionType != null) {
-            sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
-        }
+    private boolean doNoSelfReferencesCheck = false;
+
+    public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
+        this.sourceAndMetadata = new IngestSourceAndMetadata(
+            index,
+            id,
+            version,
+            routing,
+            versionType,
+            ZonedDateTime.now(ZoneOffset.UTC),
+            source
+        );
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
+        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
     }
 
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this(deepCopyMap(other.sourceAndMetadata), deepCopyMap(other.ingestMetadata));
+        this(
+            new IngestSourceAndMetadata(
+                deepCopyMap(other.sourceAndMetadata.getSource()),
+                deepCopyMap(other.sourceAndMetadata.getMetadata()),
+                other.getIngestSourceAndMetadata().timestamp,
+                other.getIngestSourceAndMetadata().validators
+            ),
+            deepCopyMap(other.ingestMetadata)
+        );
     }
 
     /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
+     * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
+        this.sourceAndMetadata = new IngestSourceAndMetadata(
+            sm.v1(),
+            sm.v2(),
+            IngestSourceAndMetadata.getTimestamp(ingestMetadata),
+            IngestSourceAndMetadata.VALIDATORS
+        );
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
+            if (v instanceof String) {
+                return this.sourceAndMetadata.getTimestamp();
+            }
+            return v;
+        });
+    }
+
+    /**
+     * Constructor to create an IngestDocument from its constituent maps
+     */
+    IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
     }
@@ -94,17 +118,12 @@ public final class IngestDocument {
      * Returns the value contained in the document for the provided path
      * @param path The path within the document in dot-notation
      * @param clazz The expected class of the field value
-     * @return the value for the provided path if existing, null otherwise
+     * @return the value for the provided path if existing
      * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz) {
-        FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
-        for (String pathElement : fieldPath.pathElements) {
-            context = resolve(pathElement, path, context);
-        }
-        return cast(path, context, clazz);
+        return getFieldValue(path, clazz, false);
     }
 
     /**
@@ -118,15 +137,19 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        try {
-            return getFieldValue(path, clazz);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing && hasField(path) != true) {
+        FieldPath fieldPath = new FieldPath(path);
+        Object context = fieldPath.initialContext;
+        for (String pathElement : fieldPath.pathElements) {
+            ResolveResult result = resolve(pathElement, path, context);
+            if (result.wasSuccessful) {
+                context = result.resolvedObject;
+            } else if (ignoreMissing && hasField(path) == false) {
                 return null;
             } else {
-                throw e;
+                throw new IllegalArgumentException(result.errorMessage);
             }
         }
+        return cast(path, context, clazz);
     }
 
     /**
@@ -287,7 +310,12 @@ public final class IngestDocument {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
-            context = resolve(fieldPath.pathElements[i], path, context);
+            ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
+            if (result.wasSuccessful) {
+                context = result.resolvedObject;
+            } else {
+                throw new IllegalArgumentException(result.errorMessage);
+            }
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
@@ -325,34 +353,33 @@ public final class IngestDocument {
         );
     }
 
-    private static Object resolve(String pathElement, String fullPath, Object context) {
+    private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
         if (context == null) {
-            throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
+            return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
         if (context instanceof Map<?, ?> map) {
             if (map.containsKey(pathElement)) {
-                return map.get(pathElement);
+                return ResolveResult.success(map.get(pathElement));
             }
-            throw new IllegalArgumentException("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(pathElement);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(
-                    "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]",
-                    e
+                return ResolveResult.error(
+                    "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]"
                 );
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(
+                return ResolveResult.error(
                     "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + fullPath + "]"
                 );
             }
-            return list.get(index);
+            return ResolveResult.success(list.get(index));
         }
-        throw new IllegalArgumentException(
+        return ResolveResult.error(
             "cannot resolve ["
                 + pathElement
                 + "] from object of type ["
@@ -697,26 +724,38 @@ public final class IngestDocument {
     }
 
     /**
-     * one time operation that extracts the metadata fields from the ingest document and returns them.
-     * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
+     * Get source and metadata map
      */
-    public Map<Metadata, Object> extractMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.remove(metadata.getFieldName()));
-        }
-        return metadataMap;
+    public Map<String, Object> getSourceAndMetadata() {
+        return sourceAndMetadata;
     }
 
     /**
-     * Does the same thing as {@link #extractMetadata} but does not mutate the map.
+     * Get source and metadata map as {@link IngestSourceAndMetadata}
      */
-    public Map<Metadata, Object> getMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.get(metadata.getFieldName()));
-        }
-        return metadataMap;
+    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
+        return sourceAndMetadata;
+    }
+
+    /**
+     * Get all Metadata values in a Map
+     */
+    public Map<String, Object> getMetadataMap() {
+        return sourceAndMetadata.getMetadata();
+    }
+
+    /**
+     * Get the strongly typed metadata
+     */
+    public org.elasticsearch.script.Metadata getMetadata() {
+        return sourceAndMetadata;
+    }
+
+    /**
+     * Get all source values in a Map
+     */
+    public Map<String, Object> getSource() {
+        return sourceAndMetadata.getSource();
     }
 
     /**
@@ -725,15 +764,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
-    }
-
-    /**
-     * Returns the document including its metadata fields, unless {@link #extractMetadata()} has been called, in which case the
-     * metadata fields will not be present anymore.
-     * Modify the document instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return this.sourceAndMetadata;
     }
 
     @SuppressWarnings("unchecked")
@@ -747,6 +777,7 @@ public final class IngestDocument {
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
+            // TODO(stu): should this check for IngestSourceAndMetadata in addition to Map?
             return copy;
         } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());
@@ -755,7 +786,7 @@ public final class IngestDocument {
             }
             return copy;
         } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = new HashSet<>(setValue.size());
+            Set<Object> copy = Sets.newHashSetWithExpectedSize(setValue.size());
             for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }
@@ -784,6 +815,25 @@ public final class IngestDocument {
             } else {
                 throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
             }
+    }
+
+    public static Set<String> getAllFields(Map<String, Object> input) {
+        return getAllFields(input, "");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> getAllFields(Map<String, Object> input, String prefix) {
+        Set<String> allFields = Sets.newHashSet();
+
+        input.forEach((k, v) -> {
+            allFields.add(prefix + k);
+
+            if (v instanceof Map<?, ?> mapValue) {
+                allFields.addAll(getAllFields((Map<String, Object>) mapValue, prefix + k + "."));
+            }
+        });
+
+        return allFields;
     }
 
     /**
@@ -817,6 +867,26 @@ public final class IngestDocument {
         List<String> pipelineStack = new ArrayList<>(executedPipelines);
         Collections.reverse(pipelineStack);
         return pipelineStack;
+    }
+
+    /**
+     * @return Whether a self referencing check should be performed
+     */
+    public boolean doNoSelfReferencesCheck() {
+        return doNoSelfReferencesCheck;
+    }
+
+    /**
+     * Whether the ingest framework should perform a self referencing check after this ingest document
+     * has been processed by all pipelines. Doing this check adds an extra tax to ingest and should
+     * only be performed when really needed. Only if a processor is executed that could add self referencing
+     * maps or lists then this check must be performed. Most processors will not be able to do this, hence
+     * the default is <code>false</code>.
+     *
+     * @param doNoSelfReferencesCheck Whether a self referencing check should be performed
+     */
+    public void doNoSelfReferencesCheck(boolean doNoSelfReferencesCheck) {
+        this.doNoSelfReferencesCheck = doNoSelfReferencesCheck;
     }
 
     @Override
@@ -853,10 +923,18 @@ public final class IngestDocument {
         IF_PRIMARY_TERM("_if_primary_term"),
         DYNAMIC_TEMPLATES("_dynamic_templates");
 
+        private static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+            .map(metadata -> metadata.fieldName)
+            .collect(Collectors.toSet());
+
         private final String fieldName;
 
         Metadata(String fieldName) {
             this.fieldName = fieldName;
+        }
+
+        public static boolean isMetadata(String field) {
+            return METADATA_NAMES.contains(field);
         }
 
         public String getFieldName() {
@@ -891,5 +969,26 @@ public final class IngestDocument {
             }
         }
 
+    }
+
+    private static class ResolveResult {
+        boolean wasSuccessful;
+        String errorMessage;
+        Object resolvedObject;
+
+        static ResolveResult success(Object resolvedObject) {
+            ResolveResult result = new ResolveResult();
+            result.wasSuccessful = true;
+            result.resolvedObject = resolvedObject;
+            return result;
+        }
+
+        static ResolveResult error(String errorMessage) {
+            ResolveResult result = new ResolveResult();
+            result.wasSuccessful = false;
+            result.errorMessage = errorMessage;
+            return result;
+
+        }
     }
 }

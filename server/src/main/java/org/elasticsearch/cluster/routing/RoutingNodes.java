@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;
@@ -35,7 +33,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -43,6 +40,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -76,10 +74,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
     private int relocatingShards = 0;
 
-    private int activeShardCount = 0;
-
-    private int totalShardCount = 0;
-
     private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
@@ -99,51 +93,44 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
-        this.assignedShards = new HashMap<>();
+        final int indexCount = routingTable.indicesRouting().size();
+        this.assignedShards = Maps.newMapWithExpectedSize(indexCount);
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = new HashMap<>();
 
-        final Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = Maps.newMapWithExpectedSize(
-            discoveryNodes.getDataNodes().size()
-        );
+        nodesToShards = Maps.newMapWithExpectedSize(discoveryNodes.getDataNodes().size());
         // fill in the nodeToShards with the "live" nodes
-        for (ObjectCursor<String> node : discoveryNodes.getDataNodes().keys()) {
-            nodesToShards.put(node.value, new LinkedHashMap<>()); // LinkedHashMap to preserve order
+        var dataNodes = discoveryNodes.getDataNodes().keySet();
+        // best guess for the number of shards per data node
+        final int sizeGuess = dataNodes.isEmpty() ? indexCount : 2 * indexCount / dataNodes.size();
+        for (var node : discoveryNodes.getDataNodes().keySet()) {
+            nodesToShards.put(node, new RoutingNode(node, discoveryNodes.get(node), sizeGuess));
         }
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
+        final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k), sizeGuess);
         for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
                 assert indexShard.primary != null;
-                for (ShardRouting shard : indexShard) {
-                    totalShardCount++;
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    final ShardRouting shard = indexShard.shard(copy);
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
                     // by the ShardId, as this is common for primary and replicas.
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
                         // LinkedHashMap to preserve order
-                        ShardRouting previousValue = nodesToShards.computeIfAbsent(shard.currentNodeId(), k -> new LinkedHashMap<>())
-                            .put(shard.shardId(), shard);
-                        if (previousValue != null) {
-                            throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
-                        }
+                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).add(shard);
                         assignedShardsAdd(shard);
-                        if (shard.active()) {
-                            activeShardCount++;
-                        }
                         if (shard.relocating()) {
                             relocatingShards++;
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
-                            previousValue = nodesToShards.computeIfAbsent(shard.relocatingNodeId(), k -> new LinkedHashMap<>())
-                                .put(targetShardRouting.shardId(), targetShardRouting);
-                            if (previousValue != null) {
-                                throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
-                            }
+                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode).add(targetShardRouting);
                             assignedShardsAdd(targetShardRouting);
                         } else if (shard.initializing()) {
                             if (shard.primary()) {
@@ -157,11 +144,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                     }
                 }
             }
-        }
-        this.nodesToShards = Maps.newMapWithExpectedSize(nodesToShards.size());
-        for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
-            String nodeId = entry.getKey();
-            this.nodesToShards.put(nodeId, new RoutingNode(nodeId, discoveryNodes.get(nodeId), entry.getValue()));
         }
     }
 
@@ -183,8 +165,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
         this.relocatingShards = routingNodes.relocatingShards;
-        this.activeShardCount = routingNodes.activeShardCount;
-        this.totalShardCount = routingNodes.totalShardCount;
         this.attributeValuesByAttribute = Maps.newMapWithExpectedSize(routingNodes.attributeValuesByAttribute.size());
         for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
             this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
@@ -295,8 +275,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
     public Set<String> getAttributeValues(String attributeName) {
         // Only ever accessed on the master service thread so no need for synchronization
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName() + " should be the master service thread";
+        assert MasterService.assertMasterUpdateOrTestThread();
         return attributeValuesByAttribute.computeIfAbsent(
             attributeName,
             ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
@@ -335,14 +314,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
     public int getRelocatingShardCount() {
         return relocatingShards;
-    }
-
-    public int getActiveShardCount() {
-        return activeShardCount;
-    }
-
-    public int getTotalShardCount() {
-        return totalShardCount;
     }
 
     /**
@@ -797,7 +768,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         shards.add(shard);
     }
 
-    private boolean assertInstanceNotInList(ShardRouting shard, List<ShardRouting> shards) {
+    private static boolean assertInstanceNotInList(ShardRouting shard, List<ShardRouting> shards) {
         for (ShardRouting s : shards) {
             assert s != shard;
         }
@@ -884,8 +855,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             && inactivePrimaryCount == that.inactivePrimaryCount
             && inactiveShardCount == that.inactiveShardCount
             && relocatingShards == that.relocatingShards
-            && activeShardCount == that.activeShardCount
-            && totalShardCount == that.totalShardCount
             && nodesToShards.equals(that.nodesToShards)
             && unassignedShards.equals(that.unassignedShards)
             && assignedShards.equals(that.assignedShards)
@@ -903,8 +872,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             inactivePrimaryCount,
             inactiveShardCount,
             relocatingShards,
-            activeShardCount,
-            totalShardCount,
             attributeValuesByAttribute,
             recoveriesPerNode
         );
@@ -1309,33 +1276,29 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
      * all the nodes have been returned.
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator() {
-        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
-            queue.add(entry.getValue().copyShards().iterator());
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
+        for (final var routingNode : nodesToShards.values()) {
+            final var iterator = routingNode.copyShards().iterator();
+            if (iterator.hasNext()) {
+                queue.add(iterator);
+            }
         }
-        return new Iterator<ShardRouting>() {
+        return new Iterator<>() {
             public boolean hasNext() {
-                while (queue.isEmpty() == false) {
-                    if (queue.peek().hasNext()) {
-                        return true;
-                    }
-                    queue.poll();
-                }
-                return false;
+                return queue.isEmpty() == false;
             }
 
             public ShardRouting next() {
-                if (hasNext() == false) {
+                if (queue.isEmpty()) {
                     throw new NoSuchElementException();
                 }
-                Iterator<ShardRouting> iter = queue.poll();
-                ShardRouting result = iter.next();
-                queue.offer(iter);
-                return result;
-            }
-
-            public void remove() {
-                throw new UnsupportedOperationException();
+                final var nodeIterator = queue.poll();
+                assert nodeIterator.hasNext();
+                final var nextShard = nodeIterator.next();
+                if (nodeIterator.hasNext()) {
+                    queue.offer(nodeIterator);
+                }
+                return nextShard;
             }
         };
     }

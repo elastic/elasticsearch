@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -592,10 +591,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }));
     }
 
-    private void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
+    private static void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,
-            () -> metadataCreateIndexService.validateIndexName(
+            () -> MetadataCreateIndexService.validateIndexName(
                 indexName,
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build()
             )
@@ -649,9 +648,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                new SystemIndices(
-                    Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
-                ),
+                new SystemIndices(Collections.singletonList(new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))),
                 false,
                 new IndexSettingProviders(Set.of())
             );
@@ -702,9 +699,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(
             builder -> { builder.settings(Settings.builder().put("template_setting", "value1")); }
         );
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templatesBuilder = ImmutableOpenMap.builder();
-        templatesBuilder.put("template_1", templateMetadata);
-        Metadata metadata = new Metadata.Builder().templates(templatesBuilder.build()).build();
+        Metadata metadata = new Metadata.Builder().templates(Map.of("template_1", templateMetadata)).build();
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).build();
@@ -714,6 +709,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             clusterState,
             request,
             templateMetadata.settings(),
+            null,
             null,
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -800,6 +796,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request,
             templateMetadata.settings(),
             null,
+            null,
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
@@ -822,6 +819,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request,
             Settings.EMPTY,
             null,
+            null,
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
@@ -836,6 +834,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             request,
             Settings.EMPTY,
+            null,
             null,
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -874,6 +873,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             request,
             MetadataIndexTemplateService.resolveSettings(templates),
+            null,
             null,
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -955,6 +955,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             clusterState,
             request,
             templateMetadata.settings(),
+            List.of(templateMetadata.getMappings()),
             clusterState.metadata().index("sourceIndex"),
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -1052,7 +1053,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         // adds alias from new index to existing index
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
-            AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
+            AliasMetadata newAlias = indexMetadata.getAliases().values().iterator().next();
             IndexMetadata myIndex = builder.get("my-index");
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
@@ -1128,7 +1129,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
-        assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
+        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
     }
 
@@ -1207,6 +1208,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request,
             templateSettings,
             null,
+            null,
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
@@ -1267,6 +1269,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 request,
                 Settings.EMPTY,
                 null,
+                null,
                 Settings.EMPTY,
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 randomShardLimitService(),
@@ -1301,6 +1304,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 request,
                 Settings.EMPTY,
                 null,
+                null,
                 Settings.EMPTY,
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 randomShardLimitService(),
@@ -1331,6 +1335,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request,
             Settings.EMPTY,
             null,
+            null,
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
@@ -1352,6 +1357,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             request,
             Settings.EMPTY,
+            null,
             null,
             Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,

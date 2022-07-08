@@ -21,10 +21,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,7 +48,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
@@ -138,7 +136,8 @@ public class PolicyStepsRegistry {
         }
 
         if (mapDiff.getUpserts().isEmpty() == false) {
-            for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
+            for (var entry : mapDiff.getUpserts()) {
+                LifecyclePolicyMetadata policyMetadata = entry.getValue();
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
                     client,
                     ClientHelper.INDEX_LIFECYCLE_ORIGIN,
@@ -268,8 +267,7 @@ public class PolicyStepsRegistry {
             // if the current phase definition describes an internal step/phase, do not parse
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    xContentRegistry,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                     phaseDef
                 )
             ) {
@@ -290,9 +288,9 @@ public class PolicyStepsRegistry {
         // Build a list of steps that correspond with the phase the index is currently in
         final List<Step> phaseSteps;
         if (steps == null) {
-            phaseSteps = new ArrayList<>();
+            phaseSteps = List.of();
         } else {
-            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).collect(Collectors.toList());
+            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).toList();
         }
         logger.trace(
             "parsed steps for policy [{}] in phase [{}], definition: [{}], steps: [{}]",
@@ -304,14 +302,30 @@ public class PolicyStepsRegistry {
         return phaseSteps;
     }
 
+    /**
+     * Read-only internal helper for getStep that returns a non-null step if one is cached for the provided
+     * IndexMetadata and StepKey, and null otherwise.
+     */
     @Nullable
-    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+    private Step getCachedStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
         final Tuple<IndexMetadata, Step> cachedStep = cachedSteps.get(indexMetadata.getIndex());
         // n.b. we're using instance equality here for the IndexMetadata rather than object equality because it's fast,
         // this means that we're erring on the side of cache misses (if the IndexMetadata changed in any way, it'll be
         // a new instance, so we'll miss-and-repopulate the cache for the index in question)
-        if (cachedStep != null && cachedStep.v1() == indexMetadata && cachedStep.v2().getKey().equals(stepKey)) {
-            return cachedStep.v2();
+        if (cachedStep != null && cachedStep.v1() == indexMetadata) {
+            assert cachedStep.v2() != null : "null steps should never be cached in the policy step registry";
+            if (cachedStep.v2() != null && cachedStep.v2().getKey().equals(stepKey)) {
+                return cachedStep.v2();
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+        final Step cachedStep = getCachedStep(indexMetadata, stepKey);
+        if (cachedStep != null) {
+            return cachedStep;
         }
 
         if (ErrorStep.NAME.equals(stepKey.getName())) {
@@ -353,7 +367,9 @@ public class PolicyStepsRegistry {
 
         // Return the step that matches the given stepKey or else null if we couldn't find it
         final Step s = phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
-        cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+        if (s != null) {
+            cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+        }
         return s;
     }
 

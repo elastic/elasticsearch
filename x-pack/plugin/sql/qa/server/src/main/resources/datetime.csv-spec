@@ -1173,8 +1173,8 @@ M       | 1996-11-05 00:00:00.000Z
 
 selectFormat
 schema::format_date:s|format_datetime:s|format_time:s
-SELECT FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.fff') AS format_date,
-FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/yyyy HH:mm:ss.fff') AS format_date,
+FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/yyyy HH:mm:ss.ff') AS format_datetime,
 FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.ff') AS format_time;
 
        format_date      |    format_datetime     |   format_time
@@ -1184,8 +1184,8 @@ FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.ff') AS format_time;
 
 selectFormatWithLength
 schema::format_datetime:s|length:i
-SELECT FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
-LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff')) AS length;
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/yyyy HH:mm:ss.ff') AS format_datetime,
+LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/yyyy HH:mm:ss.ff')) AS length;
 
     format_datetime     | length
 ------------------------+----------------
@@ -1194,7 +1194,7 @@ LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff')) A
 
 selectFormatWithField
 schema::birth_date:ts|format_birth_date1:s|format_birth_date2:s|emp_no:i
-SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date1, FORMAT(birth_date, concat(gender, 'M/dd')) AS format_birth_date2, emp_no
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/yyyy') AS format_birth_date1, FORMAT(birth_date, concat(gender, 'M/dd')) AS format_birth_date2, emp_no
 FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
 
        birth_date        | format_birth_date1 | format_birth_date2 | emp_no
@@ -1233,7 +1233,7 @@ WHERE FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
 
 formatOrderBy
 schema::birth_date:ts|format_birth_date:s
-SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/yyyy') AS format_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
 
        birth_date        | format_birth_date
 -------------------------+---------------
@@ -1569,4 +1569,196 @@ SELECT CAST (CAST (birth_date AS VARCHAR) AS TIMESTAMP) a FROM test_emp WHERE YE
     a:ts
 ---------------
 1965-01-03T00:00:00Z
+;
+
+
+
+// datetime ranges
+
+dateRange_TwoDateStrings
+SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z' AND hire_date < '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+
+;
+
+dateRange_TwoDateRanges
+SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z' AND hire_date < '1997-05-20' OR hire_date >= '1990-01-12T00:00:00.000Z' AND hire_date < '1990-01-15T00:00:00.000Z' ORDER BY hire_date DESC;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+1990-01-14T00:00:00.000Z
+
+;
+
+
+dateRange_TwoDateStringsWithNot
+SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z' AND NOT hire_date >= '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+
+;
+
+dateRange_DateMathAndDate
+SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date < '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+
+;
+
+
+dateRange_DateAndDateMath
+SELECT hire_date FROM test_emp WHERE hire_date >= '1997-05-19T00:00:00.000Z' AND hire_date < 'now-10y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+
+;
+
+dateRange_DateAndDateMathWithNot
+SELECT hire_date FROM test_emp WHERE hire_date >= '1997-05-19T00:00:00.000Z' AND NOT hire_date >= 'now-10y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+
+;
+
+
+dateRange_TwoDateMaths
+SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date <= 'now-10y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+
+;
+
+
+dateRange_invalid_TwoDateMaths
+SELECT hire_date FROM test_emp WHERE hire_date > 'now-10y' AND hire_date < 'now-12y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date:ts
+------------------------
+
+;
+
+
+dateRange_TwoDateMaths_leq
+SELECT hire_date FROM test_emp WHERE hire_date > 'now-100y' AND hire_date < 'now-10y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+
+;
+
+
+dateRangeBetween_TwoStringDates
+SELECT hire_date FROM test_emp WHERE hire_date BETWEEN '1995-12-14T00:00:00.000Z' AND '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+
+;
+
+
+dateRangeBetween_DateMathAndDate
+SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-100y' AND '1999-03-01' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+
+;
+
+
+dateRangeBetween_DateAndDateMath
+SELECT hire_date FROM test_emp WHERE hire_date BETWEEN '1997-05-18T00:00:00.000Z' AND 'now-10y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+
+;
+
+
+dateRangeBetween_valid_TwoDateMaths
+SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-100y' AND 'now-10y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+
+;
+
+
+dateRangeBetween_invalid_TwoDateMaths
+SELECT hire_date FROM test_emp WHERE hire_date BETWEEN 'now-10y' AND 'now-12y' ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date:ts
+------------------------
+
+;
+
+
+dateRangeWithCast
+SELECT hire_date FROM test_emp WHERE hire_date > '1995-12-14T00:00:00.000Z'::datetime AND hire_date < '1999-03-01'::date ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+1995-12-15T00:00:00.000Z
+
+;
+
+dateRangeConstantInRange
+SELECT hire_date FROM test_emp WHERE '1996-12-14T00:00:00.000Z'::datetime BETWEEN '1995-12-14T00:00:00.000Z'::datetime AND '1999-03-01'::date ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date
+------------------------
+1999-04-30T00:00:00.000Z
+1997-05-19T00:00:00.000Z
+1996-11-05T00:00:00.000Z
+
+;
+
+
+dateRangeConstantOutOfRange
+SELECT hire_date FROM test_emp WHERE '2005-12-14T00:00:00.000Z'::datetime BETWEEN '1995-12-14T00:00:00.000Z'::datetime AND '1999-03-01'::date ORDER BY hire_date DESC LIMIT 3;
+
+       hire_date:ts
+------------------------
+
 ;

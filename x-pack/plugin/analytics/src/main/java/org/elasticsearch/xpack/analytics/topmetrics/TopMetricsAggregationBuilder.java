@@ -151,6 +151,11 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList(sortBuilders);
         out.writeVInt(size);

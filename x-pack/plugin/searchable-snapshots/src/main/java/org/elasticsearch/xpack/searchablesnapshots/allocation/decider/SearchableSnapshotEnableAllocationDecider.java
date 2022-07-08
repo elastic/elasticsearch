@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation.decider;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,8 +32,14 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
         "xpack.searchable.snapshot.allocate_on_rolling_restart",
         false,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
+
+    static {
+        // TODO xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
+        assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
+    }
 
     private volatile EnableAllocationDecider.Allocation enableAllocation;
     private volatile boolean allocateOnRollingRestart;

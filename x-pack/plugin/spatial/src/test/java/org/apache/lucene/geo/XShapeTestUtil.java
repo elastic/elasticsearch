@@ -20,12 +20,12 @@ package org.apache.lucene.geo;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.BiasedNumbers;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 
 import java.util.ArrayList;
 import java.util.Random;
 
-/** generates random cartesian geometry; heavy reuse of {@link GeoTestUtil} */
+/** generates random cartesian geometry; heavy reuse of {@link org.apache.lucene.tests.geo.GeoTestUtil} */
 public class XShapeTestUtil {
 
     /** returns next pseudorandom polygon */

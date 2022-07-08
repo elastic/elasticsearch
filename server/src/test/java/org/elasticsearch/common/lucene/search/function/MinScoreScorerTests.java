@@ -11,7 +11,6 @@ package org.elasticsearch.common.lucene.search.function;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.AssertingScorer;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -20,7 +19,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.search.AssertingScorer;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -31,7 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -179,7 +178,7 @@ public class MinScoreScorerTests extends ESTestCase {
     }
 
     private static int[] randomDocs(int maxDoc, int numDocs) {
-        final List<Integer> docs = randomSubsetOf(numDocs, IntStream.range(0, maxDoc).boxed().collect(Collectors.toList()));
+        final List<Integer> docs = randomSubsetOf(numDocs, IntStream.range(0, maxDoc).boxed().toList());
         return docs.stream().mapToInt(n -> n).sorted().toArray();
     }
 
@@ -278,7 +277,7 @@ public class MinScoreScorerTests extends ESTestCase {
             .filter(v -> v.getValue() == numScorers)
             .map(Map.Entry::getKey)
             .sorted()
-            .collect(Collectors.toList());
+            .toList();
         assertThat(actualDocs, equalTo(expectedDocs));
     }
 }

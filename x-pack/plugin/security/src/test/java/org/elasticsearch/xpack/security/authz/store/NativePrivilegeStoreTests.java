@@ -37,10 +37,12 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -80,6 +82,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class NativePrivilegeStoreTests extends ESTestCase {
@@ -216,7 +219,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, anyOf(containsString("""
@@ -257,7 +260,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"bool\":{\"should\":[{\"terms\":{\"application\":[\"yourapp\"]"));
@@ -294,7 +297,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"exists\":{\"field\":\"application\""));
@@ -336,7 +339,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
@@ -688,13 +691,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         for (int i = 0; i < putPrivileges.size(); i++) {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
             IndexRequest request = indexRequests.get(i);
-            assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+            assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
             assertThat(request.id(), equalTo("application-privilege_" + privilege.getApplication() + ":" + privilege.getName()));
             final XContentBuilder builder = privilege.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), true);
             assertThat(request.source(), equalTo(BytesReference.bytes(builder)));
             final boolean created = privilege.getName().equals("user") == false;
             indexListener.onResponse(
-                new IndexResponse(new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, created)
+                new IndexResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, created)
             );
         }
 
@@ -710,6 +713,42 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(map.get("app2"), iterableWithSize(1));
         assertThat(map.get("app1"), contains("admin"));
         assertThat(map.get("app2"), contains("all"));
+    }
+
+    public void testRetrieveActionNamePatternsInsteadOfPrivileges() throws Exception {
+        // test disabling caching
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        for (List<String> applications : List.<List<String>>of(
+            List.of("myapp"),
+            List.of("myapp*"),
+            List.of("myapp", "myapp*"),
+            List.of(),
+            List.of("*"),
+            List.of("myapp-2", "*")
+        )) {
+            Collection<String> actions = randomList(1, 4, () -> {
+                String actionName = randomAlphaOfLengthBetween(0, 3) + randomFrom("*", "/", ":") + randomAlphaOfLengthBetween(0, 3)
+                    + randomFrom("*", "/", ":", "");
+                ApplicationPrivilege.validateActionName(actionName);
+                return actionName;
+            });
+            Client mockClient = mock(Client.class);
+            SecurityIndexManager mockSecurityIndexManager = mock(SecurityIndexManager.class);
+            Settings settings = randomFrom(
+                Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build(),
+                Settings.EMPTY
+            );
+            NativePrivilegeStore store1 = new NativePrivilegeStore(
+                settings,
+                mockClient,
+                mockSecurityIndexManager,
+                new CacheInvalidatorRegistry()
+            );
+            store1.getPrivileges(applications, actions, future);
+            assertResult(emptyList(), future);
+            verifyNoInteractions(mockClient);
+            verifyNoInteractions(mockSecurityIndexManager);
+        }
     }
 
     public void testDeletePrivileges() throws Exception {
@@ -729,11 +768,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         for (int i = 0; i < privilegeNames.size(); i++) {
             String name = privilegeNames.get(i);
             DeleteRequest request = deletes.get(i);
-            assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+            assertThat(request.indices(), arrayContaining(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
             assertThat(request.id(), equalTo("application-privilege_app1:" + name));
             final boolean found = name.equals("p2") == false;
             deleteListener.onResponse(
-                new DeleteResponse(new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, found)
+                new DeleteResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, found)
             );
         }
 
@@ -769,8 +808,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     public void testCacheClearOnIndexHealthChange() {
         final String securityIndexName = randomFrom(
-            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
 
         long count = store.getNumInvalidation();

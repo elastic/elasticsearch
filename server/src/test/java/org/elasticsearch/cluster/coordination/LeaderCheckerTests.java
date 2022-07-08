@@ -169,7 +169,7 @@ public class LeaderCheckerTests extends ESTestCase {
             }
             assertTrue(leaderFailed.compareAndSet(false, true));
             assertThat(
-                msg.get().getFormattedMessage(),
+                msg.get(),
                 startsWith(
                     "["
                         + leaderCheckRetryCount
@@ -205,7 +205,9 @@ public class LeaderCheckerTests extends ESTestCase {
         leaderChecker.updateLeader(leader2);
         {
             checkCount.set(0);
-            final long maxCheckCount = randomLongBetween(2, 1000);
+            // run at least leaderCheckRetryCount iterations to ensure at least one success so that we reset the counters and clear out
+            // anything left over from the previous run
+            final long maxCheckCount = randomLongBetween(leaderCheckRetryCount, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
                 deterministicTaskQueue.runAllRunnableTasks();
@@ -298,7 +300,7 @@ public class LeaderCheckerTests extends ESTestCase {
             final Throwable cause = ExceptionsHelper.unwrapCause(e);
             assertThat(cause, instanceOf(ConnectTransportException.class));
             assertThat(cause.getMessage(), anyOf(endsWith("simulated error"), endsWith("disconnected")));
-            messageHolder[0] = msg.get().getFormattedMessage();
+            messageHolder[0] = msg.get();
             assertTrue(leaderFailed.compareAndSet(false, true));
         }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
 
@@ -431,7 +433,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, (msg, e) -> {
             assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), equalTo("simulated error"));
             assertThat(
-                msg.get().getFormattedMessage(),
+                msg.get(),
                 equalTo(
                     "master node ["
                         + leader.descriptionWithoutAttributes()

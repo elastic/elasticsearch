@@ -8,15 +8,18 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom snapshot repositories.
@@ -57,6 +60,15 @@ public interface RepositoryPlugin {
         RecoverySettings recoverySettings
     ) {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a check that is run on restore. This allows plugins to prevent certain restores from happening.
+     *
+     * returns null if no check is provided
+     */
+    default BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+        return null;
     }
 
 }

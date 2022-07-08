@@ -42,21 +42,21 @@ public class MPNetTokenizerTests extends ESTestCase {
         MPNetTokenizer.PAD_TOKEN
     );
 
-    private List<String> tokenStrings(List<WordPieceTokenFilter.WordPieceToken> tokens) {
-        return tokens.stream().map(WordPieceTokenFilter.WordPieceToken::toString).collect(Collectors.toList());
+    private List<String> tokenStrings(List<? extends DelimitedToken> tokens) {
+        return tokens.stream().map(DelimitedToken::toString).collect(Collectors.toList());
     }
 
     public void testTokenize() {
         try (
             BertTokenizer tokenizer = MPNetTokenizer.mpBuilder(
                 TEST_CASED_VOCAB,
-                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE)
+                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE);
-            assertThat(tokenStrings(tokenization.getTokens()), contains("Elastic", "##search", "fun"));
-            assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.getTokenIds());
-            assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.getTokenMap());
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", "fun"));
+            assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.tokenIds());
+            assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
         }
     }
 
@@ -64,16 +64,17 @@ public class MPNetTokenizerTests extends ESTestCase {
         try (
             MPNetTokenizer tokenizer = MPNetTokenizer.mpBuilder(
                 TEST_CASED_VOCAB,
-                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE)
+                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
             ).setDoLowerCase(false).setWithSpecialTokens(true).build()
         ) {
-            TokenizationResult.Tokenization tokenization = tokenizer.tokenize(
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(
                 "Elasticsearch is fun",
                 "Godzilla my little red car",
-                Tokenization.Truncate.NONE
+                Tokenization.Truncate.NONE,
+                0
             );
 
-            var tokenStream = Arrays.stream(tokenization.getTokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());
+            var tokenStream = Arrays.stream(tokenization.tokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());
             assertThat(
                 tokenStream,
                 contains(
@@ -93,7 +94,7 @@ public class MPNetTokenizerTests extends ESTestCase {
                     MPNetTokenizer.SEPARATOR_TOKEN
                 )
             );
-            assertArrayEquals(new int[] { 12, 0, 1, 2, 3, 13, 13, 8, 9, 4, 5, 6, 7, 13 }, tokenization.getTokenIds());
+            assertArrayEquals(new int[] { 12, 0, 1, 2, 3, 13, 13, 8, 9, 4, 5, 6, 7, 13 }, tokenization.tokenIds());
         }
     }
 

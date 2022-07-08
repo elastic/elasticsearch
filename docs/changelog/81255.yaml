@@ -1,6 +1,0 @@
-pr: 81255
-summary: "[s3-repository] Support IAM roles for Kubernetes service accounts"
-area: Snapshot/Restore
-type: feature
-issues:
- - 52625

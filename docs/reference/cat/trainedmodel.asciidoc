@@ -72,7 +72,7 @@ The estimated heap size to keep the trained model in memory.
 
 `id`:::
 (Default)
-Idetifier for the trained model.
+Identifier for the trained model.
 
 `ingest.count`, `ic`, `ingestCount`:::
 The total number of documents that are processed by the model.

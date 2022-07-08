@@ -105,7 +105,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
     }
 
@@ -155,7 +155,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
 
         // create an index

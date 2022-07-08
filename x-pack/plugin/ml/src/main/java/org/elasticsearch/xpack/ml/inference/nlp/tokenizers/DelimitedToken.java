@@ -60,4 +60,36 @@ public class DelimitedToken {
     public int hashCode() {
         return Objects.hash(charSequence, startOffset, endOffset);
     }
+
+    @Override
+    public String toString() {
+        return this.charSequence.toString();
+    }
+
+    public static class Encoded extends DelimitedToken {
+        private final int encoding;
+
+        public Encoded(CharSequence charSequence, int encoding, int startOffset, int endOffset) {
+            super(charSequence, startOffset, endOffset);
+            this.encoding = encoding;
+        }
+
+        public int getEncoding() {
+            return encoding;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            Encoded encoded = (Encoded) o;
+            return encoding == encoded.encoding;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), encoding);
+        }
+    }
 }

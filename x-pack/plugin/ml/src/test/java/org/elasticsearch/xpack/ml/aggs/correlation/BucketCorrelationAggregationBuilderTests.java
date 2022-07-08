@@ -73,6 +73,18 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
             containsString("buckets_path aggregation [missing] does not exist for aggregation [correlation-agg]")
         );
 
+        // Now validate with a single bucket agg
+        assertThat(
+            validate(
+                aggBuilders,
+                new BucketCorrelationAggregationBuilder(
+                    NAME,
+                    "global>metric",
+                    new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance())
+                )
+            ),
+            containsString("Unable to find unqualified multi-bucket aggregation in buckets_path")
+        );
     }
 
 }

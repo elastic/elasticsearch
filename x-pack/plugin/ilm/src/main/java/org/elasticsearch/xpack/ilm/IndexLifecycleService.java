@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 
@@ -207,9 +208,9 @@ public class IndexLifecycleService
                     } catch (Exception e) {
                         if (logger.isTraceEnabled()) {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                        + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey,
@@ -219,9 +220,9 @@ public class IndexLifecycleService
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}]",
+                                        + " for index [%s] with policy [%s] in step [%s]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey
@@ -237,11 +238,7 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                clusterService.submitStateUpdateTask(
-                    "ilm_operation_mode_update[stopped]",
-                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
-                    ClusterStateTaskExecutor.unbatched()
-                );
+                submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
             }
         }
     }
@@ -422,9 +419,9 @@ public class IndexLifecycleService
                 } catch (Exception e) {
                     if (logger.isTraceEnabled()) {
                         logger.warn(
-                            new ParameterizedMessage(
+                            () -> format(
                                 "async action execution failed during policy trigger"
-                                    + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                    + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
                                 stepKey,
@@ -434,8 +431,8 @@ public class IndexLifecycleService
                         );
                     } else {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "async action execution failed during policy trigger" + " for index [{}] with policy [{}] in step [{}]",
+                            () -> format(
+                                "async action execution failed during policy trigger" + " for index [%s] with policy [%s] in step [%s]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
                                 stepKey
@@ -451,11 +448,7 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            clusterService.submitStateUpdateTask(
-                "ilm_operation_mode_update[stopped]",
-                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
-                ClusterStateTaskExecutor.unbatched()
-            );
+            submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
         }
     }
 
@@ -497,6 +490,7 @@ public class IndexLifecycleService
 
         Set<String> indicesPreventingShutdown = state.metadata()
             .indices()
+            .entrySet()
             .stream()
             // Filter out to only consider managed indices
             .filter(indexToMetadata -> Strings.hasText(indexToMetadata.getValue().getLifecyclePolicyName()))
@@ -545,5 +539,10 @@ public class IndexLifecycleService
     @Override
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         // TODO: in the future we could take proactive measures for when a shutdown is actually triggered
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

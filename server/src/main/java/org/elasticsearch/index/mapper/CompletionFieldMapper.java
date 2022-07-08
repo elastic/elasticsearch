@@ -23,15 +23,14 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.xcontent.DelegatingXContentParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -183,8 +182,8 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta };
         }
 
         NamedAnalyzer buildAnalyzer() {
@@ -236,7 +235,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     }
 
-    public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(
+    public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Set.of(
         Fields.CONTENT_FIELD_NAME_INPUT,
         Fields.CONTENT_FIELD_NAME_WEIGHT,
         Fields.CONTENT_FIELD_NAME_CONTEXTS
@@ -278,7 +277,7 @@ public class CompletionFieldMapper extends FieldMapper {
          */
         public CompletionQuery prefixQuery(Object value) {
             return new PrefixCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value))
             );
         }
@@ -303,7 +302,7 @@ public class CompletionFieldMapper extends FieldMapper {
             boolean unicodeAware
         ) {
             return new FuzzyCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value)),
                 null,
                 fuzziness.asDistance(),
@@ -343,6 +342,8 @@ public class CompletionFieldMapper extends FieldMapper {
     private final int maxInputLength;
     private final Builder builder;
 
+    private final NamedAnalyzer indexAnalyzer;
+
     public CompletionFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -350,9 +351,15 @@ public class CompletionFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
+        this.indexAnalyzer = builder.buildAnalyzer();
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -610,8 +617,8 @@ public class CompletionFieldMapper extends FieldMapper {
      * consumer supports the object structure.
      */
     // This parser changes behaviour depending on which methods are called by consumers, which is extremely delicate. This kind of works for
-    // our internal mappers, but what about mappers from plugins
-    static class MultiFieldParser extends DelegatingXContentParser {
+    // our internal mappers, but what about mappers from plugins?
+    static class MultiFieldParser extends FilterXContentParser {
         private final String textValue;
         private final String fieldName;
         private final XContentLocation locationOffset;

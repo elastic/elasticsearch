@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class XPackUsageResponse extends ActionResponse {
 
@@ -37,7 +36,7 @@ public class XPackUsageResponse extends ActionResponse {
         // we can only write the usages with version the coordinating node is compatible with otherwise it will not know the named writeable
         final List<XPackFeatureSet.Usage> usagesToWrite = usages.stream()
             .filter(usage -> out.getVersion().onOrAfter(usage.getMinimalSupportedVersion()))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         writeTo(out, usagesToWrite);
     }
 

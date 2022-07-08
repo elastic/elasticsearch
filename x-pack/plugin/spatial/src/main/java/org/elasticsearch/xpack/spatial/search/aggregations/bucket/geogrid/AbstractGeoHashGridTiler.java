@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -92,7 +94,15 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
-        return validHash(hash) ? geoValue.relate(Geohash.toBoundingBox(hash)) : GeoRelation.QUERY_DISJOINT;
+        if (validHash(hash)) {
+            final Rectangle rectangle = Geohash.toBoundingBox(hash);
+            int minX = GeoEncodingUtils.encodeLongitude(rectangle.getMinLon());
+            int minY = GeoEncodingUtils.encodeLatitude(rectangle.getMinLat());
+            int maxX = GeoEncodingUtils.encodeLongitude(rectangle.getMaxLon());
+            int maxY = GeoEncodingUtils.encodeLatitude(rectangle.getMaxLat());
+            return geoValue.relate(minX, maxX == Integer.MAX_VALUE ? maxX : maxX - 1, minY, maxY == Integer.MAX_VALUE ? maxY : maxY - 1);
+        }
+        return GeoRelation.QUERY_DISJOINT;
     }
 
     protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, GeoShapeValues.GeoShapeValue geoValue)

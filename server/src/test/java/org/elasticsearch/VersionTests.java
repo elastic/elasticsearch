@@ -336,4 +336,18 @@ public class VersionTests extends ESTestCase {
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
 
+    public void testIllegalMinorAndPatchNumbers() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("8.2.999"));
+        assertThat(
+            e.getMessage(),
+            containsString("illegal revision version format - only one or two digit numbers are supported but found 999")
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("8.888.99"));
+        assertThat(
+            e.getMessage(),
+            containsString("illegal minor version format - only one or two digit numbers are supported but found 888")
+        );
+    }
+
 }

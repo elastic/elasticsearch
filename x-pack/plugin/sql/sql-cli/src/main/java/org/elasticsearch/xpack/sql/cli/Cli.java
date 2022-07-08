@@ -11,14 +11,17 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.xpack.sql.cli.command.AllowPartialResultsCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommands;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.cli.command.FetchSeparatorCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.FetchSizeCliCommand;
+import org.elasticsearch.xpack.sql.cli.command.LenientCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
@@ -62,7 +65,7 @@ public class Cli extends Command {
                 true
             )
         );
-        int status = cli.main(args, Terminal.DEFAULT);
+        int status = cli.main(args, Terminal.DEFAULT, ProcessInfo.fromSystem());
         if (status != ExitCodes.OK) {
             exit(status);
         }
@@ -84,7 +87,7 @@ public class Cli extends Command {
      * Build the CLI.
      */
     public Cli(CliTerminal cliTerminal) {
-        super("Elasticsearch SQL CLI", () -> {});
+        super("Elasticsearch SQL CLI");
 
         this.cliTerminal = cliTerminal;
         parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
@@ -106,7 +109,7 @@ public class Cli extends Command {
     }
 
     @Override
-    protected void execute(org.elasticsearch.cli.Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         boolean debug = options.has("d") || options.has("debug");
         boolean binary = binaryCommunication.value(options);
         boolean checkConnection = checkOption.value(options);
@@ -128,6 +131,8 @@ public class Cli extends Command {
             new PrintLogoCommand(),
             new ClearScreenCliCommand(),
             new FetchSizeCliCommand(),
+            new LenientCliCommand(),
+            new AllowPartialResultsCliCommand(),
             new FetchSeparatorCliCommand(),
             new ServerInfoCliCommand(),
             new ServerQueryCliCommand()
@@ -136,7 +141,7 @@ public class Cli extends Command {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
             ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation, binary);
             CliSession cliSession = new CliSession(new HttpClient(con));
-            cliSession.setDebug(debug);
+            cliSession.cfg().setDebug(debug);
             if (checkConnection) {
                 checkConnection(cliSession, cliTerminal, con);
             }
@@ -150,7 +155,7 @@ public class Cli extends Command {
         try {
             cliSession.checkConnection();
         } catch (ClientException ex) {
-            if (cliSession.isDebug()) {
+            if (cliSession.cfg().isDebug()) {
                 cliTerminal.error("Client Exception", ex.getMessage());
                 cliTerminal.println();
                 cliTerminal.printStackTrace(ex);

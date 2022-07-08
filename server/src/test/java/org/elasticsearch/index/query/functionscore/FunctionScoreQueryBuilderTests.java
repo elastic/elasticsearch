@@ -8,11 +8,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -22,6 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,6 +48,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
@@ -600,7 +599,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     ]
                 }
             }""";
-        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(json));
+        XContentParseException e = expectThrows(XContentParseException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("Unexpected character ('{"));
     }
 

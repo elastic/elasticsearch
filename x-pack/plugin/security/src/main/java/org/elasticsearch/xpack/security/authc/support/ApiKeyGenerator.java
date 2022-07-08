@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
@@ -42,6 +41,16 @@ public class ApiKeyGenerator {
         }
         apiKeyService.ensureEnabled();
 
+        getUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
+                listener::onFailure
+            )
+        );
+    }
+
+    public void getUserRoleDescriptors(Authentication authentication, ActionListener<Set<RoleDescriptor>> listener) {
         final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
             for (RoleDescriptor rd : roleDescriptors) {
                 try {
@@ -51,10 +60,10 @@ public class ApiKeyGenerator {
                     return;
                 }
             }
-            apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
+            listener.onResponse(roleDescriptors);
         }, listener::onFailure);
 
-        final Subject effectiveSubject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
 
         // Retain current behaviour that User of an API key authentication has no roles
         if (effectiveSubject.getType() == Subject.Type.API_KEY) {
@@ -65,7 +74,6 @@ public class ApiKeyGenerator {
         rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
             assert roleDescriptorsList.size() == 1;
             roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
-
         }, roleDescriptorsListener::onFailure));
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -24,7 +23,9 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -55,6 +56,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
@@ -222,13 +224,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     }
                 }
             } catch (IOException ioe) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to read roles file [{}]. skipping all roles...",
-                        path.toAbsolutePath()
-                    ),
-                    ioe
-                );
+                logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
                 return emptyMap();
             }
         } else {
@@ -263,13 +259,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     }
                 }
             } catch (IOException ioe) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to read roles file [{}]. skipping all roles...",
-                        path.toAbsolutePath()
-                    ),
-                    ioe
-                );
+                logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
                 return emptyMap();
             }
         }
@@ -286,14 +276,16 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         NamedXContentRegistry xContentRegistry
     ) {
         String roleName = null;
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try {
-            XContentParser parser = YamlXContent.yamlXContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, segment);
+            XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment);
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     roleName = parser.currentName();
-                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName);
+                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName, false);
                     if (validationError != null) {
                         logger.error(
                             "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ",
@@ -325,26 +317,16 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             assert roleName != null;
             if (logger.isDebugEnabled()) {
                 final String finalRoleName = roleName;
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
+                logger.debug((Supplier<?>) () -> "parsing exception for role [" + finalRoleName + "]", e);
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
-        } catch (IOException e) {
+        } catch (IOException | XContentParseException e) {
             if (roleName != null) {
                 final String finalRoleName = roleName;
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "invalid role definition [{}] in roles file [{}]. skipping role...",
-                        finalRoleName,
-                        path
-                    ),
-                    e
-                );
+                logger.error(() -> format("invalid role definition [%s] in roles file [%s]. skipping role...", finalRoleName, path), e);
             } else {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage("invalid role definition in roles file [{}]. skipping role...", path),
-                    e
-                );
+                logger.error((Supplier<?>) () -> "invalid role definition in roles file [" + path + "]. skipping role...", e);
             }
         }
         return null;
@@ -375,8 +357,8 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     DLSRoleQueryValidator.validateQueryField(descriptor.getIndicesPrivileges(), xContentRegistry);
                 } catch (ElasticsearchException | IllegalArgumentException e) {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "invalid role definition [{}] in roles file [{}]. failed to validate query field. skipping role...",
+                        () -> format(
+                            "invalid role definition [%s] in roles file [%s]. failed to validate query field. skipping role...",
                             roleName,
                             path.toAbsolutePath()
                         ),
@@ -432,10 +414,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
                 } catch (Exception e) {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "could not reload roles file [{}]. Current roles remain unmodified",
-                            file.toAbsolutePath()
-                        ),
+                        () -> format("could not reload roles file [%s]. Current roles remain unmodified", file.toAbsolutePath()),
                         e
                     );
                     return;

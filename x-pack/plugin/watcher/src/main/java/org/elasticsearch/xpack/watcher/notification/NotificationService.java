@@ -62,7 +62,7 @@ public abstract class NotificationService<Account> {
     // Used for testing only
     NotificationService(String type, Settings settings, List<Setting<?>> pluginSecureSettings) {
         this.type = type;
-        this.logger = LogManager.getLogger();
+        this.logger = LogManager.getLogger(NotificationService.class);
         this.bootSettings = settings;
         this.pluginSecureSettings = pluginSecureSettings;
     }

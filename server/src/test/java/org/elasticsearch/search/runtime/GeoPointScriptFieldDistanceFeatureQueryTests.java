@@ -9,14 +9,14 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -88,11 +88,9 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
                     searchLookup,
                     ctx
                 ) {
-                    final GeoPoint point = new GeoPoint();
-
                     @Override
                     public void execute() {
-                        GeoUtils.parseGeoPoint(searchLookup.source().get("location"), point, true);
+                        GeoPoint point = GeoUtils.parseGeoPoint(searchLookup.source().get("location"), true);
                         emit(point.lat(), point.lon());
                     }
                 };

@@ -281,7 +281,7 @@ Indexes the specified document if it does not already exist.
 The following line must contain the source data to be indexed.
 +
 --
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index-ds]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
@@ -350,14 +350,6 @@ Required for `create` and `index` operations.
 The bulk API's response contains the individual results of each operation in the
 request, returned in the order submitted. The success or failure of an
 individual operation does not affect other operations in the request.
-
-[[bulk-partial-responses]]
-.Partial responses
-****
-To ensure fast responses, the bulk API will respond with partial results if one
-or more shards fail. See <<shard-failures, Shard failures>> for more
-information.
-****
 
 `took`::
 (integer)

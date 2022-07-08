@@ -120,7 +120,7 @@ public class PlanExecutor {
      * `nextPage` for internal callers (not from the APIs) without metrics reporting.
      */
     public void nextPageInternal(SqlConfiguration cfg, Cursor cursor, ActionListener<Page> listener) {
-        cursor.nextPage(cfg, client, writableRegistry, listener);
+        cursor.nextPage(cfg, client, listener);
     }
 
     public void cleanCursor(Cursor cursor, ActionListener<Boolean> listener) {

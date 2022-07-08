@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -471,7 +470,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int i = 0; i < numResponses; i++) {
             double value = randomDouble();
             maxValue = Math.max(value, maxValue);
-            InternalMax max = new InternalMax(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
+            Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
             InternalDateRange.Factory factory = new InternalDateRange.Factory();
             int count = randomIntBetween(1, 1000);
             totalCount += count;
@@ -513,7 +512,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(0, mergedResponse.getHits().getHits().length);
         assertEquals(2, mergedResponse.getAggregations().asList().size());
         Max max = mergedResponse.getAggregations().get(maxAggName);
-        assertEquals(maxValue, max.getValue(), 0d);
+        assertEquals(maxValue, max.value(), 0d);
         Range range = mergedResponse.getAggregations().get(rangeAggName);
         assertEquals(1, range.getBuckets().size());
         Range.Bucket bucket = range.getBuckets().get(0);

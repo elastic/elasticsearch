@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
@@ -35,8 +36,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             """);
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
 
-        FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-            "index",
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
             new String[] { "*" },
             new String[] { "-nested" },
@@ -44,10 +44,10 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             f -> true
         );
 
-        assertNotNull(response.getField("field1"));
-        assertNotNull(response.getField("field4"));
-        assertNull(response.getField("field2"));
-        assertNull(response.getField("field2.field3"));
+        assertNotNull(response.get("field1"));
+        assertNotNull(response.get("field4"));
+        assertNull(response.get("field2"));
+        assertNull(response.get("field2.field3"));
     }
 
     public void testMetadataFilters() throws IOException {
@@ -62,28 +62,26 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
 
         {
-            FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-                "index",
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
                 new String[] { "*" },
                 new String[] { "+metadata" },
                 Strings.EMPTY_ARRAY,
                 f -> true
             );
-            assertNotNull(response.getField("_index"));
-            assertNull(response.getField("field1"));
+            assertNotNull(response.get("_index"));
+            assertNull(response.get("field1"));
         }
         {
-            FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-                "index",
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
                 new String[] { "*" },
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
                 f -> true
             );
-            assertNull(response.getField("_index"));
-            assertNotNull(response.getField("field1"));
+            assertNull(response.get("_index"));
+            assertNotNull(response.get("field1"));
         }
     }
 
@@ -106,19 +104,18 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             """);
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
 
-        FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-            "index",
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
             new String[] { "*" },
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY,
             f -> true
         );
-        assertNotNull(response.getField("field1"));
-        assertNull(response.getField("field1.keyword"));
-        assertNotNull(response.getField("field2"));
-        assertNotNull(response.getField("field2.keyword"));
-        assertNotNull(response.getField("_index"));
+        assertNotNull(response.get("field1"));
+        assertNull(response.get("field1.keyword"));
+        assertNotNull(response.get("field2"));
+        assertNotNull(response.get("field2.keyword"));
+        assertNotNull(response.get("_index"));
     }
 
     public void testDontIncludeParentInfo() throws IOException {
@@ -136,17 +133,16 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             """);
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
 
-        FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-            "index",
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
             new String[] { "*" },
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY,
             f -> true
         );
-        assertNotNull(response.getField("parent.field1"));
-        assertNotNull(response.getField("parent.field2"));
-        assertNull(response.getField("parent"));
+        assertNotNull(response.get("parent.field1"));
+        assertNotNull(response.get("parent.field2"));
+        assertNull(response.get("parent"));
     }
 
     public void testSecurityFilter() throws IOException {
@@ -163,8 +159,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         Predicate<String> securityFilter = f -> f.startsWith("permitted");
 
         {
-            FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-                "index",
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
                 new String[] { "*" },
                 Strings.EMPTY_ARRAY,
@@ -172,14 +167,13 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 securityFilter
             );
 
-            assertNotNull(response.getField("permitted1"));
-            assertNull(response.getField("forbidden"));
-            assertNotNull(response.getField("_index"));     // security filter doesn't apply to metadata
+            assertNotNull(response.get("permitted1"));
+            assertNull(response.get("forbidden"));
+            assertNotNull(response.get("_index"));     // security filter doesn't apply to metadata
         }
 
         {
-            FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-                "index",
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
                 new String[] { "*" },
                 new String[] { "-metadata" },
@@ -187,9 +181,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 securityFilter
             );
 
-            assertNotNull(response.getField("permitted1"));
-            assertNull(response.getField("forbidden"));
-            assertNull(response.getField("_index"));     // -metadata filter applies on top
+            assertNotNull(response.get("permitted1"));
+            assertNull(response.get("forbidden"));
+            assertNull(response.get("_index"));     // -metadata filter applies on top
         }
     }
 
@@ -205,17 +199,16 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             """);
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
 
-        FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-            "index",
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
             new String[] { "*" },
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" },
             f -> true
         );
-        assertNotNull(response.getField("field1"));
-        assertNull(response.getField("field2"));
-        assertNotNull(response.getField("field3"));
-        assertNull(response.getField("_index"));
+        assertNotNull(response.get("field1"));
+        assertNull(response.get("field2"));
+        assertNotNull(response.get("field3"));
+        assertNull(response.get("_index"));
     }
 }

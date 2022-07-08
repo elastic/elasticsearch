@@ -16,6 +16,7 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -44,7 +45,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      */
     public abstract static class AdapterBuilder<T> {
         private final String name;
-        private final List<QueryToFilterAdapter<?>> filters = new ArrayList<>();
+        private final List<QueryToFilterAdapter> filters = new ArrayList<>();
         private final boolean keyed;
         private final AggregationContext context;
         private final Aggregator parent;
@@ -95,8 +96,11 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             add(QueryToFilterAdapter.build(context.searcher(), key, query));
         }
 
-        final void add(QueryToFilterAdapter<?> filter) throws IOException {
-            QueryToFilterAdapter<?> mergedFilter = filter.union(rewrittenTopLevelQuery);
+        final void add(QueryToFilterAdapter filter) throws IOException {
+            if (valid == false) {
+                return;
+            }
+            QueryToFilterAdapter mergedFilter = filter.union(rewrittenTopLevelQuery);
             if (mergedFilter.isInefficientUnion()) {
                 /*
                  * For now any complex union kicks us out of filter by filter
@@ -108,6 +112,18 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                  */
                 valid = false;
                 return;
+            }
+            if (filters.size() == 1) {
+                /*
+                 * When we add the second filter we check if there are any _doc_count
+                 * fields and bail out of filter-by filter mode if there are. _doc_count
+                 * fields are expensive to decode and the overhead of iterating per
+                 * filter causes us to decode doc counts over and over again.
+                 */
+                if (context.hasDocCountField()) {
+                    valid = false;
+                    return;
+                }
             }
             filters.add(mergedFilter);
         }
@@ -184,7 +200,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     private FilterByFilterAggregator(
         String name,
         AggregatorFactories factories,
-        List<QueryToFilterAdapter<?>> filters,
+        List<QueryToFilterAdapter> filters,
         boolean keyed,
         AggregationContext context,
         Aggregator parent,
@@ -202,12 +218,12 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      * top level query into account when building the filters.
      */
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert scoreMode().needsScores() == false;
         if (filters().size() == 0) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        Bits live = ctx.reader().getLiveDocs();
+        Bits live = aggCtx.getLeafReaderContext().reader().getLiveDocs();
         if (false == docCountProvider.alwaysOne()) {
             segmentsWithDocCountField++;
         }
@@ -218,10 +234,10 @@ public class FilterByFilterAggregator extends FiltersAggregator {
              * the sub-aggregators opt out of traditional collection.
              */
             segmentsCounted++;
-            collectCount(ctx, live);
+            collectCount(aggCtx.getLeafReaderContext(), live);
         } else {
             segmentsCollected++;
-            collectSubs(ctx, live, sub);
+            collectSubs(aggCtx.getLeafReaderContext(), live, sub);
         }
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }

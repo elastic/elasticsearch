@@ -17,13 +17,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyTorchPassThroughResults> {
-    @Override
-    protected Writeable.Reader<PyTorchPassThroughResults> instanceReader() {
-        return PyTorchPassThroughResults::new;
-    }
 
-    @Override
-    protected PyTorchPassThroughResults createTestInstance() {
+    public static PyTorchPassThroughResults createRandomResults() {
         int rows = randomIntBetween(1, 10);
         int columns = randomIntBetween(1, 10);
         double[][] arr = new double[rows][columns];
@@ -34,6 +29,16 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
         }
 
         return new PyTorchPassThroughResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
+    }
+
+    @Override
+    protected Writeable.Reader<PyTorchPassThroughResults> instanceReader() {
+        return PyTorchPassThroughResults::new;
+    }
+
+    @Override
+    protected PyTorchPassThroughResults createTestInstance() {
+        return createRandomResults();
     }
 
     public void testAsMap() {

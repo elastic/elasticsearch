@@ -89,7 +89,7 @@ public class BucketCountKSTestAggregationBuilderTests extends BasePipelineAggreg
                     new SamplingMethod.UpperTail()
                 )
             ),
-            containsString("must be a multi-bucket aggregation for aggregation")
+            containsString("Unable to find unqualified multi-bucket aggregation in buckets_path")
         );
     }
 

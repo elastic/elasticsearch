@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -35,6 +34,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Abstract base class for scroll execution modes. This class encapsulates the basic logic to
@@ -46,7 +46,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     protected final ActionListener<SearchResponse> listener;
     protected final ParsedScrollId scrollId;
     protected final DiscoveryNodes nodes;
-    protected final SearchPhaseController searchPhaseController;
     protected final SearchScrollRequest request;
     protected final SearchTransportService searchTransportService;
     private final long startTime;
@@ -58,7 +57,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         Logger logger,
         DiscoveryNodes nodes,
         ActionListener<SearchResponse> listener,
-        SearchPhaseController searchPhaseController,
         SearchScrollRequest request,
         SearchTransportService searchTransportService
     ) {
@@ -68,7 +66,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         this.logger = logger;
         this.listener = listener;
         this.nodes = nodes;
-        this.searchPhaseController = searchPhaseController;
         this.request = request;
         this.searchTransportService = searchTransportService;
     }
@@ -244,7 +241,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(
+            final InternalSearchResponse internalResponse = SearchPhaseController.merge(
                 true,
                 queryPhase,
                 fetchResults.asList(),
@@ -283,7 +280,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         Supplier<SearchPhase> nextPhaseSupplier
     ) {
         if (logger.isDebugEnabled()) {
-            logger.debug(new ParameterizedMessage("[{}] Failed to execute {} phase", searchId, phaseName), failure);
+            logger.debug(() -> format("[%s] Failed to execute %s phase", searchId, phaseName), failure);
         }
         addShardFailure(new ShardSearchFailure(failure, searchShardTarget));
         int successfulOperations = successfulOps.decrementAndGet();

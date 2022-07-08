@@ -21,9 +21,8 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -74,7 +73,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this.name = Objects.requireNonNull(name);
+        this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
@@ -318,10 +317,8 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues()) {
-            return new DocValuesFieldExistsQuery(name());
-        } else if (getTextSearchInfo().hasNorms()) {
-            return new NormsFieldExistsQuery(name());
+        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+            return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
@@ -457,7 +454,11 @@ public abstract class MappedFieldType {
     }
 
     protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
-        if (isIndexed == false && docValues == false) {
+        if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
+            throw new IllegalArgumentException(
+                "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
+            );
+        } else if (isIndexed == false && docValues == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
         } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {

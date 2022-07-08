@@ -43,7 +43,7 @@ setup:
             "aggs": {
               "sampled": {
                 "random_sampler": {
-                  "probability": 0.95
+                  "probability": 0.5
                 },
                 "aggs": {
                   "mean": {
@@ -55,8 +55,29 @@ setup:
               }
             }
           }
-  - close_to: { aggregations.sampled.mean.value: {value: 2.5, error: 1.0} }
-
+  - is_true: aggregations.sampled.mean
+  - do:
+      search:
+        index: data
+        size: 0
+        body: >
+          {
+            "aggs": {
+              "sampled": {
+                "random_sampler": {
+                  "probability": 1.0
+                },
+                "aggs": {
+                  "mean": {
+                    "avg": {
+                      "field": "value"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { aggregations.sampled.mean.value: 2.5 }
 ---
 "Test random_sampler aggregation with filter":
   - skip:
@@ -78,7 +99,36 @@ setup:
             "aggs": {
               "sampled": {
                 "random_sampler": {
-                  "probability": 0.95
+                  "probability": 0.5
+                },
+                "aggs": {
+                  "mean": {
+                    "avg": {
+                      "field": "value"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_true: aggregations.sampled.mean
+  - do:
+      search:
+        index: data
+        size: 0
+        body: >
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {"term": {"product": "server"}}
+                ]
+              }
+            },
+            "aggs": {
+              "sampled": {
+                "random_sampler": {
+                  "probability": 1.0
                 },
                 "aggs": {
                   "mean": {
@@ -91,43 +141,13 @@ setup:
             }
           }
   - match: { aggregations.sampled.mean.value: 1.0 }
-
-  - do:
-      search:
-        index: data
-        size: 0
-        body: >
-          {
-            "query": {
-              "bool": {
-                "filter": [
-                  {"term": {"product": "VCR"}}
-                ]
-              }
-            },
-            "aggs": {
-              "sampled": {
-                "random_sampler": {
-                  "probability": 0.95
-                },
-                "aggs": {
-                  "mean": {
-                    "avg": {
-                      "field": "value"
-                    }
-                  }
-                }
-              }
-            }
-          }
-  - match: { aggregations.sampled.mean.value: 4.0 }
 ---
 "Test random_sampler aggregation with poor settings":
   - skip:
       version: " - 8.1.99"
       reason: added in 8.2.0
   - do:
-      catch: /\[probability\] must be between 0 and 1/
+      catch: /\[probability\] must be between 0.0 and 0.5 or exactly 1.0, was \[1.5\]/
       search:
         index: data
         size: 0
@@ -149,7 +169,7 @@ setup:
             }
           }
   - do:
-      catch: /\[probability\] must be between 0 and 1/
+      catch: /\[probability\] must be greater than 0.0, was \[0.0\]/
       search:
         index: data
         size: 0

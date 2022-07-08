@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -96,10 +95,7 @@ final class DfsQueryPhase extends SearchPhase {
                     public void onFailure(Exception exception) {
                         try {
                             context.getLogger()
-                                .debug(
-                                    () -> new ParameterizedMessage("[{}] Failed to execute query phase", querySearchRequest.contextId()),
-                                    exception
-                                );
+                                .debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
                             progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
                             counter.onFailure(shardIndex, shardTarget, exception);
                         } finally {

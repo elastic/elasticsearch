@@ -252,11 +252,50 @@ public class Maps {
      * @return a new pre-sized {@link HashMap}
      */
     public static <K, V> Map<K, V> newMapWithExpectedSize(int expectedSize) {
+        return newHashMapWithExpectedSize(expectedSize);
+    }
+
+    /**
+     * Returns a hash map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link HashMap}
+     */
+    public static <K, V> Map<K, V> newHashMapWithExpectedSize(int expectedSize) {
         return new HashMap<>(capacity(expectedSize));
+    }
+
+    /**
+     * Returns a linked hash map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link LinkedHashMap}
+     */
+    public static <K, V> LinkedHashMap<K, V> newLinkedHashMapWithExpectedSize(int expectedSize) {
+        return new LinkedHashMap<>(capacity(expectedSize));
     }
 
     static int capacity(int expectedSize) {
         assert expectedSize >= 0;
         return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
+
+    /**
+     * Convenience method to convert the passed in input object as a map with String keys.
+     *
+     * @param input the input passed into the operator handler after parsing the content
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, ?> asMap(Object input) {
+        if (input instanceof Map<?, ?> source) {
+            return (Map<String, Object>) source;
+        }
+        throw new IllegalStateException("Unsupported input format");
+    }
+
 }

@@ -19,11 +19,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 
 public final class WordPieceTokenFilter extends TokenFilter {
-    protected final LinkedList<WordPieceToken> tokens;
+    private final LinkedList<WordPieceToken> tokens;
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-    protected final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+    private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
     private final PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
     private static final CharSequence CONTINUATION = "##";
 
@@ -105,15 +106,14 @@ public final class WordPieceTokenFilter extends TokenFilter {
         if (input.incrementToken()) {
             if (neverSplit.contains(termAtt)) {
                 Integer maybeTokenized = vocabulary.get(termAtt);
-                if (maybeTokenized == null) {
-                    tokenizedValues.add(
-                        new WordPieceToken(termAtt.toString(), tokenizedUnknown, offsetAtt.startOffset(), offsetAtt.endOffset())
-                    );
-                } else {
-                    tokenizedValues.add(
-                        new WordPieceToken(termAtt.toString(), maybeTokenized, offsetAtt.startOffset(), offsetAtt.endOffset())
-                    );
-                }
+                tokenizedValues.add(
+                    new WordPieceToken(
+                        termAtt.toString(),
+                        Objects.requireNonNullElse(maybeTokenized, tokenizedUnknown),
+                        offsetAtt.startOffset(),
+                        offsetAtt.endOffset()
+                    )
+                );
                 return true;
             }
             if (termAtt.length() > maxInputCharsPerWord) {
@@ -150,7 +150,6 @@ public final class WordPieceTokenFilter extends TokenFilter {
                 }
                 int encoding = vocabulary.get(currentValidSubStr);
                 WordPieceToken t = new WordPieceToken(currentValidSubStr, encoding, offsetAtt.startOffset(), offsetAtt.endOffset());
-                tokenizedValues.add(t);
                 tokens.add(t);
                 start = end;
             }
@@ -161,6 +160,7 @@ public final class WordPieceTokenFilter extends TokenFilter {
                 tokenizedValues.add(t);
                 termAtt.setEmpty().append(unknownToken);
             } else {
+                tokenizedValues.addAll(tokens);
                 current = captureState();
                 WordPieceToken token = tokens.removeFirst();
                 termAtt.setEmpty().append(token.charSequence());
@@ -171,16 +171,10 @@ public final class WordPieceTokenFilter extends TokenFilter {
         return false;
     }
 
-    public static class WordPieceToken extends DelimitedToken implements CharSequence {
-        public final int encoding;
+    public static class WordPieceToken extends DelimitedToken.Encoded implements CharSequence {
 
         WordPieceToken(CharSequence sequence, int encoding, int startOffset, int endOffset) {
-            super(sequence, startOffset, endOffset);
-            this.encoding = encoding;
-        }
-
-        public int getEncoding() {
-            return this.encoding;
+            super(sequence, encoding, startOffset, endOffset);
         }
 
         @Override

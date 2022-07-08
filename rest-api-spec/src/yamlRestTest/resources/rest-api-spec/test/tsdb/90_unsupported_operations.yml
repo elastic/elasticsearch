@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -64,34 +64,34 @@ setup:
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
 ---
-index with specified routing:
+index with routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
-      catch: /indexing with a specified routing is not supported because the destination index \[test\] is in time series mode/
+      catch: /specifying routing is not supported because the destination index \[test\] is in time series mode/
       index:
         index:   test
         routing: foo
         body:
-          doc:
-            "@timestamp": "2021-04-28T18:35:24.467Z"
-            metricset: "pod"
-            k8s:
-              pod:
-                name: "cat"
-                uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
-                ip: "10.10.55.1"
-                network:
-                  tx: 2001818691
-                  rx: 802133794
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          metricset: "pod"
+          k8s:
+            pod:
+              name: "cat"
+              uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
+              ip: "10.10.55.1"
+              network:
+                tx: 2001818691
+                rx: 802133794
 
 ---
-index with specified routing over _bulk:
+index with routing over _bulk:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       bulk:
         refresh: true
@@ -99,39 +99,13 @@ index with specified routing over _bulk:
         body:
           - '{"index": {"routing": "foo"}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index.error.reason: "indexing with a specified routing is not supported because the destination index [test] is in time series mode"}
-
----
-delete:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
-
-  - do:
-      catch: /delete is not supported because the destination index \[test\] is in time series mode/
-      delete:
-        index:   test
-        id:      "1"
-
----
-delete over _bulk:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
-
-  - do:
-      bulk:
-        index:   test
-        body:
-          - '{"delete": {"_id": 1}}'
-          - '{"delete": {"_id": 2}}'
-  - match: {items.0.delete.error.reason: "delete is not supported because the destination index [test] is in time series mode"}
+  - match: {items.0.index.error.reason: "specifying routing is not supported because the destination index [test] is in time series mode"}
 
 ---
 noop update:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -152,8 +126,8 @@ noop update:
 ---
 update:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
   - do:
@@ -177,8 +151,8 @@ update:
 ---
 update over _bulk:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       bulk:
@@ -191,8 +165,8 @@ update over _bulk:
 ---
 search with routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
   - do:
@@ -204,8 +178,8 @@ search with routing:
 ---
 alias with routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -218,8 +192,8 @@ alias with routing:
 ---
 alias with search_routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -229,3 +203,33 @@ alias with search_routing:
         body:
           search_routing: foo
 
+---
+sort by _id:
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/
+      search:
+        index: test
+        body:
+          size: 1
+          sort: _id
+
+---
+aggregate on _id:
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/
+      search:
+        index: test
+        body:
+          size: 1
+          aggs: 
+            id:
+              terms:
+                field: _id

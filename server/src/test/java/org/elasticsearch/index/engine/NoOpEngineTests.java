@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -62,15 +62,7 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopAfterRegularEngine() throws IOException {
         int docs = randomIntBetween(1, 10);
         ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting(
-            "test",
-            shardId.id(),
-            "node",
-            null,
-            true,
-            ShardRoutingState.STARTED,
-            allocationId
-        );
+        ShardRouting routing = TestShardRouting.newShardRouting(shardId, "node", null, true, ShardRoutingState.STARTED, allocationId);
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -114,7 +106,7 @@ public class NoOpEngineTests extends EngineTestCase {
             int deletions = 0;
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+                    engine.index(indexForDoc(createParsedDoc(Integer.toString(i), idFieldType, null)));
                     if (rarely()) {
                         engine.flush();
                     }
@@ -165,15 +157,7 @@ public class NoOpEngineTests extends EngineTestCase {
 
     public void testTrimUnreferencedTranslogFiles() throws Exception {
         final ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting(
-            "test",
-            shardId.id(),
-            "node",
-            null,
-            true,
-            ShardRoutingState.STARTED,
-            allocationId
-        );
+        ShardRouting routing = TestShardRouting.newShardRouting(shardId, "node", null, true, ShardRoutingState.STARTED, allocationId);
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -182,7 +166,7 @@ public class NoOpEngineTests extends EngineTestCase {
         int totalTranslogOps = 0;
         for (int i = 0; i < numDocs; i++) {
             totalTranslogOps++;
-            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), idFieldType, null)));
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
             if (rarely()) {
                 totalTranslogOps = 0;

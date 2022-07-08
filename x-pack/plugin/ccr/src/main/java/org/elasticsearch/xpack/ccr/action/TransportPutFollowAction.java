@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -197,7 +196,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings);
 
-        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
+            this.client,
+            threadPool.getThreadContext().getHeaders(),
+            clusterService.state()
+        );
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
             @Override
@@ -215,7 +218,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 } else {
                     String followerIndexName = request.getFollowerIndex();
                     BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
-                        DataStream localDataStream = currentState.getMetadata().dataStreams().get(remoteDataStream.getName());
+                        DataStream localDataStream = mdBuilder.dataStreamMetadata().dataStreams().get(remoteDataStream.getName());
                         Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
                         assert followerIndex != null;
 
@@ -246,7 +249,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("put follow {} failed during the restore process", request), e);
+                    logger.debug(() -> "put follow " + request + " failed during the restore process", e);
                 }
             };
         } else {
@@ -268,7 +271,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
                     delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
-            })
+            }),
+            threadPool.getThreadContext()
         );
     }
 
@@ -304,7 +308,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             // just copying the data stream is in this case safe.
             return new DataStream(
                 remoteDataStream.getName(),
-                remoteDataStream.getTimeStampField(),
                 List.of(backingIndexToFollow),
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
@@ -325,18 +328,22 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 );
             }
 
-            List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
-            backingIndices.add(backingIndexToFollow);
-
-            // When following an older backing index it should be positioned before the newer backing indices.
-            // Currently the assumption is that the newest index (highest generation) is the write index.
-            // (just appending an older backing index to the list of backing indices would break that assumption)
-            // (string sorting works because of the naming backing index naming scheme)
-            backingIndices.sort(Comparator.comparing(Index::getName));
+            final List<Index> backingIndices;
+            if (localDataStream.getIndices().contains(backingIndexToFollow) == false) {
+                backingIndices = new ArrayList<>(localDataStream.getIndices());
+                backingIndices.add(backingIndexToFollow);
+                // When following an older backing index it should be positioned before the newer backing indices.
+                // Currently the assumption is that the newest index (highest generation) is the write index.
+                // (just appending an older backing index to the list of backing indices would break that assumption)
+                // (string sorting works because of the naming backing index naming scheme)
+                backingIndices.sort(Comparator.comparing(Index::getName));
+            } else {
+                // edge case where the index was closed on the follower and was already in the datastream's index list
+                backingIndices = localDataStream.getIndices();
+            }
 
             return new DataStream(
                 localDataStream.getName(),
-                localDataStream.getTimeStampField(),
                 backingIndices,
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),

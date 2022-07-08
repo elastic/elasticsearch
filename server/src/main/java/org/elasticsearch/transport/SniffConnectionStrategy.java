@@ -8,7 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,10 +44,10 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.elasticsearch.core.Strings.format;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -160,7 +159,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             configuredSeedNodes,
             configuredSeedNodes.stream()
                 .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
-                .collect(Collectors.toList())
+                .toList()
         );
     }
 
@@ -233,17 +232,14 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     // ISE if we fail the handshake with an version incompatible node
                     if (seedNodesSuppliers.hasNext()) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "fetching nodes from external cluster [{}] failed moving to next seed node",
-                                clusterAlias
-                            ),
+                            () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),
                             e
                         );
                         collectRemoteNodes(seedNodesSuppliers, listener);
                         return;
                     }
                 }
-                logger.warn(new ParameterizedMessage("fetching nodes from external cluster [{}] failed", clusterAlias), e);
+                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
                 listener.onFailure(e);
             };
 
@@ -290,7 +286,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
-                logger.debug(() -> new ParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
+                logger.debug(() -> format("[%s] failed to handshake with seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
             });
@@ -331,10 +327,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node),
-                    e
-                );
+                logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(openConnectionStep.result());
                 onFailure.accept(e);
             });
@@ -367,7 +360,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void handleResponse(ClusterStateResponse response) {
-            handleNodes(response.getState().nodes().getNodes().valuesIt());
+            handleNodes(response.getState().nodes().getNodes().values().iterator());
         }
 
         private void handleNodes(Iterator<DiscoveryNode> nodesIter) {
@@ -391,19 +384,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                                     // ISE if we fail the handshake with an version incompatible node
                                     // fair enough we can't connect just move on
                                     logger.debug(
-                                        () -> new ParameterizedMessage(
-                                            "[{}] failed to open managed connection to node [{}]",
-                                            clusterAlias,
-                                            node
-                                        ),
+                                        () -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node),
                                         e
                                     );
                                     handleNodes(nodesIter);
                                 } else {
-                                    logger.warn(
-                                        new ParameterizedMessage("[{}] failed to open managed connection to node [{}]", clusterAlias, node),
-                                        e
-                                    );
+                                    logger.warn(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
                                     IOUtils.closeWhileHandlingException(connection);
                                     collectRemoteNodes(seedNodes, listener);
                                 }
@@ -427,7 +413,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void handleException(TransportException exp) {
-            logger.warn(new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), exp);
+            logger.warn(() -> "fetching nodes from external cluster " + clusterAlias + " failed", exp);
             try {
                 IOUtils.closeWhileHandlingException(connection);
             } finally {
@@ -513,7 +499,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
     }
 
-    private boolean seedsChanged(final List<String> oldSeedNodes, final List<String> newSeedNodes) {
+    private static boolean seedsChanged(final List<String> oldSeedNodes, final List<String> newSeedNodes) {
         if (oldSeedNodes.size() != newSeedNodes.size()) {
             return true;
         }
@@ -522,7 +508,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return oldSeeds.equals(newSeeds) == false;
     }
 
-    private boolean proxyChanged(String oldProxy, String newProxy) {
+    private static boolean proxyChanged(String oldProxy, String newProxy) {
         if (oldProxy == null || oldProxy.isEmpty()) {
             return (newProxy == null || newProxy.isEmpty()) == false;
         }

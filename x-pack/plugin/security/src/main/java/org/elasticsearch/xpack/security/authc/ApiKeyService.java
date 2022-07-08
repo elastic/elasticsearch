@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -62,6 +63,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,6 +75,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
@@ -85,10 +88,13 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -105,7 +111,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -115,7 +120,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -129,44 +133,24 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import javax.crypto.SecretKeyFactory;
-
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
 
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
-        "pbkdf2",
-        Function.identity(),
-        v -> {
-            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
-                throw new IllegalArgumentException(
-                    "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
-                );
-            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
-                try {
-                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-                } catch (NoSuchAlgorithmException e) {
-                    throw new IllegalArgumentException(
-                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the "
-                            + "PBKDF2 algorithms for the [xpack.security.authc.api_key.hashing.algorithm] setting.",
-                        e
-                    );
-                }
-            }
-        },
-        Setting.Property.NodeScope
+        (s) -> Hasher.PBKDF2.name()
     );
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.timeout",
@@ -270,6 +254,21 @@ public class ApiKeyService {
                     apiKeyAuthCache.invalidateAll();
                 }
             });
+            cacheInvalidatorRegistry.registerCacheInvalidator("api_key_doc", new CacheInvalidatorRegistry.CacheInvalidator() {
+                @Override
+                public void invalidate(Collection<String> keys) {
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidate(keys);
+                    }
+                }
+
+                @Override
+                public void invalidateAll() {
+                    if (apiKeyDocCache != null) {
+                        apiKeyDocCache.invalidateAll();
+                    }
+                }
+            });
         } else {
             this.apiKeyAuthCache = null;
             this.apiKeyDocCache = null;
@@ -354,10 +353,66 @@ public class ApiKeyService {
         }));
     }
 
+    public void updateApiKey(
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles,
+        final ActionListener<UpdateApiKeyResponse> listener
+    ) {
+        ensureEnabled();
+
+        if (authentication == null) {
+            listener.onFailure(new IllegalArgumentException("authentication must be provided"));
+            return;
+        } else if (authentication.isApiKey()) {
+            listener.onFailure(
+                new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
+            );
+            return;
+        }
+
+        logger.debug("Updating API key [{}]", request.getId());
+
+        findVersionedApiKeyDocsForSubject(authentication, new String[] { request.getId() }, ActionListener.wrap((versionedDocs) -> {
+            final var apiKeyId = request.getId();
+
+            if (versionedDocs.isEmpty()) {
+                throw new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]");
+            }
+
+            final VersionedApiKeyDoc versionedDoc = singleDoc(apiKeyId, versionedDocs);
+
+            validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
+
+            executeBulkRequest(
+                buildBulkRequestForUpdate(versionedDoc, authentication, request, userRoles),
+                ActionListener.wrap(bulkResponse -> translateResponseAndClearCache(apiKeyId, bulkResponse, listener), listener::onFailure)
+            );
+        }, listener::onFailure));
+    }
+
+    // package-private for testing
+    void validateCurrentApiKeyDocForUpdate(String apiKeyId, Authentication authentication, ApiKeyDoc apiKeyDoc) {
+        assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.get("principal"));
+
+        if (apiKeyDoc.invalidated) {
+            throw new IllegalArgumentException("cannot update invalidated API key [" + apiKeyId + "]");
+        }
+
+        boolean expired = apiKeyDoc.expirationTime != -1 && clock.instant().isAfter(Instant.ofEpochMilli(apiKeyDoc.expirationTime));
+        if (expired) {
+            throw new IllegalArgumentException("cannot update expired API key [" + apiKeyId + "]");
+        }
+
+        if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
+            throw new IllegalArgumentException("cannot update legacy API key [" + apiKeyId + "] without name");
+        }
+    }
+
     /**
      * package-private for testing
      */
-    XContentBuilder newDocument(
+    static XContentBuilder newDocument(
         char[] apiKeyHashChars,
         String name,
         Authentication authentication,
@@ -368,53 +423,72 @@ public class ApiKeyService {
         Version version,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
             .field("creation_time", created.toEpochMilli())
             .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
             .field("api_key_invalidated", false);
 
-        byte[] utf8Bytes = null;
-        try {
-            utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
-            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
-        } finally {
-            if (utf8Bytes != null) {
-                Arrays.fill(utf8Bytes, (byte) 0);
-            }
+        addApiKeyHash(builder, apiKeyHashChars);
+        addRoleDescriptors(builder, keyRoles);
+        addLimitedByRoleDescriptors(builder, userRoles);
+
+        builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
+        addCreator(builder, authentication);
+
+        return builder.endObject();
+    }
+
+    static XContentBuilder buildUpdatedDocument(
+        final ApiKeyDoc currentApiKeyDoc,
+        final Authentication authentication,
+        final Set<RoleDescriptor> userRoles,
+        final List<RoleDescriptor> keyRoles,
+        final Version version,
+        final Map<String, Object> metadata
+    ) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject()
+            .field("doc_type", "api_key")
+            .field("creation_time", currentApiKeyDoc.creationTime)
+            .field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime)
+            .field("api_key_invalidated", false);
+
+        addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
+
+        if (keyRoles != null) {
+            logger.trace(() -> format("Building API key doc with updated role descriptors [{}]", keyRoles));
+            addRoleDescriptors(builder, keyRoles);
+        } else {
+            assert currentApiKeyDoc.roleDescriptorsBytes != null;
+            builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
-        // Save role_descriptors
-        builder.startObject("role_descriptors");
-        if (keyRoles != null && keyRoles.isEmpty() == false) {
-            for (RoleDescriptor descriptor : keyRoles) {
-                builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-            }
+        addLimitedByRoleDescriptors(builder, userRoles);
+
+        builder.field("name", currentApiKeyDoc.name).field("version", version.id);
+
+        assert currentApiKeyDoc.metadataFlattened == null
+            || MetadataUtils.containsReservedMetadata(
+                XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
+            ) == false : "API key doc to be updated contains reserved metadata";
+        if (metadata != null) {
+            logger.trace(() -> format("Building API key doc with updated metadata [{}]", metadata));
+            builder.field("metadata_flattened", metadata);
+        } else {
+            builder.rawField(
+                "metadata_flattened",
+                currentApiKeyDoc.metadataFlattened == null
+                    ? ApiKeyDoc.NULL_BYTES.streamInput()
+                    : currentApiKeyDoc.metadataFlattened.streamInput(),
+                XContentType.JSON
+            );
         }
-        builder.endObject();
 
-        // Save limited_by_role_descriptors
-        builder.startObject("limited_by_role_descriptors");
-        for (RoleDescriptor descriptor : userRoles) {
-            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-        }
-        builder.endObject();
+        addCreator(builder, authentication);
 
-        builder.field("name", name)
-            .field("version", version.id)
-            .field("metadata_flattened", metadata)
-            .startObject("creator")
-            .field("principal", authentication.getUser().principal())
-            .field("full_name", authentication.getUser().fullName())
-            .field("email", authentication.getUser().email())
-            .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getSourceRealm().getName())
-            .field("realm_type", authentication.getSourceRealm().getType())
-            .endObject()
-            .endObject();
-
-        return builder;
+        return builder.endObject();
     }
 
     void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
@@ -527,7 +601,7 @@ public class ApiKeyService {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }).collect(Collectors.toList());
+        }).toList();
         return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
             ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
             : roleDescriptors;
@@ -583,7 +657,7 @@ public class ApiKeyService {
     // We do not replace assigned roles because they are created explicitly by users.
     // Before #82049, it is possible to specify a role descriptor for API keys that is identical to the builtin superuser role
     // (including the _reserved metadata field).
-    private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
+    private static List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
         // Scan through all the roles because superuser can be one of the roles that a user has. Unlike building the Role object,
         // capturing role descriptors does not preempt for superuser.
         return roleDescriptors.stream().map(rd -> {
@@ -702,7 +776,7 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    void validateApiKeyExpiration(
+    static void validateApiKeyExpiration(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
@@ -786,7 +860,7 @@ public class ApiKeyService {
         }));
     }
 
-    private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
+    private static Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
         if (request.getExpiration() != null) {
             return now.plusSeconds(request.getExpiration().getSeconds());
         } else {
@@ -897,21 +971,21 @@ public class ApiKeyService {
 
     /**
      * Invalidate API keys for given realm, user name, API key name and id.
-     * @param realmName realm name
+     * @param realmNames realm names
      * @param username user name
      * @param apiKeyName API key name
-     * @param apiKeyIds API key id
+     * @param apiKeyIds API key ids
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
     public void invalidateApiKeys(
-        String realmName,
+        String[] realmNames,
         String username,
         String apiKeyName,
         String[] apiKeyIds,
         ActionListener<InvalidateApiKeyResponse> invalidateListener
     ) {
         ensureEnabled();
-        if (Strings.hasText(realmName) == false
+        if ((realmNames == null || realmNames.length == 0)
             && Strings.hasText(username) == false
             && Strings.hasText(apiKeyName) == false
             && (apiKeyIds == null || apiKeyIds.length == 0)) {
@@ -921,27 +995,25 @@ public class ApiKeyService {
             );
         } else {
             findApiKeysForUserRealmApiKeyIdAndNameCombination(
-                realmName,
+                realmNames,
                 username,
                 apiKeyName,
                 apiKeyIds,
                 true,
                 false,
+                ApiKeyService::convertSearchHitToApiKeyInfo,
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
-                            "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
-                            realmName,
+                            "No active api keys to invalidate for realms {}, username [{}], api key name [{}] and api key ids {}",
+                            Arrays.toString(realmNames),
                             username,
                             apiKeyName,
                             Arrays.toString(apiKeyIds)
                         );
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
-                        invalidateAllApiKeys(
-                            apiKeys.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
-                            invalidateListener
-                        );
+                        invalidateAllApiKeys(apiKeys.stream().map(ApiKey::getId).collect(Collectors.toSet()), invalidateListener);
                     }
                 }, invalidateListener::onFailure)
             );
@@ -952,11 +1024,12 @@ public class ApiKeyService {
         indexInvalidation(apiKeyIds, invalidateListener, null);
     }
 
-    private void findApiKeys(
+    private <T> void findApiKeys(
         final BoolQueryBuilder boolQuery,
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
-        ActionListener<Collection<ApiKey>> listener
+        final Function<SearchHit, T> hitParser,
+        final ActionListener<Collection<T>> listener
     ) {
         if (filterOutInvalidatedKeys) {
             boolQuery.filter(QueryBuilders.termQuery("api_key_invalidated", false));
@@ -978,24 +1051,54 @@ public class ApiKeyService {
                 .request();
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(
-                    client,
-                    request,
-                    new ContextPreservingActionListener<>(supplier, listener),
-                    ApiKeyService::convertSearchHitToApiKeyInfo
-                )
+                () -> ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), hitParser)
             );
         }
     }
 
-    private void findApiKeysForUserRealmApiKeyIdAndNameCombination(
-        String realmName,
+    public static QueryBuilder filterForRealmNames(String[] realmNames) {
+        if (realmNames == null || realmNames.length == 0) {
+            return null;
+        }
+        if (realmNames.length == 1) {
+            return QueryBuilders.termQuery("creator.realm", realmNames[0]);
+        } else {
+            final BoolQueryBuilder realmsQuery = QueryBuilders.boolQuery();
+            for (String realmName : realmNames) {
+                realmsQuery.should(QueryBuilders.termQuery("creator.realm", realmName));
+            }
+            realmsQuery.minimumShouldMatch(1);
+            return realmsQuery;
+        }
+    }
+
+    private void findVersionedApiKeyDocsForSubject(
+        final Authentication authentication,
+        final String[] apiKeyIds,
+        final ActionListener<Collection<VersionedApiKeyDoc>> listener
+    ) {
+        assert authentication.isApiKey() == false;
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(
+            getOwnersRealmNames(authentication),
+            authentication.getEffectiveSubject().getUser().principal(),
+            null,
+            apiKeyIds,
+            false,
+            false,
+            ApiKeyService::convertSearchHitToVersionedApiKeyDoc,
+            listener
+        );
+    }
+
+    private <T> void findApiKeysForUserRealmApiKeyIdAndNameCombination(
+        String[] realmNames,
         String userName,
         String apiKeyName,
         String[] apiKeyIds,
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
-        ActionListener<Collection<ApiKey>> listener
+        Function<SearchHit, T> hitParser,
+        ActionListener<Collection<T>> listener
     ) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
@@ -1004,8 +1107,9 @@ public class ApiKeyService {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
-            if (Strings.hasText(realmName)) {
-                boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmName));
+            QueryBuilder realmsQuery = filterForRealmNames(realmNames);
+            if (realmsQuery != null) {
+                boolQuery.filter(realmsQuery);
             }
             if (Strings.hasText(userName)) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.principal", userName));
@@ -1021,7 +1125,7 @@ public class ApiKeyService {
                 boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
 
-            findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, listener);
+            findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, hitParser, listener);
         }
     }
 
@@ -1098,9 +1202,150 @@ public class ApiKeyService {
         }
     }
 
+    private void translateResponseAndClearCache(
+        final String apiKeyId,
+        final BulkResponse bulkResponse,
+        final ActionListener<UpdateApiKeyResponse> listener
+    ) {
+        final BulkItemResponse[] elements = bulkResponse.getItems();
+        assert elements.length == 1 : "expected single item in bulk index response for API key update";
+        final var bulkItemResponse = elements[0];
+        if (bulkItemResponse.isFailed()) {
+            listener.onFailure(bulkItemResponse.getFailure().getCause());
+        } else {
+            assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
+            // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
+            assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
+            clearApiKeyDocCache(apiKeyId, new UpdateApiKeyResponse(true), listener);
+        }
+    }
+
+    private static VersionedApiKeyDoc singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
+        if (elements.size() != 1) {
+            final var message = "expected single API key doc with ID ["
+                + apiKeyId
+                + "] to be found for update but found ["
+                + elements.size()
+                + "]";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+        return elements.iterator().next();
+    }
+
+    private BulkRequest buildBulkRequestForUpdate(
+        final VersionedApiKeyDoc versionedDoc,
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles
+    ) throws IOException {
+        logger.trace(
+            "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
+            request.getId(),
+            versionedDoc.seqNo(),
+            versionedDoc.primaryTerm()
+        );
+        final var currentDocVersion = Version.fromId(versionedDoc.doc().version);
+        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
+        assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
+        if (currentDocVersion.before(targetDocVersion)) {
+            logger.debug(
+                "API key update for [{}] will update version from [{}] to [{}]",
+                request.getId(),
+                currentDocVersion,
+                targetDocVersion
+            );
+        }
+        final var bulkRequestBuilder = client.prepareBulk();
+        bulkRequestBuilder.add(
+            client.prepareIndex(SECURITY_MAIN_ALIAS)
+                .setId(request.getId())
+                .setSource(
+                    buildUpdatedDocument(
+                        versionedDoc.doc(),
+                        authentication,
+                        userRoles,
+                        request.getRoleDescriptors(),
+                        targetDocVersion,
+                        request.getMetadata()
+                    )
+                )
+                .setIfSeqNo(versionedDoc.seqNo())
+                .setIfPrimaryTerm(versionedDoc.primaryTerm())
+                .setOpType(DocWriteRequest.OpType.INDEX)
+                .request()
+        );
+        bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        return bulkRequestBuilder.request();
+    }
+
+    private void executeBulkRequest(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
+        securityIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
+        );
+    }
+
+    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> userRoles) throws IOException {
+        assert userRoles != null;
+        builder.startObject("limited_by_role_descriptors");
+        for (RoleDescriptor descriptor : userRoles) {
+            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+        }
+        builder.endObject();
+    }
+
+    private static void addApiKeyHash(final XContentBuilder builder, final char[] apiKeyHashChars) throws IOException {
+        byte[] utf8Bytes = null;
+        try {
+            utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
+            builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
+        } finally {
+            if (utf8Bytes != null) {
+                Arrays.fill(utf8Bytes, (byte) 0);
+            }
+        }
+    }
+
+    private static void addCreator(final XContentBuilder builder, final Authentication authentication) throws IOException {
+        final var user = authentication.getEffectiveSubject().getUser();
+        final var sourceRealm = authentication.getEffectiveSubject().getRealm();
+        builder.startObject("creator")
+            .field("principal", user.principal())
+            .field("full_name", user.fullName())
+            .field("email", user.email())
+            .field("metadata", user.metadata())
+            .field("realm", sourceRealm.getName())
+            .field("realm_type", sourceRealm.getType());
+        if (sourceRealm.getDomain() != null) {
+            builder.field("realm_domain", sourceRealm.getDomain());
+        }
+        builder.endObject();
+    }
+
+    private static void addRoleDescriptors(final XContentBuilder builder, final List<RoleDescriptor> keyRoles) throws IOException {
+        builder.startObject("role_descriptors");
+        if (keyRoles != null && keyRoles.isEmpty() == false) {
+            for (RoleDescriptor descriptor : keyRoles) {
+                builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+            }
+        }
+        builder.endObject();
+    }
+
     private void clearCache(InvalidateApiKeyResponse result, ActionListener<InvalidateApiKeyResponse> listener) {
-        final ClearSecurityCacheRequest clearApiKeyCacheRequest = new ClearSecurityCacheRequest().cacheName("api_key")
-            .keys(result.getInvalidatedApiKeys().toArray(String[]::new));
+        executeClearCacheRequest(
+            result,
+            listener,
+            new ClearSecurityCacheRequest().cacheName("api_key").keys(result.getInvalidatedApiKeys().toArray(String[]::new))
+        );
+    }
+
+    private void clearApiKeyDocCache(String apiKeyId, UpdateApiKeyResponse result, ActionListener<UpdateApiKeyResponse> listener) {
+        executeClearCacheRequest(result, listener, new ClearSecurityCacheRequest().cacheName("api_key_doc").keys(apiKeyId));
+    }
+
+    private <T> void executeClearCacheRequest(T result, ActionListener<T> listener, ClearSecurityCacheRequest clearApiKeyCacheRequest) {
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearSecurityCacheAction.INSTANCE, clearApiKeyCacheRequest, new ActionListener<>() {
             @Override
             public void onResponse(ClearSecurityCacheResponse nodes) {
@@ -1109,7 +1354,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("unable to clear API key cache", e);
+                logger.error(() -> format("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName()), e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }
         });
@@ -1118,17 +1363,17 @@ public class ApiKeyService {
     /**
      * Logs an exception concerning a specific api key at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
+    private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s] - [%s]", action, identifier, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
+                logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), exception);
             }
         }
         return exception;
@@ -1137,17 +1382,17 @@ public class ApiKeyService {
     /**
      * Logs an exception at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, E exception) {
+    private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] - [%s]", action, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
+                    logger.trace(() -> "Failure in [" + action + "]", esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
+                logger.trace(() -> "Failure in [" + action + "]", exception);
             }
         }
         return exception;
@@ -1174,36 +1419,36 @@ public class ApiKeyService {
 
     /**
      * Get API key information for given realm, user, API key name and id combination
-     * @param realmName realm name
+     * @param realmNames realm names
      * @param username user name
      * @param apiKeyName API key name
-     * @param apiKeyId API key id
+     * @param apiKeyIds API key ids
      * @param listener listener for {@link GetApiKeyResponse}
      */
     public void getApiKeys(
-        String realmName,
+        String[] realmNames,
         String username,
         String apiKeyName,
-        String apiKeyId,
+        String[] apiKeyIds,
         ActionListener<GetApiKeyResponse> listener
     ) {
         ensureEnabled();
-        final String[] apiKeyIds = Strings.hasText(apiKeyId) == false ? null : new String[] { apiKeyId };
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
-            realmName,
+            realmNames,
             username,
             apiKeyName,
             apiKeyIds,
             false,
             false,
+            ApiKeyService::convertSearchHitToApiKeyInfo,
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
-                        "No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
-                        realmName,
+                        "No active api keys found for realms {}, user [{}], api key name [{}] and api key ids {}",
+                        Arrays.toString(realmNames),
                         username,
                         apiKeyName,
-                        apiKeyId
+                        Arrays.toString(apiKeyIds)
                     );
                     listener.onResponse(GetApiKeyResponse.emptyResponse());
                 } else {
@@ -1239,7 +1484,7 @@ public class ApiKeyService {
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(ApiKeyService::convertSearchHitToQueryItem)
-                            .collect(Collectors.toUnmodifiableList());
+                            .toList();
                         listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
                     }, listener::onFailure)
                 )
@@ -1276,6 +1521,18 @@ public class ApiKeyService {
             metadata
         );
     }
+
+    private static VersionedApiKeyDoc convertSearchHitToVersionedApiKeyDoc(SearchHit hit) {
+        try (
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, hit.getSourceRef(), XContentType.JSON)
+        ) {
+            return new VersionedApiKeyDoc(ApiKeyDoc.fromXContent(parser), hit.getSeqNo(), hit.getPrimaryTerm());
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private record VersionedApiKeyDoc(ApiKeyDoc doc, long seqNo, long primaryTerm) {}
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {
@@ -1314,31 +1571,44 @@ public class ApiKeyService {
     }
 
     /**
-     * Returns realm name for the authenticated user.
-     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
-     * then it will return the realm name of user who created this API key.
+     * Returns realm name of the owner user of an API key if the effective user is an API Key.
+     * If the effective user is not an API key, it just returns the source realm name.
      *
      * @param authentication {@link Authentication}
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (authentication.isAuthenticatedWithApiKey()) {
+        if (authentication.isApiKey()) {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
         }
     }
 
+    /** Returns the realm names that the username can access resources across.
+     */
+    public static String[] getOwnersRealmNames(Authentication authentication) {
+        if (authentication.isApiKey()) {
+            return new String[] { (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME) };
+        } else {
+            RealmDomain domain = authentication.getSourceRealm().getDomain();
+            if (domain != null) {
+                return domain.realms().stream().map(realmIdentifier -> realmIdentifier.getName()).toArray(String[]::new);
+            } else {
+                return new String[] { authentication.getSourceRealm().getName() };
+            }
+        }
+    }
+
     /**
-     * Returns realm type for the authenticated user.
-     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
-     * then it will return the realm name of user who created this API key.
+     * Returns realm type of the owner user of an API key if the effective user is an API Key.
+     * If the effective user is not an API key, it just returns the source realm type.
      *
      * @param authentication {@link Authentication}
      * @return realm type
      */
     public static String getCreatorRealmType(final Authentication authentication) {
-        if (authentication.isAuthenticatedWithApiKey()) {
+        if (authentication.isApiKey()) {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();
@@ -1352,10 +1622,12 @@ public class ApiKeyService {
      * @return A map for the metadata or an empty map if no metadata is found.
      */
     public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
-        if (false == authentication.isAuthenticatedWithApiKey()) {
+        if (false == authentication.isAuthenticatedAsApiKey()) {
             throw new IllegalArgumentException(
-                "authentication type must be [api_key], got ["
-                    + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
+                "authentication realm must be ["
+                    + AuthenticationField.API_KEY_REALM_TYPE
+                    + "], got ["
+                    + authentication.getAuthenticatedBy().getType()
                     + "]"
             );
         }
@@ -1403,11 +1675,10 @@ public class ApiKeyService {
             builder.declareString(constructorArg(), new ParseField("api_key_hash"));
             builder.declareStringOrNull(optionalConstructorArg(), new ParseField("name"));
             builder.declareInt(constructorArg(), new ParseField("version"));
-            ObjectParserHelper<ApiKeyDoc, Void> parserHelper = new ObjectParserHelper<>();
-            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("role_descriptors"));
-            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
+            ObjectParserHelper.declareRawObject(builder, constructorArg(), new ParseField("role_descriptors"));
+            ObjectParserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
             builder.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("creator"));
-            parserHelper.declareRawObjectOrNull(builder, optionalConstructorArg(), new ParseField("metadata_flattened"));
+            ObjectParserHelper.declareRawObjectOrNull(builder, optionalConstructorArg(), new ParseField("metadata_flattened"));
             PARSER = builder.build();
         }
 
@@ -1438,7 +1709,6 @@ public class ApiKeyService {
             Map<String, Object> creator,
             @Nullable BytesReference metadataFlattened
         ) {
-
             this.docType = docType;
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;

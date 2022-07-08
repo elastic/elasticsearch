@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
@@ -61,6 +62,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
+    private final ClusterService clusterService;
     private static final ToXContent.Params DEFAULT_PARAMS = WatcherParams.builder()
         .hideSecrets(false)
         .hideHeaders(false)
@@ -75,13 +77,15 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
         ClockHolder clockHolder,
         XPackLicenseState licenseState,
         WatchParser parser,
-        Client client
+        Client client,
+        ClusterService clusterService
     ) {
         super(PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
         this.threadPool = threadPool;
         this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -103,7 +107,10 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
             watch.setState(request.isActive(), now);
 
             // ensure we only filter for the allowed headers
-            Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                threadPool.getThreadContext(),
+                clusterService.state()
+            );
             watch.status().setHeaders(filteredHeaders);
 
             try (XContentBuilder builder = jsonBuilder()) {

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -57,6 +56,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.writeNamedObject;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
@@ -382,7 +382,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeInstant(createTime);
         out.writeOptionalWriteable(definition);
         out.writeCollection(tags, StreamOutput::writeString);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         input.writeTo(out);
         out.writeVLong(modelSize);
         out.writeVLong(estimatedOperations);
@@ -675,11 +675,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
             if (this.definition != null) {
                 throw new IllegalArgumentException(
-                    new ParameterizedMessage(
-                        "both [{}] and [{}] cannot be set.",
-                        COMPRESSED_DEFINITION.getPreferredName(),
-                        DEFINITION.getPreferredName()
-                    ).getFormattedMessage()
+                    format("both [%s] and [%s] cannot be set.", COMPRESSED_DEFINITION.getPreferredName(), DEFINITION.getPreferredName())
                 );
             }
             this.definition = LazyModelDefinition.fromParsedDefinition(parsedTrainedModel.build());
@@ -693,11 +689,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
             if (this.definition != null) {
                 throw new IllegalArgumentException(
-                    new ParameterizedMessage(
-                        "both [{}] and [{}] cannot be set.",
-                        COMPRESSED_DEFINITION.getPreferredName(),
-                        DEFINITION.getPreferredName()
-                    ).getFormattedMessage()
+                    format("both [%s] and [%s] cannot be set.", COMPRESSED_DEFINITION.getPreferredName(), DEFINITION.getPreferredName())
                 );
             }
             this.definition = LazyModelDefinition.fromBase64String(compressedString);

@@ -32,10 +32,8 @@ public class SearchParseException extends SearchException {
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         if (location != null) {
-            if (location != null) {
-                lineNumber = location.lineNumber();
-                columnNumber = location.columnNumber();
-            }
+            lineNumber = location.lineNumber();
+            columnNumber = location.columnNumber();
         }
         this.columnNumber = columnNumber;
         this.lineNumber = lineNumber;

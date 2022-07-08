@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -31,12 +30,14 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +45,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -51,8 +53,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatException;
-import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatThrows;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -65,7 +66,9 @@ public class RepositoriesServiceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -82,6 +85,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
             TestRepository::new,
+            UnstableRepository.TYPE,
+            UnstableRepository::new,
             MeteredRepositoryTypeA.TYPE,
             metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
@@ -93,7 +98,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             transportService,
             typesRegistry,
             typesRegistry,
-            threadPool
+            threadPool,
+            List.of()
         );
         repositoriesService.start();
     }
@@ -135,7 +141,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     public void testRegisterRejectsInvalidRepositoryNames() {
         assertThrowsOnRegister("");
         assertThrowsOnRegister("contains#InvalidCharacter");
-        for (char c : Strings.INVALID_FILENAME_CHARS) {
+        for (char c : Arrays.asList('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
             assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
     }
@@ -184,9 +190,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
         repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
 
-        assertThatThrows(
-            () -> repositoriesService.repository(repoName),
-            RepositoryMissingException.class,
+        assertThat(
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
             equalTo("[" + repoName + "] missing")
         );
     }
@@ -203,7 +208,78 @@ public class RepositoriesServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assertThatException(e, RepositoryException.class, equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+                assertThat(e, isA(RepositoryException.class));
+                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+            }
+        });
+    }
+
+    // test InvalidRepository is returned if repository failed to create
+    public void testHandlesCreationFailureWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(InvalidRepository.class));
+    }
+
+    // test InvalidRepository can be replaced if current repo is created successfully
+    public void testReplaceInvalidRepositoryWhenCreationSuccess() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(InvalidRepository.class));
+
+        clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
+        repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(TestRepository.class));
+    }
+
+    // test remove InvalidRepository when current repo is removed in cluster state
+    public void testRemoveInvalidRepositoryTypeWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+        repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
+        assertThat(
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
+            equalTo("[" + repoName + "] missing")
+        );
+    }
+
+    // InvalidRepository is created when current node is non-master node and failed to create repository by applying cluster state from
+    // master. When current node become master node later and same repository is put again, current node can create repository successfully
+    // and replace previous InvalidRepository
+    public void testRegisterRepositorySuccessAfterCreationFailed() {
+        // 1. repository creation failed when current node is non-master node and apply cluster state from master
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(InvalidRepository.class));
+
+        // 2. repository creation successfully when current node become master node and repository is put again
+        var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE);
+
+        repositoriesService.registerRepository(request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertTrue(acknowledgedResponse.isAcknowledged());
+                assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
             }
         });
     }
@@ -275,9 +351,9 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
             Version repositoryMetaVersion,
-            ActionListener<RepositoryData> listener
+            SnapshotDeleteListener listener
         ) {
-            listener.onResponse(null);
+            listener.onFailure(new UnsupportedOperationException());
         }
 
         @Override
@@ -367,11 +443,6 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void removeLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
         public void start() {
             isStarted = true;
         }
@@ -384,6 +455,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void close() {
             isClosed = true;
+        }
+    }
+
+    private static class UnstableRepository extends TestRepository {
+        private static final String TYPE = "unstable";
+
+        private UnstableRepository(RepositoryMetadata metadata) {
+            super(metadata);
+            throw new RepositoryException(TYPE, "failed to create unstable repository");
         }
     }
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -37,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Basic abstract class for implementing a transform function that utilizes composite aggregations
@@ -111,8 +112,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             if (response.status() != RestStatus.OK) {
                 listener.onFailure(
                     new ValidationException().addValidationError(
-                        new ParameterizedMessage("Unexpected status from response of test query: {}", response.status())
-                            .getFormattedMessage()
+                        format("Unexpected status from response of test query: %s", response.status())
                     )
                 );
                 return;
@@ -124,9 +124,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                 ? ((ElasticsearchException) unwrapped).status()
                 : RestStatus.SERVICE_UNAVAILABLE;
             listener.onFailure(
-                new ValidationException(unwrapped).addValidationError(
-                    new ParameterizedMessage("Failed to test query, received status: {}", status).getFormattedMessage()
-                )
+                new ValidationException(unwrapped).addValidationError(format("Failed to test query, received status: %s", status))
             );
         }));
     }

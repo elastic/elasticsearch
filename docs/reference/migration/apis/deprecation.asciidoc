@@ -5,14 +5,11 @@
 <titleabbrev>Deprecation info</titleabbrev>
 ++++
 
-IMPORTANT: Use this API to check for deprecated configuration before performing
-a major version upgrade. You should run it on the last minor version of the
-major version you are upgrading from, as earlier minor versions may not include
-all deprecations.
+include::{es-repo-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will
-be removed or changed in the next major version.
+be removed or changed in a future version.
 
 [[migration-api-request]]
 ==== {api-request-title}
@@ -118,7 +115,7 @@ issue.
 
 |=======
 |warning | You can upgrade directly, but you are using deprecated functionality
-which will not be available or behave differently in the next major version.
+which will not be available or behave differently in a future version.
 |critical | You cannot upgrade without fixing this problem.
 |=======
 

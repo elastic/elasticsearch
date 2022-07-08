@@ -416,7 +416,16 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next().value
+        return client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .nodes()
+            .getCoordinatingOnlyNodes()
+            .values()
+            .iterator()
+            .next()
             .getName();
     }
 

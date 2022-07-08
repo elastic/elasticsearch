@@ -52,7 +52,7 @@ public class SearchAfterSortedDocQuery extends Query {
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             SortField sortField = sort.getSort()[i];
-            FieldComparator<?> fieldComparator = sortField.getComparator(1, i);
+            FieldComparator<?> fieldComparator = sortField.getComparator(1, false);
             @SuppressWarnings("unchecked")
             FieldComparator<Object> comparator = (FieldComparator<Object>) fieldComparator;
             comparator.setTopValue(after.fields[i]);

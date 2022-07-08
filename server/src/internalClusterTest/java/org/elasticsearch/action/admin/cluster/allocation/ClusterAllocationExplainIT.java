@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -114,16 +116,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 || allocateDecision.getAllocationDecision() == AllocationDecision.AWAITING_INFO
         );
         if (allocateDecision.getAllocationDecision() == AllocationDecision.NO_VALID_SHARD_COPY) {
-            assertEquals(
-                "cannot allocate because a previous copy of the primary shard existed but can no longer be "
-                    + "found on the nodes in the cluster",
-                allocateDecision.getExplanation()
-            );
+            assertEquals(Explanations.Allocation.NO_COPIES, allocateDecision.getExplanation());
         } else {
-            assertEquals(
-                "cannot allocate because information about existing shard data is still being retrieved from some of the nodes",
-                allocateDecision.getExplanation()
-            );
+            assertEquals(Explanations.Allocation.AWAITING_INFO, allocateDecision.getExplanation());
         }
         assertNull(allocateDecision.getAllocationId());
         assertNull(allocateDecision.getTargetNode());
@@ -143,11 +138,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 parser.nextToken();
                 assertEquals("allocate_explanation", parser.currentName());
                 parser.nextToken();
-                assertEquals(
-                    "cannot allocate because a previous copy of the primary shard existed but can no longer be found "
-                        + "on the nodes in the cluster",
-                    parser.text()
-                );
+                assertEquals(Explanations.Allocation.NO_COPIES, parser.text());
                 verifyStaleShardCopyNodeDecisions(parser, 1, Collections.emptySet());
             }
         }
@@ -215,10 +206,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(allocateDecision.isDecisionTaken());
         assertFalse(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.ALLOCATION_DELAYED, allocateDecision.getAllocationDecision());
-        assertThat(allocateDecision.getExplanation(), startsWith("cannot allocate because the cluster is still waiting"));
         assertThat(
             allocateDecision.getExplanation(),
-            containsString("despite being allowed to allocate the shard to at least one other node")
+            allOf(
+                containsString("The node containing this shard copy recently left the cluster. Elasticsearch is waiting for it to return."),
+                containsString("If the node does not return within ["),
+                containsString("] then Elasticsearch will allocate this shard to another node. Please wait.")
+            )
         );
         assertNull(allocateDecision.getAllocationId());
         assertNull(allocateDecision.getTargetNode());
@@ -265,7 +259,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("allocate_explanation", parser.currentName());
             parser.nextToken();
-            assertThat(parser.text(), startsWith("cannot allocate because the cluster is still waiting"));
+            assertThat(
+                parser.text(),
+                startsWith("The node containing this shard copy recently left the cluster. Elasticsearch is waiting for it to return.")
+            );
             parser.nextToken();
             assertEquals("configured_delay_in_millis", parser.currentName());
             parser.nextToken();
@@ -346,12 +343,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         AllocationDecision decisionToAllocate = allocateDecision.getAllocationDecision();
         assertTrue(decisionToAllocate == AllocationDecision.AWAITING_INFO || decisionToAllocate == AllocationDecision.NO);
         if (decisionToAllocate == AllocationDecision.AWAITING_INFO) {
-            assertEquals(
-                "cannot allocate because information about existing shard data is still being retrieved from some of the nodes",
-                allocateDecision.getExplanation()
-            );
+            assertEquals(Explanations.Allocation.AWAITING_INFO, allocateDecision.getExplanation());
         } else {
-            assertEquals("cannot allocate because allocation is not permitted to any of the nodes", allocateDecision.getExplanation());
+            assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, allocateDecision.getExplanation());
         }
         assertNull(allocateDecision.getAllocationId());
         assertNull(allocateDecision.getTargetNode());
@@ -399,12 +393,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("allocate_explanation", parser.currentName());
             parser.nextToken();
             if (allocationDecision.equals("awaiting_info")) {
-                assertEquals(
-                    "cannot allocate because information about existing shard data is still being retrieved " + "from some of the nodes",
-                    parser.text()
-                );
+                assertEquals(Explanations.Allocation.AWAITING_INFO, parser.text());
             } else {
-                assertEquals("cannot allocate because allocation is not permitted to any of the nodes", parser.text());
+                assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, parser.text());
             }
             Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
             for (String nodeName : internalCluster().getNodeNames()) {
@@ -462,7 +453,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(allocateDecision.isDecisionTaken());
         assertFalse(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, allocateDecision.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", allocateDecision.getExplanation());
+        assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, allocateDecision.getExplanation());
         assertNull(allocateDecision.getAllocationId());
         assertNull(allocateDecision.getTargetNode());
         assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
@@ -502,12 +493,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("allocate_explanation", parser.currentName());
             parser.nextToken();
             if (allocationDecision.equals("awaiting_info")) {
-                assertEquals(
-                    "cannot allocate because information about existing shard data is still being retrieved " + "from some of the nodes",
-                    parser.text()
-                );
+                assertEquals(Explanations.Allocation.AWAITING_INFO, parser.text());
             } else {
-                assertEquals("cannot allocate because allocation is not permitted to any of the nodes", parser.text());
+                assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, parser.text());
             }
             Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
             for (String nodeName : internalCluster().getNodeNames()) {
@@ -563,10 +551,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(allocateDecision.isDecisionTaken());
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
-        assertEquals(
-            "cannot move shard to another node, even though it is not allowed to remain on its current node",
-            moveDecision.getExplanation()
-        );
+        assertEquals(Explanations.Move.NO, moveDecision.getExplanation());
         assertFalse(moveDecision.canRemain());
         assertFalse(moveDecision.forceMove());
         assertFalse(moveDecision.canRebalanceCluster());
@@ -629,7 +614,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("move_explanation", parser.currentName());
             parser.nextToken();
-            assertEquals("cannot move shard to another node, even though it is not allowed to remain on its current node", parser.text());
+            assertEquals(Explanations.Move.NO, parser.text());
             verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
@@ -685,10 +670,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(allocateDecision.isDecisionTaken());
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
-        assertEquals(
-            "rebalancing is not allowed, even though there is at least one node on which the shard can be allocated",
-            moveDecision.getExplanation()
-        );
+        assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
         assertFalse(moveDecision.forceMove());
         assertFalse(moveDecision.canRebalanceCluster());
@@ -744,10 +726,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("rebalance_explanation", parser.currentName());
             parser.nextToken();
-            assertEquals(
-                "rebalancing is not allowed, even though there is at least one node on which the shard can be allocated",
-                parser.text()
-            );
+            assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE, parser.text());
             verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.YES, true), includeYesDecisions, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
@@ -803,10 +782,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(allocateDecision.isDecisionTaken());
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
-        assertEquals(
-            "cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
-            moveDecision.getExplanation()
-        );
+        assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
         assertFalse(moveDecision.forceMove());
         assertTrue(moveDecision.canRebalanceCluster());
@@ -854,10 +830,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("rebalance_explanation", parser.currentName());
             parser.nextToken();
-            assertEquals(
-                "cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
-                parser.text()
-            );
+            assertEquals(Explanations.Rebalance.ALREADY_BALANCED, parser.text());
             verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.WORSE_BALANCE, true), includeYesDecisions, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
@@ -913,10 +886,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(allocateDecision.isDecisionTaken());
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
-        assertEquals(
-            "cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
-            moveDecision.getExplanation()
-        );
+        assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
         assertFalse(moveDecision.forceMove());
         assertTrue(moveDecision.canRebalanceCluster());
@@ -972,10 +942,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("rebalance_explanation", parser.currentName());
             parser.nextToken();
-            assertEquals(
-                "cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
-                parser.text()
-            );
+            assertEquals(Explanations.Rebalance.ALREADY_BALANCED, parser.text());
             verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
@@ -1027,7 +994,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(allocateDecision.isDecisionTaken());
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
-        assertEquals("rebalancing is not allowed", moveDecision.getExplanation());
+        assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
         assertFalse(moveDecision.forceMove());
         assertFalse(moveDecision.canRebalanceCluster());
@@ -1076,7 +1043,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("rebalance_explanation", parser.currentName());
             parser.nextToken();
-            assertEquals("rebalancing is not allowed", parser.text());
+            assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE, parser.text());
             verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, false), includeYesDecisions, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
@@ -1209,7 +1176,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("allocate_explanation", parser.currentName());
             parser.nextToken();
-            assertEquals("cannot allocate because all found copies of the shard are either stale or corrupt", parser.text());
+            assertEquals(Explanations.Allocation.ALL_COPIES_INVALID, parser.text());
             verifyStaleShardCopyNodeDecisions(parser, 2, Collections.singleton(restartedNode));
         }
     }

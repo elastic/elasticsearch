@@ -212,7 +212,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
             String index = request.concreteIndex();
             IndexRoutingTable indexRouting = state.routingTable().index(index);
-            int numShards = indexRouting.shards().size();
+            int numShards = indexRouting.size();
             if (numShards != 1) {
                 throw new IllegalStateException("index [" + index + "] should have 1 shard, but has " + numShards + " shards");
             }

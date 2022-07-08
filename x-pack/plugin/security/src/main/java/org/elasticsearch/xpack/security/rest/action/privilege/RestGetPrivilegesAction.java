@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -89,12 +88,12 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
                 // if the user asked for specific privileges, but none of them were found
                 // we'll return an empty result and 404 status code
                 if (privileges.length != 0 && response.isEmpty()) {
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    return new RestResponse(RestStatus.NOT_FOUND, builder);
                 }
 
                 // either the user asked for all privileges, or at least one of the privileges
                 // was found
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

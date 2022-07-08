@@ -8,9 +8,9 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextConstructorInfo;

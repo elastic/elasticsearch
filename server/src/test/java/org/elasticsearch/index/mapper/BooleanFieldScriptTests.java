@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.BooleanFieldScript;
@@ -63,7 +63,7 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES * 1000; i++) {
-                            emit(i % 2 == 0);
+                            new Emit(this).value(i % 2 == 0);
                         }
                     }
                 };

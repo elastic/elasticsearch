@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -46,14 +48,20 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(5);
 
     private DataFrameAnalyticsConfigProvider configProvider;
+    private String dummyAuthenticationHeader;
 
     @Before
     public void createComponents() throws Exception {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class))
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            getInstanceFromNode(ClusterService.class)
         );
+        dummyAuthenticationHeader = Authentication.newRealmAuthentication(
+            new User("dummy"),
+            new Authentication.RealmRef("name", "type", "node")
+        ).encode();
         waitForMlTemplates();
     }
 
@@ -97,7 +105,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     public void testPutAndGet_WithSecurityHeaders() throws InterruptedException {
         String configId = "config-id";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandom(configId);
-        Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", "dummy");
+        Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", dummyAuthenticationHeader);
         {  // Put the config and verify the response
             AtomicReference<DataFrameAnalyticsConfig> configHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -275,7 +283,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             );
         }
         {  // Update that applies security headers
-            Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", "dummy");
+            Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", dummyAuthenticationHeader);
 
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();

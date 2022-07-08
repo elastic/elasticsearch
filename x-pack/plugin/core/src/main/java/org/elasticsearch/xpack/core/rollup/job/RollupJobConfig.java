@@ -56,6 +56,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     private final TimeValue timeout;
     private final String cron;
     private final int pageSize;
+    private final String[] indices;
 
     private static final ConstructingObjectParser<RollupJobConfig, String> PARSER;
     static {
@@ -102,17 +103,22 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         if (indexPattern == null || indexPattern.isEmpty()) {
             throw new IllegalArgumentException("Index pattern must be a non-null, non-empty string");
         }
-        if (Regex.isMatchAllPattern(indexPattern)) {
-            throw new IllegalArgumentException("Index pattern must not match all indices (as it would match it's own rollup index");
-        }
-        if (Regex.isSimpleMatchPattern(indexPattern)) {
-            if (Regex.simpleMatch(indexPattern, rollupIndex)) {
-                throw new IllegalArgumentException("Index pattern would match rollup index name which is not allowed");
+
+        this.indices = Strings.splitStringByCommaToArray(indexPattern);
+        for (String index : this.indices) {
+            if (Regex.isMatchAllPattern(index)) {
+                throw new IllegalArgumentException("Index pattern must not match all indices (as it would match it's own rollup index");
+            }
+            if (Regex.isSimpleMatchPattern(index)) {
+                if (Regex.simpleMatch(index, rollupIndex)) {
+                    throw new IllegalArgumentException("Index pattern would match rollup index name which is not allowed");
+                }
+            }
+            if (index.equals(rollupIndex)) {
+                throw new IllegalArgumentException("Rollup index may not be the same as the index pattern");
             }
         }
-        if (indexPattern.equals(rollupIndex)) {
-            throw new IllegalArgumentException("Rollup index may not be the same as the index pattern");
-        }
+
         if (rollupIndex == null || rollupIndex.isEmpty()) {
             throw new IllegalArgumentException("Rollup index must be a non-null, non-empty string");
         }
@@ -145,6 +151,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         metricsConfig = in.readList(MetricConfig::new);
         timeout = in.readTimeValue();
         pageSize = in.readInt();
+        indices = Strings.splitStringByCommaToArray(indexPattern);
     }
 
     public String getId() {
@@ -195,6 +202,10 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             }
         }
         return Collections.unmodifiableSet(fields);
+    }
+
+    public String[] indices() {
+        return indices;
     }
 
     public void validateMappings(
@@ -274,13 +285,6 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
-    }
-
-    /**
-     * Same as toString() but more explicitly named so the caller knows this is turned into JSON
-     */
-    public String toJSONString() {
-        return toString();
     }
 
     public static RollupJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {

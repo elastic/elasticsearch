@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
@@ -32,9 +31,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
@@ -55,6 +54,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -154,20 +154,20 @@ public class QueryPhaseTests extends IndexShardTestCase {
         Query matchAllCsq = new ConstantScoreQuery(matchAll);
         Query tq = new TermQuery(new Term("foo", "bar"));
         Query tCsq = new ConstantScoreQuery(tq);
-        Query dvfeq = new DocValuesFieldExistsQuery("foo");
-        Query dvfeq_points = new DocValuesFieldExistsQuery("latLonDVField");
-        Query dvfeqCsq = new ConstantScoreQuery(dvfeq);
+        Query feq = new FieldExistsQuery("foo");
+        Query feq_points = new FieldExistsQuery("latLonDVField");
+        Query feqCsq = new ConstantScoreQuery(feq);
         // field with doc-values but not indexed will need to collect
-        Query dvOnlyfeq = new DocValuesFieldExistsQuery("docValuesOnlyField");
+        Query dvOnlyfeq = new FieldExistsQuery("docValuesOnlyField");
         BooleanQuery bq = new BooleanQuery.Builder().add(matchAll, Occur.SHOULD).add(tq, Occur.MUST).build();
 
         countTestCase(matchAll, reader, false, false);
         countTestCase(matchAllCsq, reader, false, false);
         countTestCase(tq, reader, withDeletions, withDeletions);
         countTestCase(tCsq, reader, withDeletions, withDeletions);
-        countTestCase(dvfeq, reader, withDeletions, true);
-        countTestCase(dvfeq_points, reader, withDeletions, true);
-        countTestCase(dvfeqCsq, reader, withDeletions, true);
+        countTestCase(feq, reader, withDeletions, true);
+        countTestCase(feq_points, reader, withDeletions, true);
+        countTestCase(feqCsq, reader, withDeletions, true);
         countTestCase(dvOnlyfeq, reader, true, true);
         countTestCase(bq, reader, true, true);
         reader.close();
@@ -576,7 +576,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
             for (int i = 0; i < searchSortAndFormat.sort.getSort().length; i++) {
                 @SuppressWarnings("unchecked")
-                FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(1, i);
+                FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
+                    1,
+                    i == 0
+                );
                 int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
                 if (cmp == 0) {
                     continue;

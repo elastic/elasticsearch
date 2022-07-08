@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
@@ -40,11 +39,10 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, format, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.format = format;
     }
 
     /**
@@ -52,7 +50,6 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      */
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         keys = in.readDoubleArray();
         long minBarForHighestToLowestValueRatio = in.readLong();
         final int serializedLen = in.readVInt();
@@ -81,12 +78,15 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public double value(String name) {
+        if (this.keys.length == 1 && this.name.equals(name)) {
+            return value(this.keys[0]);
+        }
         return value(Double.parseDouble(name));
     }
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).toList();
     }
 
     public DocValueFormat formatter() {

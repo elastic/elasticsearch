@@ -105,7 +105,6 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             () -> new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry,
                 dispatcher,

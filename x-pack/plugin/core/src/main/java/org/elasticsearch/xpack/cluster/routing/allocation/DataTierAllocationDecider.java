@@ -234,7 +234,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return false;
     }
 
-    private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
+    public static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
         assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
 
         if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {

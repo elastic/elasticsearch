@@ -28,6 +28,10 @@ or a username and password) for the user on whose behalf the API key will be
 created. It is not possible to use this API to create an API key without that
 user's credentials.
 
+The user, for whom the authentication credentials is provided,
+can optionally <<run-as-privilege,"run as">> (impersonate) another user.
+In this case, the API key will be created on behalf of the impersonated user.
+
 This API is intended be used by applications that need to create and manage
 API keys for end users, but cannot guarantee that those users have permission
 to create API keys on their own behalf (see <<security-api-create-api-key-prereqs>>).
@@ -104,6 +108,10 @@ required. It is not valid with other grant types.
 The user name that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
 
+`run_as`::
+(Optional, string)
+The name of the user to be <<run-as-privilege,impersonated>>.
+
 [[security-api-grant-api-key-example]]
 ==== {api-examples-title}
 
@@ -148,3 +156,23 @@ POST /_security/api_key/grant
   }
 }
 ------------------------------------------------------------
+
+The user (`test_admin`) whose credentials are provided can "run as" another user (`test_user`).
+The API key will be granted to the impersonated user (`test_user`).
+
+[source,console]
+------------------------------------------------------------
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "test_admin",  <1>
+  "password" : "x-pack-test-password",  <2>
+  "run_as": "test_user",  <3>
+  "api_key" : {
+    "name": "another-api-key"
+  }
+}
+------------------------------------------------------------
+<1> The user for which the credential is provided and performs "run as".
+<2> Credential for the above user
+<3> The impersonated user for whom the API key will be created for.

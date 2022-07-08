@@ -1463,8 +1463,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // In this test, non-null roleDescriptors always result in an update since the role descriptor assigned to the key
         // either update the role name, or associated privileges.
         // As such null descriptors (plus matching or null metadata) is the only way we can get a noop here
-        final boolean isUpdated = nullRoleDescriptors == false
-            || (request.getMetadata() != null && false == request.getMetadata().equals(oldMetadata));
+        final boolean metadataChanged = request.getMetadata() != null && false == request.getMetadata().equals(oldMetadata);
+        final boolean isUpdated = nullRoleDescriptors == false || metadataChanged;
         assertEquals(isUpdated, response.isUpdated());
 
         final PlainActionFuture<GetApiKeyResponse> getListener = new PlainActionFuture<>();
@@ -1489,9 +1489,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, updatedApiKeyDoc);
         final var expectedRoleDescriptors = nullRoleDescriptors ? List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR) : newRoleDescriptors;
         expectRoleDescriptorsForApiKey("role_descriptors", expectedRoleDescriptors, updatedApiKeyDoc);
-        // Check if role updated resulted in going from `monitor` to `all` cluster privilege and assert that action that requires
+        // Check if update resulted in API key role going from `monitor` to `all` cluster privilege and assert that action that requires
         // `all` is authorized or denied accordingly
-        final boolean hasAllPriv = expectedRoleDescriptors.stream()
+        final boolean hasAllClusterPrivilege = expectedRoleDescriptors.stream()
             .filter(rd -> Arrays.asList(rd.getClusterPrivileges()).contains("all"))
             .toList()
             .isEmpty() == false;
@@ -1499,7 +1499,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             "Authorization",
             "ApiKey " + getBase64EncodedApiKeyValue(createdApiKey.v1().getId(), createdApiKey.v1().getKey())
         );
-        if (hasAllPriv) {
+        if (hasAllClusterPrivilege) {
             createUserWithRunAsRole(authorizationHeaders);
         } else {
             ExecutionException e = expectThrows(ExecutionException.class, () -> createUserWithRunAsRole(authorizationHeaders));

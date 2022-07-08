@@ -1,5 +1,5 @@
 pr: 87773
-summary: Automatically close idle connections in OIDC back-channel
+summary: New setting to close idle connections in OIDC back-channel
 area: Security
 type: enhancement
 issues: []

@@ -101,6 +101,7 @@ import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -2022,11 +2023,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
-        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
+        final MappedField mappedField = mapperService().mappedField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (mappedField.type() instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
-        if (mappedFieldType.isIndexed() == false) {
+        if (mappedField.isIndexed() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing
         }
 
@@ -3231,7 +3232,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             store,
             indexSettings.getMergePolicy(),
             buildIndexAnalyzer(mapperService),
-            similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
+            similarityService.similarity(mapperService == null ? null : mapperService::mappedField),
             codecService,
             shardEventListener,
             indexCache != null ? indexCache.query() : null,

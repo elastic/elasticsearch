@@ -11,7 +11,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -27,7 +27,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     private final ValueFetcher valueFetcher;
 
     public SourceSimpleFragmentsBuilder(
-        MappedFieldType fieldType,
+        MappedField<?> mappedField,
         FetchContext fetchContext,
         boolean fixBrokenAnalysis,
         SourceLookup sourceLookup,
@@ -35,10 +35,10 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         String[] postTags,
         BoundaryScanner boundaryScanner
     ) {
-        super(fieldType, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
+        super(mappedField, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
         this.fetchContext = fetchContext;
         this.sourceLookup = sourceLookup;
-        this.valueFetcher = fieldType.valueFetcher(fetchContext.getSearchExecutionContext(), null);
+        this.valueFetcher = mappedField.valueFetcher(fetchContext.getSearchExecutionContext(), null);
     }
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
@@ -59,7 +59,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         }
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(fieldType.name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(mappedField.name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

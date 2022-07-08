@@ -166,7 +166,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                 );
             }
             int seed = this.seed == null ? hash(context.nowInMillis()) : this.seed;
-            return new RandomScoreFunction(seed, salt, context.getForField(context.getFieldType(fieldName)));
+            return new RandomScoreFunction(seed, salt, context.getForField(context.getMappedField(fieldName)));
         }
     }
 

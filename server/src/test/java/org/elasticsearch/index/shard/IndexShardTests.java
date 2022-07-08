@@ -2654,7 +2654,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.refresh("created segment 2");
 
         // test global ordinals are evicted
-        MappedFieldType foo = shard.mapperService().fieldType("foo");
+        MappedFieldType foo = shard.mapperService().mappedField("foo");
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
             shard.indexSettings.getNodeSettings(),
             new IndexFieldDataCache.Listener() {

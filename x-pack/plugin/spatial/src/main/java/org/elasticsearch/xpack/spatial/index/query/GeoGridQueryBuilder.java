@@ -263,7 +263,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
     @Override
     public Query doToQuery(SearchExecutionContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.getMappedField(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

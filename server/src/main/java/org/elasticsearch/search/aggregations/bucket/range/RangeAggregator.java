@@ -382,8 +382,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {
             return null;
         }
-        if (valuesSourceConfig.fieldType() instanceof DateFieldType
-            && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
+        if (valuesSourceConfig.mappedField().type() instanceof DateFieldType
+            && ((DateFieldType) valuesSourceConfig.mappedField().type()).resolution() == Resolution.NANOSECONDS) {
             // We don't generate sensible Queries for nanoseconds.
             return null;
         }
@@ -428,9 +428,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * we parse. With https://github.com/elastic/elasticsearch/pull/63692
              * we can just cast to a long here and it'll be taken as millis.
              */
-            DocValueFormat format = valuesSourceConfig.fieldType().docValueFormat(null, null);
+            DocValueFormat format = valuesSourceConfig.mappedField().docValueFormat(null, null);
             // TODO correct the loss of precision from the range somehow.....?
-            RangeQueryBuilder builder = new RangeQueryBuilder(valuesSourceConfig.fieldType().name());
+            RangeQueryBuilder builder = new RangeQueryBuilder(valuesSourceConfig.mappedField().name());
             builder.from(ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from)).includeLower(true);
             builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
             filterByFilterBuilder.add(Integer.toString(i), context.buildQuery(builder));

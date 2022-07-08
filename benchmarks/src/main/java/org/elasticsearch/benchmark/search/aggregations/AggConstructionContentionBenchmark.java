@@ -214,7 +214,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public MappedFieldType getFieldType(String path) {
+        public MappedFieldType getMappedField(String path) {
             if (path.startsWith("int")) {
                 return new NumberFieldMapper.NumberFieldType(path, NumberType.INTEGER);
             }

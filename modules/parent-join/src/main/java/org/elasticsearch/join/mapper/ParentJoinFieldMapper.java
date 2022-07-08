@@ -221,7 +221,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedField.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -334,7 +334,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     protected void doValidate(MappingLookup mappingLookup) {
         List<String> joinFields = mappingLookup.getMatchingFieldNames("*")
             .stream()
-            .map(mappingLookup::getFieldType)
+            .map(mappingLookup::getMappedField)
             .filter(ft -> ft instanceof JoinFieldType)
             .map(MappedFieldType::name)
             .collect(Collectors.toList());

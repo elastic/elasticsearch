@@ -308,7 +308,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), indexAnalyzer);
+        return Map.of(mappedField.name(), indexAnalyzer);
     }
 
     @Override

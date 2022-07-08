@@ -98,7 +98,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                 }
                 return new CompositeValuesSourceConfig(
                     name,
-                    valuesSourceConfig.fieldType(),
+                    valuesSourceConfig.mappedField(),
                     valuesSourceConfig.getValuesSource(),
                     docValueFormat,
                     order,
@@ -116,7 +116,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                         if (vs.isFloatingPoint()) {
                             return new DoubleValuesSource(
                                 bigArrays,
-                                compositeValuesSourceConfig.fieldType(),
+                                compositeValuesSourceConfig.mappedField(),
                                 vs::doubleValues,
                                 compositeValuesSourceConfig.format(),
                                 compositeValuesSourceConfig.missingBucket(),
@@ -130,7 +130,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                             rounding = LongUnaryOperator.identity();
                             return new LongValuesSource(
                                 bigArrays,
-                                compositeValuesSourceConfig.fieldType(),
+                                compositeValuesSourceConfig.mappedField(),
                                 vs::longValues,
                                 rounding,
                                 compositeValuesSourceConfig.format(),
@@ -152,7 +152,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> new CompositeValuesSourceConfig(
                 name,
-                valuesSourceConfig.fieldType(),
+                valuesSourceConfig.mappedField(),
                 valuesSourceConfig.getValuesSource(),
                 valuesSourceConfig.format(),
                 order,
@@ -170,7 +170,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                         ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
                         return new GlobalOrdinalValuesSource(
                             bigArrays,
-                            compositeValuesSourceConfig.fieldType(),
+                            compositeValuesSourceConfig.mappedField(),
                             vs::globalOrdinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
@@ -183,7 +183,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                         return new BinaryValuesSource(
                             bigArrays,
                             addRequestCircuitBreakerBytes,
-                            compositeValuesSourceConfig.fieldType(),
+                            compositeValuesSourceConfig.mappedField(),
                             vs::bytesValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),

@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -189,10 +189,10 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            MappedFieldType fieldType = context.getFieldType(this.fieldName);
+            MappedField<?> fieldType = context.getMappedField(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof ConstantFieldType) {
+            } else if (fieldType.type() instanceof ConstantFieldType) {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
@@ -214,7 +214,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedField<?> fieldType = context.getMappedField(fieldName);
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }

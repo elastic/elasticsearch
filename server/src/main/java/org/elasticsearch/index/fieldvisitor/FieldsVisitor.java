@@ -15,7 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -81,12 +81,12 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         return requiredFields;
     }
 
-    public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
+    public final void postProcess(Function<String, MappedField> mappedFieldLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
+            MappedField mappedField = mappedFieldLookup.apply(entry.getKey());
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
-                fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
+                fieldValues.set(i, mappedField.valueForDisplay(fieldValues.get(i)));
             }
         }
     }

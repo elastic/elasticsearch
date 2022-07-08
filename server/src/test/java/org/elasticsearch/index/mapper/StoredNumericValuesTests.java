@@ -81,7 +81,7 @@ public class StoredNumericValuesTests extends MapperServiceTestCase {
             CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
             searcher.doc(0, fieldsVisitor);
 
-            fieldsVisitor.postProcess(mapperService::fieldType);
+            fieldsVisitor.postProcess(mapperService::mappedField);
             assertThat(fieldsVisitor.fields().size(), equalTo(10));
             assertThat(fieldsVisitor.fields().get("field1").size(), equalTo(1));
             assertThat(fieldsVisitor.fields().get("field1").get(0), equalTo((byte) 1));

@@ -37,7 +37,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.GroupSelector;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -81,7 +81,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      * field.
      *
      * @param groupField        The sort field used to group documents.
-     * @param groupFieldType    The {@link MappedFieldType} for this sort field.
+     * @param mappedGroupField    The {@link MappedField} for this sort field.
      * @param groupSort         The {@link Sort} used to sort the groups.
      *                          The grouping keeps only the top sorted document per grouping key.
      *                          This must be non-null, ie, if you want to groupSort by relevance
@@ -91,12 +91,13 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      */
     public static SinglePassGroupingCollector<?> createNumeric(
         String groupField,
-        MappedFieldType groupFieldType,
+        MappedField mappedGroupField,
         Sort groupSort,
         int topN,
         @Nullable FieldDoc after
     ) {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Numeric(groupFieldType), groupField, groupSort, topN, after);
+        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Numeric(mappedGroupField), groupField, groupSort, topN,
+            after);
     }
 
     /**
@@ -105,7 +106,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      * an {@link IllegalStateException} if a document contains more than one value for the field.
      *
      * @param groupField        The sort field used to group documents.
-     * @param groupFieldType    The {@link MappedFieldType} for this sort field.
+     * @param mappedGroupField  The {@link MappedField} for this sort field.
      * @param groupSort         The {@link Sort} used to sort the groups. The grouping keeps only the top sorted
      *                          document per grouping key.
      *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
@@ -114,12 +115,13 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      */
     public static SinglePassGroupingCollector<?> createKeyword(
         String groupField,
-        MappedFieldType groupFieldType,
+        MappedField<?> mappedGroupField,
         Sort groupSort,
         int topN,
         @Nullable FieldDoc after
     ) {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Keyword(groupFieldType), groupField, groupSort, topN, after);
+        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Keyword(mappedGroupField), groupField, groupSort, topN,
+            after);
     }
 
     private final String groupField;

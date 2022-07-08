@@ -222,7 +222,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         ) {
 
             @Override
-            public MappedFieldType getFieldType(String name) {
+            public MappedFieldType getMappedField(String name) {
                 return provideMappedFieldType(name);
             }
 

@@ -16,34 +16,34 @@ import java.util.stream.Stream;
 
 /**
  * RuntimeField base class for leaf fields that will only ever return a single {@link MappedFieldType}
- * from {@link RuntimeField#asMappedFieldTypes()}. Can be a standalone runtime field, or part of a composite.
+ * from {@link RuntimeField#asMappedFields()}. Can be a standalone runtime field, or part of a composite.
  */
 public final class LeafRuntimeField implements RuntimeField {
     private final String name;
-    private final MappedFieldType mappedFieldType;
+    private final MappedField mappedField;
     private final List<FieldMapper.Parameter<?>> parameters;
 
-    public LeafRuntimeField(String name, MappedFieldType mappedFieldType, List<FieldMapper.Parameter<?>> parameters) {
+    public LeafRuntimeField(String name, MappedField mappedField, List<FieldMapper.Parameter<?>> parameters) {
         this.name = name;
-        this.mappedFieldType = mappedFieldType;
+        this.mappedField = mappedField;
         this.parameters = parameters;
-        assert mappedFieldType.name().endsWith(name) : "full name: " + mappedFieldType.name() + " - leaf name: " + name;
+        assert mappedField.name().endsWith(name) : "full name: " + mappedField.name() + " - leaf name: " + name;
     }
 
     @Override
     public String name() {
-        return mappedFieldType.name();
+        return mappedField.name();
     }
 
     @Override
-    public Stream<MappedFieldType> asMappedFieldTypes() {
-        return Stream.of(mappedFieldType);
+    public Stream<MappedField> asMappedFields() {
+        return Stream.of(mappedField);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field("type", mappedFieldType.typeName());
+        builder.field("type", mappedField.typeName());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         for (FieldMapper.Parameter<?> parameter : parameters) {
             parameter.toXContent(builder, includeDefaults);

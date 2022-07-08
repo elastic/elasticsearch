@@ -68,7 +68,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "date")));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", 1545)));
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            MappedFieldType ft = mapperService.fieldType("field");
+            MappedFieldType ft = mapperService.mappedField("field");
             SearchExecutionContext sec = createSearchExecutionContext(mapperService);
             Query rangeQuery = ft.rangeQuery("1200-01-01", "2020-01-01", false, false, ShapeRelation.CONTAINS, null, null, sec);
             IndexSearcher searcher = new IndexSearcher(ir);
@@ -82,7 +82,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             b.field("format", "yyyy-MM-dd");
         });
         MapperService mapperService = createMapperService(mapping.get());
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
@@ -93,7 +93,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             b.field("locale", "en_GB");
         });
         MapperService mapperService = createMapperService(mapping.get());
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
@@ -104,7 +104,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             b.field("format", "yyyy-MM-dd").field("locale", "en_GB");
         });
         MapperService mapperService = createMapperService(mapping.get());
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }

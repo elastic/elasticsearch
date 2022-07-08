@@ -65,7 +65,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 upper = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end);
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
-                if (createSearchExecutionContext().getFieldType(DATE_FIELD_NAME) != null) {
+                if (createSearchExecutionContext().getMappedField(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
                         query.timeZone(randomZone().getId());
                     }
@@ -150,10 +150,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            final MappedFieldType resolvedFieldType = context.getFieldType(queryBuilder.fieldName());
+            final MappedFieldType resolvedFieldType = context.getMappedField(queryBuilder.fieldName());
             if (resolvedFieldType.hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.getFieldType(resolvedFieldType.name()).getTextSearchInfo().hasNorms()) {
+            } else if (context.getMappedField(resolvedFieldType.name()).getTextSearchInfo().hasNorms()) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
@@ -174,7 +174,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
                 query = ((IndexOrDocValuesQuery) query).getIndexQuery();
                 assertThat(query, instanceOf(PointRangeQuery.class));
-                MappedFieldType mappedFieldType = context.getFieldType(expectedFieldName);
+                MappedFieldType mappedFieldType = context.getMappedField(expectedFieldName);
                 final Long fromInMillis;
                 final Long toInMillis;
                 // we have to normalize the incoming value into milliseconds since it could be literally anything
@@ -451,7 +451,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         // Range query with open bounds rewrite to an exists query
         Query luceneQuery = rewrittenRange.toQuery(searchExecutionContext);
         final Query expectedQuery;
-        if (searchExecutionContext.getFieldType(query.fieldName()).hasDocValues()) {
+        if (searchExecutionContext.getMappedField(query.fieldName()).hasDocValues()) {
             expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
         } else {
             expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));

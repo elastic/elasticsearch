@@ -132,8 +132,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public abstract MetadataFieldMapper build();
     }
 
-    protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+    protected MetadataFieldMapper(MappedField mappedField) {
+        super(mappedField.name(), mappedField, MultiFields.empty(), CopyTo.empty(), false, null);
     }
 
     @Override

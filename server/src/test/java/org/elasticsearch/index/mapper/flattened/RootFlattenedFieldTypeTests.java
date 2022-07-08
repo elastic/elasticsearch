@@ -22,7 +22,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedMappedField;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,12 +31,12 @@ import java.util.Map;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
-    private static RootFlattenedFieldType createDefaultFieldType() {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false);
+    private static RootFlattenedMappedField createDefaultFieldType() {
+        return new RootFlattenedMappedField("field", true, true, Collections.emptyMap(), false, false);
     }
 
     public void testValueForDisplay() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedMappedField ft = createDefaultFieldType();
 
         String fieldValue = "{ \"key\": \"value\" }";
         BytesRef storedValue = new BytesRef(fieldValue);
@@ -44,7 +44,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedMappedField ft = createDefaultFieldType();
 
         Query expected = new TermQuery(new Term("field", "value"));
         assertEquals(expected, ft.termQuery("value", null));
@@ -52,21 +52,21 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
 
-        RootFlattenedFieldType unsearchable = new RootFlattenedFieldType("field", false, true, Collections.emptyMap(), false, false);
+        RootFlattenedMappedField unsearchable = new RootFlattenedMappedField("field", false, true, Collections.emptyMap(), false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType("field", true, false, Collections.emptyMap(), false, false);
+        RootFlattenedMappedField ft = new RootFlattenedMappedField("field", true, false, Collections.emptyMap(), false, false);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
-        RootFlattenedFieldType withDv = new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false);
+        RootFlattenedMappedField withDv = new RootFlattenedMappedField("field", true, true, Collections.emptyMap(), false, false);
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedMappedField ft = createDefaultFieldType();
 
         Query expected = new FuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
         Query actual = ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT);
@@ -87,7 +87,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedMappedField ft = createDefaultFieldType();
 
         TermRangeQuery expected = new TermRangeQuery("field", new BytesRef("lower"), new BytesRef("upper"), false, false);
         assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_CONTEXT));
@@ -106,7 +106,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedMappedField ft = createDefaultFieldType();
 
         Query expected = new RegexpQuery(new Term("field", "val.*"));
         Query actual = ft.regexpQuery("val.*", 0, 0, 10, null, MOCK_CONTEXT);
@@ -120,7 +120,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedMappedField ft = createDefaultFieldType();
 
         Query expected = new WildcardQuery(new Term("field", new BytesRef("valu*")));
         assertEquals(expected, ft.wildcardQuery("valu*", null, MOCK_CONTEXT));
@@ -134,7 +134,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         Map<String, Object> sourceValue = Map.of("key", "value");
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedMappedField ft = createDefaultFieldType();
 
         assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
         assertEquals(List.of(), fetchSourceValue(ft, null));

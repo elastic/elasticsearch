@@ -114,7 +114,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(resolveIndex(idxName));
-        MappedFieldType fieldType = indexService.mapperService().fieldType("location");
+        MappedFieldType fieldType = indexService.mapperService().mappedField("location");
         assertThat(fieldType, instanceOf(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.class));
 
         AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?> gsfm =
@@ -127,7 +127,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName + "2"));
         indexService = indicesService.indexService(resolveIndex((idxName + "2")));
-        fieldType = indexService.mapperService().fieldType("location");
+        fieldType = indexService.mapperService().mappedField("location");
         assertThat(fieldType, instanceOf(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.class));
 
         gsfm = (AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?>) fieldType;

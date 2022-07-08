@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 
@@ -22,7 +22,7 @@ public class DateHistogramValuesSource extends LongValuesSource implements Sized
 
     DateHistogramValuesSource(
         BigArrays bigArrays,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         RoundingValuesSource roundingValuesSource,
         DocValueFormat format,
         boolean missingBucket,
@@ -32,7 +32,7 @@ public class DateHistogramValuesSource extends LongValuesSource implements Sized
     ) {
         super(
             bigArrays,
-            fieldType,
+            mappedField,
             roundingValuesSource::longValues,
             roundingValuesSource::round,
             format,

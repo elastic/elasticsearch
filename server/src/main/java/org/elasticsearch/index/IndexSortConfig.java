@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -204,8 +204,8 @@ public final class IndexSortConfig {
      * or returns null if this index has no sort.
      */
     public Sort buildIndexSort(
-        Function<String, MappedFieldType> fieldTypeLookup,
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+        Function<String, MappedField> fieldTypeLookup,
+        BiFunction<MappedField, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
     ) {
         if (hasIndexSort() == false) {
             return null;
@@ -214,15 +214,15 @@ public final class IndexSortConfig {
         final SortField[] sortFields = new SortField[sortSpecs.length];
         for (int i = 0; i < sortSpecs.length; i++) {
             FieldSortSpec sortSpec = sortSpecs[i];
-            final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
-            if (ft == null) {
+            final MappedField mappedField = fieldTypeLookup.apply(sortSpec.field);
+            if (mappedField == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
                 if (this.indexMode == IndexMode.TIME_SERIES) {
                     err += " required by [" + IndexSettings.MODE.getKey() + "=time_series]";
                 }
                 throw new IllegalArgumentException(err);
             }
-            if (Objects.equals(ft.name(), sortSpec.field) == false) {
+            if (Objects.equals(mappedField.name(), sortSpec.field) == false) {
                 if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {
                     throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
                 } else {
@@ -234,7 +234,7 @@ public final class IndexSortConfig {
                             + "] defined on field ["
                             + sortSpec.field
                             + "] which resolves to field ["
-                            + ft.name()
+                            + mappedField.name()
                             + "]. "
                             + "You will not be able to define an index sort over aliased fields in new indexes"
                     );
@@ -248,8 +248,9 @@ public final class IndexSortConfig {
             IndexFieldData<?> fieldData;
             try {
                 fieldData = fieldDataLookup.apply(
-                    ft,
-                    () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); }
+                    mappedField,
+                    () -> { throw new UnsupportedOperationException(
+                        "index sorting not supported on runtime field [" + mappedField.name() + "]"); }
                 );
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);

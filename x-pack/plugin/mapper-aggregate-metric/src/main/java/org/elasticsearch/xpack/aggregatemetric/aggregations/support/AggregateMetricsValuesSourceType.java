@@ -41,7 +41,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
                     "Expected aggregate_metric_double type on field ["
                         + fieldContext.field()
                         + "], but got ["
-                        + fieldContext.fieldType().typeName()
+                        + fieldContext.mappedField().typeName()
                         + "]"
                 );
             }

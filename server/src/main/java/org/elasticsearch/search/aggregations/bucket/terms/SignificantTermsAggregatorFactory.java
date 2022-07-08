@@ -197,10 +197,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         if (config.hasValues()) {
-            if (config.fieldContext().fieldType().isSearchable() == false) {
+            if (config.fieldContext().mappedField().isSearchable() == false) {
                 throw new IllegalArgumentException(
                     "SignificantText aggregation requires fields to be searchable, but ["
-                        + config.fieldContext().fieldType().name()
+                        + config.fieldContext().mappedField().name()
                         + "] is not"
                 );
             }
@@ -271,7 +271,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         SignificanceLookup lookup = new SignificanceLookup(
             context,
             samplingContext,
-            config.fieldContext().fieldType(),
+            config.fieldContext().mappedField(),
             config.format(),
             backgroundFilter
         );

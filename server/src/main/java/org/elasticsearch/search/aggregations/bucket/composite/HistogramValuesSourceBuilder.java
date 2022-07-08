@@ -12,7 +12,7 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -72,10 +72,10 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
-                final MappedFieldType fieldType = valuesSourceConfig.fieldType();
+                final MappedField<?> mappedField = valuesSourceConfig.mappedField();
                 return new CompositeValuesSourceConfig(
                     name,
-                    fieldType,
+                    mappedField,
                     vs,
                     valuesSourceConfig.format(),
                     order,
@@ -91,7 +91,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                         final ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
                         return new DoubleValuesSource(
                             bigArrays,
-                            compositeValuesSourceConfig.fieldType(),
+                            compositeValuesSourceConfig.mappedField(),
                             numericValuesSource::doubleValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),

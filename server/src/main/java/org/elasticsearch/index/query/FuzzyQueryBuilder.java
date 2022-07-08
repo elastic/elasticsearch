@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -317,7 +317,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            MappedFieldType fieldType = context.getFieldType(fieldName);
+            MappedField<?> fieldType = context.getMappedField(fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
             }
@@ -327,12 +327,12 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType == null) {
+        MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             throw new IllegalStateException("Rewrite first");
         }
         String rewrite = this.rewrite;
-        Query query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+        Query query = mappedField.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
         if (query instanceof MultiTermQuery) {
             MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);

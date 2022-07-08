@@ -25,45 +25,44 @@ import java.util.Map;
 public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     public TermBasedFieldType(
-        String name,
         boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+        super(isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     /** Returns the indexed value used to construct search "values".
      *  This method is used for the default implementations of most
      *  query factory methods such as {@link #termQuery}. */
-    protected BytesRef indexedValueForSearch(Object value) {
+    protected BytesRef indexedValueForSearch(String name, Object value) {
         return BytesRefs.toBytesRef(value);
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-        failIfNotIndexed();
-        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+    public Query termQueryCaseInsensitive(String name, Object value, SearchExecutionContext context) {
+        failIfNotIndexed(name);
+        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name, indexedValueForSearch(name, value)));
     }
 
     @Override
-    public boolean mayExistInIndex(SearchExecutionContext context) {
-        return context.fieldExistsInIndex(name());
+    public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+        return context.fieldExistsInIndex(name);
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
-        failIfNotIndexed();
-        return new TermQuery(new Term(name(), indexedValueForSearch(value)));
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
+        failIfNotIndexed(name);
+        return new TermQuery(new Term(name, indexedValueForSearch(name, value)));
     }
 
     @Override
-    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
-        return new TermInSetQuery(name(), bytesRefs);
+    public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+        failIfNotIndexed(name);
+        BytesRef[] bytesRefs = values.stream().map(v -> indexedValueForSearch(name, v)).toArray(BytesRef[]::new);
+        return new TermInSetQuery(name, bytesRefs);
     }
 
 }

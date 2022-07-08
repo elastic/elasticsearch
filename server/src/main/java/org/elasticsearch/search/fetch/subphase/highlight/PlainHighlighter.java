@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -58,7 +59,7 @@ public class PlainHighlighter implements Highlighter {
         SearchHighlightContext.Field field = fieldContext.field;
         FetchContext context = fieldContext.context;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
-        MappedFieldType fieldType = fieldContext.fieldType;
+        MappedField mappedField = fieldContext.mappedField;
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
@@ -66,15 +67,15 @@ public class PlainHighlighter implements Highlighter {
             fieldContext.cache.put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
-        Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter> cache = (Map<
-            MappedFieldType,
+        Map<MappedField, org.apache.lucene.search.highlight.Highlighter> cache = (Map<
+            MappedField,
             org.apache.lucene.search.highlight.Highlighter>) fieldContext.cache.get(CACHE_KEY);
 
-        org.apache.lucene.search.highlight.Highlighter entry = cache.get(fieldType);
+        org.apache.lucene.search.highlight.Highlighter entry = cache.get(mappedField);
         if (entry == null) {
             QueryScorer queryScorer = new CustomQueryScorer(
                 fieldContext.query,
-                field.fieldOptions().requireFieldMatch() ? fieldType.name() : null
+                field.fieldOptions().requireFieldMatch() ? mappedField.name() : null
             );
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
@@ -98,7 +99,7 @@ public class PlainHighlighter implements Highlighter {
             // always highlight across all data
             entry.setMaxDocCharsToAnalyze(Integer.MAX_VALUE);
 
-            cache.put(fieldType, entry);
+            cache.put(mappedField, entry);
         }
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
@@ -113,7 +114,7 @@ public class PlainHighlighter implements Highlighter {
         );
 
         textsToHighlight = HighlightUtils.loadFieldValues(
-            fieldType,
+            mappedField,
             context.getSearchExecutionContext(),
             hitContext,
             fieldContext.forceSource
@@ -121,7 +122,7 @@ public class PlainHighlighter implements Highlighter {
 
         int fragNumBase = 0;
         for (Object textToHighlight : textsToHighlight) {
-            String text = convertFieldValue(fieldType, textToHighlight);
+            String text = convertFieldValue(mappedField.type(), textToHighlight);
             int textLength = text.length();
             if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
@@ -147,7 +148,7 @@ public class PlainHighlighter implements Highlighter {
                 );
             }
 
-            try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
+            try (TokenStream tokenStream = analyzer.tokenStream(mappedField.name(), text)) {
                 if (tokenStream.hasAttribute(CharTermAttribute.class) == false
                     || tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
@@ -203,7 +204,7 @@ public class PlainHighlighter implements Highlighter {
         if (noMatchSize > 0 && textsToHighlight.size() > 0) {
             // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
             String fieldContents = textsToHighlight.get(0).toString();
-            int end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, fieldType.name(), fieldContents);
+            int end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, mappedField.name(), fieldContents);
             if (end > 0) {
                 return new HighlightField(fieldContext.fieldName, new Text[] { new Text(fieldContents.substring(0, end)) });
             }

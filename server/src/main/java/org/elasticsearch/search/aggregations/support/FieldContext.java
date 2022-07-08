@@ -8,7 +8,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 
 /**
  * Used by all field data based aggregators. This determine the context of the field data the aggregators are operating
@@ -18,7 +18,7 @@ public class FieldContext {
 
     private final String field;
     private final IndexFieldData<?> indexFieldData;
-    private final MappedFieldType fieldType;
+    private final MappedField mappedField;
 
     /**
      * Constructs a field data context for the given field and its index field data
@@ -26,10 +26,10 @@ public class FieldContext {
      * @param field             The name of the field
      * @param indexFieldData    The index field data of the field
      */
-    public FieldContext(String field, IndexFieldData<?> indexFieldData, MappedFieldType fieldType) {
+    public FieldContext(String field, IndexFieldData<?> indexFieldData, MappedField mappedField) {
         this.field = field;
         this.indexFieldData = indexFieldData;
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
     }
 
     public String field() {
@@ -43,12 +43,12 @@ public class FieldContext {
         return indexFieldData;
     }
 
-    public MappedFieldType fieldType() {
-        return fieldType;
+    public MappedField mappedField() {
+        return mappedField;
     }
 
     public String getTypeName() {
-        return fieldType.typeName();
+        return mappedField.typeName();
     }
 
 }

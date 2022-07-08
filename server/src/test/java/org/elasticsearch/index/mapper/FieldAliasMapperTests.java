@@ -71,7 +71,7 @@ public class FieldAliasMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MappedFieldType firstFieldType = mapperService.fieldType("alias-field");
+        MappedFieldType firstFieldType = mapperService.mappedField("alias-field");
         assertEquals("first-field", firstFieldType.name());
         assertTrue(firstFieldType instanceof KeywordFieldMapper.KeywordFieldType);
 
@@ -85,7 +85,7 @@ public class FieldAliasMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MappedFieldType secondFieldType = mapperService.fieldType("alias-field");
+        MappedFieldType secondFieldType = mapperService.mappedField("alias-field");
         assertEquals("second-field", secondFieldType.name());
         assertTrue(secondFieldType instanceof TextFieldMapper.TextFieldType);
     }

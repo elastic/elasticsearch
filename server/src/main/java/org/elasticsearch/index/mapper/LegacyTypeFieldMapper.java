@@ -36,7 +36,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
     protected LegacyTypeFieldMapper() {
-        super(new LegacyTypeFieldType());
+        super(new MappedField<>(NAME, new LegacyTypeFieldType()));
     }
 
     @Override
@@ -47,7 +47,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
     static final class LegacyTypeFieldType extends TermBasedFieldType {
 
         LegacyTypeFieldType() {
-            super(NAME, false, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(false, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -62,18 +62,19 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            return SortedSetDocValuesField.newSlowExactQuery(name, indexedValueForSearch(name, value));
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
-            return new DocValuesTermsQuery(name(), bytesRefs);
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            BytesRef[] bytesRefs = values.stream().map(v -> indexedValueForSearch(name, v)).toArray(BytesRef[]::new);
+            return new DocValuesTermsQuery(name, bytesRefs);
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
@@ -81,21 +82,21 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
             SearchExecutionContext context
         ) {
             return SortedSetDocValuesField.newSlowRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                name,
+                lowerTerm == null ? null : indexedValueForSearch(name, lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(name, upperTerm),
                 includeLower,
                 includeUpper
             );
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
             return true;
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }
     }

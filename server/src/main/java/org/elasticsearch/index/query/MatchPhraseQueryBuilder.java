@@ -16,7 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -178,9 +178,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);
         }
-        MappedFieldType mft = context.getFieldType(fieldName);
-        if (mft != null) {
-            return mft.getTextSearchInfo().searchAnalyzer();
+        MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField != null) {
+            return mappedField.getTextSearchInfo().searchAnalyzer();
         }
         return null;
     }

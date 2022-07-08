@@ -77,7 +77,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         long max = randomLongBetween(min + 10, 100000000000L);
         MapperService mapperService = dateMapperService();
         Query query = wrap.apply(
-            mapperService.fieldType("field")
+            mapperService.mappedField("field")
                 .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService))
         );
         withAggregationContext(null, mapperService, List.of(), query, context -> {
@@ -100,7 +100,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         long max = randomLongBetween(min + 10, 100000000000L);
         MapperService mapperService = dateMapperService();
         Query query = wrap.apply(
-            mapperService.fieldType("field")
+            mapperService.mappedField("field")
                 .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService))
         );
         withAggregationContext(null, mapperService, List.of(), query, context -> {
@@ -130,7 +130,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
             maxDocs = max;
         }
         MapperService mapperService = dateMapperService();
-        Query query = mapperService.fieldType("field")
+        Query query = mapperService.mappedField("field")
             .rangeQuery(minQuery, maxQuery, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
         withAggregationContext(null, mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
             Rounding rounding = mock(Rounding.class);

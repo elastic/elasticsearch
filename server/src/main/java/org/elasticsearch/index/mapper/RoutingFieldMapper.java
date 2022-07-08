@@ -72,7 +72,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         static RoutingFieldType INSTANCE = new RoutingFieldType();
 
         private RoutingFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -81,8 +81,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return new StoredValueFetcher(context.lookup(), name);
         }
     }
 
@@ -101,7 +101,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE);
+        super(new MappedField<>(NAME, RoutingFieldType.INSTANCE));
         this.required = required;
     }
 
@@ -121,8 +121,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
-            context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));
-            context.addToFieldNames(fieldType().name());
+            context.doc().add(new Field(name(), routing, Defaults.FIELD_TYPE));
+            context.addToFieldNames(name());
         }
     }
 

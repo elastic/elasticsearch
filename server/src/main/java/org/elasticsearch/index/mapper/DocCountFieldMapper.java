@@ -34,7 +34,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         public static final int DEFAULT_VALUE = 1;
 
         public DocCountFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -48,22 +48,22 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            throw new QueryShardException(context, "Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
+        public Query existsQuery(String name, SearchExecutionContext context) {
+            throw new QueryShardException(context, "Field [" + name + "] of type [" + typeName() + "] does not support exists queries");
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new QueryShardException(context, "Field [" + name() + "] of type [" + typeName() + "] is not searchable");
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            throw new QueryShardException(context, "Field [" + name + "] of type [" + typeName() + "] is not searchable");
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {
+            return new SourceValueFetcher(name, context, DEFAULT_VALUE) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if ("".equals(value)) {
@@ -77,7 +77,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     private DocCountFieldMapper() {
-        super(DocCountFieldType.INSTANCE);
+        super(new MappedField<>(NAME, DocCountFieldType.INSTANCE));
     }
 
     @Override
@@ -87,13 +87,13 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         // Check that _doc_count is a single value and not an array
         if (context.doc().getByKey(NAME) != null) {
-            throw new IllegalArgumentException("Arrays are not allowed for field [" + fieldType().name() + "].");
+            throw new IllegalArgumentException("Arrays are not allowed for field [" + name() + "].");
         }
 
         int value = parser.intValue(false);
         if (value <= 0) {
             throw new IllegalArgumentException(
-                "Field [" + fieldType().name() + "] must be a positive integer. Value [" + value + "] is not allowed."
+                "Field [" + name() + "] must be a positive integer. Value [" + value + "] is not allowed."
             );
         }
         context.doc().addWithKey(NAME, field(value));

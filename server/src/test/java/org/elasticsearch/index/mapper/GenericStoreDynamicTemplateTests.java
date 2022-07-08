@@ -28,7 +28,7 @@ public class GenericStoreDynamicTemplateTests extends MapperServiceTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        assertTrue(mapperService.fieldType("name").isStored());
+        assertTrue(mapperService.mappedField("name").isStored());
 
         boolean stored = false;
         for (IndexableField field : doc.getFields("age")) {

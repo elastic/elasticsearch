@@ -50,7 +50,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     @Override
     protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
-        MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
+        MappedFieldType fieldType = context.getMappedField(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else { // TODO: Test case when there are no docValues

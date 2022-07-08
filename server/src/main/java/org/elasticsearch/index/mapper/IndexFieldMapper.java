@@ -40,7 +40,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         static final IndexFieldType INSTANCE = new IndexFieldType();
 
         private IndexFieldType() {
-            super(NAME, Collections.emptyMap());
+            super(Collections.emptyMap());
         }
 
         @Override
@@ -59,15 +59,15 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             return new MatchAllDocsQuery();
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new ConstantIndexFieldData.Builder(
                 fullyQualifiedIndexName,
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -77,7 +77,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             return new ValueFetcher() {
 
                 private final List<Object> indexName = List.of(context.getFullyQualifiedIndex().getName());
@@ -91,7 +91,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     public IndexFieldMapper() {
-        super(IndexFieldType.INSTANCE);
+        super(new MappedField<>(NAME, IndexFieldType.INSTANCE));
     }
 
     @Override

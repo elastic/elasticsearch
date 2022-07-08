@@ -37,14 +37,14 @@ public final class Joiner {
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(SearchExecutionContext context) {
-        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getFieldType));
+        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getMappedField));
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(AggregationContext context) {
-        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getFieldType));
+        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getMappedField));
     }
 
     /**

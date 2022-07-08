@@ -164,7 +164,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 "couldn't adapt [{}], no range for [{}/{}]",
                 name,
                 valuesSourceConfig.fieldContext().field(),
-                valuesSourceConfig.fieldType()
+                valuesSourceConfig.mappedField()
             );
             return null;
         }

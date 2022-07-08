@@ -156,7 +156,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 ignoreMalformed.get().value()
             );
             GeoPointFieldType ft = new GeoPointFieldType(
-                context.buildFullName(name),
                 indexed.get() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.get(),
                 hasDocValues.get(),
@@ -164,10 +163,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 scriptValues(),
                 meta.get()
             );
+            MappedField<GeoPointFieldType> mappedField = new MappedField<>(context.buildFullName(name), ft);
             if (this.script.get() == null) {
-                return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), geoParser, this);
+                return new GeoPointFieldMapper(name, mappedField, multiFieldsBuilder.build(this, context), copyTo.build(), geoParser, this);
             }
-            return new GeoPointFieldMapper(name, ft, geoParser, this);
+            return new GeoPointFieldMapper(name, mappedField, geoParser, this);
         }
 
     }
@@ -185,7 +185,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     public GeoPointFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<GeoPointFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<GeoPoint> parser,
@@ -193,7 +193,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     ) {
         super(
             simpleName,
-            mappedFieldType,
+            mappedField,
             multiFields,
             builder.ignoreMalformed.get(),
             builder.ignoreZValue.get(),
@@ -206,8 +206,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
-    public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType, Parser<GeoPoint> parser, Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
+    public GeoPointFieldMapper(String simpleName, MappedField<GeoPointFieldType> mappedField, Parser<GeoPoint> parser, Builder builder) {
+        super(simpleName, mappedField, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
         this.builder = builder;
         this.scriptValues = builder.scriptValues();
         this.indexCreatedVersion = builder.indexCreatedVersion;
@@ -222,15 +222,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         if (fieldType().isIndexed()) {
-            context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
+            context.doc().add(new LatLonPoint(name(), geometry.lat(), geometry.lon()));
         }
         if (fieldType().hasDocValues()) {
-            context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
+            context.doc().add(new LatLonDocValuesField(name(), geometry.lat(), geometry.lon()));
         } else if (fieldType().isStored() || fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
         if (fieldType().isStored()) {
-            context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
+            context.doc().add(new StoredField(name(), geometry.toString()));
         }
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
         // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields
@@ -297,7 +297,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         private final FieldValues<GeoPoint> scriptValues;
 
         private GeoPointFieldType(
-            String name,
             boolean indexed,
             boolean stored,
             boolean hasDocValues,
@@ -305,13 +304,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             FieldValues<GeoPoint> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, parser, meta);
+            super(indexed, stored, hasDocValues, parser, meta);
             this.scriptValues = scriptValues;
         }
 
         // only used in test
-        public GeoPointFieldType(String name) {
-            this(name, true, false, true, null, null, Collections.emptyMap());
+        public GeoPointFieldType() {
+            this(true, false, true, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -330,17 +329,18 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (scriptValues == null) {
-                return super.valueFetcher(context, format);
+                return super.valueFetcher(name, context, format);
             }
             Function<List<GeoPoint>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
             return FieldValues.valueListFetcher(scriptValues, formatter, context);
         }
 
         @Override
-        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
-            failIfNotIndexedNorDocValuesFallback(context);
+        public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
+                                   LatLonGeometry... geometries) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
             final ShapeField.QueryRelation luceneRelation;
             if (relation == ShapeRelation.INTERSECTS && isPointGeometry(geometries)) {
                 // For point queries and intersects, lucene does not match points that are encoded
@@ -368,14 +368,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new AbstractLatLonPointIndexFieldData.Builder(name, CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
+        public Query distanceFeatureQuery(String name, Object origin, String pivot, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
             GeoPoint originGeoPoint;
             if (origin instanceof GeoPoint) {
                 originGeoPoint = (GeoPoint) origin;
@@ -392,12 +392,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
             if (isIndexed()) {
                 // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
-                return LatLonPoint.newDistanceFeatureQuery(name(), 1.0f, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
+                return LatLonPoint.newDistanceFeatureQuery(name, 1.0f, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
             } else {
                 return new GeoPointScriptFieldDistanceFeatureQuery(
                     new Script(""),
-                    ctx -> new SortedNumericDocValuesLongFieldScript(name(), context.lookup(), ctx),
-                    name(),
+                    ctx -> new SortedNumericDocValuesLongFieldScript(name, context.lookup(), ctx),
+                    name,
                     originGeoPoint.lat(),
                     originGeoPoint.lon(),
                     pivotDouble

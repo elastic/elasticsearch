@@ -270,7 +270,7 @@ abstract class MetricFieldProducer {
     static Map<String, MetricFieldProducer> buildMetricFieldProducers(SearchExecutionContext context, String[] metricFields) {
         final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
         for (String field : metricFields) {
-            MappedFieldType fieldType = context.getFieldType(field);
+            MappedFieldType fieldType = context.getMappedField(field);
             assert fieldType.getMetricType() != null;
 
             MetricFieldProducer producer = switch (fieldType.getMetricType()) {

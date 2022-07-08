@@ -14,6 +14,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -70,7 +71,7 @@ public class FieldFetcher {
             }
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
-                MappedFieldType ft = context.getFieldType(field);
+                MappedField ft = context.getMappedField(field);
                 // we want to skip metadata fields if we have a wildcard pattern
                 if (context.isMetadataField(field) && isWildcardPattern) {
                     continue;

@@ -294,7 +294,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.mappedField("field");
         assertNull(ft.getMetricType());
 
         assertMetricType("gauge", ScaledFloatFieldMapper.ScaledFloatFieldType::getMetricType);

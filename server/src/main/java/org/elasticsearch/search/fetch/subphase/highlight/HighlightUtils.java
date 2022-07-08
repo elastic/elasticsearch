@@ -11,6 +11,7 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -38,18 +39,18 @@ public final class HighlightUtils {
      * Load field values for highlighting.
      */
     public static List<Object> loadFieldValues(
-        MappedFieldType fieldType,
+        MappedField mappedField,
         SearchExecutionContext searchContext,
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        if (forceSource == false && fieldType.isStored()) {
-            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
+        if (forceSource == false && mappedField.isStored()) {
+            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(mappedField.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
-            List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
+            List<Object> textsToHighlight = fieldVisitor.fields().get(mappedField.name());
             return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
         }
-        ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
+        ValueFetcher fetcher = mappedField.valueFetcher(searchContext, null);
         fetcher.setNextReader(hitContext.readerContext());
         return fetcher.fetchValues(hitContext.sourceLookup(), new ArrayList<Object>());
     }

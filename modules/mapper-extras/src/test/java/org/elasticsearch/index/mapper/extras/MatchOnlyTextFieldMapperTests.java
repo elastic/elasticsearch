@@ -143,7 +143,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         mapping.endObject().endObject();
 
         MapperService mapperService = createMapperService(mapping);
-        MappedFieldType ft = mapperService.fieldType("foo");
+        MappedFieldType ft = mapperService.mappedField("foo");
         SearchExecutionContext context = createSearchExecutionContext(mapperService);
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.phraseQuery(ts, 0, true, context));

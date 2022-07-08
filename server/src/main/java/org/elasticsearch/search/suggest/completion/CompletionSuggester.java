@@ -18,6 +18,7 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 
@@ -40,8 +41,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         final IndexSearcher searcher,
         CharsRefBuilder spare
     ) throws IOException {
-        if (suggestionContext.getFieldType() != null) {
-            final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
+        if (suggestionContext.getMappedField() != null) {
+            final MappedField<CompletionFieldMapper.CompletionFieldType> mappedField = suggestionContext.getMappedField();
             CompletionSuggestion completionSuggestion = emptySuggestion(name, suggestionContext, spare);
             int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
             TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
@@ -50,10 +51,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
                 // collect contexts
                 Map<String, Set<String>> contexts = Collections.emptyMap();
-                if (fieldType.hasContextMappings()) {
+                if (mappedField.type().hasContextMappings()) {
                     List<CharSequence> rawContexts = collector.getContexts(suggestDoc.doc);
                     if (rawContexts.size() > 0) {
-                        contexts = fieldType.getContextMappings().getNamedContexts(rawContexts);
+                        contexts = mappedField.type().getContextMappings().getNamedContexts(rawContexts);
                     }
                 }
                 if (numResult++ < suggestionContext.getSize()) {

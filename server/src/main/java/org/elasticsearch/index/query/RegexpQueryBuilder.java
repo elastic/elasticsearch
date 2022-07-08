@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -280,9 +280,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
         int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp.ALL;
 
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType != null) {
-            query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
+        MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField != null) {
+            query = mappedField.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
             RegexpQuery regexpQuery = new RegexpQuery(

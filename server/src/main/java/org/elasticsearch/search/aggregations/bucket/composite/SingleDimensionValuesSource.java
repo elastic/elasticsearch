@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -28,7 +29,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     protected final BigArrays bigArrays;
     protected final DocValueFormat format;
     @Nullable
-    protected final MappedFieldType fieldType;
+    protected final MappedField mappedField;
     protected final boolean missingBucket;
     protected final MissingOrder missingOrder;
 
@@ -42,7 +43,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      *
      * @param bigArrays The big arrays object.
      * @param format The format of the source.
-     * @param fieldType The field type or null if the source is a script.
+     * @param mappedField The mapped field or null if the source is a script.
      * @param missingBucket If true, an explicit `null bucket represents documents with missing values.
      * @param missingOrder How to order missing buckets if missingBucket is <code>true</code>.
      * @param size The number of values to record.
@@ -51,7 +52,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     SingleDimensionValuesSource(
         BigArrays bigArrays,
         DocValueFormat format,
-        @Nullable MappedFieldType fieldType,
+        @Nullable MappedField mappedField,
         boolean missingBucket,
         MissingOrder missingOrder,
         int size,
@@ -59,7 +60,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     ) {
         this.bigArrays = bigArrays;
         this.format = format;
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
         this.missingBucket = missingBucket;
         this.missingOrder = missingOrder;
         this.size = size;

@@ -9,7 +9,7 @@ package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
@@ -21,12 +21,12 @@ import java.util.List;
  */
 public class CollapseContext {
     private final String fieldName;
-    private final MappedFieldType fieldType;
+    private final MappedField mappedField;
     private final List<InnerHitBuilder> innerHits;
 
-    public CollapseContext(String fieldName, MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
+    public CollapseContext(String fieldName, MappedField mappedField, List<InnerHitBuilder> innerHits) {
         this.fieldName = fieldName;
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
         this.innerHits = innerHits;
     }
 
@@ -37,9 +37,9 @@ public class CollapseContext {
         return fieldName;
     }
 
-    /** The field type used for collapsing **/
-    public MappedFieldType getFieldType() {
-        return fieldType;
+    /** The mapped field used for collapsing **/
+    public MappedField getMappedField() {
+        return mappedField;
     }
 
     /** The inner hit options to expand the collapsed results **/
@@ -48,10 +48,10 @@ public class CollapseContext {
     }
 
     public SinglePassGroupingCollector<?> createTopDocs(Sort sort, int topN, FieldDoc after) {
-        if (fieldType.collapseType() == CollapseType.KEYWORD) {
-            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, topN, after);
-        } else if (fieldType.collapseType() == CollapseType.NUMERIC) {
-            return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, topN, after);
+        if (mappedField.collapseType() == CollapseType.KEYWORD) {
+            return SinglePassGroupingCollector.createKeyword(fieldName, mappedField, sort, topN, after);
+        } else if (mappedField.collapseType() == CollapseType.NUMERIC) {
+            return SinglePassGroupingCollector.createNumeric(fieldName, mappedField, sort, topN, after);
         } else {
             throw new IllegalStateException("collapse is not supported on this field type");
         }

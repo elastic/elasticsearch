@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -41,17 +42,16 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
-    private final Function<SearchLookup, LeafFactory> factory;
+    private final BiFunction<String, SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
 
     AbstractScriptFieldType(
-        String name,
-        Function<SearchLookup, LeafFactory> factory,
+        BiFunction<String, SearchLookup, LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
         Map<String, String> meta
     ) {
-        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        super(false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
@@ -63,12 +63,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public final boolean isAggregatable() {
+    public final boolean isAggregatable(String name) {
         return true;
     }
 
     @Override
     public final Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -80,12 +81,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     ) {
         if (relation == ShapeRelation.DISJOINT) {
             String message = "Runtime field [%s] of type [%s] does not support DISJOINT ranges";
-            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName()));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name, typeName()));
         }
-        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context);
+        return rangeQuery(name, lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context);
     }
 
     protected abstract Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -97,6 +99,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public Query fuzzyQuery(
+        String name,
         Object value,
         Fuzziness fuzziness,
         int prefixLength,
@@ -104,21 +107,24 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         boolean transpositions,
         SearchExecutionContext context
     ) {
-        throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
+        throw new IllegalArgumentException(unsupported(name, "fuzzy", "keyword and text"));
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
+    public Query prefixQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                             SearchExecutionContext context) {
+        throw new IllegalArgumentException(unsupported(name, "prefix", "keyword, text and wildcard"));
     }
 
     @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
+    public Query wildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                               SearchExecutionContext context) {
+        throw new IllegalArgumentException(unsupported(name, "wildcard", "keyword, text and wildcard"));
     }
 
     @Override
     public Query regexpQuery(
+        String name,
         String value,
         int syntaxFlags,
         int matchFlags,
@@ -126,36 +132,38 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         MultiTermQuery.RewriteMethod method,
         SearchExecutionContext context
     ) {
-        throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
+        throw new IllegalArgumentException(unsupported(name, "regexp", "keyword and text"));
     }
 
     @Override
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("phrase", "text"));
+    public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context) {
+        throw new IllegalArgumentException(unsupported(name, "phrase", "text"));
     }
 
     @Override
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("phrase", "text"));
+    public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
+                                  SearchExecutionContext context) {
+        throw new IllegalArgumentException(unsupported(name, "phrase", "text"));
     }
 
     @Override
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
+    public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) {
+        throw new IllegalArgumentException(unsupported(name, "phrase prefix", "text"));
     }
 
     @Override
-    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("span prefix", "text"));
+    public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+                                     SearchExecutionContext context) {
+        throw new IllegalArgumentException(unsupported(name, "span prefix", "text"));
     }
 
-    private String unsupported(String query, String supported) {
+    private String unsupported(String name, String query, String supported) {
         return String.format(
             Locale.ROOT,
             "Can only use %s queries on %s fields - not on [%s] which is a runtime field of type [%s]",
             query,
             supported,
-            name(),
+            name,
             typeName()
         );
     }
@@ -172,35 +180,36 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+    public final ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+        return new DocValueFetcher(docValueFormat(name, format, null),
+            context.getForField(new MappedField<>(name, this)));
     }
 
     /**
      * Create a script leaf factory.
      */
-    protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(searchLookup);
+    protected final LeafFactory leafFactory(String name, SearchLookup searchLookup) {
+        return factory.apply(name, searchLookup);
     }
 
     /**
      * Create a script leaf factory for queries.
      */
-    protected final LeafFactory leafFactory(SearchExecutionContext context) {
+    protected final LeafFactory leafFactory(String name, SearchExecutionContext context) {
         /*
          * Forking here causes us to count this field in the field data loop
          * detection code as though we were resolving field data for this field.
          * We're not, but running the query is close enough.
          */
-        return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
+        return leafFactory(name, context.lookup().forkAndTrackFieldReferences(name));
     }
 
     @Override
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(String name) {
         throw new IllegalArgumentException(
             "All fields that match routing_path must be keywords with [time_series_dimension: true] "
                 + "and without the [script] parameter. ["
-                + name()
+                + name
                 + "] was a runtime ["
                 + typeName()
                 + "]."
@@ -256,17 +265,17 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             String fullName = parent + "." + name;
             return new LeafRuntimeField(
                 name,
-                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta()),
+                new MappedField(fullName, createFieldType(getCompositeLeafFactory(parentScriptFactory), getScript(), meta())),
                 getParameters()
             );
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
-            AbstractScriptFieldType<?> fieldType = createFieldType(name, scriptFactory, getScript(), meta());
-            return new LeafRuntimeField(name, fieldType, getParameters());
+            AbstractScriptFieldType<?> fieldType = createFieldType(scriptFactory, getScript(), meta());
+            return new LeafRuntimeField(name, new MappedField<>(name, fieldType), getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(String name, Factory factory, Script script, Map<String, String> meta);
+        abstract AbstractScriptFieldType<?> createFieldType(Factory factory, Script script, Map<String, String> meta);
 
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {

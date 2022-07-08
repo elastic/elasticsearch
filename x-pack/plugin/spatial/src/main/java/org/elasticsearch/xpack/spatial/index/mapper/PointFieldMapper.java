@@ -165,7 +165,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     @Override
     public PointFieldType fieldType() {
-        return (PointFieldType) mappedFieldType;
+        return (PointFieldType) mappedField;
     }
 
     @Override

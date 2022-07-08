@@ -49,7 +49,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
         private IgnoredFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -58,22 +58,22 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             // This query is not performance sensitive, it only helps assess
             // quality of the data, so we may use a slow query. It shouldn't
             // be too slow in practice since the number of unique terms in this
             // field is bounded by the number of fields in the mappings.
-            return new TermRangeQuery(name(), null, null, true, true);
+            return new TermRangeQuery(name, null, null, true, true);
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }
     }
 
     private IgnoredFieldMapper() {
-        super(IgnoredFieldType.INSTANCE);
+        super(new MappedField(NAME, IgnoredFieldType.INSTANCE));
     }
 
     @Override

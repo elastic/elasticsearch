@@ -37,7 +37,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 
         private VersionFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+            super(false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -46,24 +46,25 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new QueryShardException(context, "The _version field is not searchable");
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            throw new QueryShardException(context, "The " + name + " field is not searchable");
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return new DocValueFetcher(docValueFormat(name, format, null),
+                context.getForField(new MappedField<>(name, this)));
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new SortedNumericIndexFieldData.Builder(name, NumericType.LONG, VersionDocValuesField::new);
         }
     }
 
     private VersionFieldMapper() {
-        super(VersionFieldType.INSTANCE);
+        super(new MappedField<>(NAME, VersionFieldType.INSTANCE));
     }
 
     @Override

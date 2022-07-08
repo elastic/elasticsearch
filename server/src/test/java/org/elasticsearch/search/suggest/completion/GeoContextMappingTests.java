@@ -56,7 +56,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        MappedFieldType completionFieldType = mapperService.mappedField("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
@@ -104,7 +104,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        MappedFieldType completionFieldType = mapperService.mappedField("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
@@ -150,7 +150,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        MappedFieldType completionFieldType = mapperService.mappedField("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
@@ -204,7 +204,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        MappedFieldType completionFieldType = mapperService.mappedField("completion");
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
             .startObject()

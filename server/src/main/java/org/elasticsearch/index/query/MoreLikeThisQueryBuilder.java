@@ -39,6 +39,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -995,8 +996,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
         } else {
             for (String field : fields) {
-                MappedFieldType fieldType = context.getFieldType(field);
-                if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
+                MappedField mappedField = context.getMappedField(field);
+                if (mappedField != null && SUPPORTED_FIELD_TYPES.contains(mappedField.type().getClass()) == false) {
                     if (failOnUnsupportedField) {
                         throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
                     } else {
@@ -1004,7 +1005,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         continue;
                     }
                 }
-                moreLikeFields.add(fieldType == null ? field : fieldType.name());
+                moreLikeFields.add(mappedField == null ? field : mappedField.name());
             }
         }
 
@@ -1123,7 +1124,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, SearchExecutionContext context) {
-        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
+        MappedField<?> idField = context.getMappedField(IdFieldMapper.NAME);
         if (idField == null) {
             // no mappings, nothing to exclude
             return;

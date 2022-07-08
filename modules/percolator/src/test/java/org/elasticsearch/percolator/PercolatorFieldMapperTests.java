@@ -200,7 +200,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
         );
         mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
-        fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.fieldType(fieldName);
+        fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.mappedField(fieldName);
     }
 
     public void testExtractTerms() throws Exception {
@@ -254,9 +254,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         addQueryFieldMappings();
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        Query rangeQuery1 = mapperService.fieldType("number_field1").rangeQuery(10, 20, true, true, null, null, null, context);
+        Query rangeQuery1 = mapperService.mappedField("number_field1").rangeQuery(10, 20, true, true, null, null, null, context);
         bq.add(rangeQuery1, Occur.MUST);
-        Query rangeQuery2 = mapperService.fieldType("number_field1").rangeQuery(15, 20, true, true, null, null, null, context);
+        Query rangeQuery2 = mapperService.mappedField("number_field1").rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
         DocumentMapper documentMapper = mapperService.documentMapper();
@@ -282,7 +282,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         // Range queries on different fields:
         bq = new BooleanQuery.Builder();
         bq.add(rangeQuery1, Occur.MUST);
-        rangeQuery2 = mapperService.fieldType("number_field2").rangeQuery(15, 20, true, true, null, null, null, context);
+        rangeQuery2 = mapperService.mappedField("number_field2").rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
         documentParserContext = new TestDocumentParserContext();

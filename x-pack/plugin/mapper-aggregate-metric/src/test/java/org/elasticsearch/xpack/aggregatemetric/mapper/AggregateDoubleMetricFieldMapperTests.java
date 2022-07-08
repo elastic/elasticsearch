@@ -516,7 +516,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     public void testFieldCaps() throws IOException {
         MapperService aggMetricMapperService = createMapperService(fieldMapping(this::minimalMapping));
-        MappedFieldType fieldType = aggMetricMapperService.fieldType("field");
+        MappedFieldType fieldType = aggMetricMapperService.mappedField("field");
         assertThat(fieldType.familyTypeName(), equalTo("double"));
         assertTrue(fieldType.isSearchable());
         assertTrue(fieldType.isAggregatable());
@@ -557,7 +557,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
         AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType ft =
-            (AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) mapperService.fieldType("field");
+            (AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) mapperService.mappedField("field");
         assertNull(ft.getMetricType());
 
         assertMetricType("gauge", AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType::getMetricType);

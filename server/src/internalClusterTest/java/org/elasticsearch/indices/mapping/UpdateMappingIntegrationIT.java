@@ -326,7 +326,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
             MapperService mapperService = indexService.mapperService();
             for (String fieldName : fieldNames) {
-                MappedFieldType fieldType = mapperService.fieldType(fieldName);
+                MappedFieldType fieldType = mapperService.mappedField(fieldName);
                 assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }

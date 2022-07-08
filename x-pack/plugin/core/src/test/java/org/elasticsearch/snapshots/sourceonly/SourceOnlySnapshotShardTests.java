@@ -456,7 +456,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     if (liveDocs == null || liveDocs.get(i)) {
                         rootFieldsVisitor.reset();
                         leafReader.document(i, rootFieldsVisitor);
-                        rootFieldsVisitor.postProcess(targetShard.mapperService()::fieldType);
+                        rootFieldsVisitor.postProcess(targetShard.mapperService()::mappedField);
                         String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";

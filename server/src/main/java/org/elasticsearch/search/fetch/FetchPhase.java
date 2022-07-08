@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -266,7 +267,7 @@ public class FetchPhase {
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
                 Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+                    MappedField fieldType = searchExecutionContext.getMappedField(fieldName);
                     String storedField = fieldType.name();
                     Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(storedField, key -> new HashSet<>());
                     requestedFields.add(fieldName);
@@ -344,7 +345,7 @@ public class FetchPhase {
             return new HitContext(hit, subReaderContext, subDocId);
         } else {
             SearchHit hit;
-            loadStoredFields(context.getSearchExecutionContext()::getFieldType, profiler, fieldReader, fieldsVisitor, subDocId);
+            loadStoredFields(context.getSearchExecutionContext()::getMappedField, profiler, fieldReader, fieldsVisitor, subDocId);
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
@@ -418,7 +419,7 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(searchExecutionContext::getFieldType, profiler, storedFieldReader, rootFieldsVisitor, nestedInfo.rootDoc());
+            loadStoredFields(searchExecutionContext::getMappedField, profiler, storedFieldReader, rootFieldsVisitor, nestedInfo.rootDoc());
             rootId = rootFieldsVisitor.id();
 
             if (needSource) {
@@ -436,7 +437,7 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(searchExecutionContext::getFieldType, profiler, storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());
+            loadStoredFields(searchExecutionContext::getMappedField, profiler, storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -480,7 +481,7 @@ public class FetchPhase {
     }
 
     private static void loadStoredFields(
-        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<String, MappedField> mappedFieldLookup,
         Profiler profileListener,
         CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
         FieldsVisitor fieldVisitor,
@@ -490,7 +491,7 @@ public class FetchPhase {
             profileListener.startLoadingStoredFields();
             fieldVisitor.reset();
             fieldReader.accept(docId, fieldVisitor);
-            fieldVisitor.postProcess(fieldTypeLookup);
+            fieldVisitor.postProcess(mappedFieldLookup);
         } finally {
             profileListener.stopLoadingStoredFields();
         }

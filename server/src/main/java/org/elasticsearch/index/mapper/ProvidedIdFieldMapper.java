@@ -88,7 +88,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         private final BooleanSupplier fieldDataEnabled;
 
         IdFieldType(BooleanSupplier fieldDataEnabled) {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
         }
 
@@ -104,28 +104,28 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
             return true;
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            return termsQuery(name, Arrays.asList(value), context);
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             return new MatchAllDocsQuery();
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexed(name);
             BytesRef[] bytesRefs = values.stream().map(v -> {
                 Object idObject = v;
                 if (idObject instanceof BytesRef) {
@@ -133,11 +133,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 }
                 return Uid.encodeId(idObject.toString());
             }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(name(), bytesRefs);
+            return new TermInSetQuery(name, bytesRefs);
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException(
                     "Fielddata access on the _id field is disallowed, "
@@ -146,7 +146,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 );
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
-                name(),
+                name,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
@@ -257,7 +257,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        super(new IdFieldType(fieldDataEnabled));
+        super(new MappedField<>(NAME, new IdFieldType(fieldDataEnabled)));
     }
 
     @Override

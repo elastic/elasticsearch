@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -294,7 +295,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         Map<String, Float> fields = QueryParserHelper.resolveMappingFields(context, fieldsAndBoosts);
         // If all fields are unmapped, then return an 'unmapped field query'.
-        boolean hasMappedField = fields.keySet().stream().anyMatch(k -> context.getFieldType(k) != null);
+        boolean hasMappedField = fields.keySet().stream().anyMatch(k -> context.getMappedField(k) != null);
         if (hasMappedField == false) {
             return Queries.newUnmappedFieldsQuery(fields.keySet());
         }
@@ -305,21 +306,21 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         List<FieldAndBoost> fieldsAndBoosts = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
-            MappedFieldType fieldType = context.getFieldType(name);
-            if (fieldType == null) {
+            MappedField<?> mappedField = context.getMappedField(name);
+            if (mappedField == null) {
                 continue;
             }
 
-            if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false) {
+            if (mappedField.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false) {
                 throw new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support [" + NAME + "] queries"
+                    "Field [" + mappedField.name() + "] of type [" + mappedField.typeName() + "] does not support [" + NAME + "] queries"
                 );
             }
 
             float boost = entry.getValue() == null ? 1.0f : entry.getValue();
-            fieldsAndBoosts.add(new FieldAndBoost(fieldType, boost));
+            fieldsAndBoosts.add(new FieldAndBoost(mappedField, boost));
 
-            Analyzer analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+            Analyzer analyzer = mappedField.getTextSearchInfo().searchAnalyzer();
             if (sharedAnalyzer != null && analyzer.equals(sharedAnalyzer) == false) {
                 throw new IllegalArgumentException("All fields in [" + NAME + "] query must have the same search analyzer");
             }
@@ -327,10 +328,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
 
         assert fieldsAndBoosts.isEmpty() == false;
-        String placeholderFieldName = fieldsAndBoosts.get(0).fieldType.name();
+        String placeholderFieldName = fieldsAndBoosts.get(0).mappedField.name();
         boolean canGenerateSynonymsPhraseQuery = autoGenerateSynonymsPhraseQuery;
         for (FieldAndBoost fieldAndBoost : fieldsAndBoosts) {
-            TextSearchInfo textSearchInfo = fieldAndBoost.fieldType.getTextSearchInfo();
+            TextSearchInfo textSearchInfo = fieldAndBoost.mappedField.getTextSearchInfo();
             canGenerateSynonymsPhraseQuery &= textSearchInfo.hasPositions();
         }
 
@@ -347,8 +348,8 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     private static void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
-            MappedFieldType fieldType = context.getFieldType(name);
-            if (fieldType != null && fieldType.getTextSearchInfo().similarity() != null) {
+            MappedField mappedField = context.getMappedField(name);
+            if (mappedField != null && mappedField.getTextSearchInfo().similarity() != null) {
                 throw new IllegalArgumentException("[" + NAME + "] queries cannot be used with per-field similarities");
             }
         }
@@ -360,11 +361,11 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     }
 
     private static final class FieldAndBoost {
-        final MappedFieldType fieldType;
+        final MappedField<?> mappedField;
         final float boost;
 
-        FieldAndBoost(MappedFieldType fieldType, float boost) {
-            this.fieldType = Objects.requireNonNull(fieldType);
+        FieldAndBoost(MappedField<?> mappedField, float boost) {
+            this.mappedField = Objects.requireNonNull(mappedField);
             this.boost = boost;
         }
     }
@@ -415,9 +416,9 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
                 query.addTerm(bytes);
             }
             for (FieldAndBoost fieldAndBoost : fields) {
-                MappedFieldType fieldType = fieldAndBoost.fieldType;
+                MappedField<?> mappedField = fieldAndBoost.mappedField;
                 float fieldBoost = fieldAndBoost.boost;
-                query.addField(fieldType.name(), fieldBoost);
+                query.addField(mappedField.name(), fieldBoost);
             }
             return query.build();
         }
@@ -432,7 +433,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (FieldAndBoost fieldAndBoost : fields) {
-                Query query = fieldAndBoost.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
+                Query query = fieldAndBoost.mappedField.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldAndBoost.boost != 1f) {
                     query = new BoostQuery(query, fieldAndBoost.boost);
                 }

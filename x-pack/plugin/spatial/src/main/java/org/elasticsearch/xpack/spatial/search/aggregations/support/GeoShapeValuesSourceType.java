@@ -54,7 +54,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
                 "Expected geo_point or geo_shape type on field ["
                     + fieldContext.field()
                     + "], but got ["
-                    + fieldContext.fieldType().typeName()
+                    + fieldContext.mappedField().typeName()
                     + "]"
             );
         }

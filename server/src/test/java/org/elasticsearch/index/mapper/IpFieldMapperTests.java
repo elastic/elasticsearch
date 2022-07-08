@@ -214,7 +214,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) mapperService.fieldType("field");
+        IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) mapperService.mappedField("field");
         assertFalse(ft.isDimension());
 
         assertDimension(true, IpFieldMapper.IpFieldType::isDimension);

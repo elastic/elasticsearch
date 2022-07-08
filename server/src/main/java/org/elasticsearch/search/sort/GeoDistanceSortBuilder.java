@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -603,7 +604,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     private IndexGeoPointFieldData fieldData(SearchExecutionContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedField fieldType = context.getMappedField(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new LatLonPointIndexFieldData(

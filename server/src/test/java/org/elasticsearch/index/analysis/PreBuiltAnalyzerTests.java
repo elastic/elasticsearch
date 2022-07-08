@@ -100,7 +100,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
             .endObject();
         MapperService mapperService = createIndex("test", indexSettings, mapping).mapperService();
 
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         assertThat(fieldType.getTextSearchInfo().searchAnalyzer(), instanceOf(NamedAnalyzer.class));
         NamedAnalyzer fieldMapperNamedAnalyzer = fieldType.getTextSearchInfo().searchAnalyzer();
 

@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -70,7 +71,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
     @Override
     protected SpanQuery doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType mapper = context.getFieldType(fieldName);
+        MappedField<?> mapper = context.getMappedField(fieldName);
         Term term;
         if (mapper == null) {
             term = new Term(fieldName, BytesRefs.toBytesRef(value));

@@ -16,6 +16,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -254,8 +255,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     private static String queryFieldName(SearchExecutionContext context, String fieldName) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        return fieldType != null ? fieldType.name() : fieldName;
+        MappedField mappedField = context.getMappedField(fieldName);
+        return mappedField != null ? mappedField.name() : fieldName;
     }
 
     @Override

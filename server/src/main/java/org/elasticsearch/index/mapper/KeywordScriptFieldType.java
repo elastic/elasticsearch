@@ -51,12 +51,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
         @Override
         AbstractScriptFieldType<?> createFieldType(
-            String name,
             StringFieldScript.Factory factory,
             Script script,
             Map<String, String> meta
         ) {
-            return new KeywordScriptFieldType(name, factory, script, meta);
+            return new KeywordScriptFieldType(factory, script, meta);
         }
 
         @Override
@@ -74,10 +73,9 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         return new Builder(name).createRuntimeField(StringFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    public KeywordScriptFieldType(StringFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
         super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            (name, searchLookup) -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -100,18 +98,20 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public StringScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new StringScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), KeywordDocValuesField::new);
+    public StringScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
+                                                          Supplier<SearchLookup> searchLookup) {
+        return new StringScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), KeywordDocValuesField::new);
     }
 
     @Override
-    public Query existsQuery(SearchExecutionContext context) {
+    public Query existsQuery(String name, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new StringScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new StringScriptFieldExistsQuery(script, leafFactory(name, context), name);
     }
 
     @Override
     public Query fuzzyQuery(
+        String name,
         Object value,
         Fuzziness fuzziness,
         int prefixLength,
@@ -122,8 +122,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         applyScriptContext(context);
         return StringScriptFieldFuzzyQuery.build(
             script,
-            leafFactory(context),
-            name(),
+            leafFactory(name, context),
+            name,
             BytesRefs.toString(Objects.requireNonNull(value)),
             fuzziness.asDistance(BytesRefs.toString(value)),
             prefixLength,
@@ -132,13 +132,14 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query prefixQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+    public Query prefixQuery(String name, String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value, caseInsensitive);
+        return new StringScriptFieldPrefixQuery(script, leafFactory(name, context), name, value, caseInsensitive);
     }
 
     @Override
     public Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -150,8 +151,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         applyScriptContext(context);
         return new StringScriptFieldRangeQuery(
             script,
-            leafFactory(context),
-            name(),
+            leafFactory(name, context),
+            name,
             lowerTerm == null ? null : BytesRefs.toString(lowerTerm),
             upperTerm == null ? null : BytesRefs.toString(upperTerm),
             includeLower,
@@ -161,6 +162,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query regexpQuery(
+        String name,
         String value,
         int syntaxFlags,
         int matchFlags,
@@ -174,8 +176,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
         return new StringScriptFieldRegexpQuery(
             script,
-            leafFactory(context),
-            name(),
+            leafFactory(name, context),
+            name,
             value,
             syntaxFlags,
             matchFlags,
@@ -184,45 +186,45 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+    public Query termQueryCaseInsensitive(String name, Object value, SearchExecutionContext context) {
         applyScriptContext(context);
         return new StringScriptFieldTermQuery(
             script,
-            leafFactory(context),
-            name(),
+            leafFactory(name, context),
+            name,
             BytesRefs.toString(Objects.requireNonNull(value)),
             true
         );
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
         applyScriptContext(context);
         return new StringScriptFieldTermQuery(
             script,
-            leafFactory(context),
-            name(),
+            leafFactory(name, context),
+            name,
             BytesRefs.toString(Objects.requireNonNull(value)),
             false
         );
     }
 
     @Override
-    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+    public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
         applyScriptContext(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
-        return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+        return new StringScriptFieldTermsQuery(script, leafFactory(name, context), name, terms);
     }
 
     @Override
-    public Query wildcardQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+    public Query wildcardQuery(String name, String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, caseInsensitive);
+        return new StringScriptFieldWildcardQuery(script, leafFactory(name, context), name, value, caseInsensitive);
     }
 
     @Override
-    public Query normalizedWildcardQuery(String value, RewriteMethod method, SearchExecutionContext context) {
+    public Query normalizedWildcardQuery(String name, String value, RewriteMethod method, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, false);
+        return new StringScriptFieldWildcardQuery(script, leafFactory(name, context), name, value, false);
     }
 }

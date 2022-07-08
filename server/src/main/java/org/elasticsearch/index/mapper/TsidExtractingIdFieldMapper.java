@@ -55,7 +55,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     static final class IdFieldType extends TermBasedFieldType {
         IdFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -70,23 +70,23 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            return termsQuery(name, Arrays.asList(value), context);
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             return new MatchAllDocsQuery();
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexed(name);
             BytesRef[] bytesRefs = values.stream().map(v -> {
                 Object idObject = v;
                 if (idObject instanceof BytesRef) {
@@ -94,17 +94,17 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 }
                 return Uid.encodeId(idObject.toString());
             }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(name(), bytesRefs);
+            return new TermInSetQuery(name, bytesRefs);
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
         }
     }
 
     private TsidExtractingIdFieldMapper() {
-        super(new IdFieldType());
+        super(new MappedField<>(NAME, new IdFieldType()));
     }
 
     private static final long SEED = 0;

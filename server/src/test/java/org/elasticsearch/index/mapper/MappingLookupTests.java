@@ -257,7 +257,7 @@ public class MappingLookupTests extends ESTestCase {
 
         @Override
         public Map<String, NamedAnalyzer> indexAnalyzers() {
-            return Map.of(mappedFieldType.name(), new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)));
+            return Map.of(mappedField.name(), new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)));
         }
 
         @Override

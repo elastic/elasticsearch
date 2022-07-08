@@ -15,7 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -122,21 +122,21 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType fieldType = context.getFieldType(field);
-        if (fieldType == null) {
+        MappedField<?> mappedField = context.getMappedField(field);
+        if (mappedField == null) {
             // Be lenient with unmapped fields so that cross-index search will work nicely
             return new MatchNoDocsQuery();
         }
         Set<String> maskedFields = new HashSet<>();
         sourceProvider.extractFields(maskedFields);
         for (String maskedField : maskedFields) {
-            MappedFieldType ft = context.getFieldType(maskedField);
+            MappedField<?> ft = context.getMappedField(maskedField);
             if (ft == null) {
                 // Be lenient with unmapped fields so that cross-index search will work nicely
                 return new MatchNoDocsQuery();
             }
         }
-        return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));
+        return new IntervalQuery(field, sourceProvider.getSource(context, mappedField));
     }
 
     @Override

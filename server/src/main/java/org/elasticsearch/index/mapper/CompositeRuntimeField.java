@@ -106,8 +106,8 @@ public class CompositeRuntimeField implements RuntimeField {
     }
 
     @Override
-    public Stream<MappedFieldType> asMappedFieldTypes() {
-        return subfields.stream().flatMap(RuntimeField::asMappedFieldTypes);
+    public Stream<MappedField> asMappedFields() {
+        return subfields.stream().flatMap(RuntimeField::asMappedFields);
     }
 
     @Override

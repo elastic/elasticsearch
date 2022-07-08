@@ -176,7 +176,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("empty_field", "")));
         assertNotNull(doc.rootDoc().getField("empty_field"));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        MappedFieldType fieldType = mapperService.fieldType("empty_field");
+        MappedFieldType fieldType = mapperService.mappedField("empty_field");
         assertNotNull(fieldType);
     }
 
@@ -185,7 +185,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("empty_field", "")));
         assertNull(doc.rootDoc().getField("empty_field"));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        MappedFieldType fieldType = mapperService.fieldType("empty_field");
+        MappedFieldType fieldType = mapperService.mappedField("empty_field");
         assertNotNull(fieldType);
     }
 
@@ -616,8 +616,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
 
-        assertThat(mapperService.fieldType("s_long").typeName(), equalTo("long"));
-        assertThat(mapperService.fieldType("s_double").typeName(), equalTo("double"));
+        assertThat(mapperService.mappedField("s_long").typeName(), equalTo("long"));
+        assertThat(mapperService.mappedField("s_double").typeName(), equalTo("double"));
     }
 
     public void testNumericDetectionDefault() throws Exception {
@@ -647,8 +647,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
 
-        assertThat(mapperService.fieldType("s_long").typeName(), equalTo("keyword"));
-        assertThat(mapperService.fieldType("s_double").typeName(), equalTo("keyword"));
+        assertThat(mapperService.mappedField("s_long").typeName(), equalTo("keyword"));
+        assertThat(mapperService.mappedField("s_double").typeName(), equalTo("keyword"));
     }
 
     public void testDynamicRuntimeLeafFields() throws IOException {
@@ -936,11 +936,11 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         merge(mapperService, dynamicMapping(mappingsUpdate));
 
-        assertNotNull(mapperService.fieldType("time"));
-        assertNotNull(mapperService.fieldType("time.max"));
-        assertNotNull(mapperService.fieldType("time.min"));
-        assertNotNull(mapperService.fieldType("host.id"));
-        assertNotNull(mapperService.fieldType("host.name"));
+        assertNotNull(mapperService.mappedField("time"));
+        assertNotNull(mapperService.mappedField("time.max"));
+        assertNotNull(mapperService.mappedField("time.min"));
+        assertNotNull(mapperService.mappedField("host.id"));
+        assertNotNull(mapperService.mappedField("host.name"));
 
         assertEquals(0, mapperService.mappingLookup().objectMappers().size());
     }

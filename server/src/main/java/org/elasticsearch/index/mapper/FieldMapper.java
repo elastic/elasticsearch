@@ -66,7 +66,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
-    protected final MappedFieldType mappedFieldType;
+    protected final MappedField mappedField;
     protected final MultiFields multiFields;
     protected final CopyTo copyTo;
     protected final boolean hasScript;
@@ -74,17 +74,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     /**
      * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param mappedField   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
      */
-    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+    protected FieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo) {
+        this(simpleName, mappedField, multiFields, copyTo, false, null);
     }
 
     /**
      * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param mappedField       the MappedField associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
      * @param hasScript         whether a script is defined for the field
@@ -92,17 +92,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected FieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         boolean hasScript,
         String onScriptError
     ) {
         super(simpleName);
-        if (mappedFieldType.name().isEmpty()) {
+        if (mappedField.name().isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
-        this.mappedFieldType = mappedFieldType;
+        this.mappedField = mappedField;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
         this.hasScript = hasScript;
@@ -111,16 +111,20 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public String name() {
-        return fieldType().name();
+        return mappedField.name();
     }
 
     @Override
     public String typeName() {
-        return mappedFieldType.typeName();
+        return mappedField.typeName();
     }
 
     public MappedFieldType fieldType() {
-        return mappedFieldType;
+        return mappedField.type();
+    }
+
+    public final MappedField field() {
+        return mappedField;
     }
 
     /**
@@ -189,7 +193,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             throw new MapperParsingException(
                 "failed to parse field [{}] of type [{}] in {}. Could not parse field value preview,",
                 e,
-                fieldType().name(),
+                mappedField.name(),
                 fieldType().typeName(),
                 context.documentDescription()
             );
@@ -198,7 +202,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         throw new MapperParsingException(
             "failed to parse field [{}] of type [{}] in {}. Preview of field's value: '{}'",
             e,
-            fieldType().name(),
+            mappedField.name(),
             fieldType().typeName(),
             context.documentDescription(),
             valuePreview

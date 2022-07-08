@@ -22,6 +22,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -150,15 +151,15 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType == null) {
+        MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
         }
-        if ((fieldType instanceof GeoPointFieldType) == false) {
+        if ((mappedField.type() instanceof GeoPointFieldType) == false) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
@@ -207,9 +208,9 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         }
 
         Polygon polygon = new Polygon(lats, lons);
-        Query query = LatLonPoint.newPolygonQuery(fieldType.name(), polygon);
-        if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newSlowPolygonQuery(fieldType.name(), polygon);
+        Query query = LatLonPoint.newPolygonQuery(mappedField.name(), polygon);
+        if (mappedField.hasDocValues()) {
+            Query dvQuery = LatLonDocValuesField.newSlowPolygonQuery(mappedField.name(), polygon);
             query = new IndexOrDocValuesQuery(query, dvQuery);
         }
         return query;

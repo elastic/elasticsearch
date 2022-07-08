@@ -21,6 +21,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -435,8 +436,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
         CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (coordinatorRewriteContext != null) {
-            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
-            if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            final MappedField mappedField = coordinatorRewriteContext.getMappedField(fieldName);
+            if (mappedField.type() instanceof final DateFieldMapper.DateFieldType dateFieldType) {
                 if (coordinatorRewriteContext.hasTimestampData() == false) {
                     return MappedFieldType.Relation.DISJOINT;
                 }
@@ -459,8 +460,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
         SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
         if (searchExecutionContext != null) {
-            final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-            if (fieldType == null) {
+            final MappedField mappedField = searchExecutionContext.getMappedField(fieldName);
+            if (mappedField == null) {
                 return MappedFieldType.Relation.DISJOINT;
             }
             if (searchExecutionContext.getIndexReader() == null) {
@@ -469,7 +470,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             }
 
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(
+            return mappedField.isFieldWithinQuery(
                 searchExecutionContext.getIndexReader(),
                 from,
                 to,
@@ -520,18 +521,18 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 return new MatchNoDocsQuery("No mappings yet");
             }
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-                .getFieldType(FieldNamesFieldMapper.NAME);
+                .getMappedField(FieldNamesFieldMapper.NAME).type();
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
                 return ExistsQueryBuilder.newFilter(context, fieldName, false);
             }
         }
-        MappedFieldType mapper = context.getFieldType(this.fieldName);
-        if (mapper == null) {
+        MappedField mappedField = context.getMappedField(this.fieldName);
+        if (mappedField == null) {
             throw new IllegalStateException("Rewrite first");
         }
         DateMathParser forcedDateParser = getForceDateParser();
-        return mapper.rangeQuery(from, to, includeLower, includeUpper, relation, timeZone, forcedDateParser, context);
+        return mappedField.rangeQuery(from, to, includeLower, includeUpper, relation, timeZone, forcedDateParser, context);
     }
 
     @Override

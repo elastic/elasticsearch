@@ -128,8 +128,8 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     public void testBuildAnonymousFieldType() {
         SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        assertThat(context.buildAnonymousFieldType("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
+        assertThat(context.buildAnonymousField("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(context.buildAnonymousField("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
     public void testToQueryFails() {
@@ -328,13 +328,13 @@ public class SearchExecutionContextTests extends ESTestCase {
             runtimeMappings
         );
         assertTrue(context.isFieldMapped("cat"));
-        assertThat(context.getFieldType("cat"), instanceOf(KeywordScriptFieldType.class));
+        assertThat(context.getMappedField("cat"), instanceOf(KeywordScriptFieldType.class));
         assertThat(context.getMatchingFieldNames("cat"), equalTo(Set.of("cat")));
         assertTrue(context.isFieldMapped("dog"));
-        assertThat(context.getFieldType("dog"), instanceOf(LongScriptFieldType.class));
+        assertThat(context.getMappedField("dog"), instanceOf(LongScriptFieldType.class));
         assertThat(context.getMatchingFieldNames("dog"), equalTo(Set.of("dog")));
         assertTrue(context.isFieldMapped("pig"));
-        assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(context.getMappedField("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(context.getMatchingFieldNames("pig"), equalTo(Set.of("pig")));
         assertThat(context.getMatchingFieldNames("*"), equalTo(Set.of("cat", "dog", "pig", "runtime")));
     }
@@ -595,7 +595,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             indexWriter.addDocument(List.of(new StringField("indexed_field", "second", Field.Store.NO)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
+                MappedFieldType fieldType = searchExecutionContext.getMappedField(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
                     indexFieldData = searchExecutionContext.getForField(fieldType);

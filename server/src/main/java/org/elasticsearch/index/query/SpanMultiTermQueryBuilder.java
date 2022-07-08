@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.ParseField;
@@ -124,8 +124,8 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
         } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder prefixBuilder) {
-            MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
-            if (fieldType == null) {
+            MappedField<?> mappedField = context.getMappedField(prefixBuilder.fieldName());
+            if (mappedField == null) {
                 throw new IllegalStateException("Rewrite first");
             }
             final SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod;
@@ -143,7 +143,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             } else {
                 spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause();
             }
-            return fieldType.spanPrefixQuery(prefixBuilder.value(), spanRewriteMethod, context);
+            return mappedField.spanPrefixQuery(prefixBuilder.value(), spanRewriteMethod, context);
         } else {
             Query subQuery = multiTermQueryBuilder.toQuery(context);
             while (true) {

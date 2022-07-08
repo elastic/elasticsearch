@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
@@ -55,7 +55,7 @@ class SignificanceLookup {
     }
 
     private final AggregationContext context;
-    private final MappedFieldType fieldType;
+    private final MappedField<?> mappedField;
     private final DocValueFormat format;
     private final Query backgroundFilter;
     private final int supersetNumDocs;
@@ -64,12 +64,12 @@ class SignificanceLookup {
     SignificanceLookup(
         AggregationContext context,
         SamplingContext samplingContext,
-        MappedFieldType fieldType,
+        MappedField<?> mappedField,
         DocValueFormat format,
         QueryBuilder backgroundFilter
     ) throws IOException {
         this.context = context;
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
         this.format = format;
         // If there is no provided background filter, but we are within a sampling context, our background docs need to take the sampling
         // context into account.
@@ -145,7 +145,7 @@ class SignificanceLookup {
      * Get the background frequency of a {@link BytesRef} term.
      */
     private long getBackgroundFrequency(BytesRef term) throws IOException {
-        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
+        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(mappedField.name(), format.format(term).toString())));
     }
 
     /**
@@ -200,7 +200,7 @@ class SignificanceLookup {
      * Get the background frequency of a {@code long} term.
      */
     private long getBackgroundFrequency(long term) throws IOException {
-        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
+        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(mappedField.name(), format.format(term).toString())));
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
@@ -228,7 +228,7 @@ class SignificanceLookup {
             return termsEnum;
         }
         IndexReader reader = context.searcher().getIndexReader();
-        termsEnum = new FilterableTermsEnum(reader, fieldType.name(), PostingsEnum.NONE, backgroundFilter);
+        termsEnum = new FilterableTermsEnum(reader, mappedField.name(), PostingsEnum.NONE, backgroundFilter);
         return termsEnum;
     }
 

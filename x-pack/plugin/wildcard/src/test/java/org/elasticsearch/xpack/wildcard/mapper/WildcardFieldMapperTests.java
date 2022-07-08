@@ -1104,7 +1104,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             emptyMap()
         ) {
             @Override
-            public MappedFieldType getFieldType(String name) {
+            public MappedFieldType getMappedField(String name) {
                 return provideMappedFieldType(name);
             }
 

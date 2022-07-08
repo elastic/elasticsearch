@@ -11,7 +11,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -107,7 +107,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
-                MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
+                MappedField mappedField = context.getSearchExecutionContext().getMappedField(fieldName);
 
                 // We should prevent highlighting if a field is anything but a text, match_only_text,
                 // or keyword field.
@@ -119,12 +119,12 @@ public class HighlightPhase implements FetchSubPhase {
                 // If the field was explicitly given we assume that whoever issued the query knew
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
-                    if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
-                        && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false
-                        && fieldType.typeName().equals("match_only_text") == false) {
+                    if (mappedField.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
+                        && mappedField.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false
+                        && mappedField.typeName().equals("match_only_text") == false) {
                         continue;
                     }
-                    if (highlighter.canHighlight(fieldType) == false) {
+                    if (highlighter.canHighlight(mappedField.type()) == false) {
                         continue;
                     }
                 }
@@ -135,9 +135,9 @@ public class HighlightPhase implements FetchSubPhase {
                 builders.put(
                     fieldName,
                     hc -> new FieldHighlightContext(
-                        fieldType.name(),
+                        mappedField.name(),
                         field,
-                        fieldType,
+                        mappedField,
                         context,
                         hc,
                         highlightQuery == null ? query : highlightQuery,

@@ -122,7 +122,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();
 
         private SeqNoFieldType() {
-            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
+            super( true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
         }
 
         @Override
@@ -148,29 +148,30 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
             return false;
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name + "].");
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
-            return LongPoint.newExactQuery(name(), v);
+            return LongPoint.newExactQuery(name, v);
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        public Query termsQuery(String name, Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
-            return LongPoint.newSetQuery(name(), v);
+            return LongPoint.newSetQuery(name, v);
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
@@ -197,18 +198,18 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                     --u;
                 }
             }
-            return LongPoint.newRangeQuery(name(), l, u);
+            return LongPoint.newRangeQuery(name, l, u);
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new SortedNumericIndexFieldData.Builder(name, NumericType.LONG, SeqNoDocValuesField::new);
         }
     }
 
     private SeqNoFieldMapper() {
-        super(SeqNoFieldType.INSTANCE);
+        super(new MappedField<>(NAME, SeqNoFieldType.INSTANCE));
     }
 
     @Override

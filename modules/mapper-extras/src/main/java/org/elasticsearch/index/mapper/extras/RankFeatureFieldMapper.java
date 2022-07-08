@@ -19,6 +19,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -77,7 +78,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
             return new RankFeatureFieldMapper(
                 name,
-                new RankFeatureFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                new MappedField<>(context.buildFullName(name), new RankFeatureFieldType(meta.getValue(), positiveScoreImpact.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 positiveScoreImpact.getValue()
@@ -91,8 +92,8 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         private final boolean positiveScoreImpact;
 
-        public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, true, false, false, TextSearchInfo.NONE, meta);
+        public RankFeatureFieldType(Map<String, String> meta, boolean positiveScoreImpact) {
+            super(true, false, false, TextSearchInfo.NONE, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 
@@ -106,21 +107,21 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new TermQuery(new Term("_feature", name()));
+        public Query existsQuery(String name, SearchExecutionContext context) {
+            return new TermQuery(new Term("_feature", name));
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             throw new IllegalArgumentException("[rank_feature] fields do not support sorting, scripting or aggregating");
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(name, context) {
                 @Override
                 protected Float parseSourceValue(Object value) {
                     return objectToFloat(value);
@@ -129,7 +130,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Queries on [rank_feature] fields are not supported");
         }
     }
@@ -138,18 +139,18 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     private RankFeatureFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<RankFeatureFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         boolean positiveScoreImpact
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedField, multiFields, copyTo, false, null);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedField.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

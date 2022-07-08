@@ -144,8 +144,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 .endObject();
             concreteIndexMapping = createMapperService(mapping);
         }
-        MappedFieldType scriptFieldType = scriptIndexMapping.fieldType("field");
-        MappedFieldType concreteIndexType = concreteIndexMapping.fieldType("field");
+        MappedFieldType scriptFieldType = scriptIndexMapping.mappedField("field");
+        MappedFieldType concreteIndexType = concreteIndexMapping.mappedField("field");
         assertEquals(concreteIndexType.familyTypeName(), scriptFieldType.familyTypeName());
         assertEquals(concreteIndexType.isSearchable(), scriptFieldType.isSearchable());
         assertEquals(concreteIndexType.isAggregatable(), scriptFieldType.isAggregatable());
@@ -197,11 +197,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
-            when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
+            when(context.getMappedField(anyString())).thenReturn(mappedFieldType);
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
-            context::getFieldType,
+            context::getMappedField,
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
@@ -296,13 +296,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
         {
             SearchExecutionContext c = createSearchExecutionContext(mapperService);
-            c.getFieldType("field").existsQuery(c);
+            c.getMappedField("field").existsQuery(c);
             assertFalse(c.isCacheable());
         }
 
         {
             SearchExecutionContext c = createSearchExecutionContext(mapperService);
-            c.getFieldType("field_source").existsQuery(c);
+            c.getMappedField("field_source").existsQuery(c);
             assertTrue(c.isCacheable());
         }
     }

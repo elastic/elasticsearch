@@ -24,8 +24,8 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
         MapperService mapperService = createMapperService(mapping);
 
-        assertTrue(mapperService.fieldType("name").isSearchable());
-        assertThat(mapperService.fieldType("name.indexed"), nullValue());
+        assertTrue(mapperService.mappedField("name").isSearchable());
+        assertThat(mapperService.mappedField("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
         LuceneDocument doc = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
@@ -37,12 +37,12 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping2.json");
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertTrue(mapperService.fieldType("name").isSearchable());
+        assertTrue(mapperService.mappedField("name").isSearchable());
 
-        assertThat(mapperService.fieldType("name.indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed2"), nullValue());
-        assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
+        assertThat(mapperService.mappedField("name.indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed2"), nullValue());
+        assertThat(mapperService.mappedField("name.not_indexed3"), nullValue());
 
         doc = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         f = doc.getField("name");
@@ -53,30 +53,30 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping3.json");
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertTrue(mapperService.fieldType("name").isSearchable());
+        assertTrue(mapperService.mappedField("name").isSearchable());
 
-        assertThat(mapperService.fieldType("name.indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed2"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
+        assertThat(mapperService.mappedField("name.indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed2"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed3"), nullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertTrue(mapperService.fieldType("name").isSearchable());
+        assertTrue(mapperService.mappedField("name").isSearchable());
 
-        assertThat(mapperService.fieldType("name.indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed2"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed3"), notNullValue());
+        assertThat(mapperService.mappedField("name.indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed2"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed3"), notNullValue());
     }
 
     public void testUpgradeFromMultiFieldTypeToMultiFields() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
         MapperService mapperService = createMapperService(mapping);
 
-        assertTrue(mapperService.fieldType("name").isSearchable());
-        assertThat(mapperService.fieldType("name.indexed"), nullValue());
+        assertTrue(mapperService.mappedField("name").isSearchable());
+        assertThat(mapperService.mappedField("name.indexed"), nullValue());
 
         LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("name", "some name"))).rootDoc();
         IndexableField f = doc.getField("name");
@@ -87,12 +87,12 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade1.json");
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertTrue(mapperService.fieldType("name").isSearchable());
+        assertTrue(mapperService.mappedField("name").isSearchable());
 
-        assertThat(mapperService.fieldType("name.indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed2"), nullValue());
-        assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
+        assertThat(mapperService.mappedField("name.indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed2"), nullValue());
+        assertThat(mapperService.mappedField("name.not_indexed3"), nullValue());
 
         doc = mapperService.documentMapper().parse(source(b -> b.field("name", "some name"))).rootDoc();
         f = doc.getField("name");
@@ -103,12 +103,12 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade2.json");
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertTrue(mapperService.fieldType("name").isSearchable());
+        assertTrue(mapperService.mappedField("name").isSearchable());
 
-        assertThat(mapperService.fieldType("name.indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed2"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
+        assertThat(mapperService.mappedField("name.indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed2"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed3"), nullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade3.json");
         try {
@@ -120,10 +120,10 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         }
 
         // There are conflicts, so the `name.not_indexed3` has not been added
-        assertTrue(mapperService.fieldType("name").isSearchable());
-        assertThat(mapperService.fieldType("name.indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed2"), notNullValue());
-        assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
+        assertTrue(mapperService.mappedField("name").isSearchable());
+        assertThat(mapperService.mappedField("name.indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed2"), notNullValue());
+        assertThat(mapperService.mappedField("name.not_indexed3"), nullValue());
     }
 }

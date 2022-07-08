@@ -203,9 +203,10 @@ public class CompletionFieldMapper extends FieldMapper {
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue())
             );
 
-            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(name), completionAnalyzer, meta.getValue());
+            CompletionFieldType ft = new CompletionFieldType(completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
-            return new CompletionFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new CompletionFieldMapper(name, new MappedField<>(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
         private void checkCompletionContextsLimit() {
@@ -249,8 +250,8 @@ public class CompletionFieldMapper extends FieldMapper {
 
         private ContextMappings contextMappings = null;
 
-        public CompletionFieldType(String name, NamedAnalyzer searchAnalyzer, Map<String, String> meta) {
-            super(name, true, false, false, new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer), meta);
+        public CompletionFieldType(NamedAnalyzer searchAnalyzer, Map<String, String> meta) {
+            super(true, false, false, new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer), meta);
         }
 
         public void setContextMappings(ContextMappings contextMappings) {
@@ -275,24 +276,25 @@ public class CompletionFieldMapper extends FieldMapper {
         /**
          * Completion prefix query
          */
-        public CompletionQuery prefixQuery(Object value) {
+        public CompletionQuery prefixQuery(String name, Object value) {
             return new PrefixCompletionQuery(
                 getTextSearchInfo().searchAnalyzer().analyzer(),
-                new Term(name(), indexedValueForSearch(value))
+                new Term(name, indexedValueForSearch(name, value))
             );
         }
 
         /**
          * Completion prefix regular expression query
          */
-        public CompletionQuery regexpQuery(Object value, int flags, int maxDeterminizedStates) {
-            return new RegexCompletionQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
+        public CompletionQuery regexpQuery(String name, Object value, int flags, int maxDeterminizedStates) {
+            return new RegexCompletionQuery(new Term(name, indexedValueForSearch(name, value)), flags, maxDeterminizedStates);
         }
 
         /**
          * Completion prefix fuzzy query
          */
         public CompletionQuery fuzzyQuery(
+            String name,
             String value,
             Fuzziness fuzziness,
             int nonFuzzyPrefixLength,
@@ -303,7 +305,7 @@ public class CompletionFieldMapper extends FieldMapper {
         ) {
             return new FuzzyCompletionQuery(
                 getTextSearchInfo().searchAnalyzer().analyzer(),
-                new Term(name(), indexedValueForSearch(value)),
+                new Term(name, indexedValueForSearch(name, value)),
                 null,
                 fuzziness.asDistance(),
                 transpositions,
@@ -320,12 +322,12 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ArraySourceValueFetcher(name(), context) {
+            return new ArraySourceValueFetcher(name, context) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {
@@ -346,12 +348,12 @@ public class CompletionFieldMapper extends FieldMapper {
 
     public CompletionFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<CompletionFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
         this.indexAnalyzer = builder.buildAnalyzer();
@@ -359,7 +361,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), indexAnalyzer);
+        return Map.of(mappedField.name(), indexAnalyzer);
     }
 
     @Override
@@ -414,7 +416,7 @@ public class CompletionFieldMapper extends FieldMapper {
         for (Map.Entry<String, CompletionInputMetadata> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
             if (input.trim().isEmpty()) {
-                context.addIgnoredField(mappedFieldType.name());
+                context.addIgnoredField(mappedField.name());
                 continue;
             }
             // truncate input
@@ -428,18 +430,18 @@ public class CompletionFieldMapper extends FieldMapper {
             }
             CompletionInputMetadata metadata = completionInput.getValue();
             if (fieldType().hasContextMappings()) {
-                fieldType().getContextMappings().addField(context.doc(), fieldType().name(), input, metadata.weight, metadata.contexts);
+                fieldType().getContextMappings().addField(context.doc(), name(), input, metadata.weight, metadata.contexts);
             } else {
-                context.doc().add(new SuggestField(fieldType().name(), input, metadata.weight));
+                context.doc().add(new SuggestField(name(), input, metadata.weight));
             }
         }
 
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(name());
         for (CompletionInputMetadata metadata : inputMap.values()) {
             multiFields.parse(
                 this,
                 context,
-                () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
+                () -> context.switchParser(new MultiFieldParser(metadata, name(), context.parser().getTokenLocation()))
             );
         }
     }
@@ -513,7 +515,7 @@ public class CompletionFieldMapper extends FieldMapper {
                         weight = weightValue.intValue();
                     } else if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
                         if (fieldType().hasContextMappings() == false) {
-                            throw new IllegalArgumentException("contexts field is not supported for field: [" + fieldType().name() + "]");
+                            throw new IllegalArgumentException("contexts field is not supported for field: [" + name() + "]");
                         }
                         ContextMappings contextMappings = fieldType().getContextMappings();
                         XContentParser.Token currentToken = parser.currentToken();

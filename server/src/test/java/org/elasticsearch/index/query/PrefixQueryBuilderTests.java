@@ -63,7 +63,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
             query,
             Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class), instanceOf(AutomatonQuery.class))
         );
-        if (context.getFieldType(queryBuilder.fieldName()) != null && queryBuilder.caseInsensitive() == false) { // The field is mapped and
+        if (context.getMappedField(queryBuilder.fieldName()) != null && queryBuilder.caseInsensitive() == false) { // The field is mapped and
                                                                                                                  // case sensitive
             PrefixQuery prefixQuery = (PrefixQuery) query;
 

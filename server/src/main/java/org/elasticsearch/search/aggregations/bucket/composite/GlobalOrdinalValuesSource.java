@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -44,7 +45,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     GlobalOrdinalValuesSource(
         BigArrays bigArrays,
-        MappedFieldType type,
+        MappedField mappedField,
         CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
         DocValueFormat format,
         boolean missingBucket,
@@ -52,7 +53,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, mappedField, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
     }
@@ -105,7 +106,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (missingBucket && value == null) {
             afterValue = null;
             afterValueGlobalOrd = MISSING_VALUE_FLAG;
-        } else if (value.getClass() == String.class || (fieldType == null)) {
+        } else if (value.getClass() == String.class || (mappedField == null)) {
             // the value might be not string if this field is missing in this shard but present in other shards
             // and doesn't have a string type
             afterValue = format.parseBytesRef(value);
@@ -190,12 +191,12 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
-            || fieldType instanceof StringFieldType == false
+        if (checkIfSortedDocsIsApplicable(reader, mappedField.type()) == false
+            || mappedField.type() instanceof StringFieldType == false
             || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
-        return new TermsSortedDocsProducer(fieldType.name());
+        return new TermsSortedDocsProducer(mappedField.name());
     }
 
     @Override

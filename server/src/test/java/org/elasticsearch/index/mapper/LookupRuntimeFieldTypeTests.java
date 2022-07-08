@@ -57,7 +57,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo", List.of("f1", "f2")).endObject();
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
-        MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
+        MappedFieldType fieldType = mapperService.mappedField("foo_lookup_field");
         ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
         DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);
         assertNotNull(doc);
@@ -113,7 +113,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
         source.endObject();
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
-        MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
+        MappedFieldType fieldType = mapperService.mappedField("foo_lookup_field");
         ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
         DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);
         assertNull(doc);
@@ -136,7 +136,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
             }
             """;
         var mapperService = createMapperService(mapping);
-        MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
+        MappedFieldType fieldType = mapperService.mappedField("foo_lookup_field");
         // fails if unmapped_fields is not
         QueryShardException error = expectThrows(QueryShardException.class, () -> {
             SearchExecutionContext context = createSearchExecutionContext(mapperService);

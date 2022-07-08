@@ -30,13 +30,13 @@ import java.util.Map;
  */
 public abstract class ConstantFieldType extends MappedFieldType {
 
-    public ConstantFieldType(String name, Map<String, String> meta) {
-        super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+    public ConstantFieldType(Map<String, String> meta) {
+        super(true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         assert isSearchable();
     }
 
     @Override
-    public final boolean isAggregatable() {
+    public final boolean isAggregatable(String name) {
         return true;
     }
 
@@ -51,7 +51,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termQuery(Object value, SearchExecutionContext context) {
+    public final Query termQuery(String name, Object value, SearchExecutionContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, false, context)) {
             return Queries.newMatchAllQuery();
@@ -61,7 +61,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+    public final Query termQueryCaseInsensitive(String name, Object value, SearchExecutionContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, true, context)) {
             return Queries.newMatchAllQuery();
@@ -71,7 +71,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+    public final Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {
@@ -84,6 +84,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @Override
     public final Query prefixQuery(
+        String name,
         String prefix,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitive,
@@ -99,6 +100,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @Override
     public final Query wildcardQuery(
+        String name,
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitive,

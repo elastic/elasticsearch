@@ -43,12 +43,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
         @Override
         AbstractScriptFieldType<?> createFieldType(
-            String name,
             BooleanFieldScript.Factory factory,
             Script script,
             Map<String, String> meta
         ) {
-            return new BooleanScriptFieldType(name, factory, script, meta);
+            return new BooleanScriptFieldType(factory, script, meta);
         }
 
         @Override
@@ -67,10 +66,9 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         return new Builder(name).createRuntimeField(BooleanFieldScript.PARSE_FROM_SOURCE);
     }
 
-    BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    BooleanScriptFieldType(BooleanFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
         super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            (name, searchLookup) -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -95,25 +93,27 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        checkNoFormat(format);
-        checkNoTimeZone(timeZone);
+    public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
+        checkNoFormat(name, format);
+        checkNoTimeZone(name, timeZone);
         return DocValueFormat.BOOLEAN;
     }
 
     @Override
-    public BooleanScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), BooleanDocValuesField::new);
+    public BooleanScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
+                                                           Supplier<SearchLookup> searchLookup) {
+        return new BooleanScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), BooleanDocValuesField::new);
     }
 
     @Override
-    public Query existsQuery(SearchExecutionContext context) {
+    public Query existsQuery(String name, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new BooleanScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new BooleanScriptFieldExistsQuery(script, leafFactory(name, context), name);
     }
 
     @Override
     public Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -174,23 +174,23 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             }
         }
 
-        return termsQuery(trueAllowed, falseAllowed, context);
+        return termsQuery(name, trueAllowed, falseAllowed, context);
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+    public Query termQueryCaseInsensitive(String name, Object value, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value, true));
+        return new BooleanScriptFieldTermQuery(script, leafFactory(name, context.lookup()), name, toBoolean(value, true));
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value, false));
+        return new BooleanScriptFieldTermQuery(script, leafFactory(name, context), name, toBoolean(value, false));
     }
 
     @Override
-    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+    public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("Empty terms query");
         }
@@ -203,21 +203,21 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
                 falseAllowed = true;
             }
         }
-        return termsQuery(trueAllowed, falseAllowed, context);
+        return termsQuery(name, trueAllowed, falseAllowed, context);
     }
 
-    private Query termsQuery(boolean trueAllowed, boolean falseAllowed, SearchExecutionContext context) {
+    private Query termsQuery(String name, boolean trueAllowed, boolean falseAllowed, SearchExecutionContext context) {
         if (trueAllowed) {
             if (falseAllowed) {
                 // Either true or false
-                return existsQuery(context);
+                return existsQuery(name, context);
             }
             applyScriptContext(context);
-            return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), true);
+            return new BooleanScriptFieldTermQuery(script, leafFactory(name, context), name, true);
         }
         if (falseAllowed) {
             applyScriptContext(context);
-            return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
+            return new BooleanScriptFieldTermQuery(script, leafFactory(name, context), name, false);
         }
         return new MatchNoDocsQuery("neither true nor false allowed");
     }
@@ -227,7 +227,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     /**
-     * Convert the term into a boolean. Inspired by {@link BooleanFieldMapper.BooleanFieldType#indexedValueForSearch(Object)}.
+     * Convert the term into a boolean. Inspired by {@link BooleanFieldMapper.BooleanFieldType#indexedValueForSearch(String, Object)}.
      */
     private static boolean toBoolean(Object value, boolean caseInsensitive) {
         if (value == null) {

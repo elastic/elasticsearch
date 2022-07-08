@@ -10,7 +10,7 @@ package org.elasticsearch.search.lookup;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.DynamicFieldType;
+import org.elasticsearch.index.mapper.DynamicMappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -73,7 +73,7 @@ public class LeafDocLookupTests extends ESTestCase {
         IndexFieldData<?> fieldData2 = createFieldData(docValues2, "flattened.key2");
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(MapperBuilderContext.ROOT);
-        DynamicFieldType fieldType = fieldMapper.fieldType();
+        DynamicMappedField fieldType = fieldMapper.fieldType();
         MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
         MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
 

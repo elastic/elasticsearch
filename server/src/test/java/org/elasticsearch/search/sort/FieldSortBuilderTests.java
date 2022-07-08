@@ -578,7 +578,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 try (DirectoryReader reader = writer.getReader()) {
                     SearchExecutionContext context = createMockSearchExecutionContext(new IndexSearcher(reader));
                     DocValueFormat[] dateValueFormat = new DocValueFormat[] {
-                        context.getFieldType("custom-date").docValueFormat(null, null) };
+                        context.getMappedField("custom-date").docValueFormat(null, null) };
                     assertTrue(
                         fieldSort.isBottomSortShardDisjoint(context, new SearchSortValuesAndFormats(new Object[] { 0L }, dateValueFormat))
                     );
@@ -595,7 +595,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 try (DirectoryReader reader = writer.getReader()) {
                     SearchExecutionContext context = createMockSearchExecutionContext(new IndexSearcher(reader));
                     DocValueFormat[] dateValueFormat = new DocValueFormat[] {
-                        context.getFieldType("custom-date").docValueFormat(null, null) };
+                        context.getMappedField("custom-date").docValueFormat(null, null) };
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context, null));
                     assertFalse(
                         fieldSort.isBottomSortShardDisjoint(

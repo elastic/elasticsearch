@@ -28,7 +28,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.mappedField("field");
         assertFalse(ft.isDimension());
 
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);

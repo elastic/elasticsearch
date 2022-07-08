@@ -89,6 +89,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -1675,7 +1676,7 @@ public class IndicesService extends AbstractLifecycleComponent
             client,
             nowInMillis,
             clusterService::state,
-            this::getTimestampFieldType
+            this::getTimestampField
         );
     }
 
@@ -1779,8 +1780,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * - the field is not a timestamp field.
      */
     @Nullable
-    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
-        return timestampFieldMapperService.getTimestampFieldType(index);
+    public MappedField<DateFieldMapper.DateFieldType> getTimestampField(Index index) {
+        return timestampFieldMapperService.getTimestampField(index);
     }
 
 }

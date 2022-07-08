@@ -36,7 +36,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
 
     protected AbstractPointGeometryFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<? extends AbstractGeometryFieldType<T>> mappedField,
         MultiFields multiFields,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
@@ -44,19 +44,19 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedField, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
         this.nullValue = nullValue;
     }
 
     protected AbstractPointGeometryFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<? extends AbstractGeometryFieldType<T>> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser,
         String onScriptError
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
+        super(simpleName, mappedField, multiFields, copyTo, parser, onScriptError);
         this.nullValue = null;
     }
 

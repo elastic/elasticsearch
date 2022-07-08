@@ -435,7 +435,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
-    public MappedFieldType fieldType(String fullName) {
+    public MappedField mappedField(String fullName) {
         return mappingLookup().fieldTypesLookup().get(fullName);
     }
 
@@ -453,7 +453,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns field types that have eager global ordinals.
      */
-    public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
+    public Iterable<MappedField> getEagerGlobalOrdinalsFields() {
         DocumentMapper mapper = this.mapper;
         if (mapper == null) {
             return Collections.emptySet();
@@ -461,8 +461,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MappingLookup mappingLookup = mapper.mappers();
         return mappingLookup.getMatchingFieldNames("*")
             .stream()
-            .map(mappingLookup::getFieldType)
-            .filter(MappedFieldType::eagerGlobalOrdinals)
+            .map(mappingLookup::getMappedField)
+            .filter(MappedField::eagerGlobalOrdinals)
             .toList();
     }
 

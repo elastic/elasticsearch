@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -254,8 +254,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if ("version".equals(this.type.toString())) {
             try {
                 // TODO there must be a better way to get the field type...
-                MappedFieldType scriptFieldType = context.buildAnonymousFieldType(this.type.toString());
-                scriptResultValueFormat = scriptFieldType.docValueFormat(null, null);
+                MappedField mappedField = context.buildAnonymousField(this.type.toString());
+                scriptResultValueFormat = mappedField.docValueFormat(null, null);
             } catch (Exception e) {
                 // "version" type is not available, fall back to RAW and sort as a string
             }

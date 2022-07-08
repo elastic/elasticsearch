@@ -94,7 +94,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+            super(false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -103,24 +103,25 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return new DocValueFetcher(docValueFormat(name, format, null), context.getForField(
+                new MappedField<>(name, this)));
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
             return DocValueFormat.TIME_SERIES_ID;
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
             // TODO don't leak the TSID's binary format into the script
             return new SortedOrdinalsIndexFieldData.Builder(
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -130,13 +131,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + NAME + "] is not searchable");
         }
     }
 
     private TimeSeriesIdFieldMapper() {
-        super(FIELD_TYPE);
+        super(new MappedField<>(NAME, FIELD_TYPE));
     }
 
     @Override
@@ -145,7 +146,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+        context.doc().add(new SortedDocValuesField(name(), timeSeriesId));
         TsidExtractingIdFieldMapper.createField(context, timeSeriesId);
     }
 

@@ -27,7 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.script.ScriptService;
 
@@ -126,8 +126,8 @@ public final class SimilarityService {
     /**
      * The similarity to use in searches, which takes into account per-field configuration.
      */
-    public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
-        return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) : defaultSimilarity;
+    public Similarity similarity(@Nullable Function<String, MappedField> fieldLookup) {
+        return (fieldLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldLookup) : defaultSimilarity;
     }
 
     public SimilarityProvider getSimilarity(String name) {
@@ -148,19 +148,19 @@ public final class SimilarityService {
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;
-        private final Function<String, MappedFieldType> fieldTypeLookup;
+        private final Function<String, MappedField> fieldLookup;
 
-        PerFieldSimilarity(Similarity defaultSimilarity, Function<String, MappedFieldType> fieldTypeLookup) {
+        PerFieldSimilarity(Similarity defaultSimilarity, Function<String, MappedField> fieldLookup) {
             super();
             this.defaultSimilarity = defaultSimilarity;
-            this.fieldTypeLookup = Objects.requireNonNull(fieldTypeLookup, "fieldTypeLookup cannot be null");
+            this.fieldLookup = Objects.requireNonNull(fieldLookup, "fieldTypeLookup cannot be null");
         }
 
         @Override
         public Similarity get(String name) {
-            MappedFieldType fieldType = fieldTypeLookup.apply(name);
-            return (fieldType != null && fieldType.getTextSearchInfo().similarity() != null)
-                ? fieldType.getTextSearchInfo().similarity().get()
+            MappedField mappedField = fieldLookup.apply(name);
+            return (mappedField != null && mappedField.getTextSearchInfo().similarity() != null)
+                ? mappedField.getTextSearchInfo().similarity().get()
                 : defaultSimilarity;
         }
     }

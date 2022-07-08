@@ -63,8 +63,8 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     public static final class NestedPathFieldType extends StringFieldType {
 
-        private NestedPathFieldType(String name) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private NestedPathFieldType() {
+            super(true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -73,23 +73,23 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name + "].");
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
             return false;
         }
     }
 
     private NestedPathFieldMapper(String name) {
-        super(new NestedPathFieldType(name));
+        super(new MappedField(name, new NestedPathFieldType()));
     }
 
     @Override

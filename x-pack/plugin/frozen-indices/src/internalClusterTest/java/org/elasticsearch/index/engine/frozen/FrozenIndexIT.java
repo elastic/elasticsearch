@@ -189,7 +189,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldType(index));
+            assertNull(indicesService.getTimestampField(index));
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
@@ -197,7 +197,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
             assertBusy(() -> {
-                final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(index);
+                final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampField(index);
                 assertNotNull(timestampFieldType);
                 timestampFieldTypeFuture.onResponse(timestampFieldType);
             });
@@ -209,7 +209,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldType(index));
+            assertNull(indicesService.getTimestampField(index));
         }
     }
 

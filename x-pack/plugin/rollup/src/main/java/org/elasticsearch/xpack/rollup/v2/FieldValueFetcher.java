@@ -105,7 +105,7 @@ class FieldValueFetcher {
     static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
         List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
         for (String field : fields) {
-            MappedFieldType fieldType = context.getFieldType(field);
+            MappedFieldType fieldType = context.getMappedField(field);
             if (fieldType == null) {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
             }

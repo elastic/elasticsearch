@@ -11,7 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
@@ -33,7 +33,7 @@ public class CompositeValuesSourceConfig {
 
     private final String name;
     @Nullable
-    private final MappedFieldType fieldType;
+    private final MappedField<?> mappedField;
     private final ValuesSource vs;
     private final DocValueFormat format;
     private final int reverseMul;
@@ -46,7 +46,7 @@ public class CompositeValuesSourceConfig {
      * Creates a new {@link CompositeValuesSourceConfig}.
      *
      * @param name The name of the source.
-     * @param fieldType The field type or null if the source is a script.
+     * @param mappedField The field or null if the source is a script.
      * @param vs The underlying {@link ValuesSource}.
      * @param format The {@link DocValueFormat} of this source.
      * @param order The sort order associated with this source.
@@ -56,7 +56,7 @@ public class CompositeValuesSourceConfig {
      */
     CompositeValuesSourceConfig(
         String name,
-        @Nullable MappedFieldType fieldType,
+        @Nullable MappedField<?> mappedField,
         ValuesSource vs,
         DocValueFormat format,
         SortOrder order,
@@ -66,7 +66,7 @@ public class CompositeValuesSourceConfig {
         SingleDimensionValuesSourceProvider singleDimensionValuesSourceProvider
     ) {
         this.name = name;
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
         this.vs = vs;
         this.format = format;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
@@ -84,10 +84,10 @@ public class CompositeValuesSourceConfig {
     }
 
     /**
-     * Returns the {@link MappedFieldType} for this config.
+     * Returns the {@link MappedField} for this config.
      */
-    MappedFieldType fieldType() {
-        return fieldType;
+    MappedField mappedField() {
+        return mappedField;
     }
 
     /**

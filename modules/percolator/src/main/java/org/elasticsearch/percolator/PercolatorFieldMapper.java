@@ -232,8 +232,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         RangeFieldMapper.RangeFieldType rangeField;
         boolean mapUnmappedFieldsAsText;
 
-        private PercolatorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+        private PercolatorFieldType(Map<String, String> meta) {
+            super(false, false, false, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -242,13 +242,13 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name, context, format);
         }
 
         Query percolateQuery(

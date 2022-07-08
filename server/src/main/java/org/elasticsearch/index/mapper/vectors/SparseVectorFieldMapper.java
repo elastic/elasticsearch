@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -57,7 +58,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
                 name,
-                new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
+                new MappedField<>(context.buildFullName(name), new SparseVectorFieldType(meta.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
@@ -75,8 +76,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        public SparseVectorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+        public SparseVectorFieldType(Map<String, String> meta) {
+            super(false, false, false, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -85,28 +86,28 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    private SparseVectorFieldMapper(String simpleName, MappedField<SparseVectorFieldType> mappedField, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, mappedField, multiFields, copyTo);
     }
 
     @Override

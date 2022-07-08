@@ -60,7 +60,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "long")));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "9223372036854775806.00")));
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            MappedFieldType ft = mapperService.fieldType("field");
+            MappedFieldType ft = mapperService.mappedField("field");
             SearchExecutionContext sec = createSearchExecutionContext(mapperService);
             Query rangeQuery = ft.rangeQuery(0, 9223372036854775807L, false, false, ShapeRelation.CONTAINS, null, null, sec);
             IndexSearcher searcher = new IndexSearcher(ir);

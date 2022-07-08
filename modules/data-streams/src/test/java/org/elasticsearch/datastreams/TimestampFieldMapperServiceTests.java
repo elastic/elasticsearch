@@ -61,7 +61,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
         IndexResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
-        var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
+        var result = indicesService.getTimestampField(indexResponse.getShardId().getIndex());
         assertThat(result, notNullValue());
     }
 
@@ -70,7 +70,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
         IndexResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
-        var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
+        var result = indicesService.getTimestampField(indexResponse.getShardId().getIndex());
         assertThat(result, nullValue());
     }
 

@@ -30,6 +30,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -196,12 +197,12 @@ public class TermVectorsService {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
-            MappedFieldType fieldType = indexShard.mapperService().fieldType(field);
-            if (isValidField(fieldType) == false) {
+            MappedField mappedField = indexShard.mapperService().mappedField(field);
+            if (isValidField(mappedField.type()) == false) {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
-            if (fieldType.getTextSearchInfo().termVectors() != TextSearchInfo.TermVector.NONE
+            if (mappedField.getTextSearchInfo().termVectors() != TextSearchInfo.TermVector.NONE
                 && (request.perFieldAnalyzer() == null || request.perFieldAnalyzer().containsKey(field) == false)) {
                 continue;
             }
@@ -313,7 +314,7 @@ public class TermVectorsService {
         Set<String> seenFields = new HashSet<>();
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
-            MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
+            MappedFieldType fieldType = indexShard.mapperService().mappedField(field.name()).type();
             if (isValidField(fieldType) == false) {
                 continue;
             }

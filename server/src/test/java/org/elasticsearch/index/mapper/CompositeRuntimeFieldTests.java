@@ -78,36 +78,36 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertNull(mapperService.mappingLookup().getFieldType("obj"));
-        assertNull(mapperService.mappingLookup().getFieldType("long-subfield"));
-        assertNull(mapperService.mappingLookup().getFieldType("str-subfield"));
-        assertNull(mapperService.mappingLookup().getFieldType("double-subfield"));
-        assertNull(mapperService.mappingLookup().getFieldType("boolean-subfield"));
-        assertNull(mapperService.mappingLookup().getFieldType("ip-subfield"));
-        assertNull(mapperService.mappingLookup().getFieldType("geopoint-subfield"));
-        assertNull(mapperService.mappingLookup().getFieldType("obj.any-subfield"));
-        MappedFieldType longSubfield = mapperService.mappingLookup().getFieldType("obj.long-subfield");
+        assertNull(mapperService.mappingLookup().getMappedField("obj"));
+        assertNull(mapperService.mappingLookup().getMappedField("long-subfield"));
+        assertNull(mapperService.mappingLookup().getMappedField("str-subfield"));
+        assertNull(mapperService.mappingLookup().getMappedField("double-subfield"));
+        assertNull(mapperService.mappingLookup().getMappedField("boolean-subfield"));
+        assertNull(mapperService.mappingLookup().getMappedField("ip-subfield"));
+        assertNull(mapperService.mappingLookup().getMappedField("geopoint-subfield"));
+        assertNull(mapperService.mappingLookup().getMappedField("obj.any-subfield"));
+        MappedFieldType longSubfield = mapperService.mappingLookup().getMappedField("obj.long-subfield");
         assertEquals("obj.long-subfield", longSubfield.name());
         assertEquals("long", longSubfield.typeName());
-        MappedFieldType strSubfield = mapperService.mappingLookup().getFieldType("obj.str-subfield");
+        MappedFieldType strSubfield = mapperService.mappingLookup().getMappedField("obj.str-subfield");
         assertEquals("obj.str-subfield", strSubfield.name());
         assertEquals("keyword", strSubfield.typeName());
-        MappedFieldType doubleSubfield = mapperService.mappingLookup().getFieldType("obj.double-subfield");
+        MappedFieldType doubleSubfield = mapperService.mappingLookup().getMappedField("obj.double-subfield");
         assertEquals("obj.double-subfield", doubleSubfield.name());
         assertEquals("double", doubleSubfield.typeName());
-        MappedFieldType booleanSubfield = mapperService.mappingLookup().getFieldType("obj.boolean-subfield");
+        MappedFieldType booleanSubfield = mapperService.mappingLookup().getMappedField("obj.boolean-subfield");
         assertEquals("obj.boolean-subfield", booleanSubfield.name());
         assertEquals("boolean", booleanSubfield.typeName());
-        MappedFieldType ipSubfield = mapperService.mappingLookup().getFieldType("obj.ip-subfield");
+        MappedFieldType ipSubfield = mapperService.mappingLookup().getMappedField("obj.ip-subfield");
         assertEquals("obj.ip-subfield", ipSubfield.name());
         assertEquals("ip", ipSubfield.typeName());
-        MappedFieldType geoPointSubfield = mapperService.mappingLookup().getFieldType("obj.geopoint-subfield");
+        MappedFieldType geoPointSubfield = mapperService.mappingLookup().getMappedField("obj.geopoint-subfield");
         assertEquals("obj.geopoint-subfield", geoPointSubfield.name());
         assertEquals("geo_point", geoPointSubfield.typeName());
 
         RuntimeField rf = mapperService.mappingLookup().getMapping().getRoot().getRuntimeField("obj");
         assertEquals("obj", rf.name());
-        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().toList();
+        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFields().toList();
         for (MappedFieldType mappedFieldType : mappedFieldTypes) {
             if (mappedFieldType.name().equals("obj.long-subfield")) {
                 assertSame(longSubfield, mappedFieldType);
@@ -254,16 +254,16 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
 
         merge(mapperService, b);
 
-        assertNull(mapperService.mappingLookup().getFieldType("obj.long-subfield"));
-        assertNull(mapperService.mappingLookup().getFieldType("obj.str-subfield"));
-        MappedFieldType doubleSubField = mapperService.mappingLookup().getFieldType("obj.double-subfield");
+        assertNull(mapperService.mappingLookup().getMappedField("obj.long-subfield"));
+        assertNull(mapperService.mappingLookup().getMappedField("obj.str-subfield"));
+        MappedFieldType doubleSubField = mapperService.mappingLookup().getMappedField("obj.double-subfield");
         assertEquals("obj.double-subfield", doubleSubField.name());
         assertEquals("double", doubleSubField.typeName());
 
         RuntimeField rf = mapperService.mappingLookup().getMapping().getRoot().getRuntimeField("obj");
         assertEquals("obj", rf.name());
 
-        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().toList();
+        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFields().toList();
         assertEquals(1, mappedFieldTypes.size());
         assertSame(doubleSubField, mappedFieldTypes.iterator().next());
 
@@ -332,7 +332,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(Arrays.asList(doc1.rootDoc(), doc2.rootDoc())), reader -> {
             SearchLookup searchLookup = new SearchLookup(
-                mapperService::fieldType,
+                mapperService::mappedField,
                 (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
             );
 
@@ -368,8 +368,8 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
 
         assertNull(mapperService.mappingLookup().getMapper("obj.long"));
         assertNull(mapperService.mappingLookup().getMapper("obj.str"));
-        assertNotNull(mapperService.mappingLookup().getFieldType("obj.long"));
-        assertNotNull(mapperService.mappingLookup().getFieldType("obj.str"));
+        assertNotNull(mapperService.mappingLookup().getMappedField("obj.long"));
+        assertNotNull(mapperService.mappingLookup().getMappedField("obj.str"));
 
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
@@ -391,8 +391,8 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
 
         assertNotNull(mapperService.mappingLookup().getMapper("obj.long"));
         assertNull(mapperService.mappingLookup().getMapper("obj.str"));
-        assertNotNull(mapperService.mappingLookup().getFieldType("obj.long"));
-        assertNotNull(mapperService.mappingLookup().getFieldType("obj.str"));
+        assertNotNull(mapperService.mappingLookup().getMappedField("obj.long"));
+        assertNotNull(mapperService.mappingLookup().getMappedField("obj.str"));
     }
 
     public void testParseDocumentSubfieldsOutsideRuntimeObject() throws IOException {

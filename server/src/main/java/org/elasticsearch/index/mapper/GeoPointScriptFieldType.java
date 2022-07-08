@@ -39,12 +39,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, GeoPointFieldScript.CONTEXT) {
         @Override
         AbstractScriptFieldType<?> createFieldType(
-            String name,
             GeoPointFieldScript.Factory factory,
             Script script,
             Map<String, String> meta
         ) {
-            return new GeoPointScriptFieldType(name, factory, getScript(), meta());
+            return new GeoPointScriptFieldType(factory, getScript(), meta());
         }
 
         @Override
@@ -58,10 +57,9 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         }
     });
 
-    GeoPointScriptFieldType(String name, GeoPointFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    GeoPointScriptFieldType(GeoPointFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
         super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            (name, searchLookup) -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -75,6 +73,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     protected Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -83,37 +82,39 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        throw new IllegalArgumentException("Runtime field [" + name() + "] of type [" + typeName() + "] does not support range queries");
+        throw new IllegalArgumentException("Runtime field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
         throw new IllegalArgumentException(
-            "Geometry fields do not support exact searching, use dedicated geometry queries instead: [" + name() + "]"
+            "Geometry fields do not support exact searching, use dedicated geometry queries instead: [" + name + "]"
         );
     }
 
     @Override
-    public GeoPointScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new GeoPointScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), GeoPointDocValuesField::new);
+    public GeoPointScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
+                                                            Supplier<SearchLookup> searchLookup) {
+        return new GeoPointScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), GeoPointDocValuesField::new);
     }
 
     @Override
-    public Query existsQuery(SearchExecutionContext context) {
+    public Query existsQuery(String name, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new GeoPointScriptFieldExistsQuery(script, leafFactory(name, context), name);
     }
 
     @Override
-    public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
+    public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
+                               LatLonGeometry... geometries) {
         if (relation == ShapeRelation.CONTAINS && Arrays.stream(geometries).anyMatch(g -> (g instanceof Point) == false)) {
             return new MatchNoDocsQuery();
         }
-        return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, geometries);
+        return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(name, context), fieldName, relation, geometries);
     }
 
     @Override
-    public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
+    public Query distanceFeatureQuery(String name, Object origin, String pivot, SearchExecutionContext context) {
         GeoPoint originGeoPoint;
         if (origin instanceof GeoPoint) {
             originGeoPoint = (GeoPoint) origin;
@@ -127,8 +128,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
         return new GeoPointScriptFieldDistanceFeatureQuery(
             script,
-            leafFactory(context)::newInstance,
-            name(),
+            leafFactory(name, context)::newInstance,
+            name,
             originGeoPoint.lat(),
             originGeoPoint.lon(),
             pivotDouble

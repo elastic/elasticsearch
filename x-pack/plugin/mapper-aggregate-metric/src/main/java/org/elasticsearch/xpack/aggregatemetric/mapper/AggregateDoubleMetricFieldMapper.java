@@ -597,7 +597,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                 if (metrics.contains(metric) == false) {
                     throw new IllegalArgumentException(
-                        "Aggregate metric [" + metric + "] does not exist in the mapping of field [" + mappedFieldType.name() + "]"
+                        "Aggregate metric [" + metric + "] does not exist in the mapping of field [" + mappedField.name() + "]"
                     );
                 }
 
@@ -626,7 +626,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     Number n = context.doc().getField(delegateFieldMapper.name()).numericValue();
                     if (n.intValue() < 0) {
                         throw new IllegalArgumentException(
-                            "Aggregate metric [" + metric.name() + "] of field [" + mappedFieldType.name() + "] cannot be a negative number"
+                            "Aggregate metric [" + metric.name() + "] of field [" + mappedField.name() + "] cannot be a negative number"
                         );
                     }
                 }
@@ -637,7 +637,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             // Check if all required metrics have been parsed.
             if (metricsParsed.containsAll(metrics) == false) {
                 throw new IllegalArgumentException(
-                    "Aggregate metric field [" + mappedFieldType.name() + "] must contain all metrics " + metrics.toString()
+                    "Aggregate metric field [" + mappedField.name() + "] must contain all metrics " + metrics.toString()
                 );
             }
         } catch (Exception e) {

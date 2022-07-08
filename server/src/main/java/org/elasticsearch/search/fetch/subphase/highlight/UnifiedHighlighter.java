@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -59,7 +60,7 @@ public class UnifiedHighlighter implements Highlighter {
             cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
         }
         CustomUnifiedHighlighter highlighter = cache.get(fieldContext.fieldName);
-        MappedFieldType fieldType = fieldContext.fieldType;
+        MappedField mappedField = fieldContext.mappedField;
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
@@ -67,7 +68,7 @@ public class UnifiedHighlighter implements Highlighter {
             List<Object> fieldValues = loadFieldValues(
                 highlighter,
                 fieldContext.context.getSearchExecutionContext(),
-                fieldType,
+                mappedField,
                 hitContext,
                 fieldContext.forceSource
             );
@@ -117,12 +118,12 @@ public class UnifiedHighlighter implements Highlighter {
         );
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
-        OffsetSource offsetSource = getOffsetSource(fieldContext.context, fieldContext.fieldType);
+        OffsetSource offsetSource = getOffsetSource(fieldContext.context, fieldContext.mappedField.type());
         BreakIterator breakIterator;
         int higlighterNumberOfFragments;
         if (numberOfFragments == 0
             // non-tokenized fields should not use any break iterator (ignore boundaryScannerType)
-            || fieldContext.fieldType.getTextSearchInfo().isTokenized() == false) {
+            || fieldContext.mappedField.getTextSearchInfo().isTokenized() == false) {
             /*
              * We use a control char to separate values, which is the
              * only char that the custom break iterator breaks the text
@@ -168,13 +169,13 @@ public class UnifiedHighlighter implements Highlighter {
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
         SearchExecutionContext searchContext,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        return HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext, forceSource)
+        return HighlightUtils.loadFieldValues(mappedField, searchContext, hitContext, forceSource)
             .stream()
-            .<Object>map((s) -> convertFieldValue(fieldType, s))
+            .<Object>map((s) -> convertFieldValue(mappedField.type(), s))
             .toList();
     }
 

@@ -32,21 +32,21 @@ public class PathMatchDynamicTemplateTests extends MapperServiceTestCase {
         assertThat(f.stringValue(), equalTo("top_level"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        assertThat(mapperService.fieldType("name").isStored(), equalTo(false));
+        assertThat(mapperService.mappedField("name").isStored(), equalTo(false));
 
         f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        assertThat(mapperService.fieldType("obj1.name").isStored(), equalTo(true));
+        assertThat(mapperService.mappedField("obj1.name").isStored(), equalTo(true));
 
         f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        assertThat(mapperService.fieldType("obj1.obj2.name").isStored(), equalTo(false));
+        assertThat(mapperService.mappedField("obj1.obj2.name").isStored(), equalTo(false));
 
         // verify more complex path_match expressions
-        assertNotNull(mapperService.fieldType("obj3.obj4.prop1").getTextSearchInfo());
+        assertNotNull(mapperService.mappedField("obj3.obj4.prop1").getTextSearchInfo());
     }
 }

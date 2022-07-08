@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -91,7 +92,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
+    private final TriFunction<MappedField, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private SearchLookup lookup = null;
 
     private final int shardId;
@@ -110,7 +111,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Map<String, MappedFieldType> runtimeMappings;
+    private final Map<String, MappedField> runtimeMappings;
     private Predicate<String> allowedFields;
 
     /**
@@ -121,7 +122,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        TriFunction<MappedField, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -194,7 +195,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        TriFunction<MappedField, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -208,7 +209,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, MappedFieldType> runtimeMappings,
+        Map<String, MappedField> runtimeMappings,
         Predicate<String> allowedFields
     ) {
         super(parserConfig, namedWriteableRegistry, client, nowInMillis);
@@ -243,7 +244,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * The similarity to use in searches, which takes into account per-field configuration.
      */
     public Similarity getSearchSimilarity() {
-        return similarityService != null ? similarityService.similarity(this::fieldType) : null;
+        return similarityService != null ? similarityService.similarity(this::mappedField) : null;
     }
 
     /**
@@ -278,11 +279,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedField mappedField) {
         return (IFD) indexFieldDataService.apply(
-            fieldType,
+            mappedField,
             fullyQualifiedIndex.getName(),
-            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
+            () -> this.lookup().forkAndTrackFieldReferences(mappedField.name())
         );
     }
 
@@ -316,7 +317,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Returns the names of all mapped fields that match a given pattern
      *
      * All names returned by this method are guaranteed to resolve to a
-     * MappedFieldType if passed to {@link #getFieldType(String)}
+     * MappedFieldType if passed to {@link #getMappedField(String)}
      *
      * @param pattern the field name pattern
      */
@@ -343,7 +344,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the {@link MappedFieldType} for the provided field name.
+     * Returns the {@link MappedField} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
      * In case unmapped fields are allowed, null is returned when the field is not mapped.
      * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
@@ -351,24 +352,24 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * @see SearchExecutionContext#setAllowUnmappedFields(boolean)
      * @see SearchExecutionContext#setMapUnmappedFieldAsString(boolean)
      */
-    public MappedFieldType getFieldType(String name) {
-        return failIfFieldMappingNotFound(name, fieldType(name));
+    public MappedField getMappedField(String name) {
+        return failIfFieldMappingNotFound(name, mappedField(name));
     }
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public boolean isFieldMapped(String name) {
-        return fieldType(name) != null;
+        return mappedField(name) != null;
     }
 
-    private MappedFieldType fieldType(String name) {
+    private MappedField mappedField(String name) {
         // If the field is not allowed, behave as if it is not mapped
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
-        MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        MappedField mappedField = runtimeMappings.get(name);
+        return mappedField == null ? mappingLookup.getMappedField(name) : mappedField;
     }
 
     public boolean isMetadataField(String field) {
@@ -404,7 +405,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
-    public MappedFieldType buildAnonymousFieldType(String type) {
+    public MappedField<?> buildAnonymousField(String type) {
         MappingParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
@@ -413,7 +414,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
         Mapper mapper = builder.build(MapperBuilderContext.ROOT);
         if (mapper instanceof FieldMapper) {
-            return ((FieldMapper) mapper).fieldType();
+            return ((FieldMapper) mapper).field();
         }
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
     }
@@ -451,12 +452,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.allowedFields = allowedFields;
     }
 
-    MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
+    MappedField failIfFieldMappingNotFound(String name, MappedField fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(MapperBuilderContext.ROOT).fieldType();
+            return builder.build(MapperBuilderContext.ROOT).field();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -477,7 +478,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
-                this::getFieldType,
+                this::getMappedField,
                 (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
             );
         }
@@ -677,7 +678,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, MappedFieldType> parseRuntimeMappings(
+    private static Map<String, MappedField> parseRuntimeMappings(
         Map<String, Object> runtimeMappings,
         MapperService mapperService,
         IndexSettings indexSettings,
@@ -689,7 +690,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
         MappingParserContext parserContext = mapperService.parserContext();
         Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
-        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
+        Map<String, MappedField> runtimeFieldTypes = RuntimeField.collectMappedFields(runtimeFields.values());
         if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
             for (String r : runtimeMappings.keySet()) {
                 if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {

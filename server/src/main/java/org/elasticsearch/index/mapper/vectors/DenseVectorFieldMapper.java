@@ -25,7 +25,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -130,14 +130,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(
-                    context.buildFullName(name),
+                new MappedField<>(context.buildFullName(name),
+                    new DenseVectorFieldType(
                     indexVersionCreated,
                     dims.getValue(),
                     indexed.getValue(),
                     similarity.getValue(),
                     meta.getValue()
-                ),
+                )),
                 dims.getValue(),
                 indexed.getValue(),
                 similarity.getValue(),
@@ -235,14 +235,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Version indexVersionCreated;
 
         public DenseVectorFieldType(
-            String name,
             Version indexVersionCreated,
             int dims,
             boolean indexed,
             VectorSimilarity similarity,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
+            super(indexed, false, indexed == false, TextSearchInfo.NONE, meta);
             this.dims = dims;
             this.indexed = indexed;
             this.similarity = similarity;
@@ -255,11 +254,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new ArraySourceValueFetcher(name(), context) {
+            return new ArraySourceValueFetcher(name, context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;
@@ -268,41 +267,41 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
             throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations"
+                "Field [" + name + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations"
             );
         }
 
         @Override
-        public boolean isAggregatable() {
+        public boolean isAggregatable(String name) {
             return false;
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexVersionCreated, dims, indexed);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            return new VectorIndexFieldData.Builder(name, CoreValuesSourceType.KEYWORD, indexVersionCreated, dims, indexed);
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             if (indexed) {
-                return new KnnVectorFieldExistsQuery(name());
+                return new KnnVectorFieldExistsQuery(name);
             } else {
                 assert hasDocValues();
-                return new DocValuesFieldExistsQuery(name());
+                return new DocValuesFieldExistsQuery(name);
             }
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands, Query filter) {
+        public KnnVectorQuery createKnnQuery(String name, float[] queryVector, int numCands, Query filter) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
-                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                    "to perform knn search on field [" + name + "], its mapping must have [index] set to [true]"
                 );
             }
 
@@ -319,7 +318,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 checkVectorMagnitude(queryVector, squaredMagnitude);
             }
-            return new KnnVectorQuery(name(), queryVector, numCands, filter);
+            return new KnnVectorQuery(name, queryVector, numCands, filter);
         }
 
         private void checkVectorMagnitude(float[] vector, float squaredMagnitude) {
@@ -360,7 +359,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private DenseVectorFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<DenseVectorFieldType> mappedField,
         int dims,
         boolean indexed,
         VectorSimilarity similarity,
@@ -369,7 +368,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.dims = dims;
         this.indexed = indexed;
         this.similarity = similarity;
@@ -389,7 +388,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        if (context.doc().getByKey(fieldType().name()) != null) {
+        if (context.doc().getByKey(name()) != null) {
             throw new IllegalArgumentException(
                 "Field ["
                     + name()
@@ -400,7 +399,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);
-        context.doc().addWithKey(fieldType().name(), field);
+        context.doc().addWithKey(name(), field);
     }
 
     private Field parseKnnVector(DocumentParserContext context) throws IOException {
@@ -417,7 +416,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         checkDimensionMatches(index, context);
         fieldType().checkVectorMagnitude(vector, squaredMagnitude);
-        return new KnnVectorField(fieldType().name(), vector, similarity.function);
+        return new KnnVectorField(name(), vector, similarity.function);
     }
 
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
@@ -444,7 +443,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
-        return new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
+        return new BinaryDocValuesField(name(), new BytesRef(bytes));
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {

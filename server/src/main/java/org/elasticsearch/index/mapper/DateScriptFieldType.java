@@ -87,11 +87,11 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
+        AbstractScriptFieldType<?> createFieldType(DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta);
+            return new DateScriptFieldType(factory, dateTimeFormatter, script, meta);
         }
 
         @Override
@@ -115,15 +115,13 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     private final DateMathParser dateMathParser;
 
     DateScriptFieldType(
-        String name,
         DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Script script,
         Map<String, String> meta
     ) {
         super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
+            (name, searchLookup) -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -147,7 +145,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+    public DocValueFormat docValueFormat(String name, @Nullable String format, ZoneId timeZone) {
         DateFormatter dateTimeFormatter = this.dateTimeFormatter;
         if (format != null) {
             dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
@@ -159,12 +157,13 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
+    public DateScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
+        return new DateScriptFieldData.Builder(name, leafFactory(name, lookup.get()),
+            Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
     }
 
     @Override
-    public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
+    public Query distanceFeatureQuery(String name, Object origin, String pivot, SearchExecutionContext context) {
         applyScriptContext(context);
         return DateFieldType.handleNow(context, now -> {
             long originLong = DateFieldType.parseToLong(
@@ -178,8 +177,8 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             return new LongScriptFieldDistanceFeatureQuery(
                 script,
-                leafFactory(context)::newInstance,
-                name(),
+                leafFactory(name, context)::newInstance,
+                name,
                 originLong,
                 pivotTime.getMillis()
             );
@@ -187,13 +186,14 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public Query existsQuery(SearchExecutionContext context) {
+    public Query existsQuery(String name, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
+        return new LongScriptFieldExistsQuery(script, leafFactory(name, context)::newInstance, name);
     }
 
     @Override
     public Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -213,21 +213,21 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             parser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
+            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(name, context)::newInstance, name, l, u)
         );
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
         return DateFieldType.handleNow(context, now -> {
             long l = DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
             applyScriptContext(context);
-            return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
+            return new LongScriptFieldTermQuery(script, leafFactory(name, context)::newInstance, name, l);
         });
     }
 
     @Override
-    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+    public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }
@@ -237,7 +237,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }
             applyScriptContext(context);
-            return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
+            return new LongScriptFieldTermsQuery(script, leafFactory(name, context)::newInstance, name, terms);
         });
     }
 }

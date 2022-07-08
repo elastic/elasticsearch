@@ -643,8 +643,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.getFieldType(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(searchExecutionContext.getFieldType(fieldNameDate)).thenReturn(fieldTypeDate);
+        when(searchExecutionContext.getMappedField(fieldNameLong)).thenReturn(fieldTypeLong);
+        when(searchExecutionContext.getMappedField(fieldNameDate)).thenReturn(fieldTypeDate);
         // enough docs to have a tree with several leaf nodes
         final int numDocs = atLeast(3500 * 2);
         Directory dir = newDirectory();

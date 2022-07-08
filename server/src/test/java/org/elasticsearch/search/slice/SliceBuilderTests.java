@@ -165,7 +165,7 @@ public class SliceBuilderTests extends ESTestCase {
             }
         };
         SearchExecutionContext context = mock(SearchExecutionContext.class);
-        when(context.getFieldType(fieldName)).thenReturn(fieldType);
+        when(context.getMappedField(fieldName)).thenReturn(fieldType);
         when(context.getIndexReader()).thenReturn(reader);
         IndexSettings indexSettings = createIndexSettings(indexVersionCreated);
         when(context.getIndexSettings()).thenReturn(indexSettings);

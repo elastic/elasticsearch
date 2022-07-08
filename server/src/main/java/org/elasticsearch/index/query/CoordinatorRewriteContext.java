@@ -12,7 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -27,7 +27,7 @@ import java.util.function.LongSupplier;
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final IndexLongFieldRange indexLongFieldRange;
-    private final DateFieldMapper.DateFieldType timestampFieldType;
+    private final MappedField<DateFieldMapper.DateFieldType> timestampField;
 
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
@@ -35,11 +35,11 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         Client client,
         LongSupplier nowInMillis,
         IndexLongFieldRange indexLongFieldRange,
-        DateFieldMapper.DateFieldType timestampFieldType
+        MappedField<DateFieldMapper.DateFieldType> timestampField
     ) {
         super(parserConfig, writeableRegistry, client, nowInMillis);
         this.indexLongFieldRange = indexLongFieldRange;
-        this.timestampFieldType = timestampFieldType;
+        this.timestampField = timestampField;
     }
 
     long getMinTimestamp() {
@@ -55,12 +55,12 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     }
 
     @Nullable
-    public MappedFieldType getFieldType(String fieldName) {
-        if (fieldName.equals(timestampFieldType.name()) == false) {
+    public MappedField getMappedField(String fieldName) {
+        if (fieldName.equals(timestampField.name()) == false) {
             return null;
         }
 
-        return timestampFieldType;
+        return timestampField;
     }
 
     @Override

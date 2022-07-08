@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -99,7 +99,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      */
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(
-        MappedFieldType fieldType,
+        MappedField fieldType,
         String fullyQualifiedIndexName,
         Supplier<SearchLookup> searchLookup
     ) {

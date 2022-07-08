@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -58,7 +59,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
 
     private final IncludeExclude includeExclude;
-    private final MappedFieldType fieldType;
+    private final MappedField mappedField;
     private final String[] sourceFieldNames;
     private final QueryBuilder backgroundFilter;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -81,14 +82,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
 
-        this.fieldType = context.getFieldType(fieldName);
-        if (fieldType != null) {
-            if (supportsAgg(fieldType) == false) {
+        this.mappedField = context.getMappedField(fieldName);
+        if (mappedField != null) {
+            if (supportsAgg(mappedField.type()) == false) {
                 throw new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] has no analyzer, but SignificantText " + "requires an analyzed field"
+                    "Field [" + mappedField.name() + "] has no analyzer, but SignificantText " + "requires an analyzed field"
                 );
             }
-            String indexedFieldName = fieldType.name();
+            String indexedFieldName = mappedField.name();
             this.sourceFieldNames = sourceFieldNames == null ? new String[] { indexedFieldName } : sourceFieldNames;
         } else {
             this.sourceFieldNames = new String[0];
@@ -124,7 +125,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
 
-        if (fieldType == null) {
+        if (mappedField == null) {
             return createUnmapped(parent, metadata);
         }
 
@@ -167,7 +168,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             ? null
             : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        final SignificanceLookup lookup = new SignificanceLookup(context, samplingContext, fieldType, DocValueFormat.RAW, backgroundFilter);
+        final SignificanceLookup lookup = new SignificanceLookup(context, samplingContext, mappedField, DocValueFormat.RAW,
+            backgroundFilter);
         final CollectorSource collectorSource = createCollectorSource();
         boolean success = false;
         try {
@@ -226,7 +228,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             return new ProfilingSignificantTextCollectorSource(
                 context.lookup().source(),
                 context.bigArrays(),
-                fieldType,
+                mappedField,
                 analyzer,
                 fieldNames,
                 filterDuplicateText
@@ -235,7 +237,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         return new SignificantTextCollectorSource(
             context.lookup().source(),
             context.bigArrays(),
-            fieldType,
+            mappedField,
             analyzer,
             fieldNames,
             filterDuplicateText
@@ -245,7 +247,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private static class SignificantTextCollectorSource implements MapStringTermsAggregator.CollectorSource {
         private final SourceLookup sourceLookup;
         private final BigArrays bigArrays;
-        private final MappedFieldType fieldType;
+        private final MappedField mappedField;
         private final Analyzer analyzer;
         private final String[] sourceFieldNames;
         private final BytesRefBuilder scratch = new BytesRefBuilder();
@@ -254,14 +256,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         SignificantTextCollectorSource(
             SourceLookup sourceLookup,
             BigArrays bigArrays,
-            MappedFieldType fieldType,
+            MappedField mappedField,
             Analyzer analyzer,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
             this.sourceLookup = sourceLookup;
             this.bigArrays = bigArrays;
-            this.fieldType = fieldType;
+            this.mappedField = mappedField;
             this.analyzer = analyzer;
             this.sourceFieldNames = sourceFieldNames;
             dupSequenceSpotters = filterDuplicateText ? bigArrays.newObjectArray(1) : null;
@@ -269,7 +271,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
         @Override
         public String describe() {
-            return "analyze " + fieldType.name() + " from _source";
+            return "analyze " + mappedField.name() + " from _source";
         }
 
         @Override
@@ -316,13 +318,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                     return null;
                                 }
                                 if (obj instanceof BytesRef) {
-                                    return fieldType.valueForDisplay(obj).toString();
+                                    return mappedField.valueForDisplay(obj).toString();
                                 }
                                 return obj.toString();
                             }).iterator();
                             while (itr.hasNext()) {
                                 String text = itr.next();
-                                TokenStream ts = analyzer.tokenStream(fieldType.name(), text);
+                                TokenStream ts = analyzer.tokenStream(mappedField.name(), text);
                                 processTokenStream(
                                     includeExclude,
                                     doc,
@@ -419,7 +421,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private ProfilingSignificantTextCollectorSource(
             SourceLookup sourceLookup,
             BigArrays bigArrays,
-            MappedFieldType fieldType,
+            MappedField fieldType,
             Analyzer analyzer,
             String[] sourceFieldNames,
             boolean filterDuplicateText

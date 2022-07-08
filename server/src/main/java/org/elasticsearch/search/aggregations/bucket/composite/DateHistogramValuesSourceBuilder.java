@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -240,10 +240,10 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                 RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
                 // is specified in the builder.
                 final DocValueFormat docValueFormat = format == null ? DocValueFormat.RAW : valuesSourceConfig.format();
-                final MappedFieldType fieldType = valuesSourceConfig.fieldType();
+                final MappedField<?> mappedField = valuesSourceConfig.mappedField();
                 return new CompositeValuesSourceConfig(
                     name,
-                    fieldType,
+                    mappedField,
                     vs,
                     docValueFormat,
                     order,
@@ -259,7 +259,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                         final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
                         return new DateHistogramValuesSource(
                             bigArrays,
-                            compositeValuesSourceConfig.fieldType(),
+                            compositeValuesSourceConfig.mappedField(),
                             roundingValuesSource,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),

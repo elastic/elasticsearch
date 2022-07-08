@@ -116,7 +116,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     static final class SourceFieldType extends MappedFieldType {
 
         private SourceFieldType(boolean enabled) {
-            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -125,18 +125,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name + "].");
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            throw new QueryShardException(context, "The _source field is not searchable");
+        public Query existsQuery(String name, SearchExecutionContext context) {
+            throw new QueryShardException(context, "The " + name + " field is not searchable");
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new QueryShardException(context, "The _source field is not searchable");
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            throw new QueryShardException(context, "The " + name + " field is not searchable");
         }
     }
 
@@ -149,7 +149,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] excludes;
 
     private SourceFieldMapper(boolean enabled, boolean synthetic, String[] includes, String[] excludes) {
-        super(new SourceFieldType(enabled));
+        super(new MappedField<>(NAME, new SourceFieldType(enabled)));
         this.enabled = enabled;
         this.synthetic = synthetic;
         this.includes = includes;
@@ -180,7 +180,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
-            context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+            context.doc().add(new StoredField(name(), ref.bytes, ref.offset, ref.length));
         }
 
         if (originalSource != null && adaptedSource != originalSource) {

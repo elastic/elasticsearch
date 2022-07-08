@@ -14,7 +14,7 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -26,13 +26,13 @@ import java.util.List;
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
     private final FetchContext fetchContext;
-    private final MappedFieldType fieldType;
+    private final MappedField mappedField;
     private final SourceLookup sourceLookup;
     private final ValueFetcher valueFetcher;
     private final boolean fixBrokenAnalysis;
 
     public SourceScoreOrderFragmentsBuilder(
-        MappedFieldType fieldType,
+        MappedField mappedField,
         FetchContext fetchContext,
         boolean fixBrokenAnalysis,
         SourceLookup sourceLookup,
@@ -42,9 +42,9 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
     ) {
         super(preTags, postTags, boundaryScanner);
         this.fetchContext = fetchContext;
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
         this.sourceLookup = sourceLookup;
-        this.valueFetcher = fieldType.valueFetcher(fetchContext.getSearchExecutionContext(), null);
+        this.valueFetcher = mappedField.valueFetcher(fetchContext.getSearchExecutionContext(), null);
         this.fixBrokenAnalysis = fixBrokenAnalysis;
     }
 
@@ -61,7 +61,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         }
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(fieldType.name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(mappedField.name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

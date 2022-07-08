@@ -16,6 +16,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -151,9 +152,9 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String fieldInQuery = fieldName;
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType != null) {
-            fieldInQuery = fieldType.name();
+        MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField != null) {
+            fieldInQuery = mappedField.name();
         }
         Query innerQuery = queryBuilder.toQuery(context);
         assert innerQuery instanceof SpanQuery;

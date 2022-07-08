@@ -220,7 +220,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "date_nanos").field("null_value", "2016-03-11"))
         );
 
-        DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.fieldType("field");
+        DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.mappedField("field");
         long expectedNullValue = ft.parse("2016-03-11");
 
         doc = mapperService.documentMapper().parse(source(b -> b.nullField("field")));
@@ -286,8 +286,8 @@ public class DateFieldMapperTests extends MapperTestCase {
     public void testMergeDate() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "date").field("format", "yyyy/MM/dd")));
 
-        assertThat(mapperService.fieldType("field"), notNullValue());
-        assertFalse(mapperService.fieldType("field").isStored());
+        assertThat(mapperService.mappedField("field"), notNullValue());
+        assertFalse(mapperService.mappedField("field").isStored());
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -319,7 +319,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "date").field("format", "strict_date_time||epoch_millis"))
         );
-        MappedFieldType ft = mapperService.fieldType("field");
+        MappedFieldType ft = mapperService.mappedField("field");
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123Z";
         assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
@@ -328,7 +328,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testFormatPreserveNanos() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "date_nanos")));
-        DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.fieldType("field");
+        DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.mappedField("field");
         assertEquals(ft.dateTimeFormatter, DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER);
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
@@ -339,7 +339,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis"))
         );
-        MappedFieldType ft = mapperService.fieldType("field");
+        MappedFieldType ft = mapperService.mappedField("field");
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
@@ -711,8 +711,8 @@ public class DateFieldMapperTests extends MapperTestCase {
             b.field("format", "unknown-format");
             b.endObject();
         }));
-        assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
-        assertEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
+        assertThat(service.mappedField("mydate"), instanceOf(DateFieldType.class));
+        assertEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.mappedField("mydate")).dateTimeFormatter);
 
         // check that date format can be updated
         merge(service, mapping(b -> {
@@ -721,7 +721,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             b.field("format", "YYYY/MM/dd");
             b.endObject();
         }));
-        assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
-        assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
+        assertThat(service.mappedField("mydate"), instanceOf(DateFieldType.class));
+        assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.mappedField("mydate")).dateTimeFormatter);
     }
 }

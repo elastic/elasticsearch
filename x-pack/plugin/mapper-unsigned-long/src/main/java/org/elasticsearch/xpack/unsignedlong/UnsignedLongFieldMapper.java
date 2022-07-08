@@ -533,7 +533,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
+                    context.addIgnoredField(mappedField.name());
                     return;
                 } else {
                     throw e;

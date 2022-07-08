@@ -20,6 +20,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -67,7 +68,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
                 name,
-                new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
+                new MappedField<>(context.buildFullName(name), new Murmur3FieldType(stored.getValue(), meta.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
@@ -79,8 +80,8 @@ public class Murmur3FieldMapper extends FieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
 
-        private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
-            super(name, false, isStored, true, TextSearchInfo.NONE, meta);
+        private Murmur3FieldType(boolean isStored, Map<String, String> meta) {
+            super( false, isStored, true, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -89,24 +90,24 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new SortedNumericIndexFieldData.Builder(name, NumericType.LONG, Murmur3DocValueField::new);
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name, context, format);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Murmur3 fields are not searchable: [" + name() + "]");
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Murmur3 fields are not searchable: [" + name + "]");
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    protected Murmur3FieldMapper(String simpleName, MappedField<Murmur3FieldType> mappedField, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, mappedField, multiFields, copyTo);
     }
 
     @Override
@@ -125,7 +126,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         if (value != null) {
             final BytesRef bytes = new BytesRef(value.toString());
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
+            context.doc().add(new SortedNumericDocValuesField(name(), hash));
             if (fieldType().isStored()) {
                 context.doc().add(new StoredField(name(), hash));
             }

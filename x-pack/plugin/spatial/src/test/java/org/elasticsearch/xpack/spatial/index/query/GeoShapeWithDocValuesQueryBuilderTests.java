@@ -69,7 +69,7 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
     protected void doAssertLuceneQuery(GeoShapeQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(true, equalTo(query instanceof ConstantScoreQuery));
         Query geoShapeQuery = ((ConstantScoreQuery) query).getQuery();
-        MappedFieldType fieldType = context.getFieldType("test");
+        MappedFieldType fieldType = context.getMappedField("test");
         boolean IndexOrDocValuesQuery = fieldType.hasDocValues();
         assertThat(IndexOrDocValuesQuery, equalTo(geoShapeQuery instanceof IndexOrDocValuesQuery));
     }

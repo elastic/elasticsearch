@@ -150,7 +150,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             b.field("type", "constant_keyword");
             b.field("value", 74);
         }));
-        ConstantKeywordFieldType ft = (ConstantKeywordFieldType) mapperService.fieldType("field");
+        ConstantKeywordFieldType ft = (ConstantKeywordFieldType) mapperService.mappedField("field");
         assertEquals("74", ft.value());
     }
 

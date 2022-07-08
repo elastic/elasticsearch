@@ -216,7 +216,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         Collections.sort(intValues);
 
         SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
-        MappedFieldType intFieldType = mapperService.fieldType("int_field");
+        MappedFieldType intFieldType = mapperService.mappedField("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
         queryFunctions.add(MatchNoDocsQuery::new);
@@ -370,7 +370,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         stringValues.add("value2");
         stringValues.add("value3");
 
-        MappedFieldType intFieldType = mapperService.fieldType("int_field");
+        MappedFieldType intFieldType = mapperService.mappedField("int_field");
         List<int[]> ranges = new ArrayList<>();
         ranges.add(new int[] { -5, 5 });
         ranges.add(new int[] { 0, 10 });

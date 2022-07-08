@@ -261,7 +261,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {
-                fieldVisitor.postProcess(mapperService::fieldType);
+                fieldVisitor.postProcess(mapperService::mappedField);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

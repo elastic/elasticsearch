@@ -15,6 +15,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -63,7 +64,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
                 name,
-                new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                new MappedField<>(context.buildFullName(name), new RankFeaturesFieldType(meta.getValue(), positiveScoreImpact.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 positiveScoreImpact.getValue()
@@ -77,8 +78,8 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         private final boolean positiveScoreImpact;
 
-        public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+        public RankFeaturesFieldType(Map<String, String> meta, boolean positiveScoreImpact) {
+            super(false, false, false, TextSearchInfo.NONE, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 
@@ -92,22 +93,22 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             throw new IllegalArgumentException("[rank_features] fields do not support [exists] queries");
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             throw new IllegalArgumentException("[rank_features] fields do not support sorting, scripting or aggregating");
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name, context, format);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Queries on [rank_features] fields are not supported");
         }
     }
@@ -116,18 +117,18 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     private RankFeaturesFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<RankFeaturesFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         boolean positiveScoreImpact
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedField, multiFields, copyTo, false, null);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedField.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

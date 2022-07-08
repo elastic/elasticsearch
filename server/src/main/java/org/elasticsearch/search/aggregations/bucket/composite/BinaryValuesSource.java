@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -40,7 +40,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     BinaryValuesSource(
         BigArrays bigArrays,
         LongConsumer breakerConsumer,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
         DocValueFormat format,
         boolean missingBucket,
@@ -48,7 +48,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, mappedField, missingBucket, missingOrder, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
@@ -196,12 +196,12 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
-            || fieldType instanceof StringFieldType == false
+        if (checkIfSortedDocsIsApplicable(reader, mappedField.type()) == false
+            || mappedField.type() instanceof StringFieldType == false
             || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
-        return new TermsSortedDocsProducer(fieldType.name());
+        return new TermsSortedDocsProducer(mappedField.name());
     }
 
     @Override

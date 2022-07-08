@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 /**
- * Defines a MappedFieldType that exposes dynamic child field types
+ * Defines a MappedField that exposes dynamic child field types
  *
  * If the field is named 'my_field', then a user is able to search on
  * the field in both of the following ways:
@@ -24,10 +24,14 @@ package org.elasticsearch.index.mapper;
  *  field mappers generating field types that implement this interface should
  *  explicitly disallow multi-fields.
  */
-public interface DynamicFieldType {
+public abstract class DynamicMappedField<T extends MappedFieldType> extends MappedField<T> {
+
+    public DynamicMappedField(String name, T type) {
+        super(name, type);
+    }
 
     /**
-     * Returns a dynamic MappedFieldType for the given path
+     * Returns a dynamic MappedField for the given path
      */
-    MappedFieldType getChildFieldType(String path);
+    public abstract MappedField<?> getChildFieldType(String path);
 }

@@ -43,8 +43,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, LongFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return new LongScriptFieldType(name, factory, script, meta);
+        AbstractScriptFieldType<?> createFieldType(LongFieldScript.Factory factory, Script script, Map<String, String> meta) {
+            return new LongScriptFieldType(factory, script, meta);
         }
 
         @Override
@@ -62,10 +62,9 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         return new Builder(name).createRuntimeField(LongFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public LongScriptFieldType(String name, LongFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    public LongScriptFieldType(LongFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
         super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            (name, searchLookup) -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -83,8 +82,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     }
 
     @Override
-    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        checkNoTimeZone(timeZone);
+    public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
+        checkNoTimeZone(name, timeZone);
         if (format == null) {
             return DocValueFormat.RAW;
         }
@@ -92,18 +91,19 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     }
 
     @Override
-    public LongScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new LongScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), LongDocValuesField::new);
+    public LongScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new LongScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), LongDocValuesField::new);
     }
 
     @Override
-    public Query existsQuery(SearchExecutionContext context) {
+    public Query existsQuery(String name, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
+        return new LongScriptFieldExistsQuery(script, leafFactory(name, context)::newInstance, name);
     }
 
     @Override
     public Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -118,21 +118,21 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             upperTerm,
             includeLower,
             includeUpper,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
+            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(name, context)::newInstance, name, l, u)
         );
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
         if (NumberType.hasDecimalPart(value)) {
             return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
         }
         applyScriptContext(context);
-        return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), NumberType.objectToLong(value, true));
+        return new LongScriptFieldTermQuery(script, leafFactory(name, context)::newInstance, name, NumberType.objectToLong(value, true));
     }
 
     @Override
-    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+    public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }
@@ -147,6 +147,6 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             return Queries.newMatchNoDocsQuery("All values have a decimal part");
         }
         applyScriptContext(context);
-        return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
+        return new LongScriptFieldTermsQuery(script, leafFactory(name, context)::newInstance, name, terms);
     }
 }

@@ -116,7 +116,7 @@ class RollupShardIndexer {
                 null,
                 Collections.emptyMap()
             );
-            this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            this.timestampField = searchExecutionContext.getMappedField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
             this.metricFieldFetchers = FieldValueFetcher.build(searchExecutionContext, metricFields);

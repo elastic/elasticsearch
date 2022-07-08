@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -186,24 +187,24 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseContext build(SearchExecutionContext searchExecutionContext) {
-        MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
-        if (fieldType == null) {
+        MappedField mappedField = searchExecutionContext.getMappedField(field);
+        if (mappedField == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
-        if (fieldType.collapseType() == CollapseType.NONE) {
+        if (mappedField.collapseType() == CollapseType.NONE) {
             throw new IllegalArgumentException(
-                "collapse is not supported for the field [" + fieldType.name() + "] of the type [" + fieldType.typeName() + "]"
+                "collapse is not supported for the field [" + mappedField.name() + "] of the type [" + mappedField.typeName() + "]"
             );
         }
-        if (fieldType.hasDocValues() == false) {
+        if (mappedField.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.isIndexed() == false && (innerHits != null && innerHits.isEmpty() == false)) {
+        if (mappedField.isIndexed() == false && (innerHits != null && innerHits.isEmpty() == false)) {
             throw new IllegalArgumentException(
                 "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
             );
         }
 
-        return new CollapseContext(field, fieldType, innerHits);
+        return new CollapseContext(field, mappedField, innerHits);
     }
 }

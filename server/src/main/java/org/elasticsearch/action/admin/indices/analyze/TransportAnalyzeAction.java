@@ -38,7 +38,7 @@ import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -185,9 +185,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (indexService == null) {
                 throw new IllegalArgumentException("analysis based on a specific field requires an index");
             }
-            MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
+            MappedField<?> fieldType = indexService.mapperService().mappedField(request.field());
             if (fieldType != null) {
-                if (fieldType instanceof StringFieldType) {
+                if (fieldType.type() instanceof StringFieldType) {
                     return indexService.mapperService()
                         .indexAnalyzer(
                             fieldType.name(),

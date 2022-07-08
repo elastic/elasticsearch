@@ -130,7 +130,6 @@ public class RangeFieldMapper extends FieldMapper {
                     );
                 }
                 return new RangeFieldType(
-                    fullName,
                     index.getValue(),
                     store.getValue(),
                     hasDocValues.getValue(),
@@ -141,7 +140,6 @@ public class RangeFieldMapper extends FieldMapper {
             }
             if (type == RangeType.DATE) {
                 return new RangeFieldType(
-                    fullName,
                     index.getValue(),
                     store.getValue(),
                     hasDocValues.getValue(),
@@ -151,7 +149,6 @@ public class RangeFieldMapper extends FieldMapper {
                 );
             }
             return new RangeFieldType(
-                fullName,
                 type,
                 index.getValue(),
                 store.getValue(),
@@ -164,7 +161,8 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
+            return new RangeFieldMapper(name, new MappedField<>(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
         }
     }
 
@@ -175,7 +173,6 @@ public class RangeFieldMapper extends FieldMapper {
         protected final boolean coerce;
 
         public RangeFieldType(
-            String name,
             RangeType type,
             boolean indexed,
             boolean stored,
@@ -183,7 +180,7 @@ public class RangeFieldMapper extends FieldMapper {
             boolean coerce,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
@@ -191,12 +188,11 @@ public class RangeFieldMapper extends FieldMapper {
             this.coerce = coerce;
         }
 
-        public RangeFieldType(String name, RangeType type) {
-            this(name, type, true, false, true, false, Collections.emptyMap());
+        public RangeFieldType(RangeType type) {
+            this(type, true, false, true, false, Collections.emptyMap());
         }
 
         public RangeFieldType(
-            String name,
             boolean indexed,
             boolean stored,
             boolean hasDocValues,
@@ -204,7 +200,7 @@ public class RangeFieldMapper extends FieldMapper {
             boolean coerce,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -212,7 +208,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, true, false, true, formatter, false, Collections.emptyMap());
+            this(true, false, true, formatter, false, Collections.emptyMap());
         }
 
         public RangeType rangeType() {
@@ -220,24 +216,24 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new BinaryIndexFieldData.Builder(name, CoreValuesSourceType.RANGE);
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(this.name());
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name);
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(name, context) {
 
                 @Override
                 @SuppressWarnings("unchecked")
@@ -275,7 +271,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
             if (rangeType == RangeType.DATE) {
                 DateFormatter dateTimeFormatter = this.dateTimeFormatter;
                 if (format != null) {
@@ -288,16 +284,17 @@ public class RangeFieldMapper extends FieldMapper {
                 // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
                 return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, DateFieldMapper.Resolution.MILLISECONDS);
             }
-            return super.docValueFormat(format, timeZone);
+            return super.docValueFormat(name, format, timeZone);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            return rangeQuery(name, value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
@@ -307,12 +304,12 @@ public class RangeFieldMapper extends FieldMapper {
             DateMathParser parser,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexed(name);
             if (parser == null) {
                 parser = dateMathParser();
             }
             return rangeType.rangeQuery(
-                name(),
+                name,
                 hasDocValues(),
                 lowerTerm,
                 upperTerm,
@@ -338,13 +335,13 @@ public class RangeFieldMapper extends FieldMapper {
 
     private RangeFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<RangeFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         RangeType type,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.type = type;
         this.index = builder.index.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -430,7 +427,7 @@ public class RangeFieldMapper extends FieldMapper {
         context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
         if (hasDocValues == false && (index || store)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

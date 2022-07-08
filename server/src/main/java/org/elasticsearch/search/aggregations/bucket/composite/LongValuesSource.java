@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -50,7 +50,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     LongValuesSource(
         BigArrays bigArrays,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
         LongUnaryOperator rounding,
         DocValueFormat format,
@@ -59,7 +59,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, mappedField, missingBucket, missingOrder, size, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
@@ -236,7 +236,8 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, mappedField.type()) == false ||
+            checkMatchAllOrRangeQuery(query, mappedField.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;
@@ -249,7 +250,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             upperPoint = null;
         }
 
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType ft) {
+        if (mappedField.type() instanceof NumberFieldMapper.NumberFieldType ft) {
             final ToLongFunction<byte[]> toBucketFunction;
 
             switch (ft.typeName()) {
@@ -266,11 +267,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
                 default:
                     return null;
             }
-            return new PointsSortedDocsProducer(fieldType.name(), toBucketFunction, lowerPoint, upperPoint);
-        } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
-            ToLongFunction<byte[]> decode = ((DateFieldMapper.DateFieldType) fieldType).resolution()::parsePointAsMillis;
+            return new PointsSortedDocsProducer(mappedField.name(), toBucketFunction, lowerPoint, upperPoint);
+        } else if (mappedField.type() instanceof DateFieldMapper.DateFieldType) {
+            ToLongFunction<byte[]> decode = ((DateFieldMapper.DateFieldType) mappedField.type()).resolution()::parsePointAsMillis;
             ToLongFunction<byte[]> toBucketFunction = value -> rounding.applyAsLong(decode.applyAsLong(value));
-            return new PointsSortedDocsProducer(fieldType.name(), toBucketFunction, lowerPoint, upperPoint);
+            return new PointsSortedDocsProducer(mappedField.name(), toBucketFunction, lowerPoint, upperPoint);
         } else {
             return null;
         }

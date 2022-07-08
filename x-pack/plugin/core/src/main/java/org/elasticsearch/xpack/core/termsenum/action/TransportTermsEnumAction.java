@@ -349,7 +349,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     null,
                     Collections.emptyMap()
                 );
-                final MappedFieldType mappedFieldType = indexShard.mapperService().fieldType(request.field());
+                final MappedFieldType mappedFieldType = indexShard.mapperService().mappedField(request.field());
                 if (mappedFieldType != null) {
                     TermsEnum terms = mappedFieldType.getTerms(
                         request.caseInsensitive(),

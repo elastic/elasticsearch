@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -217,7 +218,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedField<?> fieldType = context.getMappedField(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -226,7 +227,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             }
         }
 
-        if ((fieldType instanceof GeoShapeQueryable) == false) {
+        if ((fieldType.type() instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(
                 context,
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
@@ -242,9 +243,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             GeoUtils.normalizePoint(center, true, true);
         }
 
-        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
+        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType.type();
         final Circle circle = new Circle(center.lon(), center.lat(), this.distance);
-        return geoShapeQueryable.geoShapeQuery(context, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, circle);
+        return geoShapeQueryable.geoShapeQuery(fieldType.name(), context, fieldType.name(), SpatialStrategy.RECURSIVE,
+            ShapeRelation.INTERSECTS, circle);
     }
 
     @Override

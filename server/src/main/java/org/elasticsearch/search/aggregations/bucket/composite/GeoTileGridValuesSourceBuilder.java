@@ -14,7 +14,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
@@ -81,11 +81,11 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
-                final MappedFieldType fieldType = valuesSourceConfig.fieldType();
+                final MappedField<?> mappedField = valuesSourceConfig.mappedField();
                 GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(geoPoint, precision, boundingBox);
                 return new CompositeValuesSourceConfig(
                     name,
-                    fieldType,
+                    mappedField,
                     cellIdSource,
                     DocValueFormat.GEOTILE,
                     order,
@@ -103,7 +103,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                         final ValuesSource.Numeric cis = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
                         return new GeoTileValuesSource(
                             bigArrays,
-                            compositeValuesSourceConfig.fieldType(),
+                            compositeValuesSourceConfig.mappedField(),
                             cis::longValues,
                             LongUnaryOperator.identity(),
                             compositeValuesSourceConfig.format(),

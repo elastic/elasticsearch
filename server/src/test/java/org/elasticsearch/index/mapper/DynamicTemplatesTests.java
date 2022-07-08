@@ -60,13 +60,13 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         }));
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
-        assertThat(mapperService.fieldType("s"), notNullValue());
-        assertFalse(mapperService.fieldType("s").isIndexed());
-        assertFalse(mapperService.fieldType("s").isSearchable());
+        assertThat(mapperService.mappedField("s"), notNullValue());
+        assertFalse(mapperService.mappedField("s").isIndexed());
+        assertFalse(mapperService.mappedField("s").isSearchable());
 
-        assertThat(mapperService.fieldType("l"), notNullValue());
-        assertFalse(mapperService.fieldType("s").isIndexed());
-        assertTrue(mapperService.fieldType("l").isSearchable());
+        assertThat(mapperService.mappedField("l"), notNullValue());
+        assertFalse(mapperService.mappedField("s").isIndexed());
+        assertTrue(mapperService.mappedField("l").isSearchable());
     }
 
     public void testSimple() throws Exception {
@@ -813,7 +813,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("foo", "abc")));
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertThat(mapperService.fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(mapperService.mappedField("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
     public void testDynamicTemplateRuntimeMatchMappingType() throws Exception {
@@ -1099,11 +1099,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     private static void assertNoSubobjects(MapperService mapperService) {
-        assertThat(mapperService.fieldType("foo.bar.baz").typeName(), equalTo("long"));
+        assertThat(mapperService.mappedField("foo.bar.baz").typeName(), equalTo("long"));
         assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.bar"));
-        assertThat(mapperService.fieldType("foo.metric.count").typeName(), equalTo("long"));
-        assertThat(mapperService.fieldType("foo.metric.count.min").typeName(), equalTo("long"));
-        assertThat(mapperService.fieldType("foo.metric.count.max").typeName(), equalTo("long"));
+        assertThat(mapperService.mappedField("foo.metric.count").typeName(), equalTo("long"));
+        assertThat(mapperService.mappedField("foo.metric.count.min").typeName(), equalTo("long"));
+        assertThat(mapperService.mappedField("foo.metric.count.max").typeName(), equalTo("long"));
         assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.metric"));
         assertNull(mapperService.mappingLookup().objectMappers().get("foo.metric.count"));
     }

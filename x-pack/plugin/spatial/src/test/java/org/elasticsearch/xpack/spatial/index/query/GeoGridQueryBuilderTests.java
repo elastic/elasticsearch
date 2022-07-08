@@ -95,7 +95,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
 
     @Override
     protected void doAssertLuceneQuery(GeoGridQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
+        final MappedFieldType fieldType = context.getMappedField(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else if (fieldType.hasDocValues()) {

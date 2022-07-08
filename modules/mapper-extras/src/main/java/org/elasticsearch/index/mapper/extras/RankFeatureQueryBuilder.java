@@ -378,7 +378,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        final MappedFieldType ft = context.getFieldType(field);
+        final MappedFieldType ft = context.getMappedField(field);
 
         if (ft instanceof final RankFeatureFieldType fft) {
             return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
@@ -386,7 +386,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             final int lastDotIndex = field.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
-                final MappedFieldType parentFt = context.getFieldType(parentField);
+                final MappedFieldType parentFt = context.getMappedField(parentField);
                 if (parentFt instanceof RankFeaturesFieldType) {
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }

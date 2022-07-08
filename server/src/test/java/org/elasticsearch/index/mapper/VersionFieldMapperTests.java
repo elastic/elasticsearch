@@ -49,8 +49,8 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             parsedDoc.version().setLongValue(version);
             iw.addDocument(parsedDoc.rootDoc());
         }, iw -> {
-            VersionFieldMapper.VersionFieldType ft = (VersionFieldMapper.VersionFieldType) mapperService.fieldType("_version");
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            VersionFieldMapper.VersionFieldType ft = (VersionFieldMapper.VersionFieldType) mapperService.mappedField("_version");
+            SearchLookup lookup = new SearchLookup(mapperService::mappedField, fieldDataLookup());
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);

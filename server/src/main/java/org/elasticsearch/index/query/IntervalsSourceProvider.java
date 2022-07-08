@@ -21,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -51,7 +51,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentFragment {
 
-    public abstract IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) throws IOException;
+    public abstract IntervalsSource getSource(SearchExecutionContext context, MappedField<?> mappedField) throws IOException;
 
     public abstract void extractFields(Set<String> fields);
 
@@ -128,41 +128,41 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         private static IntervalsSource intervals(
-            MappedFieldType fieldType,
+            MappedField<?> mappedField,
             String text,
             int maxGaps,
             boolean ordered,
             NamedAnalyzer analyzer,
             SearchExecutionContext context
         ) throws IOException {
-            IntervalBuilder builder = new IntervalBuilder(fieldType.name(), analyzer) {
+            IntervalBuilder builder = new IntervalBuilder(mappedField.name(), analyzer) {
                 @Override
                 protected IntervalsSource termIntervals(BytesRef term) {
-                    return fieldType.termIntervals(term, context);
+                    return mappedField.termIntervals(term, context);
                 }
             };
             return builder.analyzeText(text, maxGaps, ordered);
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext context, MappedField<?> mappedField) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                mappedField = context.getMappedField(useField);
+                assert mappedField != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+                analyzer = mappedField.getTextSearchInfo().searchAnalyzer();
             }
-            IntervalsSource source = intervals(fieldType, query, maxGaps, ordered, analyzer, context);
+            IntervalsSource source = intervals(mappedField, query, maxGaps, ordered, analyzer, context);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }
             if (filter != null) {
-                source = filter.filter(source, context, fieldType);
+                source = filter.filter(source, context, mappedField);
             }
             return source;
         }
@@ -293,16 +293,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext ctx, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext ctx, MappedField<?> mappedField) throws IOException {
             List<IntervalsSource> sources = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
-                sources.add(provider.getSource(ctx, fieldType));
+                sources.add(provider.getSource(ctx, mappedField));
             }
             IntervalsSource source = Intervals.or(sources.toArray(new IntervalsSource[0]));
             if (filter == null) {
                 return source;
             }
-            return filter.filter(source, ctx, fieldType);
+            return filter.filter(source, ctx, mappedField);
         }
 
         @Override
@@ -404,7 +404,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext ctx, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext ctx, MappedField<?> fieldType) throws IOException {
             List<IntervalsSource> ss = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(ctx, fieldType));
@@ -531,20 +531,20 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext context, MappedField<?> mappedField) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                mappedField = context.getMappedField(useField);
+                assert mappedField != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+                analyzer = mappedField.getTextSearchInfo().searchAnalyzer();
             }
-            final BytesRef prefixTerm = analyzer.normalize(fieldType.name(), prefix);
-            IntervalsSource source = fieldType.prefixIntervals(prefixTerm, context);
+            final BytesRef prefixTerm = analyzer.normalize(mappedField.name(), prefix);
+            IntervalsSource source = mappedField.prefixIntervals(prefixTerm, context);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }
@@ -649,20 +649,20 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+        public IntervalsSource getSource(SearchExecutionContext context, MappedField<?> mappedField) {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                mappedField = context.getMappedField(useField);
+                assert mappedField != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+                analyzer = mappedField.getTextSearchInfo().searchAnalyzer();
             }
-            BytesRef normalizedPattern = analyzer.normalize(fieldType.name(), pattern);
-            IntervalsSource source = fieldType.wildcardIntervals(normalizedPattern, context);
+            BytesRef normalizedPattern = analyzer.normalize(mappedField.name(), pattern);
+            IntervalsSource source = mappedField.wildcardIntervals(normalizedPattern, context);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }
@@ -776,21 +776,21 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+        public IntervalsSource getSource(SearchExecutionContext context, MappedField<?> mappedField) {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                mappedField = context.getMappedField(useField);
+                assert mappedField != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+                analyzer = mappedField.getTextSearchInfo().searchAnalyzer();
             }
             // Fuzzy queries only work with unicode content so it's legal to call utf8ToString here.
-            String normalizedTerm = analyzer.normalize(fieldType.name(), term).utf8ToString();
-            IntervalsSource source = fieldType.fuzzyIntervals(
+            String normalizedTerm = analyzer.normalize(mappedField.name(), term).utf8ToString();
+            IntervalsSource source = mappedField.fuzzyIntervals(
                 normalizedTerm,
                 fuzziness.asDistance(term),
                 prefixLength,
@@ -954,12 +954,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
         }
 
-        public IntervalsSource filter(IntervalsSource input, SearchExecutionContext context, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource filter(IntervalsSource input, SearchExecutionContext context, MappedField<?> mappedField)
+            throws IOException {
             if (script != null) {
                 IntervalFilterScript ifs = context.compile(script, IntervalFilterScript.CONTEXT).newInstance();
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
-            IntervalsSource filterSource = filter.getSource(context, fieldType);
+            IntervalsSource filterSource = filter.getSource(context, mappedField);
             return switch (type) {
                 case "containing" -> Intervals.containing(input, filterSource);
                 case "contained_by" -> Intervals.containedBy(input, filterSource);

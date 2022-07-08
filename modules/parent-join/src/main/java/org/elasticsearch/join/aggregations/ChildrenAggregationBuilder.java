@@ -112,7 +112,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
 
         parentFilter = joiner.parentFilter(childType);
         childFilter = joiner.filter(childType);
-        MappedFieldType fieldType = context.getFieldType(joiner.parentJoinField(childType));
+        MappedFieldType fieldType = context.getMappedField(joiner.parentJoinField(childType));
         config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
         return config;
     }

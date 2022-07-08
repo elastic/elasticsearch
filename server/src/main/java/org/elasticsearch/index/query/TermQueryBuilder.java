@@ -16,7 +16,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -171,18 +171,18 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            MappedFieldType fieldType = context.getFieldType(this.fieldName);
-            if (fieldType == null) {
+            MappedField<?> mappedField = context.getMappedField(this.fieldName);
+            if (mappedField == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof ConstantFieldType) {
+            } else if (mappedField.type() instanceof ConstantFieldType) {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
                 Query query = null;
                 if (caseInsensitive) {
-                    query = fieldType.termQueryCaseInsensitive(value, context);
+                    query = mappedField.termQueryCaseInsensitive(value, context);
                 } else {
-                    query = fieldType.termQuery(value, context);
+                    query = mappedField.termQuery(value, context);
                 }
 
                 if (query instanceof MatchAllDocsQuery) {
@@ -199,7 +199,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType mapper = context.getFieldType(this.fieldName);
+        MappedField<?> mapper = context.getMappedField(this.fieldName);
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");
         }

@@ -45,9 +45,9 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.DynamicFieldType;
+import org.elasticsearch.index.mapper.DynamicMappedField;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -184,15 +184,21 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
-            MappedFieldType ft = new RootFlattenedFieldType(
-                context.buildFullName(name),
+            RootFlattenedMappedField ft = new RootFlattenedMappedField(
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get()
             );
-            return new FlattenedFieldMapper(name, ft, this);
+            String fullName = context.buildFullName(name);
+            String childName = fullName + KEYED_FIELD_SUFFIX;
+            return new FlattenedFieldMapper(name, new DynamicMappedField<>(fullName, ft) {
+                @Override
+                public MappedField<?> getChildFieldType(String childPath) {
+                    return new MappedField<>(childName, new KeyedFlattenedFieldType(childPath, ft));
+                }
+            }, this);
         }
     }
 
@@ -204,10 +210,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
      */
     public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
-        private final String rootName;
 
         KeyedFlattenedFieldType(
-            String rootName,
             boolean indexed,
             boolean hasDocValues,
             String key,
@@ -215,7 +219,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Map<String, String> meta
         ) {
             super(
-                rootName + KEYED_FIELD_SUFFIX,
                 indexed,
                 false,
                 hasDocValues,
@@ -223,11 +226,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 meta
             );
             this.key = key;
-            this.rootName = rootName;
         }
 
-        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
-            this(rootName, ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+        private KeyedFlattenedFieldType(String key, RootFlattenedMappedField ref) {
+            this(ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -240,13 +242,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
+        public Query existsQuery(String name, SearchExecutionContext context) {
+            Term term = new Term(name, FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
@@ -263,11 +266,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 );
             }
 
-            return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            return super.rangeQuery(name, lowerTerm, upperTerm, includeLower, includeUpper, context);
         }
 
         @Override
         public Query fuzzyQuery(
+            String name,
             Object value,
             Fuzziness fuzziness,
             int prefixLength,
@@ -282,6 +286,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(
+            String name,
             String value,
             int syntaxFlags,
             int matchFlags,
@@ -296,6 +301,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(
+            String name,
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
@@ -307,15 +313,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+        public Query termQueryCaseInsensitive(String name, Object value, SearchExecutionContext context) {
+            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name, indexedValueForSearch(name, value)));
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+        public TermsEnum getTerms(String name, boolean caseInsensitive, String string, SearchExecutionContext queryShardContext,
+                                  String searchAfter)
             throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
-            Terms terms = MultiTerms.getTerms(reader, name());
+            Terms terms = MultiTerms.getTerms(reader, name);
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
@@ -341,7 +348,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BytesRef indexedValueForSearch(Object value) {
+        public BytesRef indexedValueForSearch(String name, Object value) {
             if (value == null) {
                 return null;
             }
@@ -352,19 +359,20 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new KeyedFlattenedFieldData.Builder(name, key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            String fieldName = name + KEYED_FIELD_SUFFIX + "." + key;
             if (format != null) {
                 throw new IllegalArgumentException(
-                    "Field [" + rootName + "." + key + "] of type [" + typeName() + "] doesn't support formats."
+                    "Field [" + fieldName + "] of type [" + typeName() + "] doesn't support formats."
                 );
             }
-            return SourceValueFetcher.identity(rootName + "." + key, context, null);
+            return SourceValueFetcher.identity(fieldName, context, null);
         }
     }
 
@@ -584,12 +592,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
      * A field type that represents all 'root' values. This field type is used in
      * searches on the flattened field itself, e.g. 'my_flattened: some_value'.
      */
-    public static final class RootFlattenedFieldType extends StringFieldType implements DynamicFieldType {
+    public static final class RootFlattenedMappedField extends StringFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
 
-        public RootFlattenedFieldType(
-            String name,
+        public RootFlattenedMappedField(
             boolean indexed,
             boolean hasDocValues,
             Map<String, String> meta,
@@ -597,7 +604,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals
         ) {
             super(
-                name,
                 indexed,
                 false,
                 hasDocValues,
@@ -619,8 +625,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(name());
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name);
         }
 
         @Override
@@ -633,36 +639,31 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
             );
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
-        }
-
-        @Override
-        public MappedFieldType getChildFieldType(String childPath) {
-            return new KeyedFlattenedFieldType(name(), childPath, this);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name, context, format);
         }
     }
 
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String simpleName, MappedFieldType mappedFieldType, Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    private FlattenedFieldMapper(String simpleName, MappedField<?> mappedField, Builder builder) {
+        super(simpleName, mappedField, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(
-            mappedFieldType.name(),
-            mappedFieldType.name() + KEYED_FIELD_SUFFIX,
-            mappedFieldType,
+            mappedField.name(),
+            mappedField.name() + KEYED_FIELD_SUFFIX,
+            mappedField.type(),
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
             builder.nullValue.get()
@@ -671,7 +672,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedField.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -688,8 +689,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
-    public RootFlattenedFieldType fieldType() {
-        return (RootFlattenedFieldType) super.fieldType();
+    public RootFlattenedMappedField fieldType() {
+        return (RootFlattenedMappedField) super.fieldType();
     }
 
     @Override
@@ -698,7 +699,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return;
         }
 
-        if (mappedFieldType.isIndexed() == false && mappedFieldType.hasDocValues() == false) {
+        if (mappedField.isIndexed() == false && mappedField.hasDocValues() == false) {
             context.parser().skipChildren();
             return;
         }
@@ -706,8 +707,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         XContentParser xContentParser = context.parser();
         context.doc().addAll(fieldParser.parse(xContentParser));
 
-        if (mappedFieldType.hasDocValues() == false) {
-            context.addToFieldNames(fieldType().name());
+        if (mappedField.hasDocValues() == false) {
+            context.addToFieldNames(name());
         }
     }
 

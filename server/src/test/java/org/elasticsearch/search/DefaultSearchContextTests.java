@@ -274,7 +274,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
             when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
-            when(searchExecutionContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
+            when(searchExecutionContext.getMappedField(anyString())).thenReturn(mock(MappedFieldType.class));
 
             readerContext.close();
             readerContext = new ReaderContext(

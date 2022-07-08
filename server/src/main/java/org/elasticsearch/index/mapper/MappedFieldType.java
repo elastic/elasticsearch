@@ -59,7 +59,6 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  */
 public abstract class MappedFieldType {
 
-    private final String name;
     private final boolean docValues;
     private final boolean isIndexed;
     private final boolean isStored;
@@ -67,14 +66,12 @@ public abstract class MappedFieldType {
     private final Map<String, String> meta;
 
     public MappedFieldType(
-        String name,
         boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
@@ -91,8 +88,8 @@ public abstract class MappedFieldType {
      * An IllegalArgumentException is needed in order to return an http error 400
      * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      */
-    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
+    public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        throw new IllegalArgumentException("Fielddata is not supported on field [" + name + "] of type [" + typeName() + "]");
     }
 
     /**
@@ -102,7 +99,7 @@ public abstract class MappedFieldType {
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
-    public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
+    public abstract ValueFetcher valueFetcher(String name, SearchExecutionContext context, @Nullable String format);
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
@@ -110,10 +107,6 @@ public abstract class MappedFieldType {
     /** Returns the field family type, as used in field capabilities */
     public String familyTypeName() {
         return typeName();
-    }
-
-    public String name() {
-        return name;
     }
 
     public boolean hasDocValues() {
@@ -171,9 +164,9 @@ public abstract class MappedFieldType {
     /** Returns true if the field is aggregatable.
      *
      */
-    public boolean isAggregatable() {
+    public boolean isAggregatable(String name) {
         try {
-            fielddataBuilder("", () -> { throw new UnsupportedOperationException("SearchLookup not available"); });
+            fielddataBuilder(name, "", () -> { throw new UnsupportedOperationException("SearchLookup not available"); });
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -203,10 +196,10 @@ public abstract class MappedFieldType {
      *  @throws QueryShardException if the field is not searchable regardless of options
      */
     // TODO: Standardize exception types
-    public abstract Query termQuery(Object value, @Nullable SearchExecutionContext context);
+    public abstract Query termQuery(String name, Object value, @Nullable SearchExecutionContext context);
 
     // Case insensitive form of term query (not supported by all fields so must be overridden to enable)
-    public Query termQueryCaseInsensitive(Object value, @Nullable SearchExecutionContext context) {
+    public Query termQueryCaseInsensitive(String name, Object value, @Nullable SearchExecutionContext context) {
         throw new QueryShardException(
             context,
             "[" + name + "] field which is of type [" + typeName() + "], does not support case insensitive term queries"
@@ -216,10 +209,10 @@ public abstract class MappedFieldType {
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
-    public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+    public Query termsQuery(String name, Collection<?> values, @Nullable SearchExecutionContext context) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : values) {
-            builder.add(termQuery(value, context), Occur.SHOULD);
+            builder.add(termQuery(name, value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
     }
@@ -229,6 +222,7 @@ public abstract class MappedFieldType {
      * @param relation the relation, nulls should be interpreted like INTERSECTS
      */
     public Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -242,6 +236,7 @@ public abstract class MappedFieldType {
     }
 
     public Query fuzzyQuery(
+        String name,
         Object value,
         Fuzziness fuzziness,
         int prefixLength,
@@ -255,11 +250,13 @@ public abstract class MappedFieldType {
     }
 
     // Case sensitive form of prefix query
-    public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
-        return prefixQuery(value, method, false, context);
+    public final Query prefixQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
+                                   SearchExecutionContext context) {
+        return prefixQuery(name, value, method, false, context);
     }
 
     public Query prefixQuery(
+        String name,
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitve,
@@ -272,11 +269,13 @@ public abstract class MappedFieldType {
     }
 
     // Case sensitive form of wildcard query
-    public final Query wildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
-        return wildcardQuery(value, method, false, context);
+    public final Query wildcardQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
+                                     SearchExecutionContext context) {
+        return wildcardQuery(name, value, method, false, context);
     }
 
     public Query wildcardQuery(
+        String name,
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitve,
@@ -292,7 +291,8 @@ public abstract class MappedFieldType {
         );
     }
 
-    public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+    public Query normalizedWildcardQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
+                                         SearchExecutionContext context) {
         throw new QueryShardException(
             context,
             "Can only use wildcard queries on keyword, text and wildcard fields - not on ["
@@ -304,6 +304,7 @@ public abstract class MappedFieldType {
     }
 
     public Query regexpQuery(
+        String name,
         String value,
         int syntaxFlags,
         int matchFlags,
@@ -317,43 +318,46 @@ public abstract class MappedFieldType {
         );
     }
 
-    public Query existsQuery(SearchExecutionContext context) {
+    public Query existsQuery(String name, SearchExecutionContext context) {
         if (hasDocValues()) {
-            return new DocValuesFieldExistsQuery(name());
+            return new DocValuesFieldExistsQuery(name);
         } else if (getTextSearchInfo().hasNorms()) {
-            return new NormsFieldExistsQuery(name());
+            return new NormsFieldExistsQuery(name);
         } else {
-            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name));
         }
     }
 
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
+    public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
         throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
+    public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
+                                  SearchExecutionContext context)
         throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
+    public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context)
+        throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase prefix queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
-    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
+    public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+                                     SearchExecutionContext context) {
         throw new IllegalArgumentException(
             "Can only use span prefix queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
-    public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
+    public Query distanceFeatureQuery(String name, Object origin, String pivot, SearchExecutionContext context) {
         throw new IllegalArgumentException(
             "Illegal data type of ["
                 + typeName()
@@ -367,7 +371,7 @@ public abstract class MappedFieldType {
     /**
      * Create an {@link IntervalsSource} for the given term.
      */
-    public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
+    public IntervalsSource termIntervals(String name, BytesRef term, SearchExecutionContext context) {
         throw new IllegalArgumentException(
             "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
@@ -376,7 +380,7 @@ public abstract class MappedFieldType {
     /**
      * Create an {@link IntervalsSource} for the given prefix.
      */
-    public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
+    public IntervalsSource prefixIntervals(String name, BytesRef prefix, SearchExecutionContext context) {
         throw new IllegalArgumentException(
             "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
@@ -386,6 +390,7 @@ public abstract class MappedFieldType {
      * Create a fuzzy {@link IntervalsSource} for the given term.
      */
     public IntervalsSource fuzzyIntervals(
+        String name,
         String term,
         int maxDistance,
         int prefixLength,
@@ -400,7 +405,7 @@ public abstract class MappedFieldType {
     /**
      * Create a wildcard {@link IntervalsSource} for the given pattern.
      */
-    public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+    public IntervalsSource wildcardIntervals(String name, BytesRef pattern, SearchExecutionContext context) {
         throw new IllegalArgumentException(
             "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
@@ -421,6 +426,7 @@ public abstract class MappedFieldType {
      *  {@link Relation#INTERSECTS}, which is always fine to return when there is
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldWithinQuery(
+        String name,
         IndexReader reader,
         Object from,
         Object to,
@@ -437,11 +443,11 @@ public abstract class MappedFieldType {
      *  An IllegalArgumentException is needed in order to return an http error 400
      *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      **/
-    protected final void failIfNoDocValues() {
+    protected final void failIfNoDocValues(String name) {
         if (hasDocValues() == false) {
             throw new IllegalArgumentException(
                 "Can't load fielddata on ["
-                    + name()
+                    + name
                     + "] because fielddata is unsupported on fields of type ["
                     + typeName()
                     + "]. Use doc values instead."
@@ -449,26 +455,26 @@ public abstract class MappedFieldType {
         }
     }
 
-    protected final void failIfNotIndexed() {
+    protected final void failIfNotIndexed(String name) {
         if (isIndexed == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
-            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
+            throw new IllegalArgumentException("Cannot search on field [" + name + "] since it is not indexed.");
         }
     }
 
-    protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
+    protected final void failIfNotIndexedNorDocValuesFallback(String name, SearchExecutionContext context) {
         if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalArgumentException(
-                "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
+                "Cannot search on field [" + name + "] of legacy index since it does not have doc values."
             );
         } else if (isIndexed == false && docValues == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
-            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
+            throw new IllegalArgumentException("Cannot search on field [" + name + "] since it is not indexed nor has doc values.");
         } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {
             // if query can only run using doc values, ensure running expensive queries are allowed
             throw new ElasticsearchException(
                 "Cannot search on field ["
-                    + name()
+                    + name
                     + "] since it is not indexed and '"
                     + ALLOW_EXPENSIVE_QUERIES.getKey()
                     + "' is set to false."
@@ -491,7 +497,7 @@ public abstract class MappedFieldType {
      *
      * @see org.elasticsearch.index.search.QueryParserHelper
      */
-    public boolean mayExistInIndex(SearchExecutionContext context) {
+    public boolean mayExistInIndex(String name, SearchExecutionContext context) {
         return true;
     }
 
@@ -499,27 +505,27 @@ public abstract class MappedFieldType {
      * Pick a {@link DocValueFormat} that can be used to display and parse
      * values of fields of this type.
      */
-    public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-        checkNoFormat(format);
-        checkNoTimeZone(timeZone);
+    public DocValueFormat docValueFormat(String name, @Nullable String format, ZoneId timeZone) {
+        checkNoFormat(name, format);
+        checkNoTimeZone(name, timeZone);
         return DocValueFormat.RAW;
     }
 
     /**
      * Validate the provided {@code format} is null.
      */
-    protected void checkNoFormat(@Nullable String format) {
+    protected void checkNoFormat(String name, @Nullable String format) {
         if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support custom formats");
         }
     }
 
     /**
      * Validate the provided {@code timeZone} is null.
      */
-    protected void checkNoTimeZone(@Nullable ZoneId timeZone) {
+    protected void checkNoTimeZone(String name, @Nullable ZoneId timeZone) {
         if (timeZone != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support custom time zones");
         }
     }
 
@@ -586,7 +592,8 @@ public abstract class MappedFieldType {
      * @return null or an enumeration of matching terms and their doc frequencies
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+    public TermsEnum getTerms(String name, boolean caseInsensitive, String string, SearchExecutionContext queryShardContext,
+                              String searchAfter)
         throws IOException {
         return null;
     }
@@ -594,11 +601,11 @@ public abstract class MappedFieldType {
     /**
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(String name) {
         throw new IllegalArgumentException(
             "All fields that match routing_path must be keywords with [time_series_dimension: true] "
                 + "and without the [script] parameter. ["
-                + name()
+                + name
                 + "] was ["
                 + typeName()
                 + "]."

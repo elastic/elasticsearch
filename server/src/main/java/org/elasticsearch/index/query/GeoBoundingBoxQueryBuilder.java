@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -255,7 +256,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     public Query doToQuery(SearchExecutionContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedField<?> fieldType = context.getMappedField(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -263,7 +264,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
-        if ((fieldType instanceof GeoShapeQueryable) == false) {
+        if ((fieldType.type() instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(
                 context,
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
@@ -292,14 +293,15 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
+        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType.type();
         final Rectangle rectangle = new Rectangle(
             luceneTopLeft.getLon(),
             luceneBottomRight.getLon(),
             luceneTopLeft.getLat(),
             luceneBottomRight.getLat()
         );
-        return geoShapeQueryable.geoShapeQuery(context, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, rectangle);
+        return geoShapeQueryable.geoShapeQuery(fieldType.name(), context, fieldType.name(), SpatialStrategy.RECURSIVE,
+            ShapeRelation.INTERSECTS, rectangle);
     }
 
     @Override

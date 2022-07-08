@@ -36,25 +36,25 @@ public class DoubleIndexingDocTests extends MapperServiceTestCase {
             iw.addDocument(doc.rootDoc());
         }, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            TopDocs topDocs = searcher.search(mapperService.fieldType("field1").termQuery("value1", context), 10);
+            TopDocs topDocs = searcher.search(mapperService.mappedField("field1").termQuery("value1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field2").termQuery("1", context), 10);
+            topDocs = searcher.search(mapperService.mappedField("field2").termQuery("1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field3").termQuery("1.1", context), 10);
+            topDocs = searcher.search(mapperService.mappedField("field3").termQuery("1.1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field4").termQuery("2010-01-01", context), 10);
+            topDocs = searcher.search(mapperService.mappedField("field4").termQuery("2010-01-01", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("1", context), 10);
+            topDocs = searcher.search(mapperService.mappedField("field5").termQuery("1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("2", context), 10);
+            topDocs = searcher.search(mapperService.mappedField("field5").termQuery("2", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("3", context), 10);
+            topDocs = searcher.search(mapperService.mappedField("field5").termQuery("3", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
         });
     }

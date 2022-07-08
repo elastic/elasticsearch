@@ -117,7 +117,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
         LuceneDocument fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         Query query = fieldType.existsQuery(searchExecutionContext);
         assertExistsQuery(fieldType, query, fields);
     }
@@ -192,7 +192,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
-        T fieldType = (T) mapperService.fieldType("field");
+        T fieldType = (T) mapperService.mappedField("field");
         assertThat(checker.apply(fieldType), equalTo(isDimension));
     }
 
@@ -203,7 +203,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
-        T fieldType = (T) mapperService.fieldType("field");
+        T fieldType = (T) mapperService.mappedField("field");
         assertThat(checker.apply(fieldType).name(), equalTo(metricType));
     }
 
@@ -340,7 +340,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(mapperService::mappedField, fieldDataLookup());
                 ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
@@ -471,7 +471,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testTextSearchInfoConsistency() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery(null, null));
         } else {
@@ -499,7 +499,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testFetch() throws IOException {
         MapperService mapperService = randomFetchTestMapper();
         try {
-            MappedFieldType ft = mapperService.fieldType("field");
+            MappedFieldType ft = mapperService.mappedField("field");
             assertFetch(mapperService, "field", generateRandomInputValue(ft), randomFetchTestFormat());
         } finally {
             assertParseMinimalWarnings();
@@ -519,7 +519,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testFetchMany() throws IOException {
         MapperService mapperService = randomFetchTestMapper();
         try {
-            MappedFieldType ft = mapperService.fieldType("field");
+            MappedFieldType ft = mapperService.mappedField("field");
             int count = between(2, 10);
             List<Object> values = new ArrayList<>(count);
             while (values.size() < count) {
@@ -590,7 +590,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * produces the same value as fetching using doc values.
      */
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
-        MappedFieldType ft = mapperService.fieldType(field);
+        MappedFieldType ft = mapperService.mappedField(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
@@ -661,7 +661,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("Field type does not support access via search lookup", supportsSearchLookup());
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertParseMinimalWarnings();
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         if (fieldType.isAggregatable() == false) {
             return; // No field data available, so we ignore
         }
@@ -711,7 +711,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalStoreMapping));
         assertParseMinimalWarnings();
 
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         SourceToParse source = source(this::writeField);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
 

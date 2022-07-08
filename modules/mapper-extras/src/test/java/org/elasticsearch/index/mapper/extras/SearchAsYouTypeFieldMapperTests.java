@@ -280,21 +280,21 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         List<String> fields = new ArrayList<>();
         fields.add(suggestPath);
         fields.add(textPath);
-        MappedFieldType fieldType = mapperService.fieldType(suggestPath + "._index_prefix");
+        MappedFieldType fieldType = mapperService.mappedField(suggestPath + "._index_prefix");
         assertThat(fieldType, instanceOf(PrefixFieldType.class));
         PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;
         assertEquals(suggestPath, prefixFieldType.parentField);
         for (int i = 2; i < shingleSize; i++) {
             String name = suggestPath + "._" + i + "gram";
             fields.add(name);
-            fieldType = mapperService.fieldType(name);
+            fieldType = mapperService.mappedField(name);
             assertThat(fieldType, instanceOf(ShingleFieldType.class));
             ShingleFieldType ft = (ShingleFieldType) fieldType;
             assertEquals(i, ft.shingleSize);
             assertSame(prefixFieldType, ft.prefixFieldType);
         }
 
-        MappedFieldType textFieldType = mapperService.fieldType(textPath);
+        MappedFieldType textFieldType = mapperService.mappedField(textPath);
         assertThat(textFieldType, instanceOf(TextFieldMapper.TextFieldType.class));
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "new york city")));

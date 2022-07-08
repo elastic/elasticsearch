@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -170,15 +171,15 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    public Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
-        if ((fieldType instanceof GeoShapeQueryable) == false) {
+    public Query buildShapeQuery(SearchExecutionContext context, MappedField<?> mappedField) {
+        if ((mappedField.type() instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(
                 context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                "Field [" + fieldName + "] is of unsupported type [" + mappedField.typeName() + "] for [" + NAME + "] query"
             );
         }
-        final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
-        return new ConstantScoreQuery(ft.geoShapeQuery(context, fieldType.name(), strategy, relation, shape));
+        final GeoShapeQueryable ft = (GeoShapeQueryable) mappedField.type();
+        return new ConstantScoreQuery(ft.geoShapeQuery(mappedField.name(), context, mappedField.name(), strategy, relation, shape));
     }
 
     @Override

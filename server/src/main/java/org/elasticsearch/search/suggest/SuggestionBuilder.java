@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -291,9 +291,9 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         if (context.isFieldMapped(field) == false) {
             throw new IllegalArgumentException("no mapping found for field [" + field + "]");
         }
-        MappedFieldType fieldType = context.getFieldType(field);
+        MappedField mappedField = context.getMappedField(field);
         if (analyzer == null) {
-            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().searchAnalyzer());
+            suggestionContext.setAnalyzer(mappedField.getTextSearchInfo().searchAnalyzer());
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
@@ -302,7 +302,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             suggestionContext.setAnalyzer(luceneAnalyzer);
         }
 
-        suggestionContext.setField(fieldType.name());
+        suggestionContext.setField(mappedField.name());
 
         if (size != null) {
             suggestionContext.setSize(size);

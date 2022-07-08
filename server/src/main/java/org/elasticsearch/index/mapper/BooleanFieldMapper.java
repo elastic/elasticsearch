@@ -116,8 +116,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
-            MappedFieldType ft = new BooleanFieldType(
-                context.buildFullName(name),
+            BooleanFieldType ft = new BooleanFieldType(
                 indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
@@ -126,7 +125,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 meta.getValue()
             );
 
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new BooleanFieldMapper(name, new MappedField<>(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -155,7 +155,6 @@ public class BooleanFieldMapper extends FieldMapper {
         private final FieldValues<Boolean> scriptValues;
 
         public BooleanFieldType(
-            String name,
             boolean isIndexed,
             boolean isStored,
             boolean hasDocValues,
@@ -163,21 +162,21 @@ public class BooleanFieldMapper extends FieldMapper {
             FieldValues<Boolean> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
         }
 
-        public BooleanFieldType(String name) {
-            this(name, true);
+        public BooleanFieldType() {
+            this(true);
         }
 
-        public BooleanFieldType(String name, boolean isIndexed) {
-            this(name, isIndexed, true);
+        public BooleanFieldType(boolean isIndexed) {
+            this(isIndexed, true);
         }
 
-        public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap());
+        public BooleanFieldType(boolean isIndexed, boolean hasDocValues) {
+            this(isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap());
         }
 
         @Override
@@ -191,14 +190,14 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(name, context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {
@@ -212,7 +211,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BytesRef indexedValueForSearch(Object value) {
+        public BytesRef indexedValueForSearch(String name, Object value) {
             if (value == null) {
                 return Values.FALSE;
             }
@@ -232,8 +231,8 @@ public class BooleanFieldMapper extends FieldMapper {
             };
         }
 
-        private long docValueForSearch(Object value) {
-            BytesRef ref = indexedValueForSearch(value);
+        private long docValueForSearch(String name, Object value) {
+            BytesRef ref = indexedValueForSearch(name, value);
             if (Values.TRUE.equals(ref)) {
                 return 1;
             } else {
@@ -254,37 +253,37 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new SortedNumericIndexFieldData.Builder(name, NumericType.BOOLEAN, BooleanDocValuesField::new);
         }
 
         @Override
-        public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            checkNoFormat(format);
-            checkNoTimeZone(timeZone);
+        public DocValueFormat docValueFormat(String name, @Nullable String format, ZoneId timeZone) {
+            checkNoFormat(name, format);
+            checkNoTimeZone(name, timeZone);
             return DocValueFormat.BOOLEAN;
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
             if (isIndexed()) {
-                return super.termQuery(value, context);
+                return super.termQuery(name, value, context);
             } else {
-                return SortedNumericDocValuesField.newSlowExactQuery(name(), docValueForSearch(value));
+                return SortedNumericDocValuesField.newSlowExactQuery(name, docValueForSearch(name, value));
             }
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
             if (isIndexed()) {
-                return super.termsQuery(values, context);
+                return super.termsQuery(name, values, context);
             } else {
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (Object value : values) {
-                    builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
+                    builder.add(termQuery(name, value, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(builder.build());
             }
@@ -292,18 +291,19 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexedNorDocValuesFallback(context);
+            failIfNotIndexedNorDocValuesFallback(name, context);
             if (isIndexed()) {
                 return new TermRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    name,
+                    lowerTerm == null ? null : indexedValueForSearch(name, lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(name, upperTerm),
                     includeLower,
                     includeUpper
                 );
@@ -311,13 +311,13 @@ public class BooleanFieldMapper extends FieldMapper {
                 long l = 0;
                 long u = 1;
                 if (lowerTerm != null) {
-                    l = docValueForSearch(lowerTerm);
+                    l = docValueForSearch(name, lowerTerm);
                     if (includeLower == false) {
                         l = Math.max(1, l + 1);
                     }
                 }
                 if (upperTerm != null) {
-                    u = docValueForSearch(upperTerm);
+                    u = docValueForSearch(name, upperTerm);
                     if (includeUpper == false) {
                         l = Math.min(0, l - 1);
                     }
@@ -325,7 +325,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 if (l > u) {
                     return new MatchNoDocsQuery();
                 }
-                return SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                return SortedNumericDocValuesField.newSlowRangeQuery(name, l, u);
             }
         }
     }
@@ -341,12 +341,12 @@ public class BooleanFieldMapper extends FieldMapper {
 
     protected BooleanFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<BooleanFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
+        super(simpleName, mappedField, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
@@ -359,7 +359,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedField.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -390,15 +390,15 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
         if (indexed) {
-            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
+            context.doc().add(new Field(name(), value ? "T" : "F", Defaults.FIELD_TYPE));
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
+            context.doc().add(new StoredField(name(), value ? "T" : "F"));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+            context.doc().add(new SortedNumericDocValuesField(name(), value ? 1 : 0));
         } else {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

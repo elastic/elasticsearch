@@ -418,8 +418,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public MappedFieldType getFieldType(String path) {
-                return mapperService.fieldType(path);
+            public MappedFieldType getMappedField(String path) {
+                return mapperService.mappedField(path);
             }
 
             @Override

@@ -26,9 +26,9 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
-    protected IdFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType);
-        assert mappedFieldType.isSearchable();
+    protected IdFieldMapper(MappedField mappedField) {
+        super(mappedField);
+        assert mappedField.isSearchable();
     }
 
     @Override

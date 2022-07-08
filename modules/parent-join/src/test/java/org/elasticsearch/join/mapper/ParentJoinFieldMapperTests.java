@@ -48,7 +48,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
         Joiner joiner = Joiner.getJoiner(
-            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getFieldType)
+            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getMappedField)
         );
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
@@ -244,7 +244,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         }));
 
         Joiner joiner = Joiner.getJoiner(
-            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getFieldType)
+            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getMappedField)
         );
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
@@ -272,7 +272,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
         joiner = Joiner.getJoiner(
-            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getFieldType)
+            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getMappedField)
         );
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
@@ -386,11 +386,11 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                     .endObject()
             )
         );
-        assertFalse(mapperService.fieldType("join_field").eagerGlobalOrdinals());
-        assertNotNull(mapperService.fieldType("join_field#parent"));
-        assertTrue(mapperService.fieldType("join_field#parent").eagerGlobalOrdinals());
-        assertNotNull(mapperService.fieldType("join_field#child"));
-        assertTrue(mapperService.fieldType("join_field#child").eagerGlobalOrdinals());
+        assertFalse(mapperService.mappedField("join_field").eagerGlobalOrdinals());
+        assertNotNull(mapperService.mappedField("join_field#parent"));
+        assertTrue(mapperService.mappedField("join_field#parent").eagerGlobalOrdinals());
+        assertNotNull(mapperService.mappedField("join_field#child"));
+        assertTrue(mapperService.mappedField("join_field#child").eagerGlobalOrdinals());
 
         merge(
             mapperService,
@@ -405,11 +405,11 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                     .endObject()
             )
         );
-        assertFalse(mapperService.fieldType("join_field").eagerGlobalOrdinals());
-        assertNotNull(mapperService.fieldType("join_field#parent"));
-        assertFalse(mapperService.fieldType("join_field#parent").eagerGlobalOrdinals());
-        assertNotNull(mapperService.fieldType("join_field#child"));
-        assertFalse(mapperService.fieldType("join_field#child").eagerGlobalOrdinals());
+        assertFalse(mapperService.mappedField("join_field").eagerGlobalOrdinals());
+        assertNotNull(mapperService.mappedField("join_field#parent"));
+        assertFalse(mapperService.mappedField("join_field#parent").eagerGlobalOrdinals());
+        assertNotNull(mapperService.mappedField("join_field#child"));
+        assertFalse(mapperService.mappedField("join_field#child").eagerGlobalOrdinals());
     }
 
     public void testSubFields() throws IOException {

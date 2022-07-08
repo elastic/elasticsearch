@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -27,7 +28,7 @@ import java.util.function.LongUnaryOperator;
 class GeoTileValuesSource extends LongValuesSource {
     GeoTileValuesSource(
         BigArrays bigArrays,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
         LongUnaryOperator rounding,
         DocValueFormat format,
@@ -36,7 +37,7 @@ class GeoTileValuesSource extends LongValuesSource {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, mappedField, docValuesFunc, rounding, format, missingBucket, missingOrder, size, reverseMul);
     }
 
     @Override

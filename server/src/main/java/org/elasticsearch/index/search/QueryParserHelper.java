@@ -11,7 +11,7 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -127,20 +127,20 @@ public final class QueryParserHelper {
                 fieldName = fieldName + fieldSuffix;
             }
 
-            MappedFieldType fieldType = context.getFieldType(fieldName);
-            if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
+            MappedField<?> mappedField = context.getMappedField(fieldName);
+            if (acceptMetadataField == false && mappedField.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;
             }
 
             if (acceptAllTypes == false) {
-                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE || fieldType.mayExistInIndex(context) == false) {
+                if (mappedField.getTextSearchInfo() == TextSearchInfo.NONE || mappedField.mayExistInIndex(context) == false) {
                     continue;
                 }
             }
 
             // Deduplicate aliases and their concrete fields.
-            String resolvedFieldName = fieldType.name();
+            String resolvedFieldName = mappedField.name();
             if (allFields.contains(resolvedFieldName)) {
                 fieldName = resolvedFieldName;
             }

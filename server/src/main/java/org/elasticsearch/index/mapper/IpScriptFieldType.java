@@ -45,8 +45,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, IpFieldScript.CONTEXT) {
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, IpFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return new IpScriptFieldType(name, factory, getScript(), meta());
+        AbstractScriptFieldType<?> createFieldType(IpFieldScript.Factory factory, Script script, Map<String, String> meta) {
+            return new IpScriptFieldType(factory, getScript(), meta());
         }
 
         @Override
@@ -60,10 +60,9 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         }
     });
 
-    IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    IpScriptFieldType(IpFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
         super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            (name, searchLookup) -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -84,25 +83,26 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        checkNoFormat(format);
-        checkNoTimeZone(timeZone);
+    public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
+        checkNoFormat(name, format);
+        checkNoTimeZone(name, timeZone);
         return DocValueFormat.IP;
     }
 
     @Override
-    public IpScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new IpScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), IpDocValuesField::new);
+    public IpScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return new IpScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), IpDocValuesField::new);
     }
 
     @Override
-    public Query existsQuery(SearchExecutionContext context) {
+    public Query existsQuery(String name, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
+        return new IpScriptFieldExistsQuery(script, leafFactory(name, context), name);
     }
 
     @Override
     public Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -113,14 +113,15 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     ) {
         applyScriptContext(context);
         return IpFieldMapper.IpFieldType.rangeQuery(
+            name,
             lowerTerm,
             upperTerm,
             includeLower,
             includeUpper,
             (lower, upper) -> new IpScriptFieldRangeQuery(
                 script,
-                leafFactory(context),
-                name(),
+                leafFactory(name, context),
+                name,
                 new BytesRef(InetAddressPoint.encode(lower)),
                 new BytesRef(InetAddressPoint.encode(upper))
             )
@@ -128,25 +129,25 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
         applyScriptContext(context);
         if (value instanceof InetAddress) {
-            return inetAddressQuery((InetAddress) value, context);
+            return inetAddressQuery(name, (InetAddress) value, context);
         }
         String term = BytesRefs.toString(value);
         if (term.contains("/")) {
-            return cidrQuery(term, context);
+            return cidrQuery(name, term, context);
         }
         InetAddress address = InetAddresses.forString(term);
-        return inetAddressQuery(address, context);
+        return inetAddressQuery(name, address, context);
     }
 
-    private Query inetAddressQuery(InetAddress address, SearchExecutionContext context) {
-        return new IpScriptFieldTermQuery(script, leafFactory(context), name(), new BytesRef(InetAddressPoint.encode(address)));
+    private Query inetAddressQuery(String name, InetAddress address, SearchExecutionContext context) {
+        return new IpScriptFieldTermQuery(script, leafFactory(name, context), name, new BytesRef(InetAddressPoint.encode(address)));
     }
 
     @Override
-    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+    public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
         applyScriptContext(context);
         BytesRefHash terms = new BytesRefHash(values.size(), BigArrays.NON_RECYCLING_INSTANCE);
         List<Query> cidrQueries = null;
@@ -163,9 +164,9 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             if (cidrQueries == null) {
                 cidrQueries = new ArrayList<>();
             }
-            cidrQueries.add(cidrQuery(term, context));
+            cidrQueries.add(cidrQuery(name, term, context));
         }
-        Query termsQuery = new IpScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+        Query termsQuery = new IpScriptFieldTermsQuery(script, leafFactory(name, context), name, terms);
         if (cidrQueries == null) {
             return termsQuery;
         }
@@ -177,7 +178,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         return bool.build();
     }
 
-    private Query cidrQuery(String term, SearchExecutionContext context) {
+    private Query cidrQuery(String name, String term, SearchExecutionContext context) {
         Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
         InetAddress addr = cidr.v1();
         int prefixLength = cidr.v2();
@@ -192,6 +193,6 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         // Force the terms into IPv6
         BytesRef lowerBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(lower)));
         BytesRef upperBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(upper)));
-        return new IpScriptFieldRangeQuery(script, leafFactory(context), name(), lowerBytes, upperBytes);
+        return new IpScriptFieldRangeQuery(script, leafFactory(name, context), name, lowerBytes, upperBytes);
     }
 }

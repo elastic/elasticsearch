@@ -230,8 +230,8 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
-            MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
-            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new NumberFieldMapper(name, new MappedField<>(context.buildFullName(name), new NumberFieldType( this)),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -1287,7 +1287,6 @@ public class NumberFieldMapper extends FieldMapper {
         private final MetricType metricType;
 
         public NumberFieldType(
-            String name,
             NumberType type,
             boolean isIndexed,
             boolean isStored,
@@ -1299,7 +1298,7 @@ public class NumberFieldMapper extends FieldMapper {
             boolean isDimension,
             MetricType metricType
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -1308,9 +1307,8 @@ public class NumberFieldMapper extends FieldMapper {
             this.metricType = metricType;
         }
 
-        NumberFieldType(String name, Builder builder) {
+        NumberFieldType(Builder builder) {
             this(
-                name,
                 builder.type,
                 builder.indexed.getValue() && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
                 builder.stored.getValue(),
@@ -1324,12 +1322,12 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
 
-        public NumberFieldType(String name, NumberType type) {
-            this(name, type, true);
+        public NumberFieldType(NumberType type) {
+            this(type, true);
         }
 
-        public NumberFieldType(String name, NumberType type, boolean isIndexed) {
-            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null);
+        public NumberFieldType(NumberType type, boolean isIndexed) {
+            this(type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null);
         }
 
         @Override
@@ -1357,8 +1355,8 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(this.name());
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name);
         }
 
         public boolean isSearchable() {
@@ -1366,31 +1364,32 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed());
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
+            return type.termQuery(name, value, isIndexed());
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
             if (isIndexed()) {
-                return type.termsQuery(name(), values);
+                return type.termsQuery(name, values);
             } else {
-                return super.termsQuery(values, context);
+                return super.termsQuery(name, values, context);
             }
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexedNorDocValuesFallback(context);
-            return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed());
+            failIfNotIndexedNorDocValuesFallback(name, context);
+            return type.rangeQuery(name, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed());
         }
 
         @Override
@@ -1402,9 +1401,9 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return type.getFieldDataBuilder(name());
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return type.getFieldDataBuilder(name);
         }
 
         @Override
@@ -1416,14 +1415,14 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(name, context, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -1435,8 +1434,8 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            checkNoTimeZone(timeZone);
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
+            checkNoTimeZone(name, timeZone);
             if (format == null) {
                 return DocValueFormat.RAW;
             }
@@ -1485,8 +1484,9 @@ public class NumberFieldMapper extends FieldMapper {
     private final MetricType metricType;
     private final Version indexCreatedVersion;
 
-    private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
+    private NumberFieldMapper(String simpleName, MappedField<NumberFieldType> mappedField, MultiFields multiFields, CopyTo copyTo,
+                              Builder builder) {
+        super(simpleName, mappedField, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1529,7 +1529,7 @@ public class NumberFieldMapper extends FieldMapper {
             value = value(context.parser(), type, nullValue, coerce());
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
-                context.addIgnoredField(mappedFieldType.name());
+                context.addIgnoredField(mappedField.name());
                 return;
             } else {
                 throw e;
@@ -1563,12 +1563,12 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
+            context.getDimensions().addLong(name(), numericValue.longValue());
         }
-        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        fieldType().type.addFields(context.doc(), name(), numericValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

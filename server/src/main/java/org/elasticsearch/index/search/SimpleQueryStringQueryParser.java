@@ -25,7 +25,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -75,7 +75,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         }
     }
 
-    private Analyzer getAnalyzer(MappedFieldType ft) {
+    private Analyzer getAnalyzer(MappedField ft) {
         if (getAnalyzer() != null) {
             return analyzer;
         }
@@ -100,7 +100,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     @Override
     protected Query newTermQuery(Term term, float boost) {
-        MappedFieldType ft = context.getFieldType(term.field());
+        MappedField ft = context.getMappedField(term.field());
         if (ft == null) {
             return newUnmappedFieldQuery(term.field());
         }
@@ -121,7 +121,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedFieldType ft = context.getFieldType(fieldName);
+            final MappedField ft = context.getMappedField(fieldName);
             if (ft == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;
@@ -170,7 +170,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedFieldType ft = context.getFieldType(fieldName);
+            final MappedField ft = context.getMappedField(fieldName);
             if (ft == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;

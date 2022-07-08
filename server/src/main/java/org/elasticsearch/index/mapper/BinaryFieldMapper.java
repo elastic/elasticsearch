@@ -66,7 +66,8 @@ public class BinaryFieldMapper extends FieldMapper {
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
                 name,
-                new BinaryFieldType(context.buildFullName(name), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                new MappedField<>(context.buildFullName(name),
+                    new BinaryFieldType(stored.getValue(), hasDocValues.getValue(), meta.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -78,12 +79,12 @@ public class BinaryFieldMapper extends FieldMapper {
 
     public static final class BinaryFieldType extends MappedFieldType {
 
-        private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
+        private BinaryFieldType(boolean isStored, boolean hasDocValues, Map<String, String> meta) {
+            super(false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
-        public BinaryFieldType(String name) {
-            this(name, false, true, Collections.emptyMap());
+        public BinaryFieldType() {
+            this(false, true, Collections.emptyMap());
         }
 
         @Override
@@ -92,12 +93,12 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name, context, format);
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
             return DocValueFormat.BINARY;
         }
 
@@ -121,13 +122,13 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new BytesBinaryIndexFieldData.Builder(name, CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Binary fields do not support searching");
         }
     }
@@ -137,12 +138,12 @@ public class BinaryFieldMapper extends FieldMapper {
 
     protected BinaryFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField<BinaryFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
     }
@@ -163,14 +164,14 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), value));
+            context.doc().add(new StoredField(name(), value));
         }
 
         if (hasDocValues) {
-            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
+            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(name());
             if (field == null) {
-                field = new CustomBinaryDocValuesField(fieldType().name(), value);
-                context.doc().addWithKey(fieldType().name(), field);
+                field = new CustomBinaryDocValuesField(name(), value);
+                context.doc().addWithKey(name(), field);
             } else {
                 field.add(value);
             }
@@ -178,7 +179,7 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

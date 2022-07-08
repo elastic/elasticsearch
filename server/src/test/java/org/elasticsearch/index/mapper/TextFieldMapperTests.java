@@ -529,12 +529,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            () -> disabledMapper.mappedField("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
         );
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }); // no exception
+        enabledMapper.mappedField("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }); // no exception
                                                                                                                          // this time
 
         e = expectThrows(
@@ -555,7 +555,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
-        TextFieldType fieldType = (TextFieldType) mapperService.fieldType("field");
+        TextFieldType fieldType = (TextFieldType) mapperService.mappedField("field");
 
         assertThat(fieldType.fielddataMinFrequency(), equalTo(2d));
         assertThat(fieldType.fielddataMaxFrequency(), equalTo((double) Integer.MAX_VALUE));
@@ -687,7 +687,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                         .endObject()
                 )
             );
-            MappedFieldType textField = mapperService.fieldType("object.field");
+            MappedFieldType textField = mapperService.mappedField("object.field");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
@@ -713,7 +713,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                         .endObject()
                 )
             );
-            MappedFieldType textField = mapperService.fieldType("body.with_prefix");
+            MappedFieldType textField = mapperService.mappedField("body.with_prefix");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();

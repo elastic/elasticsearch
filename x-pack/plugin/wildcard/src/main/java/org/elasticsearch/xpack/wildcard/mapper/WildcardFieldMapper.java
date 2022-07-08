@@ -58,6 +58,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -230,7 +231,8 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 name,
-                new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                new MappedField<>(context.buildFullName(name),
+                    new WildcardFieldType(nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get())),
                 ignoreAbove.get(),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
@@ -254,8 +256,8 @@ public class WildcardFieldMapper extends FieldMapper {
         private final int ignoreAbove;
         private final NamedAnalyzer analyzer;
 
-        private WildcardFieldType(String name, String nullValue, int ignoreAbove, Version version, Map<String, String> meta) {
-            super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
+        private WildcardFieldType(String nullValue, int ignoreAbove, Version version, Map<String, String> meta) {
+            super(true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
             if (version.onOrAfter(Version.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
@@ -266,17 +268,19 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(name());
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name);
         }
 
         @Override
-        public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
-            return wildcardQuery(value, method, false, context);
+        public Query normalizedWildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method,
+                                             SearchExecutionContext context) {
+            return wildcardQuery(name, value, method, false, context);
         }
 
         @Override
-        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+        public Query wildcardQuery(String name, String wildcardPattern, RewriteMethod method, boolean caseInsensitive,
+                                   SearchExecutionContext context) {
 
             String ngramIndexPattern = addLineEndChars(wildcardPattern);
             // Break search term into tokens
@@ -290,14 +294,14 @@ public class WildcardFieldMapper extends FieldMapper {
                 switch (c) {
                     case WildcardQuery.WILDCARD_STRING:
                         if (sequence.length() > 0) {
-                            getNgramTokens(tokens, sequence.toString());
+                            getNgramTokens(name, tokens, sequence.toString());
                             sequence = new StringBuilder();
                         }
                         numWildcardStrings++;
                         break;
                     case WildcardQuery.WILDCARD_CHAR:
                         if (sequence.length() > 0) {
-                            getNgramTokens(tokens, sequence.toString());
+                            getNgramTokens(name, tokens, sequence.toString());
                             sequence = new StringBuilder();
                         }
                         numWildcardChars++;
@@ -320,7 +324,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             if (sequence.length() > 0) {
-                getNgramTokens(tokens, sequence.toString());
+                getNgramTokens(name, tokens, sequence.toString());
             }
 
             BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
@@ -329,26 +333,27 @@ public class WildcardFieldMapper extends FieldMapper {
                 if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
                     break;
                 }
-                addClause(string, rewritten, Occur.MUST);
+                addClause(name, string, rewritten, Occur.MUST);
                 clauseCount++;
             }
             Automaton automaton = caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE)
-                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name, wildcardPattern), Integer.MAX_VALUE)
+                : WildcardQuery.toAutomaton(new Term(name, wildcardPattern));
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);
+                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name, wildcardPattern, automaton);
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
-                return new DocValuesFieldExistsQuery(name());
+                return new DocValuesFieldExistsQuery(name);
             }
-            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
+            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name, wildcardPattern, automaton);
 
         }
 
         @Override
         public Query regexpQuery(
+            String name,
             String value,
             int syntaxFlags,
             int matchFlags,
@@ -366,19 +371,19 @@ public class WildcardFieldMapper extends FieldMapper {
             a = Operations.determinize(a, maxDeterminizedStates);
             a = MinimizationOperations.minimize(a, maxDeterminizedStates);
             if (Operations.isTotal(a)) { // Will match all
-                return existsQuery(context);
+                return existsQuery(name, context);
             }
 
             RegExp ngramRegex = new RegExp(addLineEndChars(value), syntaxFlags, matchFlags);
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
-            Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
+            Query approxNgramQuery = rewriteBoolToNgramQuery(name, approxBooleanQuery);
 
             RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
             Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
 
             // We can accelerate execution with the ngram query
-            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);
+            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name, value, automaton);
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -523,7 +528,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         // Takes a BooleanQuery + TermQuery tree representing query logic and rewrites using ngrams of appropriate size.
-        private Query rewriteBoolToNgramQuery(Query approxQuery) {
+        private Query rewriteBoolToNgramQuery(String name, Query approxQuery) {
             // TODO optimise more intelligently so we:
             // 1) favour full-length term queries eg abc over short eg a* when pruning too many clauses.
             // 2) make MAX_CLAUSES_IN_APPROXIMATION_QUERY a global cap rather than per-boolean clause.
@@ -534,7 +539,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 int clauseCount = 0;
                 for (BooleanClause clause : bq) {
-                    Query q = rewriteBoolToNgramQuery(clause.getQuery());
+                    Query q = rewriteBoolToNgramQuery(name, clause.getQuery());
                     if (q != null) {
                         if (clause.getOccur().equals(Occur.FILTER)) {
                             // Can't drop "should" clauses because it can elevate a sibling optional item
@@ -560,10 +565,10 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 // Break term into tokens
                 Set<String> tokens = new LinkedHashSet<>();
-                getNgramTokens(tokens, s);
+                getNgramTokens(name, tokens, s);
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 for (String string : tokens) {
-                    addClause(string, rewritten, Occur.FILTER);
+                    addClause(name, string, rewritten, Occur.FILTER);
                 }
                 return rewritten.build();
             }
@@ -573,14 +578,14 @@ public class WildcardFieldMapper extends FieldMapper {
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
         }
 
-        protected void getNgramTokens(Set<String> tokens, String fragment) {
+        protected void getNgramTokens(String name, Set<String> tokens, String fragment) {
             if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                 // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
                 // terms which can be ignored.
                 return;
             }
             // Break fragment into multiple Ngrams
-            TokenStream tokenizer = analyzer.tokenStream(name(), fragment);
+            TokenStream tokenizer = analyzer.tokenStream(name, fragment);
             CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
             int foundTokens = 0;
             try {
@@ -606,7 +611,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
         }
 
-        private void addClause(String token, BooleanQuery.Builder bqBuilder, Occur occur) {
+        private void addClause(String name, String token, BooleanQuery.Builder bqBuilder, Occur occur) {
             assert token.codePointCount(0, token.length()) <= NGRAM_SIZE;
             int tokenSize = token.codePointCount(0, token.length());
             if (tokenSize < 2 || token.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
@@ -616,10 +621,10 @@ public class WildcardFieldMapper extends FieldMapper {
                 return;
             }
             if (tokenSize == NGRAM_SIZE) {
-                TermQuery tq = new TermQuery(new Term(name(), token));
+                TermQuery tq = new TermQuery(new Term(name, token));
                 bqBuilder.add(new BooleanClause(tq, occur));
             } else {
-                PrefixQuery wq = new PrefixQuery(new Term(name(), token));
+                PrefixQuery wq = new PrefixQuery(new Term(name, token));
                 wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
                 bqBuilder.add(new BooleanClause(wq, occur));
             }
@@ -627,6 +632,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
@@ -659,7 +665,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 if (commonPrefix.length() > 0) {
                     Set<String> tokens = new HashSet<>();
-                    getNgramTokens(tokens, commonPrefix.toString());
+                    getNgramTokens(name, tokens, commonPrefix.toString());
                     BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                     for (String token : tokens) {
                         int tokenSize = token.codePointCount(0, token.length());
@@ -668,10 +674,10 @@ public class WildcardFieldMapper extends FieldMapper {
                         }
 
                         if (tokenSize == NGRAM_SIZE) {
-                            TermQuery tq = new TermQuery(new Term(name(), token));
+                            TermQuery tq = new TermQuery(new Term(name, token));
                             bqBuilder.add(new BooleanClause(tq, Occur.FILTER));
                         } else {
-                            PrefixQuery wq = new PrefixQuery(new Term(name(), token));
+                            PrefixQuery wq = new PrefixQuery(new Term(name, token));
                             wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
                             bqBuilder.add(new BooleanClause(wq, Occur.FILTER));
                         }
@@ -685,13 +691,14 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton = TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
 
             if (accelerationQuery == null) {
-                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), lower + "-" + upper, automaton);
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name, lower + "-" + upper, automaton);
             }
-            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);
+            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name, lower + "-" + upper, automaton);
         }
 
         @Override
         public Query fuzzyQuery(
+            String name,
             Object value,
             Fuzziness fuzziness,
             int prefixLength,
@@ -711,13 +718,13 @@ public class WildcardFieldMapper extends FieldMapper {
                     Set<String> prefixTokens = new LinkedHashSet<>();
                     postPrefixString = searchTerm.substring(prefixLength);
                     String prefixCandidate = TOKEN_START_OR_END_CHAR + searchTerm.substring(0, prefixLength);
-                    getNgramTokens(prefixTokens, prefixCandidate);
+                    getNgramTokens(name, prefixTokens, prefixCandidate);
                     for (String prefixToken : prefixTokens) {
-                        addClause(prefixToken, approxBuilder, Occur.MUST);
+                        addClause(name, prefixToken, approxBuilder, Occur.MUST);
                     }
                 }
                 // Tokenize all content after the prefix
-                TokenStream tokenizer = analyzer.tokenStream(name(), postPrefixString);
+                TokenStream tokenizer = analyzer.tokenStream(name, postPrefixString);
                 CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
                 ArrayList<String> postPrefixTokens = new ArrayList<>();
                 String firstToken = null;
@@ -744,7 +751,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder ngramBuilder = new BooleanQuery.Builder();
                 int numClauses = 0;
                 for (String token : postPrefixTokens) {
-                    addClause(token, ngramBuilder, Occur.SHOULD);
+                    addClause(name, token, ngramBuilder, Occur.SHOULD);
                     numClauses++;
                 }
 
@@ -759,17 +766,17 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 // Verification query
                 FuzzyQuery fq = new FuzzyQuery(
-                    new Term(name(), searchTerm),
+                    new Term(name, searchTerm),
                     fuzziness.asDistance(searchTerm),
                     prefixLength,
                     maxExpansions,
                     transpositions
                 );
                 if (ngramQ.clauses().size() == 0) {
-                    return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), searchTerm, fq.getAutomata().automaton);
+                    return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name, searchTerm, fq.getAutomata().automaton);
                 }
 
-                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
+                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name, searchTerm, fq.getAutomata().automaton);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -786,9 +793,9 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
-            return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
+            return wildcardQuery(name, escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
         }
 
         private String escapeWildcardSyntax(String term) {
@@ -807,47 +814,48 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+        public Query termQueryCaseInsensitive(String name, Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
-            return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
+            return wildcardQuery(name, escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 
         @Override
         public Query prefixQuery(
+            String name,
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            return wildcardQuery(escapeWildcardSyntax(value) + "*", method, caseInsensitive, context);
+            return wildcardQuery(name, escapeWildcardSyntax(value) + "*", method, caseInsensitive, context);
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
             for (Object value : values) {
-                bq.add(termQuery(value, context), Occur.SHOULD);
+                bq.add(termQuery(name, value, context), Occur.SHOULD);
             }
             return new ConstantScoreQuery(bq.build());
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
             return (cache, breakerService) -> new StringBinaryIndexFieldData(
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 WildcardDocValuesField::new
             );
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(name, context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -868,14 +876,14 @@ public class WildcardFieldMapper extends FieldMapper {
 
     private WildcardFieldMapper(
         String simpleName,
-        WildcardFieldType mappedFieldType,
+        MappedField<WildcardFieldType> mappedField,
         int ignoreAbove,
         MultiFields multiFields,
         CopyTo copyTo,
         String nullValue,
         Version indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;
@@ -887,7 +895,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), fieldType().analyzer);
+        return Map.of(mappedField.name(), fieldType().analyzer);
     }
 
     /** Values that have more chars than the return value of this method will
@@ -926,13 +934,13 @@ public class WildcardFieldMapper extends FieldMapper {
 
     void createFields(String value, LuceneDocument parseDoc, List<IndexableField> fields) {
         String ngramValue = addLineEndChars(value);
-        Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
+        Field ngramField = new Field(name(), ngramValue, ngramFieldType);
         fields.add(ngramField);
 
-        CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());
+        CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(name());
         if (dvField == null) {
-            dvField = new CustomBinaryDocValuesField(fieldType().name(), value.getBytes(StandardCharsets.UTF_8));
-            parseDoc.addWithKey(fieldType().name(), dvField);
+            dvField = new CustomBinaryDocValuesField(name(), value.getBytes(StandardCharsets.UTF_8));
+            parseDoc.addWithKey(name(), dvField);
         } else {
             dvField.add(value.getBytes(StandardCharsets.UTF_8));
         }

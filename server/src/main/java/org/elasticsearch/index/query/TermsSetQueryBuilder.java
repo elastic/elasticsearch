@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
@@ -246,7 +247,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
      * Visible only for testing purposes.
      */
     List<Query> createTermQueries(SearchExecutionContext context) {
-        final MappedFieldType fieldType = context.getFieldType(fieldName);
+        final MappedField<?> fieldType = context.getMappedField(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
             if (fieldType != null) {
@@ -261,12 +262,12 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     private LongValuesSource createValuesSource(SearchExecutionContext context) {
         LongValuesSource longValuesSource;
         if (minimumShouldMatchField != null) {
-            MappedFieldType msmFieldType = context.getFieldType(minimumShouldMatchField);
-            if (msmFieldType == null) {
+            MappedField<?> msmField = context.getMappedField(minimumShouldMatchField);
+            if (msmField == null) {
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }
 
-            IndexNumericFieldData fieldData = context.getForField(msmFieldType);
+            IndexNumericFieldData fieldData = context.getForField(msmField);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
             TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript, TermsSetQueryScript.CONTEXT);

@@ -79,7 +79,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(searchExecutionContext.getForField(fieldMapper.fieldType())).thenReturn(
                 new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD)
             );
-            when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
+            when(searchExecutionContext.getMappedField(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
                 return new KeywordFieldMapper.KeywordFieldType(fieldName);
             });

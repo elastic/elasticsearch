@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -49,7 +50,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
 
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch)
         throws IOException {
-        boolean hasMappedField = fieldNames.keySet().stream().anyMatch(k -> context.getFieldType(k) != null);
+        boolean hasMappedField = fieldNames.keySet().stream().anyMatch(k -> context.getMappedField(k) != null);
         if (hasMappedField == false) {
             // all query fields are unmapped
             return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
@@ -85,7 +86,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
     ) throws IOException {
         List<Query> queries = new ArrayList<>();
         for (String fieldName : fieldNames.keySet()) {
-            if (context.getFieldType(fieldName) == null) {
+            if (context.getMappedField(fieldName) == null) {
                 // ignore unmapped fields
                 continue;
             }
@@ -108,14 +109,14 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
             String name = entry.getKey();
-            MappedFieldType fieldType = context.getFieldType(name);
-            if (fieldType != null) {
-                Analyzer actualAnalyzer = getAnalyzer(fieldType, false);
+            MappedField<?> mappedField = context.getMappedField(name);
+            if (mappedField != null) {
+                Analyzer actualAnalyzer = getAnalyzer(mappedField, false);
                 if (groups.containsKey(actualAnalyzer) == false) {
                     groups.put(actualAnalyzer, new ArrayList<>());
                 }
                 float boost = entry.getValue() == null ? 1.0f : entry.getValue();
-                groups.get(actualAnalyzer).add(new FieldAndBoost(fieldType, boost));
+                groups.get(actualAnalyzer).add(new FieldAndBoost(mappedField, boost));
             }
         }
         for (Map.Entry<Analyzer, List<FieldAndBoost>> group : groups.entrySet()) {
@@ -123,7 +124,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             if (group.getValue().size() == 1) {
                 builder = new MatchQueryBuilder(
                     group.getKey(),
-                    group.getValue().get(0).fieldType,
+                    group.getValue().get(0).mappedField,
                     enablePositionIncrements,
                     autoGenerateSynonymsPhraseQuery
                 );
@@ -142,7 +143,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
              * we just pick the first field. It shouldn't matter because
              * fields are already grouped by their analyzers/types.
              */
-            String representativeField = group.getValue().get(0).fieldType.name();
+            String representativeField = group.getValue().get(0).mappedField.name();
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
             if (query == null) {
                 query = zeroTermsQuery.asQuery();
@@ -175,7 +176,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             boolean enablePositionIncrements,
             boolean autoGenerateSynonymsPhraseQuery
         ) {
-            super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+            super(analyzer, blendedFields.get(0).mappedField, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
             this.blendedFields = blendedFields;
             this.tieBreaker = tieBreaker;
         }
@@ -218,7 +219,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
+                Query query = fieldType.mappedField.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
@@ -231,7 +232,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
+                Query query = fieldType.mappedField.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
@@ -268,10 +269,10 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             for (BytesRef term : values) {
                 Query query;
                 try {
-                    query = ft.fieldType.termQuery(term, context);
+                    query = ft.mappedField.termQuery(term, context);
                 } catch (RuntimeException e) {
                     if (lenient) {
-                        query = newLenientFieldQuery(ft.fieldType.name(), e);
+                        query = newLenientFieldQuery(ft.mappedField.name(), e);
                     } else {
                         throw e;
                     }
@@ -309,11 +310,11 @@ public class MultiMatchQueryParser extends MatchQueryParser {
     }
 
     static final class FieldAndBoost {
-        final MappedFieldType fieldType;
+        final MappedField<?> mappedField;
         final float boost;
 
-        FieldAndBoost(MappedFieldType fieldType, float boost) {
-            this.fieldType = Objects.requireNonNull(fieldType);
+        FieldAndBoost(MappedField<?> mappedField, float boost) {
+            this.mappedField = Objects.requireNonNull(mappedField);
             this.boost = boost;
         }
     }

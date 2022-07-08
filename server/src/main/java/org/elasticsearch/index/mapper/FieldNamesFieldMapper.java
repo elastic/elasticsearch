@@ -127,7 +127,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         private FieldNamesFieldType(boolean enabled) {
-            super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -141,17 +141,17 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name + "].");
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists query on _field_names");
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
@@ -160,7 +160,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 "terms_query_on_field_names",
                 "terms query on the _field_names field is deprecated and will be removed, use exists query instead"
             );
-            return super.termQuery(value, context);
+            return super.termQuery(name, value, context);
         }
     }
 
@@ -168,7 +168,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private final boolean createdOnOrAfterV8;
 
     private FieldNamesFieldMapper(Explicit<Boolean> enabled, boolean createdOnOrAfterV8) {
-        super(FieldNamesFieldType.get(enabled.value()));
+        super(new MappedField<>(NAME, FieldNamesFieldType.get(enabled.value())));
         this.enabled = enabled;
         this.createdOnOrAfterV8 = createdOnOrAfterV8;
     }
@@ -187,7 +187,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {
-        MappedFieldType ft = context.mappingLookup().getFieldType(field);
+        MappedField ft = context.mappingLookup().getMappedField(field);
         return ft == null || ft.hasDocValues() == false;
     }
 

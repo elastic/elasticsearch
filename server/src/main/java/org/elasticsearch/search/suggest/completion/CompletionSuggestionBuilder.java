@@ -16,7 +16,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -279,23 +279,24 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         if (shardSize != null) {
             suggestionContext.setShardSize(shardSize);
         }
-        MappedFieldType mappedFieldType = context.getFieldType(suggestionContext.getField());
-        if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
+        MappedField<?> mappedField = context.getMappedField(suggestionContext.getField());
+        if (mappedField.type() instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
-        CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
-        suggestionContext.setFieldType(type);
-        if (type.hasContextMappings() && contextBytes != null) {
+        @SuppressWarnings("unchecked")
+        MappedField<CompletionFieldMapper.CompletionFieldType> field = (MappedField<CompletionFieldMapper.CompletionFieldType>) mappedField;
+        suggestionContext.setMappedField(field);
+        if (field.type().hasContextMappings() && contextBytes != null) {
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(
                 contextBytes,
                 context.getParserConfig(),
-                type.getContextMappings()
+                field.type().getContextMappings()
             );
             suggestionContext.setQueryContexts(queryContexts);
         } else if (contextBytes != null) {
-            throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
+            throw new IllegalArgumentException("suggester [" + field.name() + "] doesn't expect any context");
         }
-        assert suggestionContext.getFieldType() != null : "no completion field type set";
+        assert suggestionContext.getMappedField() != null : "no completion field type set";
         return suggestionContext;
     }
 

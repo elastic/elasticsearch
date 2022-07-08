@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -253,14 +254,14 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             }
             return new TermsSliceQuery(IdFieldMapper.NAME, id, max);
         } else {
-            MappedFieldType type = context.getFieldType(field);
-            if (type == null) {
+            MappedField mappedField = context.getMappedField(field);
+            if (mappedField == null) {
                 throw new IllegalArgumentException("field " + field + " not found");
             }
-            if (type.hasDocValues() == false) {
+            if (mappedField.hasDocValues() == false) {
                 throw new IllegalArgumentException("cannot load numeric doc values on " + field);
             } else {
-                IndexFieldData<?> ifm = context.getForField(type);
+                IndexFieldData<?> ifm = context.getForField(mappedField);
                 if (ifm instanceof IndexNumericFieldData == false) {
                     throw new IllegalArgumentException("cannot load numeric doc values on " + field);
                 }

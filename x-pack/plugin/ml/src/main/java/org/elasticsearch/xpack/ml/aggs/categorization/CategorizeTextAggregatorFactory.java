@@ -43,7 +43,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
-        this.fieldType = context.getFieldType(fieldName);
+        this.fieldType = context.getMappedField(fieldName);
         this.similarityThreshold = similarityThreshold;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         this.bucketCountThresholds = bucketCountThresholds;

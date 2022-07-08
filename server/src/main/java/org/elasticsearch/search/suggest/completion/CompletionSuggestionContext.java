@@ -11,6 +11,7 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -26,18 +27,18 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         super(CompletionSuggester.INSTANCE, searchExecutionContext);
     }
 
-    private CompletionFieldMapper.CompletionFieldType fieldType;
+    private MappedField<CompletionFieldMapper.CompletionFieldType> mappedField;
     private FuzzyOptions fuzzyOptions;
     private RegexOptions regexOptions;
     private boolean skipDuplicates;
     private Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
 
-    CompletionFieldMapper.CompletionFieldType getFieldType() {
-        return this.fieldType;
+    MappedField<CompletionFieldMapper.CompletionFieldType> getMappedField() {
+        return this.mappedField;
     }
 
-    void setFieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
-        this.fieldType = fieldType;
+    void setMappedField(MappedField<CompletionFieldMapper.CompletionFieldType> mappedField) {
+        this.mappedField = mappedField;
     }
 
     void setRegexOptions(RegexOptions regexOptions) {
@@ -73,10 +74,9 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     }
 
     CompletionQuery toQuery() {
-        CompletionFieldMapper.CompletionFieldType fieldType = getFieldType();
         final CompletionQuery query;
         if (getPrefix() != null) {
-            query = createCompletionQuery(getPrefix(), fieldType);
+            query = createCompletionQuery(getPrefix());
         } else if (getRegex() != null) {
             if (fuzzyOptions != null) {
                 throw new IllegalArgumentException("can not use 'fuzzy' options with 'regex");
@@ -84,23 +84,25 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
             if (regexOptions == null) {
                 regexOptions = RegexOptions.builder().build();
             }
-            query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(), regexOptions.getMaxDeterminizedStates());
+            query = mappedField.type().regexpQuery(mappedField.name(), getRegex(), regexOptions.getFlagsValue(),
+                regexOptions.getMaxDeterminizedStates());
         } else if (getText() != null) {
-            query = createCompletionQuery(getText(), fieldType);
+            query = createCompletionQuery(getText());
         } else {
             throw new IllegalArgumentException("'prefix/text' or 'regex' must be defined");
         }
-        if (fieldType.hasContextMappings()) {
-            ContextMappings contextMappings = fieldType.getContextMappings();
+        if (mappedField.type().hasContextMappings()) {
+            ContextMappings contextMappings = mappedField.type().getContextMappings();
             return contextMappings.toContextQuery(query, queryContexts);
         }
         return query;
     }
 
-    private CompletionQuery createCompletionQuery(BytesRef prefix, CompletionFieldMapper.CompletionFieldType fieldType) {
+    private CompletionQuery createCompletionQuery(BytesRef prefix) {
         final CompletionQuery query;
         if (fuzzyOptions != null) {
-            query = fieldType.fuzzyQuery(
+            query = mappedField.type().fuzzyQuery(
+                mappedField.name(),
                 prefix.utf8ToString(),
                 Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
                 fuzzyOptions.getFuzzyPrefixLength(),
@@ -110,7 +112,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
                 fuzzyOptions.isUnicodeAware()
             );
         } else {
-            query = fieldType.prefixQuery(prefix);
+            query = mappedField.type().prefixQuery(mappedField.name(), prefix);
         }
         return query;
     }

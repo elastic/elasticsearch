@@ -493,7 +493,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
+        return Map.of(mappedField.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -534,7 +534,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(mappedFieldType.name(), binaryValue, fieldType);
+            Field field = new Field(mappedField.name(), binaryValue, fieldType);
             context.doc().add(field);
         }
 

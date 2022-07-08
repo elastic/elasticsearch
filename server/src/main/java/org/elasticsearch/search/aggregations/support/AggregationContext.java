@@ -26,7 +26,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -92,7 +92,7 @@ public abstract class AggregationContext implements Releasable {
      * Lookup the context for a field.
      */
     public final FieldContext buildFieldContext(String field) {
-        MappedFieldType ft = getFieldType(field);
+        MappedField ft = getMappedField(field);
         if (ft == null) {
             // The field is unmapped
             return null;
@@ -127,19 +127,19 @@ public abstract class AggregationContext implements Releasable {
     /**
      * Lookup the context for an already resolved field type.
      */
-    public final FieldContext buildFieldContext(MappedFieldType ft) {
-        return new FieldContext(ft.name(), buildFieldData(ft), ft);
+    public final FieldContext buildFieldContext(MappedField field) {
+        return new FieldContext(field.name(), buildFieldData(field), field);
     }
 
     /**
      * Build field data.
      */
-    protected abstract IndexFieldData<?> buildFieldData(MappedFieldType ft);
+    protected abstract IndexFieldData<?> buildFieldData(MappedField field);
 
     /**
-     * Lookup a {@link MappedFieldType} by path.
+     * Lookup a {@link MappedField} by path.
      */
-    public abstract MappedFieldType getFieldType(String path);
+    public abstract MappedField getMappedField(String path);
 
     /**
      * Returns a set of field names that match a regex-like pattern
@@ -432,13 +432,13 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
+        protected IndexFieldData<?> buildFieldData(MappedField ft) {
             return context.getForField(ft);
         }
 
         @Override
-        public MappedFieldType getFieldType(String path) {
-            return context.getFieldType(path);
+        public MappedField getMappedField(String path) {
+            return context.getMappedField(path);
         }
 
         @Override

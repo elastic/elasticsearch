@@ -20,7 +20,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -391,9 +391,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);
         }
-        MappedFieldType mft = context.getFieldType(fieldName);
-        if (mft != null) {
-            return mft.getTextSearchInfo().searchAnalyzer();
+        MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField != null) {
+            return mappedField.getTextSearchInfo().searchAnalyzer();
         }
         return null;
     }

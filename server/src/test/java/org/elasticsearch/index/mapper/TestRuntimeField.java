@@ -39,7 +39,7 @@ public final class TestRuntimeField implements RuntimeField {
     }
 
     @Override
-    public Stream<MappedFieldType> asMappedFieldTypes() {
+    public Stream<MappedFieldType> asMappedFields() {
         return subfields.stream();
     }
 

@@ -244,7 +244,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                     values[i] = null;
                 } else if (obj instanceof Comparable<?> c) {
                     values[i] = c;
-                } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
+                } else if (obj instanceof Map<?, ?> && configs[i].mappedField().type().getClass() == TimeSeriesIdFieldType.class) {
                     // If input is a _tsid map, encode the map to the _tsid BytesRef
                     values[i] = configs[i].format().parseBytesRef(obj);
                 } else {

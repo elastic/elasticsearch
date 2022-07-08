@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -27,7 +28,7 @@ public class CoordinatorRewriteContextProvider {
     private final Client client;
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
-    private final Function<Index, DateFieldMapper.DateFieldType> mappingSupplier;
+    private final Function<Index, MappedField<DateFieldMapper.DateFieldType>> mappingSupplier;
 
     public CoordinatorRewriteContextProvider(
         XContentParserConfiguration parserConfig,
@@ -35,7 +36,7 @@ public class CoordinatorRewriteContextProvider {
         Client client,
         LongSupplier nowInMillis,
         Supplier<ClusterState> clusterStateSupplier,
-        Function<Index, DateFieldMapper.DateFieldType> mappingSupplier
+        Function<Index, MappedField<DateFieldMapper.DateFieldType>> mappingSupplier
     ) {
         this.parserConfig = parserConfig;
         this.writeableRegistry = writeableRegistry;
@@ -61,12 +62,12 @@ public class CoordinatorRewriteContextProvider {
             }
         }
 
-        DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
+        MappedField<DateFieldMapper.DateFieldType> dateField = mappingSupplier.apply(index);
 
-        if (dateFieldType == null) {
+        if (dateField == null) {
             return null;
         }
 
-        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, timestampRange, dateFieldType);
+        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, timestampRange, dateField);
     }
 }

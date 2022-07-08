@@ -11,7 +11,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.util.List;
@@ -20,7 +20,7 @@ import java.util.List;
  * {@linkplain StoredFieldVisitor} that loads a single field value.
  */
 public final class SingleFieldsVisitor extends StoredFieldVisitor {
-    private final MappedFieldType field;
+    private final MappedField field;
     private final List<Object> destination;
 
     /**
@@ -28,7 +28,7 @@ public final class SingleFieldsVisitor extends StoredFieldVisitor {
      * @param field the name of the field to load
      * @param destination where to put the field's values
      */
-    public SingleFieldsVisitor(MappedFieldType field, List<Object> destination) {
+    public SingleFieldsVisitor(MappedField field, List<Object> destination) {
         this.field = field;
         this.destination = destination;
     }

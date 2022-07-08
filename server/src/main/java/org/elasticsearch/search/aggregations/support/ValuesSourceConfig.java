@@ -12,7 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
@@ -216,7 +216,7 @@ public class ValuesSourceConfig {
             return CoreValuesSourceType.NUMERIC;
         } else if (indexFieldData instanceof IndexGeoPointFieldData) {
             return CoreValuesSourceType.GEOPOINT;
-        } else if (fieldContext.fieldType() instanceof RangeFieldMapper.RangeFieldType) {
+        } else if (fieldContext.mappedField().type() instanceof RangeFieldMapper.RangeFieldType) {
             return CoreValuesSourceType.RANGE;
         } else {
             if (userValueTypeHint == null) {
@@ -243,7 +243,7 @@ public class ValuesSourceConfig {
         @Nullable FieldContext fieldContext
     ) {
         if (fieldContext != null) {
-            return fieldContext.fieldType().docValueFormat(format, tz);
+            return fieldContext.mappedField().docValueFormat(format, tz);
         }
         // Script or Unmapped case
         return valuesSourceType.getFormatter(format, tz);
@@ -254,8 +254,8 @@ public class ValuesSourceConfig {
      * are operating on, for example Parent and Child join aggregations, which use the join relation to find the field they are reading from
      * rather than a user specified field.
      */
-    public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
-        FieldContext fieldContext = context.buildFieldContext(fieldType);
+    public static ValuesSourceConfig resolveFieldOnly(MappedField mappedField, AggregationContext context) {
+        FieldContext fieldContext = context.buildFieldContext(mappedField);
         ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
         return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
     }
@@ -347,18 +347,18 @@ public class ValuesSourceConfig {
      * and then cast up to a double.  Used to correct precision errors.
      */
     public DoubleUnaryOperator reduceToStoredPrecisionFunction() {
-        if (fieldContext() != null && fieldType() instanceof NumberFieldMapper.NumberFieldType) {
-            return ((NumberFieldMapper.NumberFieldType) fieldType())::reduceToStoredPrecision;
+        if (fieldContext() != null && mappedField().type() instanceof NumberFieldMapper.NumberFieldType) {
+            return ((NumberFieldMapper.NumberFieldType) mappedField().type())::reduceToStoredPrecision;
         }
         return (value) -> value;
     }
 
     /**
-     * Convenience method for looking up the mapped field type backing this values source, if it exists.
+     * Convenience method for looking up the mapped field backing this values source, if it exists.
      */
     @Nullable
-    public MappedFieldType fieldType() {
-        return fieldContext == null ? null : fieldContext.fieldType();
+    public MappedField mappedField() {
+        return fieldContext == null ? null : fieldContext.mappedField();
     }
 
     public AggregationScript.LeafFactory script() {
@@ -424,7 +424,7 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+        return alignesWithSearchIndex() ? mappedField().pointReaderIfPossible() : null;
     }
 
     /**
@@ -434,7 +434,7 @@ public class ValuesSourceConfig {
      * the ordering.
      */
     public boolean alignesWithSearchIndex() {
-        return script() == null && missing() == null && fieldType() != null && fieldType().isIndexed();
+        return script() == null && missing() == null && mappedField() != null && mappedField().isIndexed();
     }
 
     /**
@@ -445,9 +445,9 @@ public class ValuesSourceConfig {
             return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]";
         }
 
-        MappedFieldType fieldType = fieldType();
-        if (fieldType != null) {
-            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+        MappedField mappedField = mappedField();
+        if (mappedField != null) {
+            return "Field [" + mappedField.name() + "] of type [" + mappedField.typeName() + "]";
         }
         return "unmapped field";
     }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -314,7 +314,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** builds the appropriate lucene shape query */
-    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);
+    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedField<?> fieldType);
 
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
@@ -334,15 +334,15 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         if (shape == null || supplier != null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
-        final MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType == null) {
+        final MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 throw new QueryShardException(context, "failed to find type for field [" + fieldName + "]");
             }
         }
-        return buildShapeQuery(context, fieldType);
+        return buildShapeQuery(context, mappedField);
     }
 
     /**

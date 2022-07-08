@@ -347,10 +347,10 @@ public class TextFieldMapper extends FieldMapper {
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft;
             if (indexCreatedVersion.isLegacyIndexVersion()) {
-                ft = new LegacyTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                ft = new LegacyTextFieldType(index.getValue(), store.getValue(), tsi, meta.getValue());
                 // ignore fieldData and eagerGlobalOrdinals
             } else {
-                ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                ft = new TextFieldType(index.getValue(), store.getValue(), tsi, meta.getValue());
                 ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -400,7 +400,7 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
 
-        private SubFieldInfo buildPhraseInfo(FieldType fieldType, TextFieldType parent) {
+        private SubFieldInfo buildPhraseInfo(FieldType fieldType, MappedField<TextFieldType> parent) {
             if (indexPhrases.get() == false) {
                 return null;
             }
@@ -411,7 +411,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
             }
             FieldType phraseFieldType = new FieldType(fieldType);
-            parent.setIndexPhrases();
+            parent.type().setIndexPhrases();
             PhraseWrappedAnalyzer a = new PhraseWrappedAnalyzer(
                 analyzers.getIndexAnalyzer().analyzer(),
                 analyzers.positionIncrementGap.get()
@@ -448,9 +448,10 @@ public class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
-            TextFieldType tft = buildFieldType(fieldType, context, indexCreatedVersion);
+            MappedField<TextFieldType> tft = new MappedField<>(context.buildFullName(name),
+                buildFieldType(fieldType, context, indexCreatedVersion));
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
-            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
+            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft.type());
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
@@ -541,22 +542,20 @@ public class TextFieldMapper extends FieldMapper {
 
         final int minChars;
         final int maxChars;
-        final TextFieldType parentField;
 
-        PrefixFieldType(TextFieldType parentField, int minChars, int maxChars) {
-            super(parentField.name() + FAST_PREFIX_SUFFIX, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
+        PrefixFieldType(TextFieldType parentFieldType, int minChars, int maxChars) {
+            super(true, false, false, parentFieldType.getTextSearchInfo(), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
-            this.parentField = parentField;
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
             return false;
         }
 
@@ -564,8 +563,9 @@ public class TextFieldMapper extends FieldMapper {
             return length >= minChars - 1 && length <= maxChars;
         }
 
-        @Override
         public Query prefixQuery(
+            String parentName,
+            String name,
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
@@ -573,9 +573,9 @@ public class TextFieldMapper extends FieldMapper {
         ) {
             if (value.length() >= minChars) {
                 if (caseInsensitive) {
-                    return super.termQueryCaseInsensitive(value, context);
+                    return super.termQueryCaseInsensitive(name, value, context);
                 }
-                return super.termQuery(value, context);
+                return super.termQuery(name, value, context);
             }
             List<Automaton> automata = new ArrayList<>();
             if (caseInsensitive) {
@@ -588,25 +588,25 @@ public class TextFieldMapper extends FieldMapper {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
-            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
+            AutomatonQuery query = new AutomatonQuery(new Term(name, value + "*"), automaton);
             query.setRewriteMethod(method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term(parentName, value)), BooleanClause.Occur.SHOULD)
                 .build();
         }
 
-        public IntervalsSource intervals(BytesRef term) {
+        public IntervalsSource intervals(String name, BytesRef term) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over a field [" + name() + "] without indexed positions");
+                throw new IllegalArgumentException("Cannot create intervals over a field [" + name + "] without indexed positions");
             }
             if (term.length > maxChars) {
                 return Intervals.prefix(term);
             }
             if (term.length >= minChars) {
-                return Intervals.fixField(name(), Intervals.term(term));
+                return Intervals.fixField(name, Intervals.term(term));
             }
             String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
-            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
+            return Intervals.or(Intervals.fixField(name, Intervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
         }
 
         @Override
@@ -620,7 +620,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             throw new UnsupportedOperationException();
         }
     }
@@ -647,14 +647,13 @@ public class TextFieldMapper extends FieldMapper {
         private boolean indexPhrases = false;
         private boolean eagerGlobalOrdinals = false;
 
-        public TextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, false, tsi, meta);
+        public TextFieldType(boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(indexed, stored, false, tsi, meta);
             fielddata = false;
         }
 
-        public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
+        public TextFieldType(boolean indexed, boolean stored, Map<String, String> meta) {
             super(
-                name,
                 indexed,
                 stored,
                 false,
@@ -664,14 +663,17 @@ public class TextFieldMapper extends FieldMapper {
             fielddata = false;
         }
 
-        public TextFieldType(String name) {
+        public TextFieldType() {
             this(
-                name,
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 Collections.emptyMap()
             );
+        }
+
+        private String prefixName(String parentName) {
+            return parentName + FAST_PREFIX_SUFFIX;
         }
 
         public boolean fielddata() {
@@ -722,21 +724,22 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name, context, format);
         }
 
         @Override
         public Query prefixQuery(
+            String name,
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
             if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
-                return super.prefixQuery(value, method, caseInsensitive, context);
+                return super.prefixQuery(name, value, method, caseInsensitive, context);
             }
-            Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
+            Query tq = prefixFieldType.prefixQuery(name, prefixName(name), value, method, caseInsensitive, context);
             if (method == null
                 || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
                 || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
@@ -746,17 +749,18 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
-            failIfNotIndexed();
+        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+                                         SearchExecutionContext context) {
+            failIfNotIndexed(name);
             if (prefixFieldType != null
                 && value.length() >= prefixFieldType.minChars
                 && value.length() <= prefixFieldType.maxChars
                 && prefixFieldType.getTextSearchInfo().hasPositions()) {
 
-                return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
+                return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixName(name), indexedValueForSearch(name, value))), name);
             } else {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
-                    new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
+                    new PrefixQuery(new Term(name, indexedValueForSearch(name, value)))
                 );
                 spanMulti.setRewriteMethod(method);
                 return spanMulti;
@@ -764,26 +768,27 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
+        public IntervalsSource termIntervals(String name, BytesRef term, SearchExecutionContext context) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name + "] with no positions indexed");
             }
             return Intervals.term(term);
         }
 
         @Override
-        public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
+        public IntervalsSource prefixIntervals(String name, BytesRef term, SearchExecutionContext context) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name + "] with no positions indexed");
             }
             if (prefixFieldType != null) {
-                return prefixFieldType.intervals(term);
+                return prefixFieldType.intervals(prefixName(name), term);
             }
             return Intervals.prefix(term);
         }
 
         @Override
         public IntervalsSource fuzzyIntervals(
+            String name,
             String term,
             int maxDistance,
             int prefixLength,
@@ -791,31 +796,31 @@ public class TextFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name + "] with no positions indexed");
             }
-            FuzzyQuery fq = new FuzzyQuery(new Term(name(), term), maxDistance, prefixLength, 128, transpositions);
+            FuzzyQuery fq = new FuzzyQuery(new Term(name, term), maxDistance, prefixLength, 128, transpositions);
             return Intervals.multiterm(fq.getAutomata(), term);
         }
 
         @Override
-        public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+        public IntervalsSource wildcardIntervals(String name, BytesRef pattern, SearchExecutionContext context) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name + "] with no positions indexed");
             }
             return Intervals.wildcard(pattern);
         }
 
-        private void checkForPositions() {
+        private void checkForPositions(String name) {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalStateException("field:[" + name + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
+        public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
-            String field = name();
-            checkForPositions();
+            String field = name;
+            checkForPositions(name);
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
             // https://issues.apache.org/jira/browse/LUCENE-8916
@@ -847,9 +852,10 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
+        public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
+                                      SearchExecutionContext context)
             throws IOException {
-            String field = name();
+            String field = name;
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
@@ -868,17 +874,18 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
+        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context)
+            throws IOException {
             if (countTokens(stream) > 1) {
-                checkForPositions();
+                checkForPositions(name);
             }
-            return analyzePhrasePrefix(stream, slop, maxExpansions);
+            return analyzePhrasePrefix(name, stream, slop, maxExpansions);
         }
 
-        private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixFieldType.name();
+        private Query analyzePhrasePrefix(String name, TokenStream stream, int slop, int maxExpansions) throws IOException {
+            String prefixField = prefixFieldType == null || slop > 0 ? null : prefixName(name);
             IntPredicate usePrefix = (len) -> len >= prefixFieldType.minChars && len <= prefixFieldType.maxChars;
-            return createPhrasePrefixQuery(stream, name(), slop, maxExpansions, prefixField, usePrefix);
+            return createPhrasePrefixQuery(stream, name, slop, maxExpansions, prefixField, usePrefix);
         }
 
         public static boolean hasGaps(TokenStream stream) throws IOException {
@@ -894,19 +901,19 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             if (fielddata == false) {
                 throw new IllegalArgumentException(
                     "Text fields are not optimised for operations that require per-document "
                         + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
                         + "keyword field instead. Alternatively, set fielddata=true on ["
-                        + name()
+                        + name
                         + "] in order to load "
                         + "field data by uninverting the inverted index. Note that this can use significant memory."
                 );
             }
             return new PagedBytesIndexFieldData.Builder(
-                name(),
+                name,
                 filter.minFreq,
                 filter.maxFreq,
                 filter.minSegmentSize,
@@ -922,13 +929,12 @@ public class TextFieldMapper extends FieldMapper {
 
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
-        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, meta);
+        public ConstantScoreTextFieldType(boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(indexed, stored, tsi, meta);
         }
 
-        public ConstantScoreTextFieldType(String name) {
+        public ConstantScoreTextFieldType() {
             this(
-                name,
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
@@ -936,9 +942,8 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
 
-        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
+        public ConstantScoreTextFieldType(boolean indexed, boolean stored, Map<String, String> meta) {
             this(
-                name,
                 indexed,
                 stored,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
@@ -947,13 +952,14 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             // Disable scoring
-            return new ConstantScoreQuery(super.termQuery(value, context));
+            return new ConstantScoreQuery(super.termQuery(name, value, context));
         }
 
         @Override
         public Query fuzzyQuery(
+            String name,
             Object value,
             Fuzziness fuzziness,
             int prefixLength,
@@ -962,59 +968,61 @@ public class TextFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             // Disable scoring
-            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
+            return new ConstantScoreQuery(super.fuzzyQuery(name, value, fuzziness, prefixLength, maxExpansions, transpositions, context));
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
+        public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePosIncrements,
+                                 SearchExecutionContext queryShardContext)
             throws IOException {
             // Disable scoring
-            return new ConstantScoreQuery(super.phraseQuery(stream, slop, enablePosIncrements, queryShardContext));
+            return new ConstantScoreQuery(super.phraseQuery(name, stream, slop, enablePosIncrements, queryShardContext));
         }
 
         @Override
         public Query multiPhraseQuery(
+            String name,
             TokenStream stream,
             int slop,
             boolean enablePositionIncrements,
             SearchExecutionContext queryShardContext
         ) throws IOException {
             // Disable scoring
-            return new ConstantScoreQuery(super.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext));
+            return new ConstantScoreQuery(super.multiPhraseQuery(name, stream, slop, enablePositionIncrements, queryShardContext));
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
+        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions,
+                                       SearchExecutionContext queryShardContext)
             throws IOException {
             // Disable scoring
-            return new ConstantScoreQuery(super.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext));
+            return new ConstantScoreQuery(super.phrasePrefixQuery(name, stream, slop, maxExpansions, queryShardContext));
         }
 
     }
 
     static class LegacyTextFieldType extends ConstantScoreTextFieldType {
 
-        private final MappedFieldType existQueryFieldType;
-
-        LegacyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, meta);
-            // norms are not available, neither are doc-values, so fall back to _source to run exists query
-            existQueryFieldType = KeywordScriptFieldType.sourceOnly(name()).asMappedFieldTypes().findFirst().get();
+        LegacyTextFieldType(boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(indexed, stored, tsi, meta);
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Cannot use span prefix queries on text field " + name() + " of a legacy index");
+        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+                                         SearchExecutionContext context) {
+            throw new IllegalArgumentException("Cannot use span prefix queries on text field " + name + " of a legacy index");
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "runtime-computed exists query cannot be executed while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
                 );
             }
-            return existQueryFieldType.existsQuery(context);
+            // norms are not available, neither are doc-values, so fall back to _source to run exists query
+            final MappedField existQueryField = KeywordScriptFieldType.sourceOnly(name).asMappedFields().findFirst().get();
+            return existQueryField.existsQuery(context);
         }
 
     }
@@ -1043,7 +1051,7 @@ public class TextFieldMapper extends FieldMapper {
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,
-        TextFieldType mappedFieldType,
+        MappedField<TextFieldType> mappedField,
         Map<String, NamedAnalyzer> indexAnalyzers,
         SubFieldInfo prefixFieldInfo,
         SubFieldInfo phraseFieldInfo,
@@ -1051,9 +1059,9 @@ public class TextFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
-        assert mappedFieldType.getTextSearchInfo().isTokenized();
-        assert mappedFieldType.hasDocValues() == false;
+        super(simpleName, mappedField, multiFields, copyTo, false, null);
+        assert mappedField.getTextSearchInfo().isTokenized();
+        assert mappedField.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
@@ -1097,10 +1105,10 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType);
+            Field field = new Field(name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
-                context.addToFieldNames(fieldType().name());
+                context.addToFieldNames(name());
             }
             if (prefixFieldInfo != null) {
                 context.doc().add(new Field(prefixFieldInfo.field, value, prefixFieldInfo.fieldType));

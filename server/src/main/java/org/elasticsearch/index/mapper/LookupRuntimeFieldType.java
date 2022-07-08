@@ -145,14 +145,13 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         @Override
         protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
             final LookupRuntimeFieldType ft = new LookupRuntimeFieldType(
-                name,
                 meta(),
                 targetIndex.get(),
                 inputField.get(),
                 targetField.get(),
                 fetchFields.get()
             );
-            return new LeafRuntimeField(name, ft, getParameters());
+            return new LeafRuntimeField(name, new MappedField<>(name, ft), getParameters());
         }
 
         @Override
@@ -171,14 +170,13 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     private final List<FieldAndFormat> fetchFields;
 
     private LookupRuntimeFieldType(
-        String name,
         Map<String, String> meta,
         String lookupIndex,
         String inputField,
         String targetField,
         List<FieldAndFormat> fetchFields
     ) {
-        super(name, false, false, false, TextSearchInfo.NONE, meta);
+        super(false, false, false, TextSearchInfo.NONE, meta);
         this.lookupIndex = lookupIndex;
         this.inputField = inputField;
         this.targetField = targetField;
@@ -186,11 +184,11 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+    public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "cannot be executed against lookup field ["
-                    + name()
+                    + name
                     + "] while ["
                     + ALLOW_EXPENSIVE_QUERIES.getKey()
                     + "] is set to [false]."
@@ -205,20 +203,21 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     }
 
     @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
-        throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is a lookup field.");
+    public Query termQuery(String name, Object value, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Cannot search on field [" + name + "] since it is a lookup field.");
     }
 
     private class LookupFieldValueFetcher implements ValueFetcher {
         private final ValueFetcher inputFieldValueFetcher;
 
         LookupFieldValueFetcher(SearchExecutionContext context) {
-            final MappedFieldType inputFieldType = context.getFieldType(inputField);
+            final MappedField inputField = context.getMappedField(LookupRuntimeFieldType.this.inputField);
             // do not allow unmapped field
-            if (inputFieldType == null) {
-                throw new QueryShardException(context, "No field mapping can be found for the field with name [{}]", inputField);
+            if (inputField == null) {
+                throw new QueryShardException(context, "No field mapping can be found for the field with name [{}]",
+                    LookupRuntimeFieldType.this.inputField);
             }
-            this.inputFieldValueFetcher = inputFieldType.valueFetcher(context, null);
+            this.inputFieldValueFetcher = inputField.valueFetcher(context, null);
         }
 
         @Override

@@ -91,10 +91,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public PlaceHolderFieldMapper build(MapperBuilderContext context) {
-            PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(context.buildFullName(name), type, Map.of());
+            PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(type, Map.of());
             return new PlaceHolderFieldMapper(
                 name,
-                mappedFieldType,
+                new MappedField<>(context.buildFullName(name), mappedFieldType),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 unknownParams
@@ -106,15 +106,15 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         private String type;
 
-        public PlaceHolderFieldType(String name, String type, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+        public PlaceHolderFieldType(String type, Map<String, String> meta) {
+            super(false, false, false, TextSearchInfo.NONE, meta);
             this.type = type;
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             // ignore format parameter
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(name, context) {
 
                 @Override
                 protected Object parseSourceValue(Object value) {
@@ -130,17 +130,18 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new QueryShardException(context, fail("term query"));
         }
 
         @Override
-        public Query termQueryCaseInsensitive(Object value, @Nullable SearchExecutionContext context) {
+        public Query termQueryCaseInsensitive(String name, Object value, @Nullable SearchExecutionContext context) {
             throw new QueryShardException(context, fail("case insensitive term query"));
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
@@ -155,6 +156,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(
+            String name,
             Object value,
             Fuzziness fuzziness,
             int prefixLength,
@@ -167,6 +169,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public Query prefixQuery(
+            String name,
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
             boolean caseInsensitve,
@@ -177,6 +180,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(
+            String name,
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
             boolean caseInsensitve,
@@ -186,12 +190,14 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        public Query normalizedWildcardQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
+                                             SearchExecutionContext context) {
             throw new QueryShardException(context, fail("normalized wildcard query"));
         }
 
         @Override
         public Query regexpQuery(
+            String name,
             String value,
             int syntaxFlags,
             int matchFlags,
@@ -203,42 +209,47 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context) {
+        public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
+                                 SearchExecutionContext context) {
             throw new QueryShardException(context, fail("phrase query"));
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context) {
+        public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
+                                      SearchExecutionContext context) {
             throw new QueryShardException(context, fail("multi-phrase query"));
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
+        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions,
+                                       SearchExecutionContext context) throws IOException {
             throw new QueryShardException(context, fail("phrase prefix query"));
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
+        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+                                         SearchExecutionContext context) {
             throw new QueryShardException(context, fail("span prefix query"));
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
+        public Query distanceFeatureQuery(String name, Object origin, String pivot, SearchExecutionContext context) {
             throw new QueryShardException(context, fail("distance feature query"));
         }
 
         @Override
-        public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
+        public IntervalsSource termIntervals(String name, BytesRef term, SearchExecutionContext context) {
             throw new QueryShardException(context, fail("term intervals query"));
         }
 
         @Override
-        public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
+        public IntervalsSource prefixIntervals(String name, BytesRef prefix, SearchExecutionContext context) {
             throw new QueryShardException(context, fail("term intervals query"));
         }
 
         @Override
         public IntervalsSource fuzzyIntervals(
+            String name,
             String term,
             int maxDistance,
             int prefixLength,
@@ -249,12 +260,12 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+        public IntervalsSource wildcardIntervals(String name, BytesRef pattern, SearchExecutionContext context) {
             throw new QueryShardException(context, fail("wildcard intervals query"));
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             throw new IllegalArgumentException(fail("aggregation or sorts"));
         }
 
@@ -267,12 +278,12 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
     public PlaceHolderFieldMapper(
         String simpleName,
-        PlaceHolderFieldType fieldType,
+        MappedField<PlaceHolderFieldType> mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Map<String, Object> unknownParams
     ) {
-        super(simpleName, fieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.unknownParams.putAll(unknownParams);
     }
 

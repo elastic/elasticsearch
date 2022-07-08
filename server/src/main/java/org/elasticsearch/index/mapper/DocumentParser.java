@@ -741,10 +741,10 @@ public final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
-        if (fieldType != null) {
+        MappedField mappedField = context.mappingLookup().getMappedField(fieldPath);
+        if (mappedField != null) {
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+            assert mappedField.hasDocValues() == false && mappedField.isAggregatable() && mappedField.isSearchable();
             return NO_OP_FIELDMAPPER;
         }
         return null;
@@ -752,9 +752,9 @@ public final class DocumentParser {
 
     private static final FieldMapper NO_OP_FIELDMAPPER = new FieldMapper(
         "no-op",
-        new MappedFieldType("no-op", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        new MappedField<>("no-op", new MappedFieldType( false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 
@@ -764,10 +764,10 @@ public final class DocumentParser {
             }
 
             @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
+            public Query termQuery(String name, Object value, SearchExecutionContext context) {
                 throw new UnsupportedOperationException();
             }
-        },
+        }),
         FieldMapper.MultiFields.empty(),
         FieldMapper.CopyTo.empty()
     ) {

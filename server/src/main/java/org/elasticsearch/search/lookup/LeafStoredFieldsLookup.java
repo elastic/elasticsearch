@@ -11,6 +11,7 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -27,7 +28,7 @@ import static java.util.Collections.singletonMap;
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
-    private final Function<String, MappedFieldType> fieldTypeLookup;
+    private final Function<String, MappedField> mappedFieldLookup;
     private final CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader;
 
     private int docId = -1;
@@ -35,10 +36,10 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
     LeafStoredFieldsLookup(
-        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<String, MappedField> mappedFieldLookup,
         CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader
     ) {
-        this.fieldTypeLookup = fieldTypeLookup;
+        this.mappedFieldLookup = mappedFieldLookup;
         this.reader = reader;
     }
 
@@ -118,11 +119,11 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            MappedFieldType fieldType = fieldTypeLookup.apply(name);
-            if (fieldType == null) {
+            MappedField mappedField = mappedFieldLookup.apply(name);
+            if (mappedField == null) {
                 throw new IllegalArgumentException("No field found for [" + name + "] in mapping");
             }
-            data = new FieldLookup(fieldType);
+            data = new FieldLookup(mappedField);
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {

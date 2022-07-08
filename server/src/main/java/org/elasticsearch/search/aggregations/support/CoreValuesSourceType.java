@@ -63,7 +63,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 throw new IllegalArgumentException(
-                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.mappedField().typeName() + "]"
                 );
             }
 
@@ -164,7 +164,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
             if ((fieldContext.indexFieldData() instanceof IndexGeoPointFieldData) == false) {
                 throw new IllegalArgumentException(
-                    "Expected geo_point type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                    "Expected geo_point type on field [" + fieldContext.field() + "], but got [" +
+                        fieldContext.mappedField().typeName() + "]"
                 );
             }
 
@@ -201,10 +202,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            MappedFieldType fieldType = fieldContext.fieldType();
+            MappedFieldType fieldType = fieldContext.mappedField().type();
 
             if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
-                throw new IllegalArgumentException("Asked for range ValuesSource, but field is of type " + fieldType.name());
+                throw new IllegalArgumentException("Asked for range ValuesSource, but field is of type " +
+                    fieldContext.mappedField().name());
             }
             RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType) fieldType;
             return new ValuesSource.Range(fieldContext.indexFieldData(), rangeFieldType.rangeType());
@@ -275,10 +277,10 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         private ValuesSource.Numeric fieldData(FieldContext fieldContext, AggregationContext context) {
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 throw new IllegalArgumentException(
-                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.mappedField().typeName() + "]"
                 );
             }
-            if (fieldContext.fieldType() instanceof DateFieldType == false) {
+            if (fieldContext.mappedField().type() instanceof DateFieldType == false) {
                 return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
             }
 
@@ -292,7 +294,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                  */
                 @Override
                 public Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-                    DateFieldType dft = (DateFieldType) fieldContext.fieldType();
+                    DateFieldType dft = (DateFieldType) fieldContext.mappedField().type();
                     /*
                      * The range of dates, min first, then max. This is an array so we can
                      * write to it inside the QueryVisitor below.
@@ -300,7 +302,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
-                    if (fieldContext.fieldType().isIndexed()) {
+                    if (fieldContext.mappedField().isIndexed()) {
                         log.trace("Attempting to apply index bound date rounding");
                         /*
                          * We can't look up the min and max date without both the
@@ -318,12 +320,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
-                        if (fieldContext.fieldType().isIndexed()) {
+                        if (fieldContext.mappedField().isIndexed()) {
                             PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
                             if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
                                 isMultiValue = true;
                             }
-                        } else if (fieldContext.fieldType().hasDocValues()) {
+                        } else if (fieldContext.mappedField().hasDocValues()) {
                             if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
                                 isMultiValue = true;
                             }
@@ -350,7 +352,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                             @Override
                             public boolean acceptField(String field) {
-                                return field.equals(fieldContext.fieldType().name());
+                                return field.equals(fieldContext.mappedField().name());
                             };
 
                             @Override

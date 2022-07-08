@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.lucene.search.vectorhighlight.CustomFieldQuery;
@@ -67,11 +68,11 @@ public class FastVectorHighlighter implements Highlighter {
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
-        MappedFieldType fieldType = fieldContext.fieldType;
+        MappedField<?> mappedField = fieldContext.mappedField;
         boolean forceSource = fieldContext.forceSource;
         boolean fixBrokenAnalysis = fieldContext.context.containsBrokenAnalysis(fieldContext.fieldName);
 
-        if (canHighlight(fieldType) == false) {
+        if (canHighlight(mappedField.type()) == false) {
             throw new IllegalArgumentException(
                 "the field ["
                     + fieldContext.fieldName
@@ -85,7 +86,7 @@ public class FastVectorHighlighter implements Highlighter {
             fieldContext.cache.put(CACHE_KEY, new HighlighterEntry());
         }
         HighlighterEntry cache = (HighlighterEntry) fieldContext.cache.get(CACHE_KEY);
-        FieldHighlightEntry entry = cache.fields.get(fieldType);
+        FieldHighlightEntry entry = cache.fields.get(mappedField);
         if (entry == null) {
             FragListBuilder fragListBuilder;
             if (field.fieldOptions().numberOfFragments() == 0) {
@@ -98,7 +99,7 @@ public class FastVectorHighlighter implements Highlighter {
 
             Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier = fragmentsBuilderSupplier(
                 field,
-                fieldType,
+                mappedField,
                 fieldContext.context,
                 forceSource,
                 fixBrokenAnalysis
@@ -137,7 +138,7 @@ public class FastVectorHighlighter implements Highlighter {
                 cache.fvh = new org.apache.lucene.search.vectorhighlight.FastVectorHighlighter();
             }
             CustomFieldQuery.highlightFilters.set(field.fieldOptions().highlightFilter());
-            cache.fields.put(fieldType, entry);
+            cache.fields.put(mappedField, entry);
         }
         final FieldQuery fieldQuery;
         if (field.fieldOptions().requireFieldMatch()) {
@@ -162,7 +163,7 @@ public class FastVectorHighlighter implements Highlighter {
                 fieldQuery,
                 hitContext.reader(),
                 hitContext.docId(),
-                fieldType.name(),
+                mappedField.name(),
                 field.fieldOptions().matchedFields(),
                 fragmentCharSize,
                 numberOfFragments,
@@ -177,7 +178,7 @@ public class FastVectorHighlighter implements Highlighter {
                 fieldQuery,
                 hitContext.reader(),
                 hitContext.docId(),
-                fieldType.name(),
+                mappedField.name(),
                 fragmentCharSize,
                 numberOfFragments,
                 entry.fragListBuilder,
@@ -201,7 +202,7 @@ public class FastVectorHighlighter implements Highlighter {
             fragments = fragmentsBuilder.createFragments(
                 hitContext.reader(),
                 hitContext.docId(),
-                fieldType.name(),
+                mappedField.name(),
                 fieldFragList,
                 1,
                 field.fieldOptions().preTags(),
@@ -218,7 +219,7 @@ public class FastVectorHighlighter implements Highlighter {
 
     private Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier(
         SearchHighlightContext.Field field,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         FetchContext fetchContext,
         boolean forceSource,
         boolean fixBrokenAnalysis
@@ -226,12 +227,12 @@ public class FastVectorHighlighter implements Highlighter {
         BoundaryScanner boundaryScanner = getBoundaryScanner(field);
         FieldOptions options = field.fieldOptions();
         Function<SourceLookup, BaseFragmentsBuilder> supplier;
-        if (forceSource == false && fieldType.isStored()) {
+        if (forceSource == false && mappedField.isStored()) {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = ignored -> new ScoreOrderFragmentsBuilder(options.preTags(), options.postTags(), boundaryScanner);
             } else {
                 supplier = ignored -> new SimpleFragmentsBuilder(
-                    fieldType,
+                    mappedField,
                     fixBrokenAnalysis,
                     options.preTags(),
                     options.postTags(),
@@ -241,7 +242,7 @@ public class FastVectorHighlighter implements Highlighter {
         } else {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = lookup -> new SourceScoreOrderFragmentsBuilder(
-                    fieldType,
+                    mappedField,
                     fetchContext,
                     fixBrokenAnalysis,
                     lookup,
@@ -251,7 +252,7 @@ public class FastVectorHighlighter implements Highlighter {
                 );
             } else {
                 supplier = lookup -> new SourceSimpleFragmentsBuilder(
-                    fieldType,
+                    mappedField,
                     fetchContext,
                     fixBrokenAnalysis,
                     lookup,
@@ -315,6 +316,6 @@ public class FastVectorHighlighter implements Highlighter {
 
     private static class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public Map<MappedFieldType, FieldHighlightEntry> fields = new HashMap<>();
+        public Map<MappedField<?>, FieldHighlightEntry> fields = new HashMap<>();
     }
 }

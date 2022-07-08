@@ -41,9 +41,10 @@ import java.util.List;
  */
 public interface GeoShapeQueryable {
 
-    Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... luceneGeometries);
+    Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
+                        LatLonGeometry... luceneGeometries);
 
-    default Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, Geometry shape) {
+    default Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation, Geometry shape) {
         final LatLonGeometry[] luceneGeometries;
         try {
             luceneGeometries = toQuantizeLuceneGeometry(shape, relation);
@@ -53,18 +54,19 @@ public interface GeoShapeQueryable {
         if (luceneGeometries.length == 0) {
             return new MatchNoDocsQuery();
         }
-        return geoShapeQuery(context, fieldName, relation, luceneGeometries);
+        return geoShapeQuery(name, context, fieldName, relation, luceneGeometries);
     }
 
     @Deprecated
     default Query geoShapeQuery(
+        String name,
         SearchExecutionContext context,
         String fieldName,
         SpatialStrategy strategy,
         ShapeRelation relation,
         Geometry shape
     ) {
-        return geoShapeQuery(context, fieldName, relation, shape);
+        return geoShapeQuery(name, context, fieldName, relation, shape);
     }
 
     private static double quantizeLat(double lat) {

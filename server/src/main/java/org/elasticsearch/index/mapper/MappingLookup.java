@@ -184,7 +184,7 @@ public final class MappingLookup {
         this.completionFields = Set.copyOf(completionFields);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
 
-        runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
+        runtimeFields.stream().flatMap(RuntimeField::asMappedFields).map(MappedField::name).forEach(this::validateDoesNotShadow);
         assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
     }
 
@@ -207,7 +207,7 @@ public final class MappingLookup {
      * Returns the leaf mapper associated with this field name. Note that the returned mapper
      * could be either a concrete {@link FieldMapper}, or a {@link FieldAliasMapper}.
      *
-     * To access a field's type information, {@link MapperService#fieldType} should be used instead.
+     * To access a field's type information, {@link MapperService#mappedField} should be used instead.
      */
     public Mapper getMapper(String field) {
         return fieldMappers.get(field);
@@ -371,7 +371,7 @@ public final class MappingLookup {
     /**
      * Returns the mapped field type for the given field name.
      */
-    public MappedFieldType getFieldType(String field) {
+    public MappedField getMappedField(String field) {
         return fieldTypesLookup().get(field);
     }
 
@@ -428,9 +428,9 @@ public final class MappingLookup {
      * @return {@code true} if contains a timestamp field of type date that is indexed and has doc values, {@code false} otherwise.
      */
     public boolean hasTimestampField() {
-        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
-            return mappedFieldType.isIndexed() && mappedFieldType.hasDocValues();
+        final MappedField mappedField = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (mappedField.type() instanceof DateFieldMapper.DateFieldType) {
+            return mappedField.isIndexed() && mappedField.hasDocValues();
         } else {
             return false;
         }
@@ -456,7 +456,7 @@ public final class MappingLookup {
      * or metric field.
      */
     public void validateDoesNotShadow(String name) {
-        MappedFieldType shadowed = indexTimeLookup.get(name);
+        MappedField shadowed = indexTimeLookup.get(name);
         if (shadowed == null) {
             return;
         }

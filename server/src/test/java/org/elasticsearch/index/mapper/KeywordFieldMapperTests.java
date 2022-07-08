@@ -307,7 +307,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) mapperService.fieldType("field");
+        KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) mapperService.mappedField("field");
         assertFalse(ft.isDimension());
 
         assertDimension(true, KeywordFieldMapper.KeywordFieldType::isDimension);
@@ -514,13 +514,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        MappedFieldType fieldType = mapperService.mappedField("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         Analyzer a = ft.getTextSearchInfo().searchAnalyzer();
         assertTokenStreamContents(a.tokenStream("", "Hello World"), new String[] { "Hello World" });
 
-        fieldType = mapperService.fieldType("field_with_normalizer");
+        fieldType = mapperService.mappedField("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertThat(ft.getTextSearchInfo().searchAnalyzer().name(), equalTo("lowercase"));
@@ -542,7 +542,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        fieldType = mapperService.fieldType("field");
+        fieldType = mapperService.mappedField("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertTokenStreamContents(
@@ -550,7 +550,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             new String[] { "Hello", "World" }
         );
 
-        fieldType = mapperService.fieldType("field_with_normalizer");
+        fieldType = mapperService.mappedField("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertThat(ft.getTextSearchInfo().searchAnalyzer().name(), equalTo("lowercase"));
@@ -707,8 +707,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("normalizer", "unknown-normalizer");
             b.endObject();
         }));
-        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
+        assertThat(service.mappedField("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.mappedField("mykeyw")).normalizer());
 
         // check that normalizer can be updated
         merge(service, mapping(b -> {
@@ -717,7 +717,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("normalizer", "lowercase");
             b.endObject();
         }));
-        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
+        assertThat(service.mappedField("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.mappedField("mykeyw")).normalizer());
     }
 }

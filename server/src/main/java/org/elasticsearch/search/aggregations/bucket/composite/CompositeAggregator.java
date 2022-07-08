@@ -274,10 +274,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             CompositeValuesSourceConfig sourceConfig = sourceConfigs[i];
             SingleDimensionValuesSource<?> source = sources[i];
             SortField indexSortField = indexSort.getSort()[i];
-            if (source.fieldType == null
+            if (source.mappedField == null
                 // TODO: can we handle missing bucket when using index sort optimization ?
                 || source.missingBucket
-                || indexSortField.getField().equals(source.fieldType.name()) == false
+                || indexSortField.getField().equals(source.mappedField.name()) == false
                 || isMaybeMultivalued(context, indexSortField)
                 || sourceConfig.hasScript()) {
                 break;

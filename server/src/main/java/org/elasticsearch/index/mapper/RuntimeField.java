@@ -37,10 +37,10 @@ public interface RuntimeField extends ToXContentFragment {
     String name();
 
     /**
-     * Exposes the {@link MappedFieldType}s backing this runtime field, used to execute queries, run aggs etc.
-     * @return the {@link MappedFieldType}s backing this runtime field
+     * Exposes the {@link MappedField}s backing this runtime field, used to execute queries, run aggs etc.
+     * @return the {@link MappedField}s backing this runtime field
      */
-    Stream<MappedFieldType> asMappedFieldTypes();
+    Stream<MappedField> asMappedFields();
 
     abstract class Builder {
         final String name;
@@ -193,16 +193,16 @@ public interface RuntimeField extends ToXContentFragment {
     }
 
     /**
-     * Collect and return all {@link MappedFieldType} exposed by the provided {@link RuntimeField}s.
+     * Collect and return all {@link MappedField} exposed by the provided {@link RuntimeField}s.
      * Note that validation is performed to make sure that there are no name clashes among the collected runtime fields.
      * This is because runtime fields with the same name are not accepted as part of the same section.
      * @param runtimeFields the runtime to extract the mapped field types from
      * @return the collected mapped field types
      */
-    static Map<String, MappedFieldType> collectFieldTypes(Collection<RuntimeField> runtimeFields) {
+    static Map<String, MappedField> collectMappedFields(Collection<RuntimeField> runtimeFields) {
         return runtimeFields.stream().flatMap(runtimeField -> {
-            List<String> names = runtimeField.asMappedFieldTypes()
-                .map(MappedFieldType::name)
+            List<String> names = runtimeField.asMappedFields()
+                .map(MappedField::name)
                 .filter(
                     name -> name.equals(runtimeField.name()) == false
                         && (name.startsWith(runtimeField.name() + ".") == false
@@ -212,11 +212,11 @@ public interface RuntimeField extends ToXContentFragment {
             if (names.isEmpty() == false) {
                 throw new IllegalStateException("Found sub-fields with name not belonging to the parent field they are part of " + names);
             }
-            return runtimeField.asMappedFieldTypes();
+            return runtimeField.asMappedFields();
         })
             .collect(
                 Collectors.toUnmodifiableMap(
-                    MappedFieldType::name,
+                    MappedField::name,
                     mappedFieldType -> mappedFieldType,
                     (t, t2) -> { throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]"); }
                 )

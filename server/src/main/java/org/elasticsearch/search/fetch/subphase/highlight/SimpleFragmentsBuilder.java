@@ -11,7 +11,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 
 /**
  * Direct Subclass of Lucene's org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder
@@ -19,18 +19,18 @@ import org.elasticsearch.index.mapper.MappedFieldType;
  */
 public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder {
 
-    protected final MappedFieldType fieldType;
+    protected final MappedField mappedField;
     private final boolean fixBrokenAnalysis;
 
     public SimpleFragmentsBuilder(
-        MappedFieldType fieldType,
+        MappedField<?> mappedField,
         boolean fixBrokenAnalysis,
         String[] preTags,
         String[] postTags,
         BoundaryScanner boundaryScanner
     ) {
         super(preTags, postTags, boundaryScanner);
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
         this.fixBrokenAnalysis = fixBrokenAnalysis;
     }
 

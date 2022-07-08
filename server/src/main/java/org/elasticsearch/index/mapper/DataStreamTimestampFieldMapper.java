@@ -47,7 +47,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         static final TimestampFieldType INSTANCE = new TimestampFieldType();
 
         private TimestampFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
+            super(false, false, false, TextSearchInfo.NONE, Map.of());
         }
 
         @Override
@@ -56,17 +56,17 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support term queries");
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support term queries");
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
+        public Query existsQuery(String name, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support exists queries");
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
     }
@@ -101,7 +101,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     private final boolean enabled;
 
     private DataStreamTimestampFieldMapper(boolean enabled) {
-        super(TimestampFieldType.INSTANCE);
+        super(new MappedField<>(NAME, TimestampFieldType.INSTANCE));
         this.enabled = enabled;
     }
 

@@ -52,7 +52,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         boolean[] enabled = new boolean[1];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
-        ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
+        ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.mappedField("_id");
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
@@ -74,10 +74,10 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(id, b -> b.field("field", "value"), null)).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(mapperService::mappedField, fieldDataLookup());
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
-                ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
+                ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.mappedField("_id");
                 ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

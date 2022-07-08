@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -35,7 +36,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     DoubleValuesSource(
         BigArrays bigArrays,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
         DocValueFormat format,
         boolean missingBucket,
@@ -43,7 +44,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, mappedField, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = this.missingBucket ? new BitArray(100, bigArrays) : null;
         boolean success = false;

@@ -22,7 +22,7 @@ import org.apache.lucene.search.grouping.SearchGroup;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,8 +51,8 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
         private long value;
         private boolean hasValue;
 
-        Numeric(MappedFieldType fieldType) {
-            super(fieldType.name());
+        Numeric(MappedField mappedField) {
+            super(mappedField.name());
         }
 
         @Override
@@ -139,8 +139,8 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
         private SortedDocValues values;
         private int ord;
 
-        Keyword(MappedFieldType fieldType) {
-            super(fieldType.name());
+        Keyword(MappedField<?> mappedField) {
+            super(mappedField.name());
         }
 
         @Override

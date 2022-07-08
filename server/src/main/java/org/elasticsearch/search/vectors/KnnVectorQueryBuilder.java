@@ -15,7 +15,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -134,12 +134,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
         }
 
-        if (fieldType instanceof DenseVectorFieldType == false) {
+        if (mappedField.type() instanceof DenseVectorFieldType == false) {
             throw new IllegalArgumentException(
                 "[" + NAME + "] queries are only supported on [" + DenseVectorFieldMapper.CONTENT_TYPE + "] fields"
             );
@@ -152,8 +152,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
 
-        DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
-        return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery);
+        DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) mappedField.type();
+        return vectorFieldType.createKnnQuery(mappedField.name(), queryVector, numCands, filterQuery);
     }
 
     @Override

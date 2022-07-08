@@ -88,7 +88,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 .or(instanceOf(MatchNoDocsQuery.class))
                 .or(instanceOf(AutomatonQuery.class))
         );
-        MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
+        MappedFieldType mapper = context.getMappedField(queryBuilder.fieldName());
         if (query instanceof TermQuery termQuery) {
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());

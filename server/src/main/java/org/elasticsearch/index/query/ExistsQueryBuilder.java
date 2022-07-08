@@ -18,7 +18,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -131,7 +131,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
-        Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern).stream().map(context::getFieldType).toList();
+        Collection<MappedField> fields = getMappedFields(context, fieldPattern).stream().map(context::getMappedField).toList();
 
         if (fields.isEmpty()) {
             if (checkRewrite) {
@@ -142,12 +142,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         }
 
         if (fields.size() == 1) {
-            MappedFieldType field = fields.iterator().next();
+            MappedField field = fields.iterator().next();
             return new ConstantScoreQuery(field.existsQuery(context));
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
-        for (MappedFieldType field : fields) {
+        for (MappedField field : fields) {
             boolFilterBuilder.add(field.existsQuery(context), BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());

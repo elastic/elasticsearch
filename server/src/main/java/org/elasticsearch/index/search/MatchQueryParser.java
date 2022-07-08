@@ -37,7 +37,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -196,21 +196,22 @@ public class MatchQueryParser {
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType == null) {
+        final MappedField<?> mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             return newUnmappedFieldQuery(fieldName);
         }
         // We check here that the field supports text searches -
         // if it doesn't, we can bail out early without doing any further parsing.
-        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+        if (mappedField.getTextSearchInfo() == TextSearchInfo.NONE) {
             IllegalArgumentException iae;
-            if (fieldType instanceof PlaceHolderFieldMapper.PlaceHolderFieldType) {
+            if (mappedField.type() instanceof PlaceHolderFieldMapper.PlaceHolderFieldType) {
                 iae = new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] in legacy index does not support match queries"
+                    "Field [" + mappedField.name() + "] of type [" + mappedField.typeName() +
+                        "] in legacy index does not support match queries"
                 );
             } else {
                 iae = new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support match queries"
+                    "Field [" + mappedField.name() + "] of type [" + mappedField.typeName() + "] does not support match queries"
                 );
             }
             if (lenient) {
@@ -219,11 +220,11 @@ public class MatchQueryParser {
             throw iae;
         }
 
-        Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
+        Analyzer analyzer = getAnalyzer(mappedField, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
 
-        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
-        String resolvedFieldName = fieldType.name();
+        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, mappedField, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+        String resolvedFieldName = mappedField.name();
         String stringValue = value.toString();
 
         /*
@@ -235,7 +236,8 @@ public class MatchQueryParser {
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(resolvedFieldName, stringValue);
             if (type == Type.BOOLEAN_PREFIX
-                && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                && (mappedField.type() instanceof TextFieldMapper.TextFieldType ||
+                mappedField.type() instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
@@ -251,7 +253,7 @@ public class MatchQueryParser {
         return query == null ? zeroTermsQuery.asQuery() : query;
     }
 
-    protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+    protected Analyzer getAnalyzer(MappedField<?> fieldType, boolean quoted) {
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
         assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
@@ -262,21 +264,21 @@ public class MatchQueryParser {
     }
 
     class MatchQueryBuilder extends QueryBuilder {
-        private final MappedFieldType fieldType;
+        private final MappedField mappedField;
 
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
         MatchQueryBuilder(
             Analyzer analyzer,
-            MappedFieldType fieldType,
+            MappedField<?> mappedField,
             boolean enablePositionIncrements,
             boolean autoGenerateSynonymsPhraseQuery
         ) {
             super(analyzer);
-            this.fieldType = fieldType;
+            this.mappedField = mappedField;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (fieldType.getTextSearchInfo().hasPositions()) {
+            if (mappedField.getTextSearchInfo().hasPositions()) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -425,12 +427,12 @@ public class MatchQueryParser {
 
         private SpanQuery newSpanQuery(Term[] terms, boolean isPrefix) {
             if (terms.length == 1) {
-                return isPrefix ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context) : new SpanTermQuery(terms[0]);
+                return isPrefix ? mappedField.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context) : new SpanTermQuery(terms[0]);
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
                 spanQueries[i] = isPrefix
-                    ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context)
+                    ? mappedField.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context)
                     : new SpanTermQuery(terms[i]);
             }
             return new SpanOrQuery(spanQueries);
@@ -456,7 +458,7 @@ public class MatchQueryParser {
             }
             if (lastTerm != null) {
                 SpanQuery spanQuery = isPrefix
-                    ? fieldType.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context)
+                    ? mappedField.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context)
                     : new SpanTermQuery(lastTerm);
                 builder.addClause(spanQuery);
             }
@@ -474,21 +476,21 @@ public class MatchQueryParser {
             Supplier<Query> querySupplier;
             if (fuzziness != null) {
                 querySupplier = () -> {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
+                    Query query = mappedField.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
                     if (query instanceof FuzzyQuery) {
                         QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                     }
                     return query;
                 };
             } else {
-                querySupplier = () -> fieldType.termQuery(term.bytes(), context);
+                querySupplier = () -> mappedField.termQuery(term.bytes(), context);
             }
             try {
                 Query query = querySupplier.get();
                 return query;
             } catch (RuntimeException e) {
                 if (lenient) {
-                    return newLenientFieldQuery(fieldType.name(), e);
+                    return newLenientFieldQuery(mappedField.name(), e);
                 } else {
                     throw e;
                 }
@@ -500,7 +502,7 @@ public class MatchQueryParser {
          */
         protected Query newPrefixQuery(Term term) {
             try {
-                return fieldType.prefixQuery(term.text(), null, context);
+                return mappedField.prefixQuery(term.text(), null, context);
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(term.field(), e);
@@ -571,7 +573,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                return fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
+                return mappedField.phraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -583,7 +585,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
+                return mappedField.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -594,7 +596,7 @@ public class MatchQueryParser {
 
         private Query analyzePhrasePrefix(String field, TokenStream stream, int slop, int positionCount) throws IOException {
             try {
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
+                return mappedField.phrasePrefixQuery(stream, slop, maxExpansions, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);

@@ -206,7 +206,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
             emptyMap()
         ) {
             @Override
-            public MappedFieldType getFieldType(String name) {
+            public MappedFieldType getMappedField(String name) {
                 return provideMappedFieldType.get(name);
             }
         };

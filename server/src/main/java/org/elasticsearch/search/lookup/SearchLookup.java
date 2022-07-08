@@ -10,7 +10,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -40,18 +40,18 @@ public class SearchLookup {
      */
     private final Set<String> fieldChain;
     private final SourceLookup sourceLookup;
-    private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
+    private final Function<String, MappedField> mappedFieldLookup;
+    private final BiFunction<MappedField, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
 
     /**
      * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
      * stored fields, or _source.
      */
     public SearchLookup(
-        Function<String, MappedFieldType> fieldTypeLookup,
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+        Function<String, MappedField> mappedFieldLookup,
+        BiFunction<MappedField, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
     ) {
-        this.fieldTypeLookup = fieldTypeLookup;
+        this.mappedFieldLookup = mappedFieldLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceLookup = new SourceLookup();
         this.fieldDataLookup = fieldDataLookup;
@@ -67,7 +67,7 @@ public class SearchLookup {
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
         this.sourceLookup = searchLookup.sourceLookup;
-        this.fieldTypeLookup = searchLookup.fieldTypeLookup;
+        this.mappedFieldLookup = searchLookup.mappedFieldLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
     }
 
@@ -95,18 +95,18 @@ public class SearchLookup {
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
         return new LeafSearchLookup(
             context,
-            new LeafDocLookup(fieldTypeLookup, this::getForField, context),
+            new LeafDocLookup(mappedFieldLookup, this::getForField, context),
             sourceLookup,
-            new LeafStoredFieldsLookup(fieldTypeLookup, (doc, visitor) -> context.reader().document(doc, visitor))
+            new LeafStoredFieldsLookup(mappedFieldLookup, (doc, visitor) -> context.reader().document(doc, visitor))
         );
     }
 
-    public MappedFieldType fieldType(String fieldName) {
-        return fieldTypeLookup.apply(fieldName);
+    public MappedField fieldType(String fieldName) {
+        return mappedFieldLookup.apply(fieldName);
     }
 
-    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
-        return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()));
+    public IndexFieldData<?> getForField(MappedField mappedField) {
+        return fieldDataLookup.apply(mappedField, () -> forkAndTrackFieldReferences(mappedField.name()));
     }
 
     public SourceLookup source() {

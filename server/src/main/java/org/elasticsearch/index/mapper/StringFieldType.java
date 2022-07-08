@@ -42,18 +42,18 @@ public abstract class StringFieldType extends TermBasedFieldType {
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
     public StringFieldType(
-        String name,
         boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+        super(isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
     public Query fuzzyQuery(
+        String name,
         Object value,
         Fuzziness fuzziness,
         int prefixLength,
@@ -66,9 +66,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
             );
         }
-        failIfNotIndexed();
+        failIfNotIndexed(name);
         return new FuzzyQuery(
-            new Term(name(), indexedValueForSearch(value)),
+            new Term(name, indexedValueForSearch(name, value)),
             fuzziness.asDistance(BytesRefs.toString(value)),
             prefixLength,
             maxExpansions,
@@ -77,7 +77,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+    public Query prefixQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                             SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[prefix] queries cannot be executed when '"
@@ -86,16 +87,16 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     + "fields please enable [index_prefixes]."
             );
         }
-        failIfNotIndexed();
+        failIfNotIndexed(name);
         if (caseInsensitive) {
-            AutomatonQuery query = AutomatonQueries.caseInsensitivePrefixQuery((new Term(name(), indexedValueForSearch(value))));
+            AutomatonQuery query = AutomatonQueries.caseInsensitivePrefixQuery((new Term(name, indexedValueForSearch(name, value))));
             if (method != null) {
                 query.setRewriteMethod(method);
             }
             return query;
 
         }
-        PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
+        PrefixQuery query = new PrefixQuery(new Term(name, indexedValueForSearch(name, value)));
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -133,23 +134,25 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        return wildcardQuery(value, method, caseInsensitive, false, context);
+    public Query wildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                               SearchExecutionContext context) {
+        return wildcardQuery(name, value, method, caseInsensitive, false, context);
     }
 
     @Override
-    public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
-        return wildcardQuery(value, method, false, true, context);
+    public Query normalizedWildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        return wildcardQuery(name, value, method, false, true, context);
     }
 
     protected Query wildcardQuery(
+        String name,
         String value,
         MultiTermQuery.RewriteMethod method,
         boolean caseInsensitive,
         boolean shouldNormalize,
         SearchExecutionContext context
     ) {
-        failIfNotIndexed();
+        failIfNotIndexed(name);
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -158,10 +161,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
         Term term;
         if (getTextSearchInfo().searchAnalyzer() != null && shouldNormalize) {
-            value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());
-            term = new Term(name(), value);
+            value = normalizeWildcardPattern(name, value, getTextSearchInfo().searchAnalyzer());
+            term = new Term(name, value);
         } else {
-            term = new Term(name(), indexedValueForSearch(value));
+            term = new Term(name, indexedValueForSearch(name, value));
         }
         if (caseInsensitive) {
             AutomatonQuery query = AutomatonQueries.caseInsensitiveWildcardQuery(term);
@@ -175,6 +178,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query regexpQuery(
+        String name,
         String value,
         int syntaxFlags,
         int matchFlags,
@@ -187,8 +191,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
             );
         }
-        failIfNotIndexed();
-        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates);
+        failIfNotIndexed(name);
+        RegexpQuery query = new RegexpQuery(new Term(name, indexedValueForSearch(name, value)), syntaxFlags, matchFlags,
+            maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -197,6 +202,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     @Override
     public Query rangeQuery(
+        String name,
         Object lowerTerm,
         Object upperTerm,
         boolean includeLower,
@@ -210,11 +216,11 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     + "' is set to false."
             );
         }
-        failIfNotIndexed();
+        failIfNotIndexed(name);
         return new TermRangeQuery(
-            name(),
-            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-            upperTerm == null ? null : indexedValueForSearch(upperTerm),
+            name,
+            lowerTerm == null ? null : indexedValueForSearch(name, lowerTerm),
+            upperTerm == null ? null : indexedValueForSearch(name, upperTerm),
             includeLower,
             includeUpper
         );

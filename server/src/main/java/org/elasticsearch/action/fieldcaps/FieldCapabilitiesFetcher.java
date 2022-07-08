@@ -11,7 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -109,10 +109,10 @@ class FieldCapabilitiesFetcher {
 
         boolean includeParentObjects = checkIncludeParents(filters);
 
-        Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
+        Predicate<MappedField> filter = buildFilter(indexFieldfilter, filters, types, context);
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
-            MappedFieldType ft = context.getFieldType(field);
+            MappedField<?> ft = context.getMappedField(field);
             if (filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
@@ -141,7 +141,7 @@ class FieldCapabilitiesFetcher {
                         break;
                     }
                     // checks if the parent field contains sub-fields
-                    if (context.getFieldType(parentField) == null) {
+                    if (context.getMappedField(parentField) == null) {
                         // no field type, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
@@ -187,14 +187,14 @@ class FieldCapabilitiesFetcher {
         return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 
-    private static Predicate<MappedFieldType> buildFilter(
+    private static Predicate<MappedField> buildFilter(
         Predicate<String> fieldFilter,
         String[] filters,
         String[] fieldTypes,
         SearchExecutionContext context
     ) {
         // security filters don't exclude metadata fields
-        Predicate<MappedFieldType> fcf = ft -> fieldFilter.test(ft.name()) || context.isMetadataField(ft.name());
+        Predicate<MappedField> fcf = ft -> fieldFilter.test(ft.name()) || context.isMetadataField(ft.name());
         if (fieldTypes.length > 0) {
             Set<String> acceptedTypes = Set.of(fieldTypes);
             fcf = fcf.and(ft -> acceptedTypes.contains(ft.familyTypeName()));
@@ -203,7 +203,7 @@ class FieldCapabilitiesFetcher {
             if ("parent".equals(filter) || "-parent".equals(filter)) {
                 continue;
             }
-            Predicate<MappedFieldType> next = switch (filter) {
+            Predicate<MappedField> next = switch (filter) {
                 case "+metadata" -> ft -> context.isMetadataField(ft.name());
                 case "-metadata" -> ft -> context.isMetadataField(ft.name()) == false;
                 case "-nested" -> ft -> context.nestedLookup().getNestedParent(ft.name()) == null;

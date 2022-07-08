@@ -10,7 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.DocValueFetcher;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -40,13 +40,13 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
          */
         List<DocValueField> fields = new ArrayList<>();
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
-            MappedFieldType ft = context.getSearchExecutionContext().getFieldType(fieldAndFormat.field);
-            if (ft == null) {
+            MappedField mappedField = context.getSearchExecutionContext().getMappedField(fieldAndFormat.field);
+            if (mappedField == null) {
                 continue;
             }
             ValueFetcher fetcher = new DocValueFetcher(
-                ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().getForField(ft)
+                mappedField.docValueFormat(fieldAndFormat.format, null),
+                context.searchLookup().getForField(mappedField)
             );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }

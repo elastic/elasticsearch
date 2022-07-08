@@ -144,7 +144,7 @@ public class PrecompiledCharMapNormalizer {
             secondIndex++;
         }
         if (secondIndex == firstIndex) {
-            return Optional.empty();
+            return Optional.of(new BytesRef(BytesRef.EMPTY_BYTES));
         }
         return Optional.of(new BytesRef(normalizedStrUtf8Bytes, firstIndex, secondIndex - firstIndex));
     }
@@ -161,14 +161,10 @@ public class PrecompiledCharMapNormalizer {
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
         int start = b.first();
-        // If we knew the utf-8 length ahead of time (and iterated over the bytes in the appropriate chunks)
-        // we could pre-populate the known length here.
         BytesRefBuilder strBuilder = new BytesRefBuilder();
         strBuilder.grow(strBytes.length);
         int bytePos = 0;
         for (int end = b.next(); end != BreakIterator.DONE; start = end, end = b.next()) {
-            // TODO: It would be awesome if we could translate these starts and ends to byte positions, if we could performance would be
-            // dramatically improved
             int byteLen = 0;
             int numCp = str.codePointCount(start, end);
             for (int i = start; i < numCp + start; i++) {
@@ -180,6 +176,7 @@ public class PrecompiledCharMapNormalizer {
                 Optional<BytesRef> subStr = normalizePart(strBytes, bytePos, byteLen);
                 if (subStr.isPresent()) {
                     strBuilder.append(subStr.get());
+                    bytePos += byteLen;
                     continue;
                 }
             }

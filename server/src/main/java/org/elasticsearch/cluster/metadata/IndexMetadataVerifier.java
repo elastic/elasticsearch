@@ -197,6 +197,7 @@ public class IndexMetadataVerifier {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {
+            logger.error("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
             // Wrap the inner exception so we have the index name in the exception message
             throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
         }

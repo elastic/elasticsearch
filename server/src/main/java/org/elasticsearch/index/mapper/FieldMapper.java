@@ -879,11 +879,22 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             String defaultValue,
             Serializer<String> serializer
         ) {
+            return stringParam(name, updateable, (n, c, o) -> XContentMapValues.nodeStringValue(o), initializer, defaultValue, serializer);
+        }
+
+        public static Parameter<String> stringParam(
+            String name,
+            boolean updateable,
+            TriFunction<String, MappingParserContext, Object, String> parser,
+            Function<FieldMapper, String> initializer,
+            String defaultValue,
+            Serializer<String> serializer
+        ) {
             return new Parameter<>(
                 name,
                 updateable,
                 defaultValue == null ? () -> null : () -> defaultValue,
-                (n, c, o) -> XContentMapValues.nodeStringValue(o),
+                parser,
                 initializer,
                 serializer,
                 Function.identity()

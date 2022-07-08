@@ -30,7 +30,9 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -269,12 +271,24 @@ public final class DateFieldMapper extends FieldMapper {
             DateFormatter defaultFormat = resolution == Resolution.MILLISECONDS
                 ? DEFAULT_DATE_TIME_FORMATTER
                 : DEFAULT_DATE_TIME_NANOS_FORMATTER;
-            this.format = Parameter.stringParam(
-                "format",
-                indexCreatedVersion.isLegacyIndexVersion(),
-                m -> toType(m).format,
-                defaultFormat.pattern()
-            );
+
+            if (indexCreatedVersion.major <= Version.CURRENT.previousMajor().major) {
+                this.format = Parameter.stringParam(
+                    "format",
+                    indexCreatedVersion.isLegacyIndexVersion(),
+                    (n, c, o) -> LegacyFormatNames.compatibleFormat(XContentMapValues.nodeStringValue(o)),
+                    m -> toType(m).format,
+                    defaultFormat.pattern(),
+                    XContentBuilder::field
+                );
+            } else {
+                this.format = Parameter.stringParam(
+                    "format",
+                    indexCreatedVersion.isLegacyIndexVersion(),
+                    m -> toType(m).format,
+                    defaultFormat.pattern()
+                );
+            }
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());

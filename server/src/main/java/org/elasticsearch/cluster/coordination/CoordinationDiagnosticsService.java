@@ -35,7 +35,9 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -473,46 +475,48 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         DiscoveryNode node,
         final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
     ) {
+        /*
+         * Only the top-level Cancellable is returned from this method. If it is canceled, the following variable is set to true, and is
+         * checked by all tasks derived from this top-level task.
+         * true.
+         */
         final AtomicBoolean isCancelled = new AtomicBoolean(false);
-        final Scheduler.ScheduledCancellable[] topLevelScheduledCancellable = { null };
-        new PollClusterFormationStateRunnable(
-            isCancelled,
-            node,
-            nodeToClusterFormationStateMap,
-            new ActionListener<Scheduler.ScheduledCancellable>() {
-                @Override
-                public void onResponse(Scheduler.ScheduledCancellable scheduledCancellable) {
-                    topLevelScheduledCancellable[0] = scheduledCancellable;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            }
-        ).run();
-        return new CancellableWrapper(isCancelled, topLevelScheduledCancellable[0]);
+        final List<Scheduler.Cancellable> scheduledCancellables = Collections.synchronizedList(new ArrayList<>());
+        CancellableWrapper result = new CancellableWrapper(isCancelled, scheduledCancellables);
+        new PollClusterFormationStateRunnable(isCancelled, node, nodeToClusterFormationStateMap, result).run();
+        return result;
 
     }
 
-    private static class CancellableWrapper implements Scheduler.Cancellable {
-        private final Scheduler.Cancellable delegate;
+    private static class CancellableWrapper implements Scheduler.Cancellable, ActionListener<Scheduler.ScheduledCancellable> {
+        private final List<Scheduler.Cancellable> delegates;
         private final AtomicBoolean isCancelled;
 
-        public CancellableWrapper(AtomicBoolean isCancelled, Scheduler.Cancellable delegate) {
+        public CancellableWrapper(AtomicBoolean isCancelled, List<Scheduler.Cancellable> delegates) {
             this.isCancelled = isCancelled;
-            this.delegate = delegate;
+            this.delegates = delegates;
         }
 
         @Override
         public boolean cancel() {
             isCancelled.set(true);
-            return delegate.cancel();
+            delegates.forEach(Scheduler.Cancellable::cancel);
+            return true;
         }
 
         @Override
         public boolean isCancelled() {
-            return delegate.isCancelled();
+            return delegates.stream().anyMatch(Scheduler.Cancellable::isCancelled);
+        }
+
+        @Override
+        public void onResponse(Scheduler.ScheduledCancellable cancellable) {
+            delegates.add(cancellable);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+
         }
     }
 
@@ -606,7 +610,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                                                         isCancelled,
                                                         node,
                                                         nodeToClusterFormationStateMap,
-                                                        null
+                                                        cancellableExistsListener
                                                     )
                                                 ),
                                                 ClusterFormationInfoAction.Response::new
@@ -619,15 +623,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                                 public void onFailure(Exception e) {
                                     logger.warn("Exception connecting to master node", e);
                                     nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                                    new PollClusterFormationStateRunnable(isCancelled, node, nodeToClusterFormationStateMap, null).run();
+                                    new PollClusterFormationStateRunnable(
+                                        isCancelled,
+                                        node,
+                                        nodeToClusterFormationStateMap,
+                                        cancellableExistsListener
+                                    ).run();
                                 }
                             }
                         );
                     }
                 }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-                if (cancellableExistsListener != null) {
-                    cancellableExistsListener.onResponse(scheduledCancellable);
-                }
+                cancellableExistsListener.onResponse(scheduledCancellable);
             }
 
         }

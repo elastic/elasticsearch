@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
@@ -125,7 +124,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         // no longer initializing because their recovery failed or was cancelled.
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
-        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
+        for (ShardRouting routing : node.initializing()) {
             if (routing.relocatingNodeId() == null) {
                 // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
@@ -145,7 +144,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (subtractShardsMovingAway) {
-            for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING)) {
+            for (ShardRouting routing : node.relocating()) {
                 String actualPath = clusterInfo.getDataPath(routing);
                 if (actualPath == null) {
                     // we might know the path of this shard from before when it was relocating
@@ -175,7 +174,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Map<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
-        final Decision decision = earlyTerminate(allocation, usages);
+        final Decision decision = earlyTerminate(usages);
         if (decision != null) {
             return decision;
         }
@@ -421,7 +420,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Map<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
-        final Decision decision = earlyTerminate(allocation, usages);
+        final Decision decision = earlyTerminate(usages);
         if (decision != null) {
             return decision;
         }
@@ -468,7 +467,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
         final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
-        final Decision decision = earlyTerminate(allocation, usages);
+        final Decision decision = earlyTerminate(usages);
         if (decision != null) {
             return decision;
         }
@@ -642,7 +641,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Decision YES_USAGES_UNAVAILABLE = Decision.single(Decision.Type.YES, NAME, "disk usages are unavailable");
 
-    private Decision earlyTerminate(RoutingAllocation allocation, Map<String, DiskUsage> usages) {
+    private Decision earlyTerminate(Map<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
             return YES_DISABLED;

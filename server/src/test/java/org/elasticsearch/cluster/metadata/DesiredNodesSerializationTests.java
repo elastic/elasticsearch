@@ -13,13 +13,14 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
 public class DesiredNodesSerializationTests extends AbstractSerializingTestCase<DesiredNodes> {
     @Override
     protected Writeable.Reader<DesiredNodes> instanceReader() {
-        return DesiredNodes::new;
+        return DesiredNodes::readFrom;
     }
 
     @Override
@@ -34,9 +35,27 @@ public class DesiredNodesSerializationTests extends AbstractSerializingTestCase<
 
     @Override
     protected DesiredNodes mutateInstance(DesiredNodes instance) throws IOException {
-        if (randomBoolean()) {
-            return new DesiredNodes(instance.historyID(), instance.version() + 1, instance.nodes());
-        }
-        return new DesiredNodes(randomAlphaOfLength(10), instance.version(), instance.nodes());
+        return mutateDesiredNodes(instance);
+    }
+
+    public static DesiredNodes mutateDesiredNodes(DesiredNodes instance) {
+        final var mutationBranch = randomInt(3);
+        return switch (mutationBranch) {
+            case 0 -> DesiredNodes.create(randomAlphaOfLength(10), instance.version(), List.copyOf(instance.nodes()));
+            case 1 -> DesiredNodes.create(instance.historyID(), instance.version() + 1, List.copyOf(instance.nodes()));
+            case 2 -> DesiredNodes.create(
+                instance.historyID(),
+                instance.version(),
+                instance.nodes().size() > 1
+                    ? randomSubsetOf(randomIntBetween(1, instance.nodes().size() - 1), instance.nodes())
+                    : randomList(1, 10, DesiredNodesTestCase::randomDesiredNodeWithStatus)
+            );
+            case 3 -> DesiredNodes.create(
+                instance.historyID(),
+                instance.version(),
+                instance.nodes().stream().map(DesiredNodeWithStatusSerializationTests::mutateDesiredNodeWithStatus).toList()
+            );
+            default -> throw new IllegalStateException("Unexpected value: " + mutationBranch);
+        };
     }
 }

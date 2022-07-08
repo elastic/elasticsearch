@@ -343,32 +343,21 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         // leaving the cluster
         final List<DiscoveryNode> candidateNodes = currentState.nodes()
             .stream()
-            .filter(dn -> isNodeShuttingDown(currentState, dn.getId()) == false)
+            .filter(dn -> NodesShutdownMetadata.isNodeShuttingDown(currentState, dn.getId()) == false)
             .collect(Collectors.toCollection(ArrayList::new));
         // Task assignment should not rely on node order
         Randomness.shuffle(candidateNodes);
 
         final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
         assert assignment != null : "getAssignment() should always return an Assignment object, containing a node or a reason why not";
-        assert (assignment.getExecutorNode() == null || isNodeShuttingDown(currentState, assignment.getExecutorNode()) == false)
+        assert (assignment.getExecutorNode() == null
+            || NodesShutdownMetadata.isNodeShuttingDown(currentState, assignment.getExecutorNode()) == false)
             : "expected task ["
                 + taskName
                 + "] to be assigned to a node that is not marked as shutting down, but "
                 + assignment.getExecutorNode()
                 + " is currently marked as shutting down";
         return assignment;
-    }
-
-    /**
-     * Returns true if the given node is marked as shutting down with any
-     * shutdown type.
-     */
-    static boolean isNodeShuttingDown(final ClusterState state, final String nodeId) {
-        // Right now we make no distinction between the type of shutdown, but maybe in the future we might?
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(allNodes -> allNodes.get(nodeId))
-            .isPresent();
     }
 
     @Override

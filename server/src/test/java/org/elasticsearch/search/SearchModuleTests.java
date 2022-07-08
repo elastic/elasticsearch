@@ -438,6 +438,7 @@ public class SearchModuleTests extends ESTestCase {
         "geo_bounding_box",
         "geo_distance",
         "geo_shape",
+        "knn",
         "ids",
         "intervals",
         "match",

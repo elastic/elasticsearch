@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests.DevNullClusterInfo;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -365,12 +364,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     }
 
     public void testShardSizeAndRelocatingSize() {
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][r]", 10L);
         shardSizes.put("[test][1][r]", 100L);
         shardSizes.put("[test][2][r]", 1000L);
         shardSizes.put("[other][0][p]", 10000L);
-        ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
+        ClusterInfo info = new DevNullClusterInfo(Map.of(), Map.of(), shardSizes);
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
@@ -488,13 +487,13 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     }
 
     public void testSizeShrinkIndex() {
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L);
         shardSizes.put("[test][1][p]", 100L);
         shardSizes.put("[test][2][p]", 500L);
         shardSizes.put("[test][3][p]", 500L);
 
-        ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
+        ClusterInfo info = new DevNullClusterInfo(Map.of(), Map.of(), shardSizes);
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
@@ -812,11 +811,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Map<String, DiskUsage> leastAvailableUsages = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
         Map<String, DiskUsage> mostAvailableUsage = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
 
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        Map<String, Long> shardSizes = new HashMap<>();
         // bigger than available space
         final long shardSize = randomIntBetween(1, 10);
         shardSizes.put("[test][0][p]", shardSize);
-        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes.build(), null, Map.of(), Map.of());
+        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, null, Map.of(), Map.of());
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,

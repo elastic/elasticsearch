@@ -463,6 +463,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
         getStats().markStartDelete();
 
+        ActionListener<RefreshResponse> deleteByQueryAndRefreshDoneListener = ActionListener.wrap(
+            refreshResponse -> finalizeCheckpoint(listener),
+            listener::onFailure
+        );
+
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
             logger.trace(() -> format("[%s] dbq response: [%s]", getJobId(), bulkByScrollResponse));
 
@@ -493,7 +498,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 return;
             }
 
-            finalizeCheckpoint(listener);
+            // Since we configure DBQ request *not* to perform a refresh, we need to perform the refresh manually.
+            // This separation ensures that the DBQ runs with user permissions and the refresh runs with system permissions.
+            refreshDestinationIndex(deleteByQueryAndRefreshDoneListener);
         }, listener::onFailure));
     }
 
@@ -765,7 +772,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      */
     final void setStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
         // this should be called from the generic threadpool
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         try {
             if (addSetStopAtCheckpointListener(shouldStopAtCheckpoint, shouldStopAtCheckpointListener) == false) {
@@ -950,7 +957,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         int numFailureRetries = Optional.ofNullable(transformConfig.getSettings().getNumFailureRetries())
             .orElse(context.getNumFailureRetries());
-        if (numFailureRetries != -1 && context.getAndIncrementFailureCount() > numFailureRetries) {
+        if (numFailureRetries != -1 && context.incrementAndGetFailureCount() > numFailureRetries) {
             failIndexer(
                 "task encountered more than "
                     + numFailureRetries

@@ -97,7 +97,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(
             new Route(GET, "/"),
             (request, channel, client) -> channel.sendResponse(
-                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
             )
         );
         restController.registerHandler(
@@ -215,7 +215,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(
             new Route(GET, "/bar"),
             (request, channel, client) -> channel.sendResponse(
-                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
             )
         );
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
@@ -371,7 +371,7 @@ public class RestControllerTests extends ESTestCase {
         restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
         restController.registerHandler(
             new Route(GET, "/"),
-            (r, c, client) -> c.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
+            (r, c, client) -> c.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
         );
 
         assertFalse(channel.getSendResponseCalled());
@@ -404,7 +404,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(
             new Route(GET, "/foo"),
             (request, channel1, client) -> channel1.sendResponse(
-                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
             )
         );
 
@@ -444,7 +444,7 @@ public class RestControllerTests extends ESTestCase {
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 assertThat(request.contentParser().getRestApiVersion(), is(RestApiVersion.current()));
 
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
@@ -475,7 +475,7 @@ public class RestControllerTests extends ESTestCase {
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 assertThat(request.contentParser().getRestApiVersion(), is(RestApiVersion.current()));
 
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
@@ -500,7 +500,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
@@ -526,7 +526,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
@@ -551,7 +551,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
@@ -581,7 +581,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(new Route(method, "/notconsumed"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
@@ -726,7 +726,7 @@ public class RestControllerTests extends ESTestCase {
             XContentBuilder xContentBuilder = channel1.newBuilder();
             assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
             assertThat(request.contentParser().getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
-            channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel1.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         });
 
         assertFalse(channel.getSendResponseCalled());
@@ -753,7 +753,7 @@ public class RestControllerTests extends ESTestCase {
             assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
             assertThat(request.contentParser().getRestApiVersion(), equalTo(RestApiVersion.minimumSupported()));
 
-            channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel1.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         });
 
         assertFalse(channel.getSendResponseCalled());
@@ -787,7 +787,7 @@ public class RestControllerTests extends ESTestCase {
             XContentBuilder xContentBuilder = channel1.newBuilder();
             assertThat(request.contentParser().getRestApiVersion(), equalTo(RestApiVersion.current()));
             assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.current()));
-            channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel1.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         });
 
         assertFalse(channel.getSendResponseCalled());
@@ -812,7 +812,7 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
         });
 

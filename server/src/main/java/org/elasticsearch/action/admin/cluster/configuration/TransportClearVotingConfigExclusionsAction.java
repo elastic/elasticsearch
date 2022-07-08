@@ -112,7 +112,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
                         new ElasticsearchTimeoutException(
-                            "timed out waiting for removal of nodes; if nodes should not be removed, set waitForRemoval to false. "
+                            "timed out waiting for removal of nodes; if nodes should not be removed, set ?wait_for_removal=false. "
                                 + initialState.getVotingConfigExclusions()
                         )
                     );

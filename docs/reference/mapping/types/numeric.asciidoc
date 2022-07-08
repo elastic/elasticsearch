@@ -111,6 +111,7 @@ the data as both a `keyword` _and_ a numeric data type.
 // end::map-ids-as-keyword[]
 ====
 
+[role="child_attributes"]
 [[number-params]]
 ==== Parameters for numeric fields
 
@@ -178,44 +179,38 @@ The following parameters are accepted by numeric types:
     (default).
 
 `time_series_dimension`::
+preview:[] (Optional, Boolean)
 +
 --
-experimental:[]
-(Optional, Boolean)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 include::keyword.asciidoc[tag=dimension]
 
 Of the numeric field types, only `byte`, `short`, `integer`, `long`, and
 `unsigned_long` fields support this parameter.
 
 A numeric field can't be both a time series dimension and a time series metric.
-====
 --
 
+ifeval::["{release-state}"=="unreleased"]
 `time_series_metric`::
-+
---
-experimental:[]
-(Optional, string)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
+preview:[] (Optional, string)
 // tag::time_series_metric[]
-Marks the field as a time series metric. The value is the metric type. Defaults
-to `null` (Not a time series metric).
+Marks the field as a <<time-series-metric,time series metric>>. The value is the
+metric type. You can't update this parameter for existing fields.
 // end::time_series_metric[]
++
+.Valid `time_series_metric` values for numeric fields
+[%collapsible%open]
+====
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
 
-For numeric fields, this parameter accepts `gauge` and `counter`. You can't
-update this parameter for existing fields.
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
 
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+====
++
 For a numeric time series metric, the `doc_values` parameter must be `true`. A
 numeric field can't be both a time series dimension and a time series metric.
-====
---
+endif::[]
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

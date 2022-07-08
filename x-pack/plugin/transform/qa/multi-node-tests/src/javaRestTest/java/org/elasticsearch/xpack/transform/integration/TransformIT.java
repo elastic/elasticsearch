@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -38,7 +39,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
 @SuppressWarnings("removal")
@@ -261,6 +264,35 @@ public class TransformIT extends TransformRestTestCase {
 
         stopTransform(config.getId());
         deleteTransform(config.getId());
+    }
+
+    public void testRetentionPolicyDelete() throws Exception {
+        String indexName = "retention-index";
+        String transformId = "transform-retention-update";
+        String dest = "retention-policy-dest";
+        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        TransformConfig config = createTransformConfigBuilder(transformId, dest, QueryConfig.matchAll(), indexName).setPivotConfig(
+            createPivotConfig(groups, aggs)
+        )
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setRetentionPolicyConfig(new TimeRetentionPolicyConfig("timestamp", TimeValue.timeValueDays(1)))
+            .build();
+        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+        assertThat(getTransform(transformId), hasKey("retention_policy"));
+        String update = """
+            {
+                "retention_policy": null
+            }
+            """;
+        updateConfig(transformId, update);
+        assertThat(getTransform(transformId), not(hasKey("retention_policy")));
     }
 
     public void testStopWaitForCheckpoint() throws Exception {

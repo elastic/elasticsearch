@@ -8,16 +8,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -54,6 +59,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
@@ -116,18 +122,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        if (fieldType.hasDocValues()) {
-            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
+        if (fieldType.hasDocValues() || fieldType.getTextSearchInfo().hasNorms()) {
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
             assertEquals("field", fieldExistsQuery.getField());
-            assertDocValuesField(fields, "field");
-            assertNoFieldNamesField(fields);
-        } else if (fieldType.getTextSearchInfo().hasNorms()) {
-            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
-            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
-            assertEquals("field", normsFieldExistsQuery.getField());
-            assertHasNorms(fields, "field");
-            assertNoDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
         } else {
             assertThat(query, instanceOf(TermQuery.class));
@@ -159,16 +157,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
         }
         fail("field [" + field + "] should be indexed but it isn't");
-    }
-
-    protected static void assertDocValuesField(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
-        for (IndexableField indexableField : fields) {
-            if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
-                return;
-            }
-        }
-        fail("doc_values not present for field [" + field + "]");
     }
 
     protected static void assertNoDocValuesField(LuceneDocument doc, String field) {
@@ -779,7 +767,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         /**
          * Examples that should work when source is generated from doc values.
          */
-        SyntheticSourceExample example() throws IOException;
+        SyntheticSourceExample example(int maxValues) throws IOException;
 
         /**
          * Examples of mappings that should be rejected when source is configured to
@@ -791,7 +779,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected abstract SyntheticSourceSupport syntheticSourceSupport();
 
     public final void testSyntheticSource() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -801,6 +789,49 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             JsonXContent.contentBuilder().startObject().field("field", syntheticSourceExample.result).endObject()
         );
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
+    }
+
+    public final void testSyntheticSourceMany() throws IOException {
+        int maxValues = randomBoolean() ? 1 : 5;
+        SyntheticSourceSupport support = syntheticSourceSupport();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            support.example(maxValues).mapping().accept(b);
+            b.endObject();
+        }));
+        int count = between(2, 1000);
+        String[] expected = new String[count];
+        try (Directory directory = newDirectory()) {
+            try (
+                RandomIndexWriter iw = new RandomIndexWriter(
+                    random(),
+                    directory,
+                    LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
+                for (int i = 0; i < count; i++) {
+                    if (rarely()) {
+                        expected[i] = "{}";
+                        iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
+                        continue;
+                    }
+                    SyntheticSourceExample example = support.example(maxValues);
+                    expected[i] = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", example.result).endObject());
+                    iw.addDocument(mapper.parse(source(b -> b.field("field", example.inputValue))).rootDoc());
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                int i = 0;
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                    SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                    for (int docId : docIds) {
+                        assertThat("doc " + docId, sourceLoaderLeaf.source(null, docId).utf8ToString(), equalTo(expected[i++]));
+                    }
+                }
+            }
+        }
     }
 
     public final void testNoSyntheticSourceForScript() throws IOException {
@@ -816,7 +847,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -837,7 +868,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticEmptyList() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -852,7 +883,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             new SyntheticSourceInvalidExample(
                 matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
                 b -> {
-                    syntheticSourceSupport().example().mapping().accept(b);
+                    syntheticSourceSupport().example(5).mapping().accept(b);
                     b.field("copy_to", "bar");
                 }
             )

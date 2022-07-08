@@ -8,7 +8,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -368,6 +373,43 @@ public class RecoverySettingsTests extends ESTestCase {
                 .getMaxBytesPerSec(),
             equalTo(random)
         );
+    }
+
+    public void testRecoverFromSnapshotPermitsAreNotLeakedWhenRecoverFromSnapshotIsDisabled() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), false)
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 1)
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.getKey(), 1)
+            .build();
+
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
+        );
+        mockAppender.start();
+        final Logger logger = LogManager.getLogger(RecoverySettings.class);
+        Loggers.addAppender(logger, mockAppender);
+
+        try {
+            assertThat(recoverySettings.getUseSnapshotsDuringRecovery(), is(false));
+
+            for (int i = 0; i < 4; i++) {
+                assertThat(recoverySettings.tryAcquireSnapshotDownloadPermits(), is(nullValue()));
+            }
+
+            clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), true).build());
+
+            final var releasable = recoverySettings.tryAcquireSnapshotDownloadPermits();
+            assertThat(releasable, is(notNullValue()));
+            releasable.close();
+
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     private static ByteSizeValue randomByteSizeValue() {

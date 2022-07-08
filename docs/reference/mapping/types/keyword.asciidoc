@@ -149,19 +149,21 @@ The following parameters are accepted by `keyword` fields:
     Accepts `true` or `false` (default).
 
 `time_series_dimension`::
+preview:[] (Optional, Boolean)
 +
 --
-experimental:[]
-(Optional, Boolean)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 // tag::dimension[]
-Marks the field as a time series dimension. Defaults to `false`.
+ifeval::["{release-state}"=="unreleased"]
+Marks the field as a `time-series-dimension,time series dimension`. Defaults
+to `false`.
 
-The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
+The
+<<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting limits the number of dimensions in an index.
+endif::[]
+ifeval::["{release-state}"!="unreleased"]
+Marks the field as a time series dimension. Defaults to `false`.
+endif::[]
 
 Dimension fields have the following constraints:
 
@@ -170,7 +172,6 @@ Dimension fields have the following constraints:
 // end::dimension[]
 * Field values cannot be larger than 1024 bytes.
 * The field cannot use a <<normalizer,`normalizer`>>.
-====
 --
 
 ifeval::["{release-state}"=="unreleased"]

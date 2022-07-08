@@ -9,11 +9,15 @@
 package org.elasticsearch.script;
 
 import java.time.ZonedDateTime;
+import java.util.Map;
 
 /**
  * Ingest and update metadata available to write scripts
  */
-public interface Metadata {
+public class Metadata implements MapWrappable {
+
+    protected final Map<String, Object> map;
+
     /**
      * The destination index
      */

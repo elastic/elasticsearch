@@ -76,6 +76,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntPredicate;
@@ -1604,6 +1605,129 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testDeduplicatedMappings() throws IOException {
+        final Path dataPath = createTempDir();
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+
+                Set<String> hashes;
+                Metadata.Builder metadata;
+                ClusterState clusterState;
+                ClusterState previousState;
+
+                // generate two mappings
+                String mapping1 = randomMappingString();
+                String mapping2 = randomValueOtherThan(mapping1, PersistedClusterStateServiceTests::randomMappingString);
+
+                // build and write a cluster state with metadata that has all indices using a single mapping
+                metadata = Metadata.builder();
+                for (int i = between(5, 20); i >= 0; i--) {
+                    metadata.put(
+                        IndexMetadata.builder("test-" + i)
+                            .putMapping(mapping1)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                            )
+                    );
+                }
+                clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(1));
+                writer.writeFullStateAndCommit(0L, clusterState);
+
+                // verify that the on-disk state reflects 1 mapping
+                hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
+                assertThat(hashes.size(), equalTo(1));
+                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+
+                previousState = clusterState;
+                metadata = Metadata.builder(previousState.metadata());
+
+                // add a second mapping -- either by adding a new index or changing an existing one
+                if (randomBoolean()) {
+                    // add another index with a different mapping
+                    metadata.put(
+                        IndexMetadata.builder("test-" + 99)
+                            .putMapping(mapping2)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                            )
+                    );
+                } else {
+                    // change an existing index to a different mapping
+                    String index = randomFrom(previousState.metadata().getIndices().keySet());
+                    metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
+                }
+                clusterState = ClusterState.builder(previousState).metadata(metadata).build();
+                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(2));
+                writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
+
+                // verify that the on-disk state reflects 2 mappings
+                hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
+                assertThat(hashes.size(), equalTo(2));
+                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+
+                previousState = clusterState;
+                metadata = Metadata.builder(previousState.metadata());
+
+                // update all indices to use the second mapping
+                for (String index : previousState.metadata().getIndices().keySet()) {
+                    metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
+                }
+                clusterState = ClusterState.builder(previousState).metadata(metadata).build();
+                assertThat(clusterState.metadata().getMappingsByHash().size(), equalTo(1));
+                writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
+
+                // verify that the on-disk reflects 1 mapping
+                hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
+                assertThat(hashes.size(), equalTo(1));
+                assertThat(clusterState.metadata().getMappingsByHash().keySet(), equalTo(hashes));
+            }
+        }
+    }
+
+    /**
+     * Search the underlying persisted state indices for non-deleted mapping_hash documents that represent the
+     * first page of data, collecting and returning the distinct mapping_hashes themselves.
+     */
+    private Set<String> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
+        Set<String> hashes = new HashSet<>();
+        try (Directory directory = new NIOFSDirectory(metadataDirectory); DirectoryReader reader = DirectoryReader.open(directory)) {
+            final IndexSearcher indexSearcher = new IndexSearcher(reader);
+            indexSearcher.setQueryCache(null);
+
+            final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, MAPPING_TYPE_NAME));
+            final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
+            for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
+                final Scorer scorer = weight.scorer(leafReaderContext);
+                if (scorer != null) {
+                    final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                    final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                    final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                    while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        if (isLiveDoc.test(docIdSetIterator.docID())) {
+                            final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                            int page = document.getField("page").numericValue().intValue();
+                            if (page == 0) {
+                                String hash = document.getField("mapping_hash").stringValue();
+                                hashes.add(hash);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return hashes;
+    }
+
     private boolean findSegmentInDirectory(Path dataPath) throws IOException {
         Directory d = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
 
@@ -1664,7 +1788,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         );
     }
 
-    private String randomMappingString() {
+    private static String randomMappingString() {
         int i = randomIntBetween(0, 3);
         try {
             return Strings.toString(

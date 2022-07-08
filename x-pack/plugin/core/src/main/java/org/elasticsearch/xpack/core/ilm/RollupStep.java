@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +30,8 @@ import java.util.Objects;
 public class RollupStep extends AsyncActionStep {
     public static final String NAME = "rollup";
 
+    private static final Logger logger = LogManager.getLogger(RollupStep.class);
+
     private final RollupActionConfig config;
 
     public RollupStep(StepKey key, StepKey nextStepKey, Client client, RollupActionConfig config) {
@@ -47,9 +51,13 @@ public class RollupStep extends AsyncActionStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        if (lifecycleState.lifecycleDate() == null) {
+            throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() + "] is missing lifecycle date");
+        }
+
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
-        final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final String rollupIndexName = lifecycleState.rollupIndexName();
         if (Strings.hasText(rollupIndexName) == false) {
             listener.onFailure(
@@ -59,8 +67,41 @@ public class RollupStep extends AsyncActionStep {
             );
             return;
         }
+
+        IndexMetadata rollupIndexMetadata = currentState.metadata().index(rollupIndexName);
+        if (rollupIndexMetadata != null) {
+            IndexMetadata.RollupTaskStatus rollupIndexStatus = IndexMetadata.INDEX_ROLLUP_STATUS.get(indexMetadata.getSettings());
+            if (IndexMetadata.RollupTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
+                logger.warn(
+                    "skipping [{}] step for index [{}] as part of policy [{}] as the rollup index [{}] already exists",
+                    RollupStep.NAME,
+                    indexName,
+                    policyName,
+                    rollupIndexName
+                );
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "failing ["
+                            + RollupStep.NAME
+                            + "] step for index ["
+                            + indexName
+                            + "] as part of policy ["
+                            + policyName
+                            + "] because the rollup index ["
+                            + rollupIndexName
+                            + "] already exists with rollup status ["
+                            + rollupIndexStatus
+                            + "]"
+                    )
+                );
+            }
+            return;
+        }
+
         RollupAction.Request request = new RollupAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(TimeValue.MAX_VALUE);
-        // currently RollupAction always acknowledges action was complete when no exceptions are thrown.
+        // Currently, RollupAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(
             RollupAction.INSTANCE,
             request,

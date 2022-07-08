@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,9 +97,11 @@ public class RollupILMAction implements LifecycleAction {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
+        StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
         StepKey rollupKey = new StepKey(phase, NAME, NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
+        StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
@@ -107,7 +110,19 @@ public class RollupILMAction implements LifecycleAction {
             checkNotWriteIndex,
             waitForNoFollowerStepKey
         );
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, cleanupRollupIndexKey, client);
+
+        // We generate a unique rollup index name, but we also retry if the allocation of the rollup index is not possible, so we want to
+        // delete the "previously generated" rollup index (this is a no-op if it's the first run of the action, and we haven't generated a
+        // rollup index name)
+        CleanupTargetIndexStep cleanupRollupIndexStep = new CleanupTargetIndexStep(
+            cleanupRollupIndexKey,
+            readOnlyKey,
+            client,
+            (indexMetadata) -> IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.get(indexMetadata.getSettings()),
+            (indexMetadata) -> indexMetadata.getLifecycleExecutionState().rollupIndexName()
+        );
+        // Mark source index as read-only
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
 
         // Generate a unique rollup index name and store it in the ILM execution state
@@ -117,15 +132,28 @@ public class RollupILMAction implements LifecycleAction {
             ROLLUP_INDEX_PREFIX,
             (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
         );
-        RollupStep rollupStep = new RollupStep(rollupKey, copyMetadataKey, client, config);
 
+        // Here is where the actual rollup action takes place
+        RollupStep rollupStep = new RollupStep(rollupKey, copyMetadataKey, client, config);
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
-            dataStreamCheckBranchingKey,
-            (sourceIndexName, lifecycleState) -> lifecycleState.rollupIndexName(),
-            deleteIndexKey
+            copyLifecyclePolicySettingKey,
+            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            nextStepKey
         );
 
+        // Copy the index.lifecycle.name setting to the rollup index settings
+        CopySettingsStep copySettingsStep = new CopySettingsStep(
+            copyLifecyclePolicySettingKey,
+            dataStreamCheckBranchingKey,
+            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            LifecycleSettings.LIFECYCLE_NAME
+        );
+
+        // By the time we get to this step we have 2 indices, the source and the rollup one. We now need to choose an index
+        // swapping strategy such that the rollup index takes the place of the source index (which will also be deleted).
+        // If the source index is part of a data stream it's a matter of replacing it with the rollup index one in the data stream and
+        // then deleting the source index.
         BranchingStep isDataStreamBranchingStep = new BranchingStep(
             dataStreamCheckBranchingKey,
             deleteIndexKey,
@@ -147,10 +175,12 @@ public class RollupILMAction implements LifecycleAction {
         return List.of(
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
+            cleanupRollupIndexStep,
             readOnlyStep,
             generateRollupIndexNameStep,
             rollupStep,
             copyExecutionStateStep,
+            copySettingsStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep

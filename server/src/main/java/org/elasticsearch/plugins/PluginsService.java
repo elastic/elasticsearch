@@ -441,19 +441,27 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
 
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
-            if (pluginClassLoader != pluginClass.getClassLoader()) {
-                throw new IllegalStateException(
-                    "Plugin ["
-                        + name
-                        + "] must reference a class loader local Plugin class ["
-                        + bundle.plugin.getClassname()
-                        + "] (class loader ["
-                        + pluginClass.getClassLoader()
-                        + "])"
-                );
+            Plugin plugin;
+            String classname = bundle.plugin.getClassname();
+            if (classname != null && "".equals(classname) == false) {
+                Class<? extends Plugin> pluginClass = loadPluginClass(classname, pluginClassLoader);
+                if (pluginClassLoader != pluginClass.getClassLoader()) {
+                    throw new IllegalStateException(
+                        "Plugin ["
+                            + name
+                            + "] must reference a class loader local Plugin class ["
+                            + bundle.plugin.getClassname()
+                            + "] (class loader ["
+                            + pluginClass.getClassLoader()
+                            + "])"
+                    );
+                }
+                plugin = loadPlugin(pluginClass, settings, configPath);
+            } else {
+                // this is just a shortcut to get things working quickly. FIXME
+                plugin = new PlaceHolderPlugin(bundle.plugin.getName());
             }
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+
             loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
             return plugin;
         } finally {

@@ -46,8 +46,10 @@ import org.elasticsearch.sp.api.analysis.settings.ClusterSettings;
 import org.elasticsearch.sp.api.analysis.settings.NodeSettings;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -166,18 +168,13 @@ public final class AnalysisModule {
             )
         );
 
+        // Register Stable Plugins
         if (pluginsService != null) {
-            List<? extends org.elasticsearch.sp.api.analysis.AnalysisPlugin> analysisPlugins =
-                pluginsService.loadServiceProviders(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class);
-            List<Map<String, AnalysisProvider<TokenFilterFactory>>> collect2 = new ArrayList<>();
-            for (org.elasticsearch.sp.api.analysis.AnalysisPlugin analysisPlugin : analysisPlugins) {
-                Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories =
-                    analysisPlugin.getTokenFilterFactories();
-                Map<String, AnalysisProvider<TokenFilterFactory>> stringAnalysisProviderMap =
-                    getStringAnalysisProviderMap(tokenFilterFactories);
-                collect2.add(stringAnalysisProviderMap);
-            }
-            tokenFilters.register(collect2);
+            pluginsService.loadServiceProviders(org.elasticsearch.sp.api.analysis.AnalysisPlugin.class)
+                .stream()
+                .map(org.elasticsearch.sp.api.analysis.AnalysisPlugin::getTokenFilterFactories)
+                .map(AnalysisModule::getStringAnalysisProviderMap)
+                .forEach(tokenFilters::register);
         }
 
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
@@ -187,27 +184,33 @@ public final class AnalysisModule {
     private static Map<String, AnalysisProvider<TokenFilterFactory>>
     getStringAnalysisProviderMap(Map<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> tokenFilterFactories) {
         Map<String, AnalysisProvider<TokenFilterFactory>> res = new HashMap<>();
-        for (Map.Entry<String, Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory>> entry : tokenFilterFactories
-            .entrySet()) {
-            res.put(entry.getKey(), new AnalysisProvider<TokenFilterFactory>() {
+        for (var entry : tokenFilterFactories.entrySet()) {
+            String name = entry.getKey();
+            var cls = entry.getValue();
+            // TokenFilterFactory
+            var mh = findStableAnalysisPluginFactoryCtr(cls);
+            var noArgsCtrHandle = mh.asType(mh.type().changeReturnType(org.elasticsearch.sp.api.analysis.TokenFilterFactory.class));
+
+            res.put(name, new AnalysisProvider<TokenFilterFactory>() {
                 @Override
-                public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
-                    throws IOException {
-                    Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> value = entry.getValue();
-                    org.elasticsearch.sp.api.analysis.TokenFilterFactory tokenFilterFactory;
-                    tokenFilterFactory = createInstance(value, indexSettings, environment.settings(), settings);
+                public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+                    // tokenFilterFactory = createInstance(cls, indexSettings, environment.settings(), settings);
+                    try {
+                        var tokenFilterFactory = (org.elasticsearch.sp.api.analysis.TokenFilterFactory) noArgsCtrHandle.invokeExact();
+                        return new TokenFilterFactory() {
+                            @Override
+                            public String name() {
+                                return tokenFilterFactory.name();
+                            }
 
-                    return new TokenFilterFactory() {
-                        @Override
-                        public String name() {
-                            return tokenFilterFactory.name();
-                        }
-
-                        @Override
-                        public TokenStream create(TokenStream tokenStream) {
-                            return tokenFilterFactory.create(tokenStream);
-                        }
-                    };
+                            @Override
+                            public TokenStream create(TokenStream tokenStream) {
+                                return tokenFilterFactory.create(tokenStream);
+                            }
+                        };
+                    } catch (Throwable t) {
+                        throw new RuntimeException(t);
+                    }
                 }
             });
         }
@@ -215,12 +218,22 @@ public final class AnalysisModule {
         return res;
     }
 
+    // Currently, finds the no-args constructor.
+    private static MethodHandle findStableAnalysisPluginFactoryCtr(Class<?> cls) {
+        try {
+            var lookup = MethodHandles.publicLookup();
+            return lookup.findConstructor(cls, MethodType.methodType(void.class));
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static org.elasticsearch.sp.api.analysis.TokenFilterFactory createInstance(
-        Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> value,
+        Class<? extends org.elasticsearch.sp.api.analysis.TokenFilterFactory> cls,
         IndexSettings indexSettings, Settings nodeSettings, Settings analysisSettings) {
         try {
-            for(Constructor<?> constructor : value.getConstructors()){
+            for (Constructor<?> constructor : cls.getConstructors()) {
                 org.elasticsearch.sp.api.analysis.settings.Inject inject =
                     constructor.getAnnotation(org.elasticsearch.sp.api.analysis.settings.Inject.class);
                 if (inject != null) {
@@ -237,7 +250,7 @@ public final class AnalysisModule {
         } catch (Exception e) {
             // e.printStackTrace();
         }
-        return null;
+        throw new RuntimeException("cannot create instance of " + cls + ", no injectable ctr found");
     }
 
     private static <T> T createSettings(Class<T> settingsClass, IndexSettings indexSettings, Settings nodeSettings,

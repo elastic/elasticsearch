@@ -10,7 +10,6 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.nori.OldAnalysisNoriPlugin' // to allow es to startup
 }
 
 dependencies {

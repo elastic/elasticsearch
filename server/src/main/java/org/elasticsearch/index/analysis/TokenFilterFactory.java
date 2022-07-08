@@ -20,7 +20,7 @@ public interface TokenFilterFactory extends org.elasticsearch.sp.api.analysis.To
 
     TokenStream create(TokenStream tokenStream);
 
-    /**
+    /** **** This looks reasonable in the API ****
      * Normalize a tokenStream for use in multi-term queries
      *
      * The default implementation is a no-op

@@ -20,6 +20,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -62,6 +64,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @Input
     public abstract Property<String> getJavaVersion();
 
+    @Optional
     @Input
     public abstract Property<String> getClassname();
 
@@ -83,10 +86,15 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
+    // just a static list of now - needs to be an explicit property.
+    static final List<String> STABLE_PLUGINS = List.of("new-analysis-nori", "new-analysis-phonetic");
+
     @TaskAction
     public void generatePropertiesFile() throws IOException {
+        boolean stablePlugin = STABLE_PLUGINS.contains(getPluginName().get());
+
         String classname = getClassname().getOrElse("");
-        if (classname.isEmpty()) {
+        if (stablePlugin == false && classname.isEmpty()) {
             throw new InvalidUserDataException("classname is a required setting for esplugin");
         }
 
@@ -96,7 +104,9 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("version", getPluginVersion().get());
         props.put("elasticsearchVersion", getElasticsearchVersion().get());
         props.put("javaVersion", getJavaVersion().get());
+        // if (stablePlugin == false) {
         props.put("classname", classname);
+        // }
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
         props.put("requiresKeystore", getRequiresKeystore().get());

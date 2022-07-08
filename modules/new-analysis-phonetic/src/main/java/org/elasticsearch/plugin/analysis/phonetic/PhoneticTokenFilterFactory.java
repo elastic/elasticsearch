@@ -25,9 +25,6 @@ import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
 
 import java.util.HashSet;
 import java.util.List;
@@ -55,6 +52,31 @@ public class PhoneticTokenFilterFactory
         this.maxcodelength = 1;
 
     }
+
+    // Sketch out shape of settings to keep the compiler happy, without a dependency on server
+    interface Accessors {
+        default boolean getAsBoolean(String name, boolean defaultValue) {
+            return defaultValue;
+        }
+
+        default String get(String name, String defaultValue) {
+            return defaultValue;
+        }
+
+        default int getAsInt(String name, int defaultValue) {
+            return defaultValue;
+        }
+
+        default List<String> getAsList(String name) {
+            return null;
+        }
+    }
+
+    static class Settings implements Accessors {}
+
+    static class IndexSettings implements Accessors {}
+
+    static class Environment implements Accessors {}
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         // super(name, settings);

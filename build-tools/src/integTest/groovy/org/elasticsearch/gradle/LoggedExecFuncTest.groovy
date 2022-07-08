@@ -118,15 +118,11 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
-          getCaptureOutput().set(true)
-          getOutputIndenting().set("CUSTOM")
+          getIndentingConsoleOutput().set("CUSTOM")
           commandLine('echo', '''
             HELLO
             Darkness
             my old friend''')
-            doLast {
-                print output
-            }
         }
         """
         when:
@@ -136,8 +132,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         normalized(result.output) == '''
           [CUSTOM]             HELLO
           [CUSTOM]             Darkness
-          [CUSTOM]             my old friend
-          [CUSTOM] '''.stripIndent(9)
+          [CUSTOM]             my old friend'''.stripIndent(9)
     }
 
     def "can provide standard input"() {

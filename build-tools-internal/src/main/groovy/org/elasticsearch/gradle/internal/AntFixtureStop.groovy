@@ -38,10 +38,10 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
         }
 
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable = 'Taskkill'
+            getExecutable().set('Taskkill')
             args('/PID', pid, '/F')
         } else {
-            executable = 'kill'
+            getExecutable().set('kill')
             args('-9', pid)
         }
         doLast {

@@ -61,7 +61,6 @@ public class BwcSetupExtension {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.usesService(bwcTaskThrottleProvider);
-            loggedExec.setSpoolOutput(true);
             loggedExec.getWorkingDir().set(checkoutDir.get());
             // Execution time so that the checkouts are available
             loggedExec.getEnvironment().put("JAVA_HOME", project.provider(() -> {
@@ -71,10 +70,10 @@ public class BwcSetupExtension {
             }));
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                loggedExec.setExecutable("cmd");
+                loggedExec.getExecutable().set("cmd");
                 loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
             } else {
-                loggedExec.setExecutable(new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
             }
 
             loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().toString());
@@ -103,7 +102,7 @@ public class BwcSetupExtension {
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
             }
-            loggedExec.getOutputIndenting().set(unreleasedVersionInfo.get().version().toString());
+            loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.get().version().toString());
             configAction.execute(loggedExec);
         });
     }

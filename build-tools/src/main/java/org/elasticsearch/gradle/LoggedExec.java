@@ -67,7 +67,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     abstract public MapProperty<String, String> getEnvironment();
 
     @Input
-    abstract public Property<String> getExecutableProperty();
+    abstract public Property<String> getExecutable();
 
     @Input
     @Optional
@@ -75,7 +75,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @Input
     @Optional
-    abstract public Property<String> getOutputIndenting();
+    abstract public Property<String> getIndentingConsoleOutput();
 
     @Input
     @Optional
@@ -102,6 +102,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         if (spoolOutput && getCaptureOutput().get()) {
             throw new GradleException("Capturing output is not supported when spoolOutput is true.");
         }
+        if (getCaptureOutput().getOrElse(false) && getIndentingConsoleOutput().isPresent()) {
+            throw new GradleException("Capturing output is not supported when indentingConsoleOutput is configured.");
+        }
         Consumer<Logger> outputLogger;
         OutputStream out;
         if (spoolOutput) {
@@ -119,17 +122,17 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             };
         } else {
             out = new ByteArrayOutputStream();
-            outputLogger = logger -> logger.error(byteStreamToString(out));
+            outputLogger = getIndentingConsoleOutput().isPresent() ? logger -> {} : logger -> logger.error(byteStreamToString(out));
         }
 
-        OutputStream finalOutputStream = getOutputIndenting().isPresent()
-            ? new IndentingOutputStream(out, getOutputIndenting().get())
+        OutputStream finalOutputStream = getIndentingConsoleOutput().isPresent()
+            ? new IndentingOutputStream(System.out, getIndentingConsoleOutput().get())
             : out;
         ExecResult execResult = execOperations.exec(execSpec -> {
             execSpec.setIgnoreExitValue(true);
             execSpec.setStandardOutput(finalOutputStream);
             execSpec.setErrorOutput(finalOutputStream);
-            execSpec.setExecutable(getExecutableProperty().get());
+            execSpec.setExecutable(getExecutable().get());
             execSpec.setEnvironment(getEnvironment().get());
             if (getArgs().isPresent()) {
                 execSpec.setArgs(getArgs().get());
@@ -153,7 +156,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         if (getLogger().isInfoEnabled() == false) {
             if (exitValue != 0) {
                 try {
-                    getLogger().error("Output for " + getExecutableProperty().get() + ":");
+                    getLogger().error("Output for " + getExecutable().get() + ":");
                     outputLogger.accept(getLogger());
                 } catch (Exception e) {
                     throw new GradleException("Failed to read exec output", e);
@@ -161,7 +164,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 throw new GradleException(
                     String.format(
                         "Process '%s %s' finished with non-zero exit value %d",
-                        getExecutableProperty().get(),
+                        getExecutable().get(),
                         getArgs().get(),
                         exitValue
                     )
@@ -255,10 +258,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         }
     }
 
-    public void setExecutable(String executable) {
-        getExecutableProperty().set(executable);
-    }
-
     public void args(Object... args) {
         args(List.of(args));
     }
@@ -275,7 +274,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         if (args.isEmpty()) {
             throw new IllegalArgumentException("Cannot set commandline with empty list.");
         }
-        getExecutableProperty().set(args.get(0).toString());
+        getExecutable().set(args.get(0).toString());
         getArgs().set(args.subList(1, args.size()));
     }
 }

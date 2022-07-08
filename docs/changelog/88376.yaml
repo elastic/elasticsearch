@@ -1,0 +1,6 @@
+pr: 88376
+summary: Limit test to zoom 25 to avoid rounding errors
+area: Geo
+type: bug
+issues:
+ - 88259

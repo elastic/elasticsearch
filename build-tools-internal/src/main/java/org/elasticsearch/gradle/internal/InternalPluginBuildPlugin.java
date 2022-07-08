@@ -8,9 +8,10 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
-public class InternalPluginBuildPlugin implements InternalPlugin {
+public class InternalPluginBuildPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(BuildPlugin.class);

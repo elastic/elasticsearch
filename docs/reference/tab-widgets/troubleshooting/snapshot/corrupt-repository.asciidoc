@@ -98,6 +98,7 @@ Let's first work on the secondary clusters:
 ----
 GET _snapshot/my-repo
 ----
+// TEST[skip:we're not setting up repos in these tests]
 +
 The reponse will look like this:
 +
@@ -134,6 +135,7 @@ PUT _snapshot/my-repo
     }
 }
 ----
+// TEST[skip:we're not setting up repos in these tests]
 +
 <1> Marks the repository as read-only.
 
@@ -143,6 +145,7 @@ PUT _snapshot/my-repo
 ----
 DELETE _snapshot/my-repo
 ----
+// TEST[skip:we're not setting up repos in these tests]
 +
 The response will look like this:
 +
@@ -168,30 +171,14 @@ to re-add the repository:
 ----
 GET _snapshot/my-repo
 ----
-+
-The reponse will look like this:
-+
-[source,console-result]
-----
-{
-  "my-repo": { <1>
-    "type": "s3",
-    "settings": {
-      "bucket": "repo-bucket",
-      "client": "elastic-internal-71bcd3",
-      "base_path": "myrepo"
-    }
-  }
-}
-----
-// TESTRESPONSE[skip:the result is for illustrating purposes only]
-
+// TEST[skip:we're not setting up repos in these tests]
 . Delete the repository:
 +
 [source,console]
 ----
 DELETE _snapshot/my-repo
 ----
+// TEST[skip:we're not setting up repos in these tests]
 +
 The response will look like this:
 +
@@ -218,6 +205,7 @@ PUT _snapshot/my-repo
   }
 }
 ----
+// TEST[skip:we're not setting up repos in these tests]
 +
 The response will look like this:
 +

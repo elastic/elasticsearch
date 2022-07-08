@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -47,6 +48,14 @@ public class CleanupTargetIndexStep extends AsyncRetryDuringSnapshotActionStep {
     @Override
     public boolean isRetryable() {
         return true;
+    }
+
+    Function<IndexMetadata, String> getSourceIndexNameSupplier() {
+        return sourceIndexNameSupplier;
+    }
+
+    Function<IndexMetadata, String> getTargetIndexNameSupplier() {
+        return targetIndexNameSupplier;
     }
 
     @Override
@@ -97,5 +106,24 @@ public class CleanupTargetIndexStep extends AsyncRetryDuringSnapshotActionStep {
                     }
                 }
             });
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        CleanupTargetIndexStep that = (CleanupTargetIndexStep) o;
+        return super.equals(o)
+            && Objects.equals(targetIndexNameSupplier, that.targetIndexNameSupplier)
+            && Objects.equals(sourceIndexNameSupplier, that.sourceIndexNameSupplier);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), targetIndexNameSupplier, sourceIndexNameSupplier);
     }
 }

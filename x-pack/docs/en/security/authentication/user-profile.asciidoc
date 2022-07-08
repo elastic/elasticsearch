@@ -2,7 +2,7 @@
 [[user-profile]]
 === User profiles
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
 Because the {stack} supports externally-managed users (such as users who
 authenticate via SAML, or users stored in an LDAP directory), there's a

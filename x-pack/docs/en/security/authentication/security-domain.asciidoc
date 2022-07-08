@@ -2,7 +2,7 @@
 [[security-domain]]
 === Security domains
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
 Security domains are a method of grouping multiple <<realms,realms>> under the
 same domain so that the {stack} can recognize when a single user authenticates 

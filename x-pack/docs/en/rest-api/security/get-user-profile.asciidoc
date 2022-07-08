@@ -5,7 +5,7 @@
 <titleabbrev>Get user profile</titleabbrev>
 ++++
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
 Retrieves a user's profile using the unique profile ID.
 

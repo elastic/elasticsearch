@@ -9,23 +9,30 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
+import org.elasticsearch.plugins.Plugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
  * ILM Provider implementation for the {@link ImmutableClusterStateHandlerProvider} service interface
  */
 public class ILMImmutableStateHandlerProvider implements ImmutableClusterStateHandlerProvider {
-    private static volatile Collection<ImmutableClusterStateHandler<?>> handlers = Collections.emptyList();
-
     @Override
-    public Collection<ImmutableClusterStateHandler<?>> handlers() {
-        return handlers;
+    public Collection<ImmutableClusterStateHandler<?>> handlers(Collection<? extends Plugin> loadedPlugins) {
+        List<ImmutableClusterStateHandler<?>> result = new ArrayList<>();
+        // this will be much nicer with switch expressions
+        for (var plugin : loadedPlugins) {
+            if (plugin instanceof IndexLifecycle indexLifecycle) {
+                result.addAll(indexLifecycle.immutableClusterStateHandlers());
+            }
+        }
+        return result;
     }
 
-    public static void registerHandlers(ImmutableClusterStateHandler<?>... stateHandlers) {
-        handlers = List.of(stateHandlers);
+    @Override
+    public Collection<Class<? extends Plugin>> supportedPlugins() {
+        return List.of(IndexLifecycle.class);
     }
 }

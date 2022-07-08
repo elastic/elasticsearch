@@ -262,6 +262,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
+import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -273,6 +276,8 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -416,6 +421,7 @@ import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -886,6 +892,47 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+    }
+
+    /**
+     * Initializes the immutable cluster state handlers for Elasticsearch and it's modules/plugins
+     *
+     * @param pluginsService needed to load all modules/plugins immutable state handlers through SPI
+     */
+    public void initImmutableClusterStateHandlers(PluginsService pluginsService) {
+        List<ImmutableClusterStateHandler<?>> handlers = new ArrayList<>();
+
+        List<? extends ImmutableClusterStateHandlerProvider> pluginHandlerProviders = pluginsService.loadServiceProviders(
+            ImmutableClusterStateHandlerProvider.class
+        );
+
+        // Add directly the handlers that the server has
+        handlers.add(new ImmutableClusterSettingsAction(clusterSettings));
+
+        Map<Class<? extends Plugin>, ImmutableClusterStateHandlerProvider> classProviders = new HashMap<>();
+        Map<ImmutableClusterStateHandlerProvider, List<Plugin>> loadedPlugins = new HashMap<>();
+
+        // Get all plugin handler providers, map the plugin class they need to the provider
+        for (var pluginHandlerProvider : pluginHandlerProviders) {
+            pluginHandlerProvider.supportedPlugins().forEach((c) -> classProviders.put(c, pluginHandlerProvider));
+        }
+
+        // Iterate over the plugins, find loaded plugin instances for what the handler providers need
+        pluginsService.forEach((plugin) -> {
+            ImmutableClusterStateHandlerProvider handlerProvider = classProviders.get(plugin.getClass());
+            if (handlerProvider != null) {
+                assert plugin.getClass().getClassLoader().equals(handlerProvider.getClass().getClassLoader());
+                loadedPlugins.computeIfAbsent(handlerProvider, k -> new ArrayList<>()).add(plugin);
+            }
+        });
+
+        // Once we have the loaded plugins for each handler provider, get the handler instances and add them to the
+        // overall handler list
+        for (var providerPluginsEntry : loadedPlugins.entrySet()) {
+            handlers.addAll(providerPluginsEntry.getKey().handlers(providerPluginsEntry.getValue()));
+        }
+
+        // Initialize the controller when merged
     }
 
     @Override

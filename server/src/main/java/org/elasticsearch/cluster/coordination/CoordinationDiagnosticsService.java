@@ -46,7 +46,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -478,18 +477,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         return new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap).pollUntilCancelled();
     }
 
-    private static class CancellableWrapper implements Scheduler.Cancellable {
+    /**
+     * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel() is
+     * called on this method, then cancel() is called on all child Cancellables.
+     */
+    private static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
         private final List<Scheduler.Cancellable> delegates;
-        private final AtomicBoolean isCancelled;
 
-        CancellableWrapper() {
-            this.isCancelled = new AtomicBoolean(false);
+        MultipleCancellablesWrapper() {
             this.delegates = Collections.synchronizedList(new ArrayList<>());
         }
 
         @Override
         public boolean cancel() {
-            isCancelled.set(true);
             delegates.forEach(Scheduler.Cancellable::cancel);
             return true;
         }
@@ -507,25 +507,30 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private class PollClusterFormationStateTask {
         private final DiscoveryNode node;
         private final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap;
-        private final CancellableWrapper cancellableWrapper;
+        private final MultipleCancellablesWrapper multipleCancellablesWrapper;
 
         PollClusterFormationStateTask(
             DiscoveryNode node,
             final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
         ) {
-            this(node, nodeToClusterFormationStateMap, new CancellableWrapper());
+            this(node, nodeToClusterFormationStateMap, new MultipleCancellablesWrapper());
         }
 
         PollClusterFormationStateTask(
             DiscoveryNode node,
             final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
-            CancellableWrapper cancellableWrapper
+            MultipleCancellablesWrapper multipleCancellablesWrapper
         ) {
             this.node = node;
             this.nodeToClusterFormationStateMap = nodeToClusterFormationStateMap;
-            this.cancellableWrapper = cancellableWrapper;
+            this.multipleCancellablesWrapper = multipleCancellablesWrapper;
         }
 
+        /**
+         * This method returns a Cancellable quickly, but in the background schedules to query the remote node's cluster formation state
+         * in 10 seconds, and repeats doing that until cancel() is called on the returned Cancellable.
+         * @return
+         */
         public Scheduler.Cancellable pollUntilCancelled() {
             Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
                 Version minSupportedVersion = Version.V_8_4_0;
@@ -555,7 +560,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                                     TransportRequestOptions.timeout(transportTimeout),
                                     new ActionListenerResponseHandler<>(
                                         ActionListener.runAfter(ActionListener.runBefore(new ActionListener<>() {
-
                                             @Override
                                             public void onResponse(ClusterFormationInfoAction.Response response) {
                                                 long endTime = System.nanoTime();
@@ -579,7 +583,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                                             () -> new PollClusterFormationStateTask(
                                                 node,
                                                 nodeToClusterFormationStateMap,
-                                                cancellableWrapper
+                                                multipleCancellablesWrapper
                                             ).pollUntilCancelled()
                                         ),
                                         ClusterFormationInfoAction.Response::new
@@ -591,15 +595,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                             public void onFailure(Exception e) {
                                 logger.warn("Exception connecting to master node", e);
                                 nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                                new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, cancellableWrapper)
+                                /*
+                                 * Note: We can't call pollUntilCancelled() in a runAfter() in this case because when the corresponding
+                                 * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
+                                 */
+                                new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper)
                                     .pollUntilCancelled();
                             }
                         }
                     );
                 }
             }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-            cancellableWrapper.addNewCancellable(scheduledCancellable);
-            return cancellableWrapper;
+            multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
+            return multipleCancellablesWrapper;
         }
     }
 

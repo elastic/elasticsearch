@@ -4,12 +4,11 @@
 ++++
 <titleabbrev>Has privileges user profile</titleabbrev>
 ++++
-[[security-api-has-privileges-user-profile]]
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
-Determines whether the users associated with the specified <<user-profile, user profile>> IDs
-have all the requested privileges.
+Determines whether the users associated with the specified
+<<user-profile,user profile>> IDs have all the requested privileges.
 
 [[security-api-has-privileges-user-profile-request]]
 ==== {api-request-title}

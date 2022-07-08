@@ -57,13 +57,14 @@ import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.apache.http.protocol.HTTP;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
@@ -119,6 +120,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1000,7 +1002,6 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             getBasicRealmSettings().put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL), "1s").build(),
             threadContext
         );
-        authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
 
         // In addition, capture logs to show that kept alive (TTL) is honored
         final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
@@ -1017,6 +1018,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
                     ".*Connection .* can be kept alive for 1.0 seconds"
                 )
             );
+            authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
             // Issue two requests to verify the 2nd request do not reuse the 1st request's connection
             for (int i = 0; i < 2; i++) {
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -1050,18 +1052,47 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         }
     }
 
-    public void testKeepAliveStrategy() throws URISyntaxException, IllegalAccessException {
-        // Neither server nor client has explicit configuration
-        doTestKeepAliveStrategy(null, null, 180_000L);
+    public void testKeepAliveStrategyNotConfigured() throws IllegalAccessException, URISyntaxException {
+        final Settings.Builder settingsBuilder = getBasicRealmSettings();
+        if (randomBoolean()) {
+            // Only negative time value allowed is -1, but it can take many forms, e.g. -1, -01, -1s, -001nanos etc.
+            settingsBuilder.put(
+                getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
+                "-"
+                    + Strings.collectionToDelimitedString(randomList(0, 10, () -> "0"), "")
+                    + "1"
+                    + randomFrom("", "nanos", "micros", "ms", "s", "m", "h", "d")
+            );
+        }
+        final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+        final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "configure keep-alive strategy",
+                    logger.getName(),
+                    Level.DEBUG,
+                    "configuring keep-alive strategy for http client used by oidc back-channel"
+                )
+            );
+            authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
+            appender.assertAllExpectationsMatched();
+            assertThat(authenticator.getKeepAliveStrategy(), nullValue());
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+            Loggers.setLevel(logger, (Level) null);
+            authenticator.close();
+        }
+    }
 
+    public void testKeepAliveStrategy() throws URISyntaxException, IllegalAccessException {
         // Client explicitly configures for 100s
         doTestKeepAliveStrategy(null, "100", 100_000L);
-
-        // Server explicitly configures for 400s, but client's default is 180s
-        doTestKeepAliveStrategy("400", null, 180_000L);
-
-        // Server explicitly configures for 120s
-        doTestKeepAliveStrategy("120", null, 120_000L);
 
         // Both server and client explicitly configures it
         doTestKeepAliveStrategy("120", "90", 90_000L);
@@ -1070,15 +1101,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         doTestKeepAliveStrategy("80", "90", 80_000L);
 
         // Server configures negative value
-        doTestKeepAliveStrategy(String.valueOf(randomIntBetween(-100, -1)), null, 180_000L);
         doTestKeepAliveStrategy(String.valueOf(randomIntBetween(-100, -1)), "400", 400_000L);
-
-        // Client configures negative value, -1 is the only negative number accepted by timeSetting
-        doTestKeepAliveStrategy(null, "-1", -1L);
-        doTestKeepAliveStrategy("30", "-1", 30_000L);
-
-        // Both server and client explicitly configures negative values
-        doTestKeepAliveStrategy(String.valueOf(randomIntBetween(-100, -1)), "-1", -1L);
 
         // Extra randomization
         final int serverTtlInSeconds;
@@ -1089,12 +1112,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             serverTtlInSeconds = -1;
         }
 
-        final int clientTtlInSeconds;
-        if (randomBoolean()) {
-            clientTtlInSeconds = randomIntBetween(-1, 300);
-        } else {
-            clientTtlInSeconds = 180; // default 180s
-        }
+        final int clientTtlInSeconds = randomIntBetween(0, 300);
 
         final int effectiveTtlInSeconds;
         if (serverTtlInSeconds <= -1) {
@@ -1108,12 +1126,12 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         doTestKeepAliveStrategy(
             serverTtlInSeconds == -1 ? randomFrom(String.valueOf(serverTtlInSeconds), null) : String.valueOf(serverTtlInSeconds),
-            clientTtlInSeconds == 180 ? randomFrom(String.valueOf(clientTtlInSeconds), null) : String.valueOf(clientTtlInSeconds),
+            String.valueOf(clientTtlInSeconds),
             effectiveTtlInMs
         );
     }
 
-    public void doTestKeepAliveStrategy(String serverTtlInSeconds, String clientTtlInSeconds, long effectiveTtlInMs)
+    private void doTestKeepAliveStrategy(String serverTtlInSeconds, String clientTtlInSeconds, long effectiveTtlInMs)
         throws URISyntaxException, IllegalAccessException {
         final HttpResponse httpResponse = mock(HttpResponse.class);
         final Iterator<BasicHeader> iterator;
@@ -1148,7 +1166,6 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             );
         }
         final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
-        authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
 
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
         final MockLogAppender appender = new MockLogAppender();
@@ -1158,12 +1175,21 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         try {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
+                    "configure keep-alive strategy",
+                    logger.getName(),
+                    Level.DEBUG,
+                    "configuring keep-alive strategy for http client used by oidc back-channel"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "log",
                     logger.getName(),
                     Level.DEBUG,
                     "effective HTTP connection keep-alive: [" + effectiveTtlInMs + "]ms"
                 )
             );
+            authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
             final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
             assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
             appender.assertAllExpectationsMatched();

@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public class OpenIdConnectRealmSettings {
@@ -217,7 +216,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<TimeValue> HTTP_CONNECTION_POOL_TTL = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "http.connection_pool_ttl",
-        key -> Setting.timeSetting(key, new TimeValue(3, TimeUnit.MINUTES), Setting.Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.NodeScope)
     );
     public static final Setting.AffixSetting<String> HTTP_PROXY_HOST = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),

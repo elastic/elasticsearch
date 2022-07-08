@@ -706,8 +706,14 @@ public class OpenIdConnectAuthenticator {
 
                 HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
-                    .setDefaultRequestConfig(requestConfig)
-                    .setKeepAliveStrategy(getKeepAliveStrategy());
+                    .setDefaultRequestConfig(requestConfig);
+
+                final ConnectionKeepAliveStrategy keepAliveStrategy = getKeepAliveStrategy();
+                if (keepAliveStrategy != null) {
+                    LOGGER.debug("configuring keep-alive strategy for http client used by oidc back-channel");
+                    httpAsyncClientBuilder.setKeepAliveStrategy(keepAliveStrategy);
+                }
+
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
                     httpAsyncClientBuilder.setProxy(
                         new HttpHost(
@@ -733,6 +739,11 @@ public class OpenIdConnectAuthenticator {
 
     // Package private for testing
     ConnectionKeepAliveStrategy getKeepAliveStrategy() {
+        // Not customising keep-alive strategy if the setting is either not set (default) or explicitly configured to be negative (-1)
+        if (false == realmConfig.hasSetting(HTTP_CONNECTION_POOL_TTL) || realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).duration() < 0) {
+            return null;
+        }
+
         final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
         return (response, context) -> {
             var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);

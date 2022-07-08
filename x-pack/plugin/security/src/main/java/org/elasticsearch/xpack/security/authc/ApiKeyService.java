@@ -515,33 +515,40 @@ public class ApiKeyService {
             return false;
         }
 
-        if (request.getMetadata() != null) {
+        final Map<String, Object> newMetadata = request.getMetadata();
+        if (newMetadata != null) {
             if (apiKeyDoc.metadataFlattened == null) {
                 return false;
             }
             final Map<String, Object> currentMetadata = XContentHelper.convertToMap(apiKeyDoc.metadataFlattened, false, XContentType.JSON)
                 .v2();
-            if (request.getMetadata().equals(currentMetadata) == false) {
+            if (newMetadata.equals(currentMetadata) == false) {
                 return false;
             }
         }
 
-        if (request.getRoleDescriptors() != null) {
+        final List<RoleDescriptor> newRoleDescriptors = request.getRoleDescriptors();
+        if (newRoleDescriptors != null) {
             final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
                 request.getId(),
                 apiKeyDoc.roleDescriptorsBytes,
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
-            if (new HashSet<>(request.getRoleDescriptors()).equals(new HashSet<>(currentRoleDescriptors)) == false) {
+            if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
+                && new HashSet<>(newRoleDescriptors).equals(new HashSet<>(currentRoleDescriptors)))) {
                 return false;
             }
         }
 
         assert userRoles != null;
-        final Set<RoleDescriptor> currentLimitedByRoleDescriptors = new HashSet<>(
-            parseRoleDescriptorsBytes(request.getId(), apiKeyDoc.limitedByRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY)
+        final List<RoleDescriptor> currentLimitedByRoleDescriptorRoles = parseRoleDescriptorsBytes(
+            request.getId(),
+            apiKeyDoc.limitedByRoleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.LIMITED_BY
         );
-        return userRoles.equals(currentLimitedByRoleDescriptors) != false;
+        // TODO double check this
+        return (userRoles.size() == currentLimitedByRoleDescriptorRoles.size()
+            && userRoles.equals(new HashSet<>(currentLimitedByRoleDescriptorRoles)));
     }
 
     void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {

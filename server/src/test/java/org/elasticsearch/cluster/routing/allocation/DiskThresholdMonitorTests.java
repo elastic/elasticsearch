@@ -12,12 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,10 +38,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,8 +47,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,10 +57,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
@@ -902,99 +887,6 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
 
         assertNoLogging(monitor, allDisksOk);
-    }
-
-    // Verify that if handling disabling the setting is skipped due to an in-progress check, the cleanup gets run after
-    // the in-progress check is finished.
-    @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor:TRACE", reason = "to wait for skipped cleanup")
-    public void testConcurrentSettingDisableAndOnNewInfoCalls() throws Exception {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        String indexName = "test_index";
-        ClusterState clusterState = createClusterStateWithOneBlockedIndex(indexName);
-
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "CleanUp skip info message",
-                DiskThresholdMonitor.class.getCanonicalName(),
-                Level.TRACE,
-                "skipping cleanup as a check is in progress"
-            )
-        );
-        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
-
-        ThreadPool threadPool = new TestThreadPool("test");
-        try {
-            AtomicBoolean updateSettingCalled = new AtomicBoolean();
-            Client client = new NoOpNodeClient(threadPool) {
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                    ActionType<Response> action,
-                    Request request,
-                    ActionListener<Response> listener
-                ) {
-                    // Verify that the request is for updating the settings of the blocked index.
-                    assertThat(action.name(), equalTo(UpdateSettingsAction.NAME));
-                    assertThat(request, instanceOf(UpdateSettingsRequest.class));
-                    UpdateSettingsRequest updateSettingsRequest = (UpdateSettingsRequest) request;
-                    assertThat(indexName, in(updateSettingsRequest.indices()));
-                    listener.onResponse(null);
-                    updateSettingCalled.set(true);
-                }
-            };
-            DiskThresholdMonitor monitor = new DiskThresholdMonitor(
-                Settings.EMPTY,
-                () -> clusterState,
-                clusterSettings,
-                client,
-                () -> 0L,
-                null
-            );
-            ClusterInfo mockedClusterInfo = mock(ClusterInfo.class);
-            CountDownLatch skippedCleanupSeen = new CountDownLatch(1);
-            when(mockedClusterInfo.getNodeLeastAvailableDiskUsages()).then(invocation -> {
-                // Keep the onNewInfo running, until the cleanup call upon disabling the setting is skipped.
-                assertTrue("Timed out waiting for skipped cleanup call", skippedCleanupSeen.await(20, TimeUnit.SECONDS));
-                return null; // this will terminate the onNewInfo call.
-            });
-            threadPool.generic().execute(() -> monitor.onNewInfo(mockedClusterInfo));
-            // While the onNewInfo call is in-progress, disable the disk threshold monitoring
-            clusterSettings.applySettings(
-                Settings.builder()
-                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                    .build()
-            );
-            assertBusy(mockAppender::assertAllExpectationsMatched);
-            skippedCleanupSeen.countDown();
-            // Make sure the cleanup call happened.
-            assertBusy(() -> assertTrue(updateSettingCalled.get()));
-        } finally {
-            Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
-            mockAppender.stop();
-            assertTrue(terminate(threadPool));
-        }
-    }
-
-    private ClusterState createClusterStateWithOneBlockedIndex(String indexName) {
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        Metadata metadata = Metadata.builder().put(indexMetadata, false).build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index(indexName)).build();
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(newNormalNode("node1", "my-node1")))
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
-            .build();
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {

@@ -69,7 +69,7 @@ public class DiskThresholdMonitor {
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
-    private final AtomicBoolean operationInProgress = new AtomicBoolean();
+    private final AtomicBoolean checkInProgress = new AtomicBoolean();
 
     /**
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
@@ -109,30 +109,19 @@ public class DiskThresholdMonitor {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        clusterSettings.addSettingsUpdateConsumer(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-            this::removeExistingIndexBlocksIfDisabled
-        );
         this.client = client;
     }
 
     private void checkFinished() {
-        final boolean checkFinished = operationInProgress.compareAndSet(true, false);
+        final boolean checkFinished = checkInProgress.compareAndSet(true, false);
         assert checkFinished;
         logger.trace("checkFinished");
-        removeExistingIndexBlocksIfDisabled(diskThresholdSettings.isEnabled());
-    }
-
-    private void cleanupFinished() {
-        final boolean cleanupFinished = operationInProgress.compareAndSet(true, false);
-        assert cleanupFinished;
-        logger.trace("cleanupFinished");
     }
 
     public void onNewInfo(ClusterInfo info) {
         // TODO find a better way to limit concurrent updates (and potential associated reroutes) while allowing tests to ensure that
         // all ClusterInfo updates are processed and never ignored
-        if (operationInProgress.compareAndSet(false, true) == false) {
+        if (checkInProgress.compareAndSet(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
             return;
         }
@@ -286,7 +275,8 @@ public class DiskThresholdMonitor {
 
                     if (nodesOverLowThreshold.contains(node)) {
                         // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
-                        // shards, if we reroute now.
+                        // shards
+                        // if we reroute now.
                         if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                             reroute = true;
                             explanation = "one or more nodes has gone under the high or low watermark";
@@ -422,7 +412,12 @@ public class DiskThresholdMonitor {
         }
 
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
-        markIndicesAsReadOnly(indicesToMarkReadOnly, listener);
+        logger.trace("marking indices as read-only: [{}]", indicesToMarkReadOnly);
+        if (indicesToMarkReadOnly.isEmpty() == false) {
+            updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     // exposed for tests to override
@@ -473,47 +468,6 @@ public class DiskThresholdMonitor {
             .setSettings(readOnlySettings)
             .origin("disk-threshold-monitor")
             .execute(wrappedListener.map(r -> null));
-    }
-
-    private void markIndicesAsReadOnly(Set<String> indices, ActionListener<Void> listener) {
-        if (indices.isEmpty() == false && diskThresholdSettings.isEnabled()) {
-            logger.trace("marking indices as read-only: [{}]", indices);
-            updateIndicesReadOnly(indices, listener, true);
-        } else {
-            listener.onResponse(null);
-        }
-    }
-
-    private void removeExistingIndexBlocksIfDisabled(boolean enabled) {
-        if (enabled) {
-            return;
-        }
-        if (operationInProgress.compareAndSet(false, true) == false) {
-            logger.trace("skipping cleanup as a check is in progress");
-            return;
-        }
-        ActionListener<Void> listener = ActionListener.wrap(r -> cleanupFinished(), e -> {
-            logger.debug("removing read-only blocks from indices failed", e);
-            cleanupFinished();
-        });
-        final ClusterState state = clusterStateSupplier.get();
-        final Set<String> indicesToRelease = state.routingTable()
-            .indicesRouting()
-            .keySet()
-            .stream()
-            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-            .collect(Collectors.toUnmodifiableSet());
-        logger.info("removing read-only block from indices [{}]", indicesToRelease);
-        if (indicesToRelease.isEmpty() == false) {
-            client.admin()
-                .indices()
-                .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
-                .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
-                .origin("disk-threshold-monitor")
-                .execute(listener.map(r -> null));
-        } else {
-            listener.onResponse(null);
-        }
     }
 
     private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {

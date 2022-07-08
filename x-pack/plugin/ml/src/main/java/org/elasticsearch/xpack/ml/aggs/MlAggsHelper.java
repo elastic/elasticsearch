@@ -19,8 +19,6 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public final class MlAggsHelper {
 
@@ -62,50 +60,60 @@ public final class MlAggsHelper {
         BucketHelpers.GapPolicy gapPolicy,
         boolean excludeLastBucket
     ) {
-        List<String> parsedPath = AggregationPath.parse(bucketPath).getPathElementsAsStringList();
+        List<AggregationPath.PathElement> parsedPath = AggregationPath.parse(bucketPath).getPathElements();
         for (Aggregation aggregation : aggregations) {
-            int currElem = 0;
+            // Now that we have found the first agg in the path, resolve to the first non-qualified multi-bucket path
             if (aggregation.getName().equals(parsedPath.get(0).name())) {
+                int currElement = 0;
                 Aggregation currentAgg = aggregation;
-                while (currElem < parsedPath.size() - 1) {
-                    if (currentAgg instanceof InternalSingleBucketAggregation) {
-                        ++currElem;
-                        currentAgg = ((InternalSingleBucketAggregation) currentAgg).getAggregations().get(parsedPath.get(currElem).name());
-                    } else if (pathElementContainsBucketKey(parsedPath.get(currElem))) {
-                        if ((currentAgg instanceof InternalMultiBucketAggregation) == false) {
+                while (currElement < parsedPath.size() - 1) {
+                    if (currentAgg == null) {
+                        throw new IllegalArgumentException(
+                            "bucket_path ["
+                                + bucketPath
+                                + "] expected aggregation with name ["
+                                + parsedPath.get(currElement).name()
+                                + "] but was missing in search response"
+                        );
+                    }
+                    if (currentAgg instanceof InternalSingleBucketAggregation singleBucketAggregation) {
+                        currentAgg = singleBucketAggregation.getAggregations().get(parsedPath.get(++currElement).name());
+                    } else if (pathElementContainsBucketKey(parsedPath.get(currElement))) {
+                        if (currentAgg instanceof InternalMultiBucketAggregation<?, ?> multiBucketAggregation) {
+                            InternalMultiBucketAggregation.InternalBucket bucket =
+                                (InternalMultiBucketAggregation.InternalBucket) multiBucketAggregation.getProperty(
+                                    parsedPath.get(currElement).key()
+                                );
+                            if (bucket == null) {
+                                throw new AggregationExecutionException(
+                                    "missing bucket ["
+                                        + parsedPath.get(currElement).key()
+                                        + "] for agg ["
+                                        + currentAgg.getName()
+                                        + "] while extracting bucket path ["
+                                        + bucketPath
+                                        + "]"
+                                );
+                            }
+                            if (currElement == parsedPath.size() - 1) {
+                                throw new AggregationExecutionException(
+                                    "invalid bucket path ends at [" + parsedPath.get(currElement).key() + "]"
+                                );
+                            }
+                            currentAgg = bucket.getAggregations().get(parsedPath.get(++currElement).name());
+                        } else {
                             throw new AggregationExecutionException(
                                 "bucket_path ["
                                     + bucketPath
                                     + "] indicates bucket_key ["
-                                    + parsedPath.get(currElem).key()
+                                    + parsedPath.get(currElement).key()
                                     + "] at position ["
-                                    + currElem
+                                    + currElement
                                     + "] but encountered on agg ["
-                                    + Optional.ofNullable(currentAgg).map(Aggregation::getName).orElse("__missing__")
+                                    + currentAgg.getName()
                                     + "] which is not a multi_bucket aggregation"
                             );
                         }
-                        InternalMultiBucketAggregation.InternalBucket bucket =
-                            (InternalMultiBucketAggregation.InternalBucket) ((InternalMultiBucketAggregation<?, ?>) currentAgg).getProperty(
-                                parsedPath.get(currElem).key()
-                            );
-                        if (bucket == null) {
-                            throw new AggregationExecutionException(
-                                "missing bucket ["
-                                    + parsedPath.get(currElem).key()
-                                    + "] for agg ["
-                                    + currentAgg.getName()
-                                    + "] while extracting bucket path ["
-                                    + bucketPath
-                                    + "]"
-                            );
-                        }
-                        if (currElem == parsedPath.size() - 1) {
-                            throw new AggregationExecutionException("invalid bucket path ends at [" + parsedPath.get(currElem).key() + "]");
-                        }
-                        Aggregations innerAggs = bucket.getAggregations();
-                        ++currElem;
-                        currentAgg = innerAggs.get(parsedPath.get(currElem).name());
                     } else {
                         break;
                     }
@@ -116,10 +124,7 @@ public final class MlAggsHelper {
                         : "did not find multi-bucket aggregation for extraction. Found [" + currentAgg.getName() + "]";
                     throw new AggregationExecutionException(msg);
                 }
-                List<String> sublistedPath = parsedPath.subList(currElem, parsedPath.size())
-                    .stream()
-                    .flatMap(p -> p.key() != null ? Stream.of(p.name(), p.key()) : Stream.of(p.name()))
-                    .collect(Collectors.toList());
+                List<String> sublistedPath = AggregationPath.pathElementsAsStringList(parsedPath.subList(currElement, parsedPath.size()));
                 // First element is the current agg, so we want the rest of the path
                 sublistedPath = sublistedPath.subList(1, sublistedPath.size());
                 InternalMultiBucketAggregation<?, ?> multiBucketsAgg = (InternalMultiBucketAggregation<?, ?>) currentAgg;

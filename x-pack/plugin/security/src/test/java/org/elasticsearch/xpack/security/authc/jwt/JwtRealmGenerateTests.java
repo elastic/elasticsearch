@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -156,7 +157,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
      */
     public void testCreateJwtIntegrationTestRealm1() throws Exception {
         // Create RSA key for algorithm RS256
-        final JWK jwk = new RSAKey.Builder((RSAKey) JwtTestCase.randomJwk("RS256")).keyID("test-rsa-key").build();
+        final JWK jwk = new RSAKey.Builder(JwtTestCase.randomJwkRsa(JWSAlgorithm.RS256)).keyID("test-rsa-key").build();
         final JwtIssuer.AlgJwkPair algJwkPairPkc = new JwtIssuer.AlgJwkPair("RS256", jwk);
 
         final String principalClaimName = "sub";

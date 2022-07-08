@@ -27,7 +27,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, randomBoolean());
 
         final SecureString jwt = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm); // bespoke JWT, not tied to any JWT realm
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
@@ -65,7 +65,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final String principalClaimValue = randomAlphaOfLengthBetween(8, 32);
 
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, randomBoolean());
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(

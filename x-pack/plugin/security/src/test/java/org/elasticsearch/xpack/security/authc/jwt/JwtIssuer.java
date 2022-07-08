@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
@@ -66,23 +65,6 @@ public class JwtIssuer implements Closeable {
         this.principalClaimName = principalClaimName;
         this.principals = principals;
         this.httpsServer = createHttpsServer ? new JwtIssuerHttpsServer(null) : null;
-    }
-
-    void generateJwks(final List<String> algorithms) throws JOSEException {
-        LOGGER.info("Generating JWKs, algorithms=[{}]", String.join(",", algorithms));
-        final List<AlgJwkPair> algAndJwks = JwtTestCase.randomJwks(algorithms);
-
-        // randomly condition none, some, or all HMAC JWKs for OIDC UTF8 encoding safety
-        final long numHmac = algAndJwks.stream().filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(e.alg)).count();
-        final AtomicInteger numHmacOidcSafe = new AtomicInteger(0);
-        final List<AlgJwkPair> algAndJwksSafe = algAndJwks.stream().map(e -> {
-            if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(e.alg)) && (randomBoolean())) {
-                numHmacOidcSafe.incrementAndGet();
-                return new AlgJwkPair(e.alg, JwkValidateUtilTests.conditionJwkHmacForOidc(e.jwk().toOctetSequenceKey()));
-            }
-            return e;
-        }).toList();
-        setJwks(algAndJwksSafe, (numHmac == numHmacOidcSafe.get()));
     }
 
     // The flag areHmacJwksOidcSafe indicates if all provided HMAC JWKs are UTF8, for HMAC OIDC JWK encoding compatibility.

@@ -205,7 +205,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final Map<String, User> users = JwtTestCase.generateTestUsersWithRoles(userCount, roleCount);
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
         final JwtIssuer jwtIssuer = new JwtIssuer(issuer, audiences, principalClaimName, users, createHttpsServer);
-        jwtIssuer.generateJwks(randomOfMinMaxNonUnique(algsCount, algsCount, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS));
+        final List<String> algorithms = randomOfMinMaxNonUnique(algsCount, algsCount, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
+        final boolean areHmacJwksOidcSafe = randomBoolean();
+        final List<JwtIssuer.AlgJwkPair> algAndJwks = JwtRealmTestCase.randomJwks(algorithms, areHmacJwksOidcSafe);
+        jwtIssuer.setJwks(algAndJwks, areHmacJwksOidcSafe);
         return jwtIssuer;
     }
 

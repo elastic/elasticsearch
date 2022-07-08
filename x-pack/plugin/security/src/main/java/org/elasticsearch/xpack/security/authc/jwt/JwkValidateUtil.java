@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -38,6 +40,24 @@ import java.util.function.Predicate;
  */
 public class JwkValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtil.class);
+
+    // Test decode bytes as UTF8 to String, encode back to UTF8, and compare to original bytes. If same, it is safe for OIDC JWK encode.
+    static boolean isJwkHmacOidcSafe(final JWK jwk) {
+        if (jwk instanceof OctetSequenceKey jwkHmac) {
+            final byte[] rawKeyBytes = jwkHmac.getKeyValue().decode();
+            return Arrays.equals(rawKeyBytes, new String(rawKeyBytes, StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8));
+        }
+        return true;
+    }
+
+    static boolean areJwkHmacOidcSafe(final Collection<JWK> jwks) {
+        for (final JWK jwk : jwks) {
+            if (JwkValidateUtil.isJwkHmacOidcSafe(jwk) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
     static JwtRealm.FilteredJwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {

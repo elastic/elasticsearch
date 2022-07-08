@@ -254,18 +254,19 @@ public abstract class JwtTestCase extends ESTestCase {
         return roleMapper;
     }
 
-    public static List<JwtIssuer.AlgJwkPair> randomJwks(final List<String> signatureAlgorithms) throws JOSEException {
+    public static List<JwtIssuer.AlgJwkPair> randomJwks(final List<String> signatureAlgorithms, final boolean requireOidcSafe)
+        throws JOSEException {
         final List<JwtIssuer.AlgJwkPair> algAndJwks = new ArrayList<>();
         for (final String signatureAlgorithm : signatureAlgorithms) {
-            algAndJwks.add(new JwtIssuer.AlgJwkPair(signatureAlgorithm, JwtTestCase.randomJwk(signatureAlgorithm)));
+            algAndJwks.add(new JwtIssuer.AlgJwkPair(signatureAlgorithm, JwtTestCase.randomJwk(signatureAlgorithm, requireOidcSafe)));
         }
         return algAndJwks;
     }
 
-    public static JWK randomJwk(final String signatureAlgorithm) throws JOSEException {
+    public static JWK randomJwk(final String signatureAlgorithm, final boolean requireOidcSafe) throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
         if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(signatureAlgorithm)) {
-            return JwtTestCase.randomJwkHmac(jwsAlgorithm);
+            return JwtTestCase.randomJwkHmac(jwsAlgorithm, requireOidcSafe);
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(signatureAlgorithm)) {
             return JwtTestCase.randomJwkRsa(jwsAlgorithm);
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(signatureAlgorithm)) {
@@ -280,14 +281,31 @@ public abstract class JwtTestCase extends ESTestCase {
         );
     }
 
-    // Generate using random bytes
-    // - random byte => 2^8 => search space 8-bit per byte
-    public static OctetSequenceKey randomJwkHmac(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
+    public static OctetSequenceKey randomJwkHmac(final JWSAlgorithm jwsAlgorithm, final boolean requireOidcSafe) throws JOSEException {
         final int minHmacLengthBytes = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
-        final int hmacLengthBits = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2) * 8; // Double it: Nice to have
-        final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(hmacLengthBits);
-        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
-        return jwkGenerator.generate();
+        final int hmacLengthBytes = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2); // Double it: Nice to have
+        if (requireOidcSafe == false && randomBoolean()) {
+            // random byte => 2^8 search space per 1 byte => 8 bits per byte
+            final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(hmacLengthBytes * 8);
+            return JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm).generate().toOctetSequenceKey(); // kid,alg,use,ops
+        }
+        final String passwordKey;
+        if (randomBoolean()) {
+            // Base 64 byte => 2^6 search space per 1 byte => 6 bits per byte
+            passwordKey = Base64URL.encode(randomByteArrayOfLength(hmacLengthBytes)).toString();
+        } else {
+            // UTF8 1 byte => 2^7 search space per 1 byte => 7 bits per byte
+            // UTF8 2 byte => 2^11 search space per 2 byte => 5.5 bits per byte
+            // UTF8 3 byte => 2^16 search space per 3 byte => 5.333 bits per byte
+            // UTF8 4 byte => 2^21 search space per 4 byte => 5.25 bits per byte (theoretical, UNICODE currently only allocates 1.1M of 2M)
+            passwordKey = randomAlphaOfLength(hmacLengthBytes);
+        }
+        final OctetSequenceKey.Builder hmacKeyBuilder = new OctetSequenceKey.Builder(passwordKey.getBytes(StandardCharsets.UTF_8));
+        return JwtTestCase.randomSettingsForHmacJwkBuilder(hmacKeyBuilder, jwsAlgorithm).build(); // kid,alg,use,ops
+    }
+
+    public static OctetSequenceKey randomJwkHmacOidcSafe(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
+        return JwtTestCase.randomJwkHmac(jwsAlgorithm, true);
     }
 
     public static RSAKey randomJwkRsa(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
@@ -304,46 +322,6 @@ public abstract class JwtTestCase extends ESTestCase {
         return jwkGenerator.generate();
     }
 
-    public static OctetSequenceKey randomJwkHmacOidc(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
-        return JwtTestCase.conditionJwkHmacForOidc(JwtTestCase.randomJwkHmac(jwsAlgorithm));
-    }
-
-    /**
-     *  Input HMAC key is assumed random bytes. Generating random bytes is useful to guarantee min search space (aka strength, entropy).
-     *
-     *  OIDC HMAC key must be UTF8 bytes (aka password). Encoding random bytes as UTF8 doesn't work, and UTF8 search space is smaller.
-     *
-     *  To satisfy min search space and OIDC UTF8 encoding, Base64(randomBytes) is used as the bytes of a new HMAC OIDC key.
-     *
-     *  Search space comparisons of random bytes, base 64, and UTF-8.
-     *  - random byte => 2^8 search space per 1 byte => 8 bits per byte
-     *  - Base 64 byte => 2^6 search space per 1 byte => 6 bits per byte
-     *  - UTF8 1 byte => 2^7 search space per 1 byte => 7 bits per byte
-     *  - UTF8 2 byte => 2^11 search space per 2 byte => 5.5 bits per byte
-     *  - UTF8 3 byte => 2^16 search space per 3 byte => 5.333 bits per byte
-     *  - UTF8 4 byte => 2^21 search space per 4 byte => 5.25 bits per byte (theoretical, UNICODE currently only allocates 1.1M of 2M)
-     *
-     * @param hmacKey HMAC key with random bytes.
-     * @return HMAC key with UTF-8 bytes, making the key bytes compatible with OIDC UTF-8 string encoding.
-     */
-    public static OctetSequenceKey conditionJwkHmacForOidc(final OctetSequenceKey hmacKey) {
-        final String passwordKey;
-        if (randomBoolean()) {
-            final Base64URL hmacKeyBytesBase64 = hmacKey.getKeyValue(); // Random bytes => 8 bits/byte search space
-            passwordKey = hmacKeyBytesBase64.toString(); // Use Base64(randomBytes) as UTF8 bytes for a new password with same search space
-        } else {
-            final int numLetters = hmacKey.toByteArray().length * 8; // Random [A-Za-z] => 5.7 bits/byte
-            passwordKey = randomAlphaOfLength(numLetters); // Use length * ceil(2.3) to avoid reducing search space below 8 bits/byte
-        }
-        final OctetSequenceKey.Builder hmacKeyBuilder = new OctetSequenceKey.Builder(passwordKey.getBytes(StandardCharsets.UTF_8));
-        hmacKeyBuilder.keyID(hmacKey.getKeyID()); // Copy null attribute is OK (no-op)
-        hmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
-        hmacKeyBuilder.keyUse(hmacKey.getKeyUse());
-        hmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
-        hmacKeyBuilder.keyStore(hmacKey.getKeyStore());
-        return hmacKeyBuilder.build();
-    }
-
     public static OctetSequenceKey jwkHmacRemoveAttributes(final OctetSequenceKey hmacKey) {
         final String keyBytesAsUtf8 = hmacKey.getKeyValue().decodeToString();
         return new OctetSequenceKey.Builder(keyBytesAsUtf8.getBytes(StandardCharsets.UTF_8)).build();
@@ -351,6 +329,25 @@ public abstract class JwtTestCase extends ESTestCase {
 
     public static JWKGenerator<? extends JWK> randomSettingsForJwkGenerator(
         final JWKGenerator<? extends JWK> jwkGenerator,
+        final JWSAlgorithm jwsAlgorithm
+    ) {
+        if (randomBoolean()) {
+            jwkGenerator.keyID(UUID.randomUUID().toString());
+        }
+        if (randomBoolean()) {
+            jwkGenerator.algorithm(jwsAlgorithm);
+        }
+        if (randomBoolean()) {
+            jwkGenerator.keyUse(KeyUse.SIGNATURE);
+        }
+        if (randomBoolean()) {
+            jwkGenerator.keyOperations(Set.of(KeyOperation.SIGN, KeyOperation.VERIFY));
+        }
+        return jwkGenerator;
+    }
+
+    public static OctetSequenceKey.Builder randomSettingsForHmacJwkBuilder(
+        final OctetSequenceKey.Builder jwkGenerator,
         final JWSAlgorithm jwsAlgorithm
     ) {
         if (randomBoolean()) {

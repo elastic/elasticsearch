@@ -64,7 +64,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
@@ -1052,40 +1051,20 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         }
     }
 
-    public void testKeepAliveStrategyNotConfigured() throws IllegalAccessException, URISyntaxException {
+    public void testKeepAliveStrategyNotConfigured() throws URISyntaxException {
         final Settings.Builder settingsBuilder = getBasicRealmSettings();
         if (randomBoolean()) {
             // Only negative time value allowed is -1, but it can take many forms, e.g. -1, -01, -1s, -001nanos etc.
             settingsBuilder.put(
                 getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
-                "-"
-                    + "0".repeat(randomIntBetween(0,10))
-                    + "1"
-                    + randomFrom("", "nanos", "micros", "ms", "s", "m", "h", "d")
+                "-" + "0".repeat(randomIntBetween(0, 10)) + "1" + randomFrom("", "nanos", "micros", "ms", "s", "m", "h", "d")
             );
         }
         final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
-        final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
-        Loggers.setLevel(logger, Level.DEBUG);
         try {
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "configure keep-alive strategy",
-                    logger.getName(),
-                    Level.DEBUG,
-                    "configuring keep-alive strategy for http client used by oidc back-channel"
-                )
-            );
             authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
-            appender.assertAllExpectationsMatched();
             assertThat(authenticator.getKeepAliveStrategy(), nullValue());
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
-            Loggers.setLevel(logger, (Level) null);
             authenticator.close();
         }
     }

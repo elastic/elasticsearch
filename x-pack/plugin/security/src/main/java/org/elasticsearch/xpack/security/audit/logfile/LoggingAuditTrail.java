@@ -750,9 +750,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final SetProfileEnabledRequest setProfileEnabledRequest) {
                     assert SetProfileEnabledAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(setProfileEnabledRequest).build();
-                } else if (msg instanceof UpdateApiKeyRequest) {
+                } else if (msg instanceof final UpdateApiKeyRequest updateApiKeyRequest) {
                     assert UpdateApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((UpdateApiKeyRequest) msg).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1245,7 +1245,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
-            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
+            builder.startObject("apikey_update").field("id", updateApiKeyRequest.getId());
             if (updateApiKeyRequest.getRoleDescriptors() != null) {
                 builder.startArray("role_descriptors");
                 for (RoleDescriptor roleDescriptor : updateApiKeyRequest.getRoleDescriptors()) {

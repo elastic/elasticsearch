@@ -640,6 +640,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         grantApiKeyRequest.getGrant().setUsername(randomFrom(randomAlphaOfLength(8), null));
         grantApiKeyRequest.getGrant().setPassword(randomFrom(new SecureString("password not exposed"), null));
         grantApiKeyRequest.getGrant().setAccessToken(randomFrom(new SecureString("access token not exposed"), null));
+        grantApiKeyRequest.getGrant().setRunAsUsername(randomFrom(randomAlphaOfLength(10), null));
         grantApiKeyRequest.setApiKeyRequest(createApiKeyRequest);
         auditTrail.accessGranted(requestId, authentication, GrantApiKeyAction.NAME, grantApiKeyRequest, authorizationInfo);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
@@ -666,6 +667,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         if (grantApiKeyRequest.getGrant().getAccessToken() != null) {
             grantKeyAuditEventStringBuilder.append(",\"has_access_token\":").append(true);
+        }
+        if (grantApiKeyRequest.getGrant().getRunAsUsername() != null) {
+            grantKeyAuditEventStringBuilder.append(",\"run_as\":\"").append(grantApiKeyRequest.getGrant().getRunAsUsername()).append("\"");
         }
         grantKeyAuditEventStringBuilder.append("}}");
         String expectedGrantKeyAuditEventString = grantKeyAuditEventStringBuilder.toString();

@@ -1467,6 +1467,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (grant.getAccessToken() != null) {
                 builder.field("has_access_token", grant.getAccessToken() != null);
             }
+            if (grant.getRunAsUsername() != null) {
+                builder.field("run_as", grant.getRunAsUsername());
+            }
             builder.endObject();
         }
 

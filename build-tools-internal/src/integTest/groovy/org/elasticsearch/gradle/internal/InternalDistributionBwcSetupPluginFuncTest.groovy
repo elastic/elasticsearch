@@ -26,8 +26,6 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
-
-            ${enabledOutputCaching()} 
         """
         execute("git branch origin/8.0", file("cloned"))
         execute("git branch origin/7.16", file("cloned"))
@@ -40,7 +38,6 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
-            ${enabledOutputCaching()} 
         """
         when:
         def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
@@ -122,15 +119,4 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
                         "distribution/archives/darwin-tar/build/install/elasticsearch-8.0.0-SNAPSHOT")
     }
 
-    String enabledOutputCaching() {
-        """allprojects {
-            tasks.withType(org.elasticsearch.gradle.LoggedExec).configureEach {
-                getCaptureOutput().set(true)
-                spoolOutput = false
-                doLast {
-                    println output
-                }
-            }
-        }"""
-    }
 }

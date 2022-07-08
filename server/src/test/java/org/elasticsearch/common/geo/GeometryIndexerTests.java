@@ -580,7 +580,6 @@ public class GeometryIndexerTests extends ESTestCase {
             + "-88.3239244290607 41.930399373909,-88.3237349076233 41.9304653056436,-88.3235653339759 41.9305242981369,"
             + "-88.3236767661893 41.9307089429871))";
         Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), false, wkt);
-        // With the lucene bug this next line will throw an IllegalArgumentException
         List<IndexableField> fields = indexer.indexShape(geometry);
         assertEquals(42, fields.size());
     }

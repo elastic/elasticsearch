@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -185,7 +186,9 @@ public class RBACEngine implements AuthorizationEngine {
     static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
         final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
         if (actionAllowed) {
-            if (request instanceof UserRequest userRequest) {
+            if (request instanceof AuthenticateRequest) {
+                return true;
+            } else if (request instanceof UserRequest userRequest) {
                 String[] usernames = userRequest.usernames();
                 if (usernames == null || usernames.length != 1 || usernames[0] == null) {
                     assert false : "this role should only be used for actions to apply to a single user";

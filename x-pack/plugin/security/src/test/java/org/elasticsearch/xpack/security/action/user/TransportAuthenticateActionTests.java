@@ -64,7 +64,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<AuthenticateResponse>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<AuthenticateResponse>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -101,7 +101,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<AuthenticateResponse>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<AuthenticateResponse>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -128,7 +128,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);
@@ -179,7 +179,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new AuthenticateRequest(), new ActionListener<>() {
+        action.doExecute(mock(Task.class), AuthenticateRequest.INSTANCE, new ActionListener<>() {
             @Override
             public void onResponse(AuthenticateResponse authenticateResponse) {
                 responseRef.set(authenticateResponse);

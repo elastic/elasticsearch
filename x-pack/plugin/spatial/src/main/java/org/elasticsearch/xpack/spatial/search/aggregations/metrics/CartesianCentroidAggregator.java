@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -53,11 +53,11 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final CartesianPointValuesSource.CartesianPointValues values = valuesSource.pointValues(ctx);
+        final CartesianPointValuesSource.CartesianPointValues values = valuesSource.pointValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumX = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumY = new CompensatedSum(0, 0);
 

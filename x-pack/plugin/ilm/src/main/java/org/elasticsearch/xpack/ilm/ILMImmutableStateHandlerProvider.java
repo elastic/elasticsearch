@@ -10,16 +10,15 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * ILM Provider implementation for the {@link ImmutableClusterStateHandlerProvider} service interface
  */
 public class ILMImmutableStateHandlerProvider implements ImmutableClusterStateHandlerProvider {
-    private static final Set<ImmutableClusterStateHandler<?>> handlers = ConcurrentHashMap.newKeySet();
+    private static volatile Collection<ImmutableClusterStateHandler<?>> handlers = Collections.emptyList();
 
     @Override
     public Collection<ImmutableClusterStateHandler<?>> handlers() {
@@ -27,6 +26,6 @@ public class ILMImmutableStateHandlerProvider implements ImmutableClusterStateHa
     }
 
     public static void registerHandlers(ImmutableClusterStateHandler<?>... stateHandlers) {
-        handlers.addAll(Arrays.asList(stateHandlers));
+        handlers = List.of(stateHandlers);
     }
 }

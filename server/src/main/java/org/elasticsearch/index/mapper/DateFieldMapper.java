@@ -295,7 +295,8 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
-        private DateFormatter buildFormatter() {
+        // package private for testing
+        DateFormatter buildFormatter() {
             try {
                 return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {

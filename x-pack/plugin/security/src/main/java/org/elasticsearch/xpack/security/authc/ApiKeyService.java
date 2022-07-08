@@ -437,6 +437,8 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
+    private record ApiKeyDocBuilderWithNoopIndicator(XContentBuilder builder, boolean noop) {}
+
     static XContentBuilder buildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,
         final Authentication authentication,

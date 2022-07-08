@@ -11,6 +11,9 @@ package org.elasticsearch.script;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * An implementation of {@link Metadata} with customizable {@link org.elasticsearch.script.Metadata.Validator}s for use in testing.
+ */
 public class TestMetadata extends Metadata {
     public TestMetadata(Map<String, Object> map, Map<String, Validator> validators) {
         super(map, null, validators);

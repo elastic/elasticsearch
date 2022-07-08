@@ -136,7 +136,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     @Override
     public Object put(String key, Object value) {
-        if (metadata.ownsKey(key)) {
+        if (metadata.isMetadata(key)) {
             return metadata.put(key, value);
         }
         return source.put(key, value);
@@ -150,7 +150,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     public Object remove(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String str) {
-            if (metadata.ownsKey(str)) {
+            if (metadata.isMetadata(str)) {
                 return metadata.remove(str);
             }
         }
@@ -195,7 +195,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     public Object get(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String str) {
-            if (metadata.ownsKey(str)) {
+            if (metadata.isMetadata(str)) {
                 return metadata.get(str);
             }
         }

@@ -23,7 +23,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Ingest and update metadata available to write scripts
+ * Ingest and update metadata available to write scripts.
+ *
+ * Provides a map-like interface for backwards compatibility with the ctx map.
+ *
+ * Validates all updates to performed via the map-like interface.
+ *
+ * Provides getters and setters for script usage.
  */
 public class Metadata {
     protected static final String INDEX = "_index";
@@ -194,38 +200,65 @@ public class Metadata {
         );
     }
 
-    public boolean ownsKey(String key) {
+    /**
+     * Is this key a Metadata key?  A {@link #remove}d key would return false for {@link #containsKey(String)} but true for
+     * this call.
+     */
+    public boolean isMetadata(String key) {
         return validators.containsKey(key);
     }
 
+    /**
+     * Create the mapping from key to value.
+     * @throws IllegalArgumentException if {@link #isMetadata(String)} is false or the key cannot be updated to the value.
+     */
     public Object put(String key, Object value) {
         Validator v = validators.getOrDefault(key, this::badKey);
         v.accept(MapOperation.UPDATE, key, value);
         return map.put(key, value);
     }
 
+    /**
+     * Does the metadata contain the key?
+     */
     public boolean containsKey(String key) {
         return map.containsKey(key);
     }
 
+    /**
+     * Does the metadata contain the value.
+     */
     public boolean containsValue(Object value) {
         return map.containsValue(value);
     }
 
+    /**
+     * Get the value associated with {@param key}
+     */
     public Object get(String key) {
         return map.get(key);
     }
 
+    /**
+     * Remove the mapping associated with {@param key}
+     * @throws IllegalArgumentException if {@link #isMetadata(String)} is false or the key cannot be removed.
+     */
     public Object remove(String key) {
         Validator v = validators.getOrDefault(key, this::badKey);
         v.accept(MapOperation.REMOVE, key, null);
         return map.remove(key);
     }
 
+    /**
+     * Return the list of keys with mappings
+     */
     public List<String> keys() {
         return new ArrayList<>(map.keySet());
     }
 
+    /**
+     * The number of metadata keys currently mapped.
+     */
     public int size() {
         return map.size();
     }
@@ -235,13 +268,14 @@ public class Metadata {
         return new Metadata(new HashMap<>(map), timestamp, new HashMap<>(validators));
     }
 
+    // Return a copy of the backing map
     public Map<String, Object> mapCopy() {
-        // This is used for tests, can be removed when Metadata implements HashMap
         return new HashMap<>(map);
     }
 
     /**
-     * Allow a String or null
+     * Allow a String or null.
+     * @throws IllegalArgumentException if {@param value} is neither a {@link String} nor null
      */
     protected static void stringValidator(MapOperation op, String key, Object value) {
         if (op == MapOperation.REMOVE || value == null || value instanceof String) {
@@ -253,7 +287,8 @@ public class Metadata {
     }
 
     /**
-     * Allow Numbers that can be represented as longs without loss of precision
+     * Allow Numbers that can be represented as longs without loss of precision or null
+     * @throws IllegalArgumentException if the value cannot be represented as a long
      */
     public static void longValidator(MapOperation op, String key, Object value) {
         if (op == MapOperation.REMOVE || value == null) {
@@ -271,6 +306,10 @@ public class Metadata {
         );
     }
 
+    /**
+     * Same as {@link #longValidator(MapOperation, String, Object)} but {@param value} cannot be null.
+     * @throws IllegalArgumentException if value is null or cannot be represented as a long.
+     */
     protected static void notNullLongValidator(MapOperation op, String key, Object value) {
         if (op == MapOperation.REMOVE || value == null) {
             throw new IllegalArgumentException(key + " cannot be removed or set to null");
@@ -279,7 +318,8 @@ public class Metadata {
     }
 
     /**
-     * Allow maps
+     * Allow maps.
+     * @throws IllegalArgumentException if {@param value} is not a {@link Map}
      */
     public static void mapValidator(MapOperation op, String key, Object value) {
         if (op == MapOperation.REMOVE || value == null || value instanceof Map<?, ?>) {

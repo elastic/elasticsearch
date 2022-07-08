@@ -19,9 +19,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
-import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
-
 /**
  * {@link LeafFieldData} specialization for geo-shapes and shapes.
  */
@@ -91,16 +88,6 @@ public abstract class LeafShapeFieldData<T extends ToXContentFragment> implement
         @Override
         public T getCentroid() {
             return gsSupplier.getInternal(0) == null ? null : gsSupplier.getInternalCentroid();
-        }
-
-        @Override
-        public double getMercatorWidth() {
-            return lonToSphericalMercator(getBoundingBox().right()) - lonToSphericalMercator(getBoundingBox().left());
-        }
-
-        @Override
-        public double getMercatorHeight() {
-            return latToSphericalMercator(getBoundingBox().top()) - latToSphericalMercator(getBoundingBox().bottom());
         }
 
         @Override

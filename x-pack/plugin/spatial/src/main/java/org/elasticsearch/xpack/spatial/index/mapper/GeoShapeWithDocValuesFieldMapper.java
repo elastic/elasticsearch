@@ -45,6 +45,7 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
@@ -355,7 +356,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         private final ShapeValues<GeoPoint> in;
         protected final String name;
 
-        private ShapeValues.ShapeValue<GeoPoint> value;
+        private GeoShapeValues.GeoShapeValue value;
 
         // maintain bwc by making bounding box and centroid available to GeoShapeValues (ScriptDocValues)
         private final GeoPoint centroid = new GeoPoint();
@@ -370,7 +371,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
-                value = in.value();
+                value = (GeoShapeValues.GeoShapeValue) in.value();
                 centroid.reset(value.getY(), value.getX());
                 boundingBox.topLeft().reset(value.boundingBox().maxY(), value.boundingBox().minX());
                 boundingBox.bottomRight().reset(value.boundingBox().minY(), value.boundingBox().maxX());
@@ -435,11 +436,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             return value == null ? 0 : 1;
         }
 
-        public ShapeValues.ShapeValue<GeoPoint> get(ShapeValues.ShapeValue<GeoPoint> defaultValue) {
+        public GeoShapeValues.GeoShapeValue get(GeoShapeValues.GeoShapeValue defaultValue) {
             return get(0, defaultValue);
         }
 
-        public ShapeValues.ShapeValue<GeoPoint> get(int index, ShapeValues.ShapeValue<GeoPoint> defaultValue) {
+        public GeoShapeValues.GeoShapeValue get(int index, GeoShapeValues.GeoShapeValue defaultValue) {
             if (isEmpty() || index != 0) {
                 return defaultValue;
             }

@@ -239,30 +239,29 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         /** Returns the centroid of this geometry  */
         public abstract T getCentroid();
-
-        /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
-        public abstract double getMercatorWidth();
-
-        /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
-        public abstract double getMercatorHeight();
     }
 
-    public abstract static class Geometry<V> extends BaseGeometry<GeoPoint, V> {
-        public Geometry(Supplier<V> supplier) {
-            super(supplier);
-        }
+    public interface Geometry {
+        /** Returns the dimensional type of this geometry */
+        int getDimensionalType();
 
         /** Returns the bounding box of this geometry  */
-        @Override
-        public abstract GeoBoundingBox getBoundingBox();
+        GeoBoundingBox getBoundingBox();
 
         /** Returns the suggested label position  */
-        @Override
-        public abstract GeoPoint getLabelPosition();
+        GeoPoint getLabelPosition();
 
         /** Returns the centroid of this geometry  */
-        @Override
-        public abstract GeoPoint getCentroid();
+        GeoPoint getCentroid();
+
+        /** returns the size of the geometry */
+        int size();
+
+        /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
+        double getMercatorWidth();
+
+        /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
+        double getMercatorHeight();
     }
 
     public interface GeometrySupplier<T extends ToXContentFragment, V> extends Supplier<V> {
@@ -274,7 +273,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         T getInternalLabelPosition();
     }
 
-    public static class GeoPoints extends Geometry<GeoPoint> {
+    public static class GeoPoints extends BaseGeometry<GeoPoint, GeoPoint> implements Geometry {
 
         private final GeometrySupplier<GeoPoint, GeoPoint> geometrySupplier;
 

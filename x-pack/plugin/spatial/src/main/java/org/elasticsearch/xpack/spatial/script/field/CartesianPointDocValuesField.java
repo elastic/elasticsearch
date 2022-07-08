@@ -175,16 +175,6 @@ public class CartesianPointDocValuesField extends PointDocValuesField<CartesianP
         }
 
         @Override
-        public double getMercatorWidth() {
-            return 0;
-        }
-
-        @Override
-        public double getMercatorHeight() {
-            return 0;
-        }
-
-        @Override
         public CartesianBoundingBox getBoundingBox() {
             return size() == 0 ? null : (CartesianBoundingBox) geometrySupplier.getInternalBoundingBox();
         }

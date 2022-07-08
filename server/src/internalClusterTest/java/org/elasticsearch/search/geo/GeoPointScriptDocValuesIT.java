@@ -66,7 +66,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptHeight(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
@@ -77,7 +77,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptWidth(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
@@ -88,30 +88,30 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lat();
         }
 
         private double scriptLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lon();
         }
 
         private double scriptLabelLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lat();
         }
 
         private double scriptLabelLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            ScriptDocValues.Geometry geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lon();
         }
 
-        private ScriptDocValues.Geometry<?> assertGeometry(Map<?, ?> doc) {
-            ScriptDocValues.Geometry<?> geometry = (ScriptDocValues.Geometry<?>) doc.get("location");
+        private ScriptDocValues.Geometry assertGeometry(Map<?, ?> doc) {
+            ScriptDocValues.Geometry geometry = (ScriptDocValues.Geometry) doc.get("location");
             if (geometry.size() == 0) {
                 assertThat(geometry.getBoundingBox(), Matchers.nullValue());
                 assertThat(geometry.getCentroid(), Matchers.nullValue());

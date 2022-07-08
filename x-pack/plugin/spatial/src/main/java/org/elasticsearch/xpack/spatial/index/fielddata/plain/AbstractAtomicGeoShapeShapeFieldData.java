@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
+
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 
 public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData<GeoPoint> {
 
@@ -23,10 +28,37 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFiel
         return new LeafShapeFieldData.Empty<>(toScriptFieldFactory, GeoShapeValues.EMPTY);
     }
 
-    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint> {
+    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint>
+        implements
+            ScriptDocValues.Geometry {
 
         public GeoShapeScriptValues(GeometrySupplier<GeoPoint, ShapeValues.ShapeValue<GeoPoint>> supplier) {
             super(supplier);
+        }
+
+        @Override
+        public GeoShapeValues.GeoShapeValue get(int index) {
+            return (GeoShapeValues.GeoShapeValue) super.get(index);
+        }
+
+        @Override
+        public GeoShapeValues.GeoShapeValue getValue() {
+            return (GeoShapeValues.GeoShapeValue) super.getValue();
+        }
+
+        @Override
+        public GeoBoundingBox getBoundingBox() {
+            return (GeoBoundingBox) super.getBoundingBox();
+        }
+
+        @Override
+        public double getMercatorWidth() {
+            return lonToSphericalMercator(getBoundingBox().right()) - lonToSphericalMercator(getBoundingBox().left());
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return latToSphericalMercator(getBoundingBox().top()) - latToSphericalMercator(getBoundingBox().bottom());
         }
     }
 }

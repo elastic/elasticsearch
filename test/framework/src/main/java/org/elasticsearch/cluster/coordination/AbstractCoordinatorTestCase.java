@@ -1263,7 +1263,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     getElectionStrategy(),
                     nodeHealthService
                 );
-                coordinationDiagnosticsService = new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService);
+                coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+                    clusterService,
+                    transportService,
+                    coordinator,
+                    masterHistoryService
+                );
                 stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -30,7 +31,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
+import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -586,6 +590,44 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
+    public void testPollClusterFormationInfo() throws Exception {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            List<DiscoveryNode> masterNodes = cluster.clusterNodes.stream()
+                .map(Cluster.ClusterNode::getLocalNode)
+                .filter(DiscoveryNode::isMasterNode)
+                .toList();
+            cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
+                ConcurrentMap<DiscoveryNode, CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
+                masterNodes.stream()
+                    .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
+                    .forEach(
+                        masterNode -> {
+                            node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
+                                masterNode,
+                                nodeToClusterFormationStateMap
+                            );
+                        }
+                    );
+                cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+                cluster.stabilise();
+                // We're not calling the method on the local node:
+                assertThat(nodeToClusterFormationStateMap.size(), equalTo(masterNodes.size() - 1));
+                masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
+                    CoordinationDiagnosticsService.ClusterFormationStateOrException clusterFormationStateOrException = nodeToClusterFormationStateMap.get(masterNode);
+                    assertNotNull(clusterFormationStateOrException);
+                    assertNotNull(clusterFormationStateOrException.clusterFormationState());
+                    assertNull(clusterFormationStateOrException.exception());
+                    ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = clusterFormationStateOrException
+                        .clusterFormationState();
+                    assertThat(clusterFormationState.getDescription(), not(emptyOrNullString()));
+                });
+            });
+        }
+    }
+
     public void testResultSerialization() {
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus status = getRandomStatus();
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details = getRandomDetails();
@@ -790,7 +832,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new CoordinationDiagnosticsService(clusterService, coordinator, masterHistoryService);
+        TransportService transportService = mock(TransportService.class);
+        return new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService);
     }
 
     private void createAndAddNonMasterNode(Cluster cluster) {

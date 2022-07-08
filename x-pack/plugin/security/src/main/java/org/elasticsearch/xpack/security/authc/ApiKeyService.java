@@ -439,7 +439,7 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
-    private record ApiKeyDocBuilderWithNoopIndicator(XContentBuilder builder, boolean noop) {}
+    record XContentBuilderWithNoopIndicator(XContentBuilder builder, boolean noop) {}
 
     static XContentBuilder buildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,
@@ -490,6 +490,59 @@ public class ApiKeyService {
         addCreator(builder, authentication);
 
         return builder.endObject();
+    }
+
+    private boolean isUpdateNoop(
+        final ApiKeyDoc apiKeyDoc,
+        final Version targetDocVersion,
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles
+    ) {
+        if (apiKeyDoc.version != targetDocVersion.id) {
+            return false;
+        }
+
+        final Map<String, Object> currentCreator = apiKeyDoc.creator;
+        final var user = authentication.getEffectiveSubject().getUser();
+        final var sourceRealm = authentication.getEffectiveSubject().getRealm();
+        if (false == (Objects.equals(user.principal(), currentCreator.get("principal"))
+            && Objects.equals(user.fullName(), currentCreator.get("full_name"))
+            && Objects.equals(user.email(), currentCreator.get("email"))
+            && Objects.equals(user.metadata(), currentCreator.get("metadata"))
+            && Objects.equals(sourceRealm.getName(), currentCreator.get("realm"))
+            && Objects.equals(sourceRealm.getType(), currentCreator.get("realm_type"))
+            && Objects.equals(sourceRealm.getDomain(), currentCreator.get("realm_domain")))) {
+            return false;
+        }
+
+        if (request.getMetadata() != null) {
+            if (apiKeyDoc.metadataFlattened == null) {
+                return false;
+            }
+            final Map<String, Object> currentMetadata = XContentHelper.convertToMap(apiKeyDoc.metadataFlattened, false, XContentType.JSON)
+                .v2();
+            if (request.getMetadata().equals(currentMetadata) == false) {
+                return false;
+            }
+        }
+
+        if (request.getRoleDescriptors() != null) {
+            final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
+                request.getId(),
+                apiKeyDoc.roleDescriptorsBytes,
+                RoleReference.ApiKeyRoleType.ASSIGNED
+            );
+            if (new HashSet<>(request.getRoleDescriptors()).equals(new HashSet<>(currentRoleDescriptors)) == false) {
+                return false;
+            }
+        }
+
+        assert userRoles != null;
+        final Set<RoleDescriptor> currentLimitedByRoleDescriptors = new HashSet<>(
+            parseRoleDescriptorsBytes(request.getId(), apiKeyDoc.limitedByRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY)
+        );
+        return userRoles.equals(currentLimitedByRoleDescriptors) != false;
     }
 
     void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
@@ -968,57 +1021,6 @@ public class ApiKeyService {
                 apiKeyId
             );
         }
-    }
-
-    private boolean isUpdateNoop(
-        final ApiKeyDoc apiKeyDoc,
-        final Version targetDocVersion,
-        final Authentication authentication,
-        final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles
-    ) {
-        if (apiKeyDoc.version != targetDocVersion.id) {
-            return true;
-        }
-
-        final Map<String, Object> currentCreator = apiKeyDoc.creator;
-        final var user = authentication.getEffectiveSubject().getUser();
-        final var sourceRealm = authentication.getEffectiveSubject().getRealm();
-        if (false == (Objects.equals(user.principal(), currentCreator.get("principal"))
-            && Objects.equals(user.fullName(), currentCreator.get("full_name"))
-            && Objects.equals(user.email(), currentCreator.get("email"))
-            && Objects.equals(user.metadata(), currentCreator.get("metadata"))
-            && Objects.equals(sourceRealm.getName(), currentCreator.get("realm"))
-            && Objects.equals(sourceRealm.getType(), currentCreator.get("realm_type")))) {
-            return false;
-        }
-
-        if (request.getMetadata() != null) {
-            if (apiKeyDoc.metadataFlattened == null) {
-                return false;
-            }
-            final Map<String, Object> currentMetadata = XContentHelper.convertToMap(apiKeyDoc.metadataFlattened, false, XContentType.JSON)
-                .v2();
-            if (request.getMetadata().equals(currentMetadata) == false) {
-                return false;
-            }
-        }
-
-        if (request.getRoleDescriptors() != null) {
-            final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
-                request.getId(),
-                apiKeyDoc.roleDescriptorsBytes,
-                RoleReference.ApiKeyRoleType.ASSIGNED
-            );
-            if (currentRoleDescriptors.equals(request.getRoleDescriptors()) == false) {
-                return false;
-            }
-        }
-
-        final Set<RoleDescriptor> currentLimitedByRoleDescriptors = new HashSet<>(
-            parseRoleDescriptorsBytes(request.getId(), apiKeyDoc.limitedByRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY)
-        );
-        return userRoles.equals(currentLimitedByRoleDescriptors) != false;
     }
 
     private void doUpdateApiKey(

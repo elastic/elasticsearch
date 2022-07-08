@@ -18,6 +18,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.spi.TestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -622,7 +623,7 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
     }
 
-    private ClassLoader buildTestProviderPlugin(String name) throws Exception {
+    private URLClassLoader buildTestProviderPlugin(String name) throws Exception {
         Map<String, CharSequence> sources = Map.of("r.FooPlugin", """
             package r;
             import org.elasticsearch.plugins.ActionPlugin;
@@ -656,34 +657,38 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testLoadServiceProviders() throws Exception {
-        ClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
-        @SuppressWarnings("unchecked")
-        Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.loadClass("r.FooPlugin");
+        URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
+        URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string");
+        try {
+            @SuppressWarnings("unchecked")
+            Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.loadClass("r.FooPlugin");
+            @SuppressWarnings("unchecked")
+            Class<? extends Plugin> fakePluginClass1 = (Class<? extends Plugin>) fakeClassLoader1.loadClass("r.FooPlugin");
 
-        ClassLoader fakeClassLoader1 = buildTestProviderPlugin("string");
-        @SuppressWarnings("unchecked")
-        Class<? extends Plugin> fakePluginClass1 = (Class<? extends Plugin>) fakeClassLoader1.loadClass("r.FooPlugin");
+            assertFalse(fakePluginClass.getClassLoader().equals(fakePluginClass1.getClassLoader()));
 
-        assertFalse(fakePluginClass.getClassLoader().equals(fakePluginClass1.getClassLoader()));
+            getClass().getModule().addUses(TestService.class);
 
-        getClass().getModule().addUses(TestService.class);
+            PluginsService service = newMockPluginsService(List.of(fakePluginClass, fakePluginClass1));
 
-        PluginsService service = newMockPluginsService(List.of(fakePluginClass, fakePluginClass1));
+            List<? extends TestService> providers = service.loadServiceProviders(TestService.class);
+            assertEquals(2, providers.size());
+            assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("string", "integer"));
 
-        List<? extends TestService> providers = service.loadServiceProviders(TestService.class);
-        assertEquals(2, providers.size());
-        assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("string", "integer"));
+            service = newMockPluginsService(List.of(fakePluginClass));
+            providers = service.loadServiceProviders(TestService.class);
 
-        service = newMockPluginsService(List.of(fakePluginClass));
-        providers = service.loadServiceProviders(TestService.class);
+            assertEquals(1, providers.size());
+            assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("integer"));
 
-        assertEquals(1, providers.size());
-        assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("integer"));
+            service = newMockPluginsService(new ArrayList<>());
+            providers = service.loadServiceProviders(TestService.class);
 
-        service = newMockPluginsService(new ArrayList<>());
-        providers = service.loadServiceProviders(TestService.class);
-
-        assertEquals(0, providers.size());
+            assertEquals(0, providers.size());
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(fakeClassLoader);
+            PrivilegedOperations.closeURLClassLoader(fakeClassLoader1);
+        }
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

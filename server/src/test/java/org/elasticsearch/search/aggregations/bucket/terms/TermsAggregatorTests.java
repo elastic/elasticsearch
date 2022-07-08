@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -1422,7 +1422,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 InternalNested result = searchAndReduce(
                                     newSearcher(indexReader, false, true),
                                     // match root document only
-                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                                    new FieldExistsQuery(PRIMARY_TERM_NAME),
                                     nested,
                                     fieldType
                                 );
@@ -1436,7 +1436,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 InternalFilter result = searchAndReduce(
                                     newSearcher(indexReader, false, true),
                                     // match root document only
-                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                                    new FieldExistsQuery(PRIMARY_TERM_NAME),
                                     filter,
                                     fieldType
                                 );
@@ -1515,7 +1515,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     LongTerms result = searchAndReduce(
                         newSearcher(indexReader, false, true),
                         // match root document only
-                        new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                        new FieldExistsQuery(PRIMARY_TERM_NAME),
                         terms,
                         fieldType,
                         nestedFieldType

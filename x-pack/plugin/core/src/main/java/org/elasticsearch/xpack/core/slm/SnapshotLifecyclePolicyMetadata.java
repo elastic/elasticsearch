@@ -281,6 +281,9 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         }
 
         public SnapshotLifecyclePolicyMetadata build() {
+            assert lastSuccessDate != null || invocationsSinceLastSuccess == null
+                : "Cannot have invocations since last success with no recorded success date";
+
             return new SnapshotLifecyclePolicyMetadata(
                 Objects.requireNonNull(policy),
                 Optional.ofNullable(headers).orElse(new HashMap<>()),

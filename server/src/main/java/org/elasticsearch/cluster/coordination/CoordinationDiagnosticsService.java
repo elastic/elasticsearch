@@ -526,7 +526,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         private final AtomicBoolean isCancelled;
         private final ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener;
 
-        public PollClusterFormationStateRunnable(
+        PollClusterFormationStateRunnable(
             AtomicBoolean isCancelled,
             DiscoveryNode node,
             final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,

@@ -600,7 +600,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 .filter(DiscoveryNode::isMasterNode)
                 .toList();
             cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
-                ConcurrentMap<DiscoveryNode, CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
+                ConcurrentMap<
+                    DiscoveryNode,
+                    CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap =
+                        new ConcurrentHashMap<>();
                 masterNodes.stream()
                     .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
                     .forEach(
@@ -616,7 +619,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 // We're not calling the method on the local node:
                 assertThat(nodeToClusterFormationStateMap.size(), equalTo(masterNodes.size() - 1));
                 masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
-                    CoordinationDiagnosticsService.ClusterFormationStateOrException clusterFormationStateOrException = nodeToClusterFormationStateMap.get(masterNode);
+                    CoordinationDiagnosticsService.ClusterFormationStateOrException clusterFormationStateOrException =
+                        nodeToClusterFormationStateMap.get(masterNode);
                     assertNotNull(clusterFormationStateOrException);
                     assertNotNull(clusterFormationStateOrException.clusterFormationState());
                     assertNull(clusterFormationStateOrException.exception());

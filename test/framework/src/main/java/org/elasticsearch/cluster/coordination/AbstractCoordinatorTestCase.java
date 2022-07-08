@@ -1235,7 +1235,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
                 coordinator = new Coordinator(
                     "test_node",
-                      settings,
+                    settings,
                     clusterSettings,
                     transportService,
                     client,

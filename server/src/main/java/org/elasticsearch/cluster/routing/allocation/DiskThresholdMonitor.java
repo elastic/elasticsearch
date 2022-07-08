@@ -126,6 +126,11 @@ public class DiskThresholdMonitor {
             return;
         }
 
+        if (diskThresholdSettings.isEnabled() == false) {
+            removeExistingIndexBlocks(ActionListener.wrap(this::checkFinished));
+            return;
+        }
+
         final Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
             logger.trace("skipping monitor as no disk usage information is available");
@@ -275,8 +280,7 @@ public class DiskThresholdMonitor {
 
                     if (nodesOverLowThreshold.contains(node)) {
                         // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
-                        // shards
-                        // if we reroute now.
+                        // shards, if we reroute now.
                         if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                             reroute = true;
                             explanation = "one or more nodes has gone under the high or low watermark";
@@ -468,6 +472,31 @@ public class DiskThresholdMonitor {
             .setSettings(readOnlySettings)
             .origin("disk-threshold-monitor")
             .execute(wrappedListener.map(r -> null));
+    }
+
+    private void removeExistingIndexBlocks(ActionListener<Void> listener) {
+        ActionListener<Void> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
+            logger.debug("removing read-only blocks from indices failed", e);
+            listener.onFailure(e);
+        });
+        final ClusterState state = clusterStateSupplier.get();
+        final Set<String> indicesToRelease = state.routingTable()
+            .indicesRouting()
+            .keySet()
+            .stream()
+            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .collect(Collectors.toUnmodifiableSet());
+        logger.trace("removing read-only block from indices [{}]", indicesToRelease);
+        if (indicesToRelease.isEmpty() == false) {
+            client.admin()
+                .indices()
+                .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
+                .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
+                .origin("disk-threshold-monitor")
+                .execute(wrappedListener.map(r -> null));
+        } else {
+            wrappedListener.onResponse(null);
+        }
     }
 
     private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {

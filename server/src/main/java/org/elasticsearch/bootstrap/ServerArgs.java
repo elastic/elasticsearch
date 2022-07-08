@@ -11,6 +11,7 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
@@ -33,6 +34,7 @@ public record ServerArgs(
     boolean daemonize,
     boolean quiet,
     Path pidFile,
+    KeyStoreWrapper keystore,
     SecureString keystorePassword,
     Settings nodeSettings,
     Path configDir
@@ -60,6 +62,7 @@ public record ServerArgs(
             in.readBoolean(),
             in.readBoolean(),
             readPidFile(in),
+            null,
             in.readSecureString(),
             Settings.readSettingsFromStream(in),
             resolvePath(in.readString())

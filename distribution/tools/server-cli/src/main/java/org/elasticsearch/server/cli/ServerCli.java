@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -80,25 +79,27 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        // setup security
-        final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
-        env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile())) {
+            // setup security
+            final SecureString keystorePassword = getKeystorePassword(keystore, terminal);
+            env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        // install/remove plugins from elasticsearch-plugins.yml
-        syncPlugins(terminal, env, processInfo);
+            // install/remove plugins from elasticsearch-plugins.yml
+            syncPlugins(terminal, env, processInfo);
 
-        ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
-        this.server = startServer(terminal, processInfo, args, env.pluginsFile());
+            ServerArgs args = createArgs(options, env, keystore, keystorePassword, processInfo);
+            this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
-        if (options.has(daemonizeOption)) {
-            server.detach();
-            return;
-        }
+            if (options.has(daemonizeOption)) {
+                server.detach();
+                return;
+            }
 
-        // we are running in the foreground, so wait for the server to exit
-        int exitCode = server.waitFor();
-        if (exitCode != ExitCodes.OK) {
-            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+            // we are running in the foreground, so wait for the server to exit
+            int exitCode = server.waitFor();
+            if (exitCode != ExitCodes.OK) {
+                throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+            }
         }
     }
 
@@ -126,13 +127,11 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private static SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir)) {
-            if (keystore != null && keystore.hasPassword()) {
-                return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
-            } else {
-                return new SecureString(new char[0]);
-            }
+    private static SecureString getKeystorePassword(KeyStoreWrapper keystore, Terminal terminal) {
+        if (keystore != null && keystore.hasPassword()) {
+            return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
+        } else {
+            return new SecureString(new char[0]);
         }
     }
 
@@ -202,8 +201,13 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
-        throws UserException {
+    private ServerArgs createArgs(
+        OptionSet options,
+        Environment env,
+        KeyStoreWrapper keystore,
+        SecureString keystorePassword,
+        ProcessInfo processInfo
+    ) throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
         Path pidFile = null;
@@ -214,7 +218,7 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, keystore, keystorePassword, env.settings(), env.configFile());
     }
 
     @Override

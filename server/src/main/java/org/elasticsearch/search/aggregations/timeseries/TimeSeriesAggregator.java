@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.timeseries;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
@@ -95,12 +97,21 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
 
+            private DocsPerOrdIterator competitiveIterator;
+
             @Override
             public DocIdSetIterator competitiveIterator() throws IOException {
                 if (needCounts) {
                     return null;
                 }
-                return sub.competitiveIterator();
+                final DocIdSetIterator subIterator = sub.competitiveIterator();
+                if (subIterator == null) {
+                    return null;
+                }
+                final SortedDocValues tsids = DocValues.getSorted(aggCtx.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
+                // this iterator makes sure we call at least once each included tsid regardless of the sub-iterator
+                this.competitiveIterator = new DocsPerOrdIterator(tsids, 1);
+                return new DisjunctionDocIdSetIterator(List.of(competitiveIterator, subIterator));
             }
 
             @Override
@@ -111,6 +122,10 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     collectExistingBucket(sub, doc, bucketOrdinal);
                 } else {
                     collectBucket(sub, doc, bucketOrdinal);
+                }
+                if (this.competitiveIterator != null) {
+                    // register the visited doc on the competitive iterator
+                    this.competitiveIterator.visitedDoc(doc);
                 }
             }
         };

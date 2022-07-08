@@ -2172,9 +2172,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         throws InterruptedException, ExecutionException {
         final PutRoleRequest putRoleRequest = new PutRoleRequest();
         putRoleRequest.name(nativeRealmRoleName);
-        for (final String clusterPrivilege : clusterPrivileges) {
-            putRoleRequest.cluster(clusterPrivilege);
-        }
+        putRoleRequest.cluster(clusterPrivileges);
         final PlainActionFuture<PutRoleResponse> roleListener = new PlainActionFuture<>();
         client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING)))
             .execute(PutRoleAction.INSTANCE, putRoleRequest, roleListener);

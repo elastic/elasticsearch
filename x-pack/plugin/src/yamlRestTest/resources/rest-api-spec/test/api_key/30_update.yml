@@ -161,11 +161,6 @@ teardown:
       }
     }
 
-  - do:
-      security.clear_api_key_cache:
-        ids: "*"
-  - match: { _nodes.failed: 0 }
-
 ---
 "Test update api key without request fields":
 
@@ -263,11 +258,6 @@ teardown:
           }
   - match: { "has_all_requested": true }
 
-  - do:
-      security.clear_api_key_cache:
-        ids: "*"
-  - match: { _nodes.failed: 0 }
-
 ---
 "Test update api key with empty request fields":
 
@@ -356,8 +346,3 @@ teardown:
             ]
           }
   - match: { "has_all_requested": true }
-
-  - do:
-      security.clear_api_key_cache:
-        ids: "*"
-  - match: { _nodes.failed: 0 }

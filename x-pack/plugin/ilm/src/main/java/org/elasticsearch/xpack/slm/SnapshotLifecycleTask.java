@@ -276,9 +276,13 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         exception.map(SnapshotLifecycleTask::exceptionToString).orElse(null)
                     )
                 );
+                Long invocations = policyMetadata.getInvocationsSinceLastSuccess();
+                invocations = invocations == null ? 0L : invocations;
+                newPolicyMetadata.setInvocationsSinceLastSuccess(invocations + 1);
             } else {
                 stats.snapshotTaken(policyName);
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, snapshotFinishTime, null));
+                newPolicyMetadata.setInvocationsSinceLastSuccess(0L);
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());

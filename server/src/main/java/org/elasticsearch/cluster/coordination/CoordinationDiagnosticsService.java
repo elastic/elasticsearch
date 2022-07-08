@@ -475,26 +475,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         DiscoveryNode node,
         final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
     ) {
-        /*
-         * Only the top-level Cancellable is returned from this method. If it is canceled, the following variable is set to true, and is
-         * checked by all tasks derived from this top-level task.
-         * true.
-         */
-        final AtomicBoolean isCancelled = new AtomicBoolean(false);
-        final List<Scheduler.Cancellable> scheduledCancellables = Collections.synchronizedList(new ArrayList<>());
-        CancellableWrapper result = new CancellableWrapper(isCancelled, scheduledCancellables);
-        new PollClusterFormationStateRunnable(isCancelled, node, nodeToClusterFormationStateMap, result).run();
-        return result;
-
+        return new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap).pollUntilCancelled();
     }
 
-    private static class CancellableWrapper implements Scheduler.Cancellable, ActionListener<Scheduler.ScheduledCancellable> {
+    private static class CancellableWrapper implements Scheduler.Cancellable {
         private final List<Scheduler.Cancellable> delegates;
         private final AtomicBoolean isCancelled;
 
-        CancellableWrapper(AtomicBoolean isCancelled, List<Scheduler.Cancellable> delegates) {
-            this.isCancelled = isCancelled;
-            this.delegates = delegates;
+        CancellableWrapper() {
+            this.isCancelled = new AtomicBoolean(false);
+            this.delegates = Collections.synchronizedList(new ArrayList<>());
         }
 
         @Override
@@ -509,134 +499,107 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             return delegates.stream().anyMatch(Scheduler.Cancellable::isCancelled);
         }
 
-        @Override
-        public void onResponse(Scheduler.ScheduledCancellable cancellable) {
+        public void addNewCancellable(Scheduler.ScheduledCancellable cancellable) {
             delegates.add(cancellable);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-
         }
     }
 
-    private class PollClusterFormationStateRunnable implements Runnable {
+    private class PollClusterFormationStateTask {
         private final DiscoveryNode node;
         private final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap;
-        private final AtomicBoolean isCancelled;
-        private final ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener;
+        private final CancellableWrapper cancellableWrapper;
 
-        PollClusterFormationStateRunnable(
-            AtomicBoolean isCancelled,
+        PollClusterFormationStateTask(
             DiscoveryNode node,
-            final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
-            ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener
+            final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
         ) {
-            this.isCancelled = isCancelled;
-            this.node = node;
-            this.nodeToClusterFormationStateMap = nodeToClusterFormationStateMap;
-            this.cancellableExistsListener = cancellableExistsListener;
+            this(node, nodeToClusterFormationStateMap, new CancellableWrapper());
         }
 
-        @Override
-        public void run() {
-            if (isCancelled.get()) {
-                logger.trace("Task cancelled");
-            } else {
-                Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
-                    Version minSupportedVersion = Version.V_8_4_0;
-                    if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
-                        logger.trace(
-                            "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                            node,
-                            node.getVersion(),
-                            minSupportedVersion
-                        );
-                    } else {
-                        long startTime = System.nanoTime();
-                        transportService.connectToNode(
-                            // Note: This connection must be explicitly closed below
-                            node,
-                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                            new ActionListener<>() {
-                                @Override
-                                public void onResponse(Releasable releasable) {
-                                    if (isCancelled.get()) {
-                                        logger.trace("Task cancelled");
-                                    } else {
-                                        logger.trace("Opened connection to {}, making cluster coordination info request", node);
-                                        // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
-                                        final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
-                                        transportService.sendRequest(
-                                            node,
-                                            ClusterFormationInfoAction.NAME,
-                                            new ClusterFormationInfoAction.Request(),
-                                            TransportRequestOptions.timeout(transportTimeout),
-                                            new ActionListenerResponseHandler<>(
-                                                ActionListener.runAfter(ActionListener.runBefore(new ActionListener<>() {
+        PollClusterFormationStateTask(
+            DiscoveryNode node,
+            final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
+            CancellableWrapper cancellableWrapper
+        ) {
+            this.node = node;
+            this.nodeToClusterFormationStateMap = nodeToClusterFormationStateMap;
+            this.cancellableWrapper = cancellableWrapper;
+        }
 
-                                                    @Override
-                                                    public void onResponse(ClusterFormationInfoAction.Response response) {
-                                                        if (isCancelled.get()) {
-                                                            logger.trace("Task cancelled");
-                                                        } else {
-                                                            long endTime = System.nanoTime();
-                                                            logger.trace(
-                                                                "Received cluster coordination info from {} in {}",
-                                                                node,
-                                                                TimeValue.timeValueNanos(endTime - startTime)
-                                                            );
-                                                            nodeToClusterFormationStateMap.put(
-                                                                node,
-                                                                new ClusterFormationStateOrException(response.getClusterFormationState())
-                                                            );
-                                                        }
-                                                    }
+        public Scheduler.Cancellable pollUntilCancelled() {
+            Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
+                Version minSupportedVersion = Version.V_8_4_0;
+                if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                    logger.trace(
+                        "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                        node,
+                        node.getVersion(),
+                        minSupportedVersion
+                    );
+                } else {
+                    long startTime = System.nanoTime();
+                    transportService.connectToNode(
+                        // Note: This connection must be explicitly closed below
+                        node,
+                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                logger.trace("Opened connection to {}, making cluster coordination info request", node);
+                                // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                                final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+                                transportService.sendRequest(
+                                    node,
+                                    ClusterFormationInfoAction.NAME,
+                                    new ClusterFormationInfoAction.Request(),
+                                    TransportRequestOptions.timeout(transportTimeout),
+                                    new ActionListenerResponseHandler<>(
+                                        ActionListener.runAfter(ActionListener.runBefore(new ActionListener<>() {
 
-                                                    @Override
-                                                    public void onFailure(Exception e) {
-                                                        if (isCancelled.get()) {
-                                                            logger.trace("Task cancelled");
-                                                        } else {
-                                                            logger.warn("Exception in cluster coordination info request to master node", e);
-                                                            nodeToClusterFormationStateMap.put(
-                                                                node,
-                                                                new ClusterFormationStateOrException(e)
-                                                            );
-                                                        }
-                                                    }
-                                                }, () -> Releasables.close(releasable)),
-                                                    new PollClusterFormationStateRunnable(
-                                                        isCancelled,
-                                                        node,
-                                                        nodeToClusterFormationStateMap,
-                                                        cancellableExistsListener
-                                                    )
-                                                ),
-                                                ClusterFormationInfoAction.Response::new
-                                            )
-                                        );
-                                    }
-                                }
+                                            @Override
+                                            public void onResponse(ClusterFormationInfoAction.Response response) {
+                                                long endTime = System.nanoTime();
+                                                logger.trace(
+                                                    "Received cluster coordination info from {} in {}",
+                                                    node,
+                                                    TimeValue.timeValueNanos(endTime - startTime)
+                                                );
+                                                nodeToClusterFormationStateMap.put(
+                                                    node,
+                                                    new ClusterFormationStateOrException(response.getClusterFormationState())
+                                                );
+                                            }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn("Exception connecting to master node", e);
-                                    nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                                    new PollClusterFormationStateRunnable(
-                                        isCancelled,
-                                        node,
-                                        nodeToClusterFormationStateMap,
-                                        cancellableExistsListener
-                                    ).run();
-                                }
+                                            @Override
+                                            public void onFailure(Exception e) {
+                                                logger.warn("Exception in cluster coordination info request to master node", e);
+                                                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+                                            }
+                                        }, () -> Releasables.close(releasable)),
+                                            () -> new PollClusterFormationStateTask(
+                                                node,
+                                                nodeToClusterFormationStateMap,
+                                                cancellableWrapper
+                                            ).pollUntilCancelled()
+                                        ),
+                                        ClusterFormationInfoAction.Response::new
+                                    )
+                                );
                             }
-                        );
-                    }
-                }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-                cancellableExistsListener.onResponse(scheduledCancellable);
-            }
 
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn("Exception connecting to master node", e);
+                                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+                                new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, cancellableWrapper)
+                                    .pollUntilCancelled();
+                            }
+                        }
+                    );
+                }
+            }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+            cancellableWrapper.addNewCancellable(scheduledCancellable);
+            return cancellableWrapper;
         }
     }
 

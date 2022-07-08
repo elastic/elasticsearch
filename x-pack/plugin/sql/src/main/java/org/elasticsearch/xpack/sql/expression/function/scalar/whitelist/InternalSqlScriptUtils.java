@@ -298,6 +298,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
     }
 
+    public static String dateFormat(Object dateTime, String pattern, String tzId) {
+        return (String) Formatter.DATE_FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
     public static String dateTimeFormat(Object dateTime, String pattern, String tzId) {
         return (String) Formatter.DATE_TIME_FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
     }

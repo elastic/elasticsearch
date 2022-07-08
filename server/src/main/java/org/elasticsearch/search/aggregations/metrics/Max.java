@@ -46,7 +46,7 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     public Max(StreamInput in) throws IOException {
         super(in);
         max = in.readDouble();
-        this.nonEmpty = true;
+        this.nonEmpty = max != Double.NEGATIVE_INFINITY || format != DocValueFormat.RAW;
     }
 
     @Override

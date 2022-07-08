@@ -47,7 +47,7 @@ public class Min extends InternalNumericMetricsAggregation.SingleValue {
     public Min(StreamInput in) throws IOException {
         super(in);
         min = in.readDouble();
-        this.nonEmpty = true;
+        this.nonEmpty = min != Double.POSITIVE_INFINITY || format != DocValueFormat.RAW;
     }
 
     @Override

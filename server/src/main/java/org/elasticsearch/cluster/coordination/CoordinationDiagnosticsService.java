@@ -509,6 +509,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         private final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap;
         private final MultipleCancellablesWrapper multipleCancellablesWrapper;
 
+        /**
+         * This constructor is used to create the root task. It initializes the MultipleCancellablesWrapper that is shared between all
+         * the related tasks.
+         * @param node
+         * @param nodeToClusterFormationStateMap
+         */
         PollClusterFormationStateTask(
             DiscoveryNode node,
             final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
@@ -516,7 +522,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             this(node, nodeToClusterFormationStateMap, new MultipleCancellablesWrapper());
         }
 
-        PollClusterFormationStateTask(
+        private PollClusterFormationStateTask(
             DiscoveryNode node,
             final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
             MultipleCancellablesWrapper multipleCancellablesWrapper

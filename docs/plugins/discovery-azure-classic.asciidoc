@@ -370,7 +370,7 @@ Start Elasticsearch:
 
 [source,sh]
 ----
-sudo service elasticsearch start
+sudo systemctl start elasticsearch
 ----
 
 If anything goes wrong, check your logs in `/var/log/elasticsearch`.

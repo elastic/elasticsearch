@@ -1689,10 +1689,11 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final var metadata = ApiKeyTests.randomMetadata();
         final var version = Version.CURRENT;
-        final User user = AuthenticationTestHelper.userWithRandomMetadataAndDetails("user", "role");
         final var authentication = randomValueOtherThanMany(
             Authentication::isApiKey,
-            () -> AuthenticationTestHelper.builder().user(user).build(false)
+            () -> AuthenticationTestHelper.builder()
+                .user(AuthenticationTestHelper.userWithRandomMetadataAndDetails("user", "role"))
+                .build(false)
         );
         final var request = new UpdateApiKeyRequest(randomAlphaOfLength(10), newKeyRoles, metadata);
         final var service = createApiKeyService();

@@ -1772,22 +1772,27 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertFalse(response.isUpdated());
 
         // Update with different role descriptors is not a noop
-        response = executeUpdateApiKey(
-            TEST_USER_NAME,
-            new UpdateApiKeyRequest(
-                apiKeyId,
-                List.of(
-                    randomValueOtherThanMany(
-                        rd -> (RoleDescriptorRequestValidator.validate(rd) != null)
-                            && initialRequest.getRoleDescriptors().contains(rd) == false,
-                        () -> RoleDescriptorTests.randomRoleDescriptor(false)
-                    )
-                ),
-                null
+        final List<RoleDescriptor> newRoleDescriptors = List.of(
+            randomValueOtherThanMany(
+                rd -> (RoleDescriptorRequestValidator.validate(rd) != null) && initialRequest.getRoleDescriptors().contains(rd) == false,
+                () -> RoleDescriptorTests.randomRoleDescriptor(false)
+            ),
+            randomValueOtherThanMany(
+                rd -> (RoleDescriptorRequestValidator.validate(rd) != null) && initialRequest.getRoleDescriptors().contains(rd) == false,
+                () -> RoleDescriptorTests.randomRoleDescriptor(false)
             )
         );
+        response = executeUpdateApiKey(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
         assertNotNull(response);
         assertTrue(response.isUpdated());
+
+        // Update with re-ordered role descriptors is a noop
+        response = executeUpdateApiKey(
+            TEST_USER_NAME,
+            new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptors.get(1), newRoleDescriptors.get(0)), null)
+        );
+        assertNotNull(response);
+        assertFalse(response.isUpdated());
 
         // Update with different metadata is not a noop
         response = executeUpdateApiKey(

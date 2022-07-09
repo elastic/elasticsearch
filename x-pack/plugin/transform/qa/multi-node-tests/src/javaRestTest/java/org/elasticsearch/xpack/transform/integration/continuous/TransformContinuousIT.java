@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -83,7 +84,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *          to check that optimizations worked
  *      - repeat
  */
-@SuppressWarnings("removal")
 public class TransformContinuousIT extends TransformRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
@@ -101,7 +101,8 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 "xpack.transform.num_transform_failure_retries": "0",
                 "logger.org.elasticsearch.action.bulk": "info",
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
-                "logger.org.elasticsearch.xpack.transform": "debug"
+                "logger.org.elasticsearch.xpack.transform": "debug",
+                "logger.org.elasticsearch.xpack.transform.transforms.scheduling": "trace"
               }
             }""");
         client().performRequest(addFailureRetrySetting);
@@ -497,6 +498,9 @@ public class TransformContinuousIT extends TransformRestTestCase {
                     Instant.ofEpochMilli(lastSearchTime),
                     is(greaterThan(waitUntil))
                 );
+                // assert a checkpoint isn't in progress
+                Object state = XContentMapValues.extractValue("state", stats);
+                assertThat(state, is(equalTo("started")));
             }, 30, TimeUnit.SECONDS);
         }
     }

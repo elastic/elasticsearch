@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.apache.commons.io.FileUtils
+import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.gradle.testkit.runner.BuildResult
@@ -32,6 +33,8 @@ abstract class AbstractGradleFuncTest extends Specification {
     File buildFile
     File propertiesFile
     File projectDir
+
+    boolean configurationCacheCompatible = true
 
     def setup() {
         projectDir = testProjectDir.root
@@ -71,14 +74,17 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     GradleRunner gradleRunner(File projectDir, String... arguments) {
         return new NormalizeOutputGradleRunner(
-            new InternalAwareGradleRunner(
-                GradleRunner.create()
-                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-                    .withProjectDir(projectDir)
-                    .withPluginClasspath()
-                    .forwardOutput()
-            ),
-            projectDir
+                new ConfigurationCacheCompatibleAwareGradleRunner(
+                        new InternalAwareGradleRunner(
+                                GradleRunner.create()
+                                        .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                                                .toString().indexOf("-agentlib:jdwp") > 0
+                                        )
+                                        .withProjectDir(projectDir)
+                                        .withPluginClasspath()
+                                        .forwardOutput()
+                        ), configurationCacheCompatible),
+                projectDir
         ).withArguments(arguments)
     }
 
@@ -127,13 +133,13 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-        List<String> extraPlugins = [],
-        String bugfix = "7.15.2",
-        String bugfixLucene = "8.9.0",
-        String staged = "7.16.0",
-        String stagedLucene = "8.10.0",
-        String minor = "8.0.0",
-        String minorLucene = "9.0.0"
+            List<String> extraPlugins = [],
+            String bugfix = "7.15.2",
+            String bugfixLucene = "8.9.0",
+            String staged = "7.16.0",
+            String stagedLucene = "8.10.0",
+            String minor = "8.0.0",
+            String minorLucene = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'

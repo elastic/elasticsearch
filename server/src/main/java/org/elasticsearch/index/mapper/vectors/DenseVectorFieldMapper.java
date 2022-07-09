@@ -9,13 +9,12 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene93.Lucene93HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.KnnVectorFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -286,12 +285,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            if (indexed) {
-                return new KnnVectorFieldExistsQuery(name());
-            } else {
-                assert hasDocValues();
-                return new DocValuesFieldExistsQuery(name());
-            }
+            return new FieldExistsQuery(name());
         }
 
         @Override
@@ -529,7 +523,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene92HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene93HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

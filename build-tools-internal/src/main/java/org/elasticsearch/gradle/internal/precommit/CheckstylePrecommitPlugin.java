@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -30,7 +29,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
-public class CheckstylePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class CheckstylePrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         // Always copy the checkstyle configuration files to 'buildDir/checkstyle' since the resources could be located in a jar
@@ -86,9 +85,11 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
 
         DependencyHandler dependencies = project.getDependencies();
         String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
-        Provider<String> dependencyProvider = project.provider(() -> "org.elasticsearch:build-conventions:" + project.getVersion());
+        Provider<String> conventionsDependencyProvider = project.provider(
+            () -> "org.elasticsearch:build-conventions:" + project.getVersion()
+        );
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
-        dependencies.addProvider("checkstyle", dependencyProvider, dep -> dep.setTransitive(false));
+        dependencies.addProvider("checkstyle", conventionsDependencyProvider, dep -> dep.setTransitive(false));
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);

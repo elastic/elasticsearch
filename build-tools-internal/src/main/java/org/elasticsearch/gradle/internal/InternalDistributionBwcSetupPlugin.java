@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
@@ -40,7 +41,7 @@ import static java.util.Arrays.stream;
  * unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  * and configure them to build various versions here.
  */
-public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
+public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static final String BWC_TASK_THROTTLE_SERVICE = "bwcTaskThrottle";
     private ProviderFactory providerFactory;

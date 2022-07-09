@@ -257,7 +257,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        super(new MappedField<>(NAME, new IdFieldType(fieldDataEnabled)));
+        super(new MappedField(NAME, new IdFieldType(fieldDataEnabled)));
     }
 
     @Override

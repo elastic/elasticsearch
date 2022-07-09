@@ -101,7 +101,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     private final boolean enabled;
 
     private DataStreamTimestampFieldMapper(boolean enabled) {
-        super(new MappedField<>(NAME, TimestampFieldType.INSTANCE));
+        super(new MappedField(NAME, TimestampFieldType.INSTANCE));
         this.enabled = enabled;
     }
 

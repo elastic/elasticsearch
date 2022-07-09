@@ -207,7 +207,7 @@ public class CompletionFieldMapper extends FieldMapper {
             ft.setContextMappings(contexts.getValue());
             return new CompletionFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name), ft),
+                new MappedField(context.buildFullName(name), ft),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -351,13 +351,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     private final NamedAnalyzer indexAnalyzer;
 
-    public CompletionFieldMapper(
-        String simpleName,
-        MappedField<CompletionFieldType> mappedField,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    public CompletionFieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedField, multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();

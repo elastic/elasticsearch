@@ -24,14 +24,14 @@ package org.elasticsearch.index.mapper;
  *  field mappers generating field types that implement this interface should
  *  explicitly disallow multi-fields.
  */
-public abstract class DynamicMappedField<T extends MappedFieldType> extends MappedField<T> {
+public abstract class DynamicMappedField extends MappedField {
 
-    public DynamicMappedField(String name, T type) {
+    public DynamicMappedField(String name, MappedFieldType type) {
         super(name, type);
     }
 
     /**
      * Returns a dynamic MappedField for the given path
      */
-    public abstract MappedField<?> getChildFieldType(String path);
+    public abstract MappedField getChildFieldType(String path);
 }

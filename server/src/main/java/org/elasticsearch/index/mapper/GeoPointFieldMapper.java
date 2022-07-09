@@ -163,7 +163,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 scriptValues(),
                 meta.get()
             );
-            MappedField<GeoPointFieldType> mappedField = new MappedField<>(context.buildFullName(name), ft);
+            MappedField mappedField = new MappedField(context.buildFullName(name), ft);
             if (this.script.get() == null) {
                 return new GeoPointFieldMapper(name, mappedField, multiFieldsBuilder.build(this, context), copyTo.build(), geoParser, this);
             }
@@ -185,7 +185,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     public GeoPointFieldMapper(
         String simpleName,
-        MappedField<GeoPointFieldType> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<GeoPoint> parser,
@@ -206,7 +206,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
-    public GeoPointFieldMapper(String simpleName, MappedField<GeoPointFieldType> mappedField, Parser<GeoPoint> parser, Builder builder) {
+    public GeoPointFieldMapper(String simpleName, MappedField mappedField, Parser<GeoPoint> parser, Builder builder) {
         super(simpleName, mappedField, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
         this.builder = builder;
         this.scriptValues = builder.scriptValues();

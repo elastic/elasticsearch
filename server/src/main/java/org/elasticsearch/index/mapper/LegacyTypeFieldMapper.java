@@ -36,7 +36,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
     protected LegacyTypeFieldMapper() {
-        super(new MappedField<>(NAME, new LegacyTypeFieldType()));
+        super(new MappedField(NAME, new LegacyTypeFieldType()));
     }
 
     @Override

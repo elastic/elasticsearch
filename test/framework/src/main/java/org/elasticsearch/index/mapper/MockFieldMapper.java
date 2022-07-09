@@ -16,7 +16,7 @@ import java.util.Collections;
 public class MockFieldMapper extends FieldMapper {
 
     public MockFieldMapper(String fullName) {
-        this(new MappedField<>(fullName, new FakeFieldType()));
+        this(new MappedField(fullName, new FakeFieldType()));
     }
 
     public MockFieldMapper(MappedField mappedField) {
@@ -87,7 +87,7 @@ public class MockFieldMapper extends FieldMapper {
         @Override
         public MockFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(name(), new MappedField<>(name(), fieldType), multiFields, copyTo.build());
+            return new MockFieldMapper(name(), new MappedField(name(), fieldType), multiFields, copyTo.build());
         }
     }
 }

@@ -305,7 +305,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         List<FieldAndBoost> fieldsAndBoosts = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
-            MappedField<?> mappedField = context.getMappedField(name);
+            MappedField mappedField = context.getMappedField(name);
             if (mappedField == null) {
                 continue;
             }
@@ -360,10 +360,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     }
 
     private static final class FieldAndBoost {
-        final MappedField<?> mappedField;
+        final MappedField mappedField;
         final float boost;
 
-        FieldAndBoost(MappedField<?> mappedField, float boost) {
+        FieldAndBoost(MappedField mappedField, float boost) {
             this.mappedField = Objects.requireNonNull(mappedField);
             this.boost = boost;
         }
@@ -415,7 +415,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
                 query.addTerm(bytes);
             }
             for (FieldAndBoost fieldAndBoost : fields) {
-                MappedField<?> mappedField = fieldAndBoost.mappedField;
+                MappedField mappedField = fieldAndBoost.mappedField;
                 float fieldBoost = fieldAndBoost.boost;
                 query.addField(mappedField.name(), fieldBoost);
             }

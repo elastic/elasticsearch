@@ -200,7 +200,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public final ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(name, format, null), context.getForField(new MappedField<>(name, this)));
+        return new DocValueFetcher(docValueFormat(name, format, null), context.getForField(new MappedField(name, this)));
     }
 
     /**
@@ -290,7 +290,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
             AbstractScriptFieldType<?> fieldType = createFieldType(scriptFactory, getScript(), meta());
-            return new LeafRuntimeField(name, new MappedField<>(name, fieldType), getParameters());
+            return new LeafRuntimeField(name, new MappedField(name, fieldType), getParameters());
         }
 
         abstract AbstractScriptFieldType<?> createFieldType(Factory factory, Script script, Map<String, String> meta);

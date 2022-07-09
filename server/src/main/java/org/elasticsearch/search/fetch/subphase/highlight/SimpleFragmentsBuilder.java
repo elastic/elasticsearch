@@ -23,7 +23,7 @@ public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighl
     private final boolean fixBrokenAnalysis;
 
     public SimpleFragmentsBuilder(
-        MappedField<?> mappedField,
+        MappedField mappedField,
         boolean fixBrokenAnalysis,
         String[] preTags,
         String[] postTags,

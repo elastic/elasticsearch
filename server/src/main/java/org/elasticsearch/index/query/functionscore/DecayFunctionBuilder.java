@@ -198,7 +198,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         MultiValueMode mode
     ) throws IOException {
         // the field must exist, else we cannot read the value for the doc later
-        MappedField<?> mappedField = context.getMappedField(fieldName);
+        MappedField mappedField = context.getMappedField(fieldName);
         if (mappedField == null) {
             throw new ParsingException(parser.getTokenLocation(), "unknown field [{}]", fieldName);
         }
@@ -225,7 +225,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     private AbstractDistanceScoreFunction parseNumberVariable(
         XContentParser parser,
         SearchExecutionContext context,
-        MappedField<?> mappedField,
+        MappedField mappedField,
         MultiValueMode mode
     ) throws IOException {
         XContentParser.Token token;
@@ -267,7 +267,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     private AbstractDistanceScoreFunction parseGeoVariable(
         XContentParser parser,
         SearchExecutionContext context,
-        MappedField<?> mappedField,
+        MappedField mappedField,
         MultiValueMode mode
     ) throws IOException {
         XContentParser.Token token;
@@ -308,7 +308,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     private AbstractDistanceScoreFunction parseDateVariable(
         XContentParser parser,
         SearchExecutionContext context,
-        MappedField<?> mappedField,
+        MappedField mappedField,
         MultiValueMode mode
     ) throws IOException {
         XContentParser.Token token;

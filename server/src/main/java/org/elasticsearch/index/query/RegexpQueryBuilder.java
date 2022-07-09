@@ -280,7 +280,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
         int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp.ALL;
 
-        MappedField<?> mappedField = context.getMappedField(fieldName);
+        MappedField mappedField = context.getMappedField(fieldName);
         if (mappedField != null) {
             query = mappedField.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }

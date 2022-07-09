@@ -400,7 +400,7 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
 
-        private SubFieldInfo buildPhraseInfo(FieldType fieldType, MappedField<TextFieldType> parent) {
+        private SubFieldInfo buildPhraseInfo(FieldType fieldType, MappedField parent) {
             if (indexPhrases.get() == false) {
                 return null;
             }
@@ -411,7 +411,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
             }
             FieldType phraseFieldType = new FieldType(fieldType);
-            parent.type().setIndexPhrases();
+            ((TextFieldType) parent.type()).setIndexPhrases();
             PhraseWrappedAnalyzer a = new PhraseWrappedAnalyzer(
                 analyzers.getIndexAnalyzer().analyzer(),
                 analyzers.positionIncrementGap.get()
@@ -448,12 +448,9 @@ public class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
-            MappedField<TextFieldType> tft = new MappedField<>(
-                context.buildFullName(name),
-                buildFieldType(fieldType, context, indexCreatedVersion)
-            );
+            MappedField tft = new MappedField(context.buildFullName(name), buildFieldType(fieldType, context, indexCreatedVersion));
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
-            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft.type());
+            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, (TextFieldType) tft.type());
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
@@ -1068,7 +1065,7 @@ public class TextFieldMapper extends FieldMapper {
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,
-        MappedField<TextFieldType> mappedField,
+        MappedField mappedField,
         Map<String, NamedAnalyzer> indexAnalyzers,
         SubFieldInfo prefixFieldInfo,
         SubFieldInfo phraseFieldInfo,

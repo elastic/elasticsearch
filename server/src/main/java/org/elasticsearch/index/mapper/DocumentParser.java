@@ -752,7 +752,7 @@ public final class DocumentParser {
 
     private static final FieldMapper NO_OP_FIELDMAPPER = new FieldMapper(
         "no-op",
-        new MappedField<>("no-op", new MappedFieldType(false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        new MappedField("no-op", new MappedFieldType(false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
             public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();

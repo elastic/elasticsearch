@@ -102,7 +102,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             GeoShapeFieldType ft = new GeoShapeFieldType(indexed.get(), orientation.get().value(), geoShapeParser, meta.get());
             return new GeoShapeFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name), ft),
+                new MappedField(context.buildFullName(name), ft),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 new GeoShapeIndexer(orientation.get().value(), context.buildFullName(name)),
@@ -161,7 +161,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
     public GeoShapeFieldMapper(
         String simpleName,
-        MappedField<GeoShapeFieldType> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         GeoShapeIndexer indexer,

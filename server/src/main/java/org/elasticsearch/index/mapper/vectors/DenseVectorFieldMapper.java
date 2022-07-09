@@ -130,7 +130,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new MappedField<>(
+                new MappedField(
                     context.buildFullName(name),
                     new DenseVectorFieldType(
                         indexVersionCreated,
@@ -361,7 +361,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private DenseVectorFieldMapper(
         String simpleName,
-        MappedField<DenseVectorFieldType> mappedField,
+        MappedField mappedField,
         int dims,
         boolean indexed,
         VectorSimilarity similarity,

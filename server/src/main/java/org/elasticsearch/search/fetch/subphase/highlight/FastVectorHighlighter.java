@@ -68,7 +68,7 @@ public class FastVectorHighlighter implements Highlighter {
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
-        MappedField<?> mappedField = fieldContext.mappedField;
+        MappedField mappedField = fieldContext.mappedField;
         boolean forceSource = fieldContext.forceSource;
         boolean fixBrokenAnalysis = fieldContext.context.containsBrokenAnalysis(fieldContext.fieldName);
 
@@ -316,6 +316,6 @@ public class FastVectorHighlighter implements Highlighter {
 
     private static class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public Map<MappedField<?>, FieldHighlightEntry> fields = new HashMap<>();
+        public Map<MappedField, FieldHighlightEntry> fields = new HashMap<>();
     }
 }

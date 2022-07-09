@@ -1204,46 +1204,46 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
-    protected MappedField<DateFieldMapper.DateFieldType> dateField(String name, DateFieldMapper.Resolution resolution) {
-        return new MappedField<>(name, new DateFieldMapper.DateFieldType(resolution));
+    protected MappedField dateField(String name, DateFieldMapper.Resolution resolution) {
+        return new MappedField(name, new DateFieldMapper.DateFieldType(resolution));
     }
 
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code double}.
      */
-    protected MappedField<NumberFieldMapper.NumberFieldType> doubleField(String name) {
-        return new MappedField<>(name, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+    protected MappedField doubleField(String name) {
+        return new MappedField(name, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
     }
 
     /**
      * Make a {@linkplain GeoPointFieldMapper.GeoPointFieldType} for a {@code geo_point}.
      */
-    protected MappedField<GeoPointFieldMapper.GeoPointFieldType> geoPointField(String name) {
-        return new MappedField<>(name, new GeoPointFieldMapper.GeoPointFieldType());
+    protected MappedField geoPointField(String name) {
+        return new MappedField(name, new GeoPointFieldMapper.GeoPointFieldType());
     }
 
     /**
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
-    protected MappedField<KeywordFieldMapper.KeywordFieldType> keywordField(String name) {
-        return new MappedField<>(name, new KeywordFieldMapper.KeywordFieldType());
+    protected MappedField keywordField(String name) {
+        return new MappedField(name, new KeywordFieldMapper.KeywordFieldType());
     }
 
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code long}.
      */
-    protected MappedField<NumberFieldMapper.NumberFieldType> longField(String name) {
-        return new MappedField<>(name, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+    protected MappedField longField(String name) {
+        return new MappedField(name, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
     }
 
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code range}.
      */
-    protected MappedField<RangeFieldMapper.RangeFieldType> rangeField(String name, RangeType rangeType) {
+    protected MappedField rangeField(String name, RangeType rangeType) {
         if (rangeType == RangeType.DATE) {
-            return new MappedField<>(name, new RangeFieldMapper.RangeFieldType(RangeFieldMapper.Defaults.DATE_FORMATTER));
+            return new MappedField(name, new RangeFieldMapper.RangeFieldType(RangeFieldMapper.Defaults.DATE_FORMATTER));
         }
-        return new MappedField<>(name, new RangeFieldMapper.RangeFieldType(rangeType));
+        return new MappedField(name, new RangeFieldMapper.RangeFieldType(rangeType));
     }
 
     private void assertRoundTrip(List<InternalAggregation> result) throws IOException {

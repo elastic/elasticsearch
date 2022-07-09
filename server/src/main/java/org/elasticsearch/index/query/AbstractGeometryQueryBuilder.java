@@ -314,7 +314,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** builds the appropriate lucene shape query */
-    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedField<?> fieldType);
+    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedField fieldType);
 
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
@@ -334,7 +334,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         if (shape == null || supplier != null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
-        final MappedField<?> mappedField = context.getMappedField(fieldName);
+        final MappedField mappedField = context.getMappedField(fieldName);
         if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

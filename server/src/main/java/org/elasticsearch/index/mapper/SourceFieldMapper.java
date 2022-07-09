@@ -149,7 +149,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] excludes;
 
     private SourceFieldMapper(boolean enabled, boolean synthetic, String[] includes, String[] excludes) {
-        super(new MappedField<>(NAME, new SourceFieldType(enabled)));
+        super(new MappedField(NAME, new SourceFieldType(enabled)));
         this.enabled = enabled;
         this.synthetic = synthetic;
         this.includes = includes;

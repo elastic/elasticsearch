@@ -311,7 +311,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new KeywordFieldMapper(
                 name,
                 fieldtype,
-                new MappedField<>(context.buildFullName(name), buildFieldType(context, fieldtype)),
+                new MappedField(context.buildFullName(name), buildFieldType(context, fieldtype)),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -886,7 +886,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private KeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
-        MappedField<KeywordFieldType> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder

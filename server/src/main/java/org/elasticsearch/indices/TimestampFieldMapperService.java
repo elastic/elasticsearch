@@ -56,8 +56,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
      * The type of the {@code @timestamp} field keyed by index. Futures may be completed with {@code null} to indicate that there is
      * no usable {@code @timestamp} field.
      */
-    private final Map<Index, PlainActionFuture<MappedField<DateFieldMapper.DateFieldType>>> fieldTypesByIndex = ConcurrentCollections
-        .newConcurrentMap();
+    private final Map<Index, PlainActionFuture<MappedField>> fieldTypesByIndex = ConcurrentCollections.newConcurrentMap();
 
     public TimestampFieldMapperService(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -104,7 +103,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
             if (hasUsefulTimestampField(indexMetadata) && fieldTypesByIndex.containsKey(index) == false) {
                 logger.trace("computing timestamp mapping for {}", index);
-                final PlainActionFuture<MappedField<DateFieldMapper.DateFieldType>> future = new PlainActionFuture<>();
+                final PlainActionFuture<MappedField> future = new PlainActionFuture<>();
                 fieldTypesByIndex.put(index, future);
 
                 final IndexService indexService = indicesService.indexService(index);
@@ -153,10 +152,10 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         return timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN;
     }
 
-    private static MappedField<DateFieldMapper.DateFieldType> fromMapperService(MapperService mapperService) {
+    private static MappedField fromMapperService(MapperService mapperService) {
         final MappedField mappedField = mapperService.mappedField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         if (mappedField.type() instanceof DateFieldMapper.DateFieldType) {
-            return (MappedField<DateFieldMapper.DateFieldType>) mappedField;
+            return mappedField;
         } else {
             return null;
         }
@@ -170,8 +169,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
      * - the field is not a timestamp field.
      */
     @Nullable
-    public MappedField<DateFieldMapper.DateFieldType> getTimestampField(Index index) {
-        final PlainActionFuture<MappedField<DateFieldMapper.DateFieldType>> future = fieldTypesByIndex.get(index);
+    public MappedField getTimestampField(Index index) {
+        final PlainActionFuture<MappedField> future = fieldTypesByIndex.get(index);
         if (future == null || future.isDone() == false) {
             return null;
         }

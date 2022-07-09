@@ -66,7 +66,7 @@ public class BinaryFieldMapper extends FieldMapper {
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
                 name,
-                new MappedField<>(
+                new MappedField(
                     context.buildFullName(name),
                     new BinaryFieldType(stored.getValue(), hasDocValues.getValue(), meta.getValue())
                 ),
@@ -138,13 +138,7 @@ public class BinaryFieldMapper extends FieldMapper {
     private final boolean stored;
     private final boolean hasDocValues;
 
-    protected BinaryFieldMapper(
-        String simpleName,
-        MappedField<BinaryFieldType> mappedField,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    protected BinaryFieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedField, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

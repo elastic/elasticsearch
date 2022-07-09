@@ -101,7 +101,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     private RoutingFieldMapper(boolean required) {
-        super(new MappedField<>(NAME, RoutingFieldType.INSTANCE));
+        super(new MappedField(NAME, RoutingFieldType.INSTANCE));
         this.required = required;
     }
 

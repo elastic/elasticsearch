@@ -122,7 +122,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedField<?> mappedField = context.getMappedField(field);
+        MappedField mappedField = context.getMappedField(field);
         if (mappedField == null) {
             // Be lenient with unmapped fields so that cross-index search will work nicely
             return new MatchNoDocsQuery();
@@ -130,8 +130,8 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         Set<String> maskedFields = new HashSet<>();
         sourceProvider.extractFields(maskedFields);
         for (String maskedField : maskedFields) {
-            MappedField<?> ft = context.getMappedField(maskedField);
-            if (ft == null) {
+            MappedField masked = context.getMappedField(maskedField);
+            if (masked == null) {
                 // Be lenient with unmapped fields so that cross-index search will work nicely
                 return new MatchNoDocsQuery();
             }

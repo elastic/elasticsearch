@@ -189,7 +189,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            MappedField<?> fieldType = context.getMappedField(this.fieldName);
+            MappedField fieldType = context.getMappedField(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
             } else if (fieldType.type() instanceof ConstantFieldType) {
@@ -214,7 +214,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        MappedField<?> fieldType = context.getMappedField(fieldName);
+        MappedField fieldType = context.getMappedField(fieldName);
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }

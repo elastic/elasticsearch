@@ -150,7 +150,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedField<?> mappedField = context.getMappedField(fieldName);
+        MappedField mappedField = context.getMappedField(fieldName);
         if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

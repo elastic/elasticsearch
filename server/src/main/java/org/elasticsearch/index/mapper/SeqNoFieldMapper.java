@@ -209,7 +209,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     private SeqNoFieldMapper() {
-        super(new MappedField<>(NAME, SeqNoFieldType.INSTANCE));
+        super(new MappedField(NAME, SeqNoFieldType.INSTANCE));
     }
 
     @Override

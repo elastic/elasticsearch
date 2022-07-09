@@ -87,7 +87,6 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -1780,7 +1779,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * - the field is not a timestamp field.
      */
     @Nullable
-    public MappedField<DateFieldMapper.DateFieldType> getTimestampField(Index index) {
+    public MappedField getTimestampField(Index index) {
         return timestampFieldMapperService.getTimestampField(index);
     }
 

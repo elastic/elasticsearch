@@ -158,7 +158,7 @@ public class IpFieldMapper extends FieldMapper {
         public IpFieldMapper build(MapperBuilderContext context) {
             return new IpFieldMapper(
                 name,
-                new MappedField<>(
+                new MappedField(
                     context.buildFullName(name),
                     new IpFieldType(
                         indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
@@ -438,13 +438,7 @@ public class IpFieldMapper extends FieldMapper {
     private final FieldValues<InetAddress> scriptValues;
     private final ScriptCompiler scriptCompiler;
 
-    private IpFieldMapper(
-        String simpleName,
-        MappedField<IpFieldType> mappedField,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    private IpFieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedField, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();

@@ -139,7 +139,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
         private SortedDocValues values;
         private int ord;
 
-        Keyword(MappedField<?> mappedField) {
+        Keyword(MappedField mappedField) {
             super(mappedField.name());
         }
 

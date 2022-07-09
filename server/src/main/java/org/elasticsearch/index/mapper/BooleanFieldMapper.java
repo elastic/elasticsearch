@@ -127,7 +127,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
             return new BooleanFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name), ft),
+                new MappedField(context.buildFullName(name), ft),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -344,13 +344,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Version indexCreatedVersion;
 
-    protected BooleanFieldMapper(
-        String simpleName,
-        MappedField<BooleanFieldType> mappedField,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    protected BooleanFieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedField, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();

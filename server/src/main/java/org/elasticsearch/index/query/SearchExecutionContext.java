@@ -404,7 +404,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
-    public MappedField<?> buildAnonymousField(String type) {
+    public MappedField buildAnonymousField(String type) {
         MappingParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {

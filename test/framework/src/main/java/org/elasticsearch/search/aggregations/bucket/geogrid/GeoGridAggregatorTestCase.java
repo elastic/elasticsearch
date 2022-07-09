@@ -338,7 +338,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
 
-        MappedField mappedField = new MappedField<>(aggregationBuilder.field(), new GeoPointFieldMapper.GeoPointFieldType());
+        MappedField mappedField = new MappedField(aggregationBuilder.field(), new GeoPointFieldMapper.GeoPointFieldType());
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, mappedField);
         aggregator.preCollection();

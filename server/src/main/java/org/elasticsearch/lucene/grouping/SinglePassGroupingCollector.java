@@ -120,7 +120,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      */
     public static SinglePassGroupingCollector<?> createKeyword(
         String groupField,
-        MappedField<?> mappedGroupField,
+        MappedField mappedGroupField,
         Sort groupSort,
         int topN,
         @Nullable FieldDoc after

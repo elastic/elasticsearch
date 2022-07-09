@@ -357,7 +357,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return new SortFieldAndFormat(new ShardDocSortField(context.getShardRequestIndex(), reverse), DocValueFormat.RAW);
         }
 
-        MappedField<?> mappedField = context.getMappedField(fieldName);
+        MappedField mappedField = context.getMappedField(fieldName);
         Nested nested = nested(context, mappedField);
         if (mappedField == null) {
             mappedField = resolveUnmappedField(context);
@@ -515,7 +515,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
     }
 
-    private MappedField<?> resolveUnmappedField(SearchExecutionContext context) {
+    private MappedField resolveUnmappedField(SearchExecutionContext context) {
         if (unmappedType == null) {
             throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
         }
@@ -530,7 +530,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
     }
 
-    private Nested nested(SearchExecutionContext context, MappedField<?> mappedField) throws IOException {
+    private Nested nested(SearchExecutionContext context, MappedField mappedField) throws IOException {
         if (mappedField == null) {
             return null;
         }
@@ -600,7 +600,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     private static MinAndMax<?> extractNumericMinAndMax(
         IndexReader reader,
         SortField sortField,
-        MappedField<?> fieldType,
+        MappedField fieldType,
         FieldSortBuilder sortBuilder
     ) throws IOException {
         String fieldName = fieldType.name();

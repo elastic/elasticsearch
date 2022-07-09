@@ -11,7 +11,6 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -27,7 +26,7 @@ import java.util.function.LongSupplier;
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final IndexLongFieldRange indexLongFieldRange;
-    private final MappedField<DateFieldMapper.DateFieldType> timestampField;
+    private final MappedField timestampField;
 
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
@@ -35,7 +34,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         Client client,
         LongSupplier nowInMillis,
         IndexLongFieldRange indexLongFieldRange,
-        MappedField<DateFieldMapper.DateFieldType> timestampField
+        MappedField timestampField
     ) {
         super(parserConfig, writeableRegistry, client, nowInMillis);
         this.indexLongFieldRange = indexLongFieldRange;

@@ -338,7 +338,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     + "] index level setting."
             );
         }
-        MappedField<?> mappedField = context.getMappedField(fieldName);
+        MappedField mappedField = context.getMappedField(fieldName);
         if (mappedField == null) {
             throw new IllegalStateException("Rewrite first");
         }
@@ -390,7 +390,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            MappedField<?> mappedField = context.getMappedField(this.fieldName);
+            MappedField mappedField = context.getMappedField(this.fieldName);
             if (mappedField == null) {
                 return new MatchNoneQueryBuilder();
             } else if (mappedField.type() instanceof ConstantFieldType) {

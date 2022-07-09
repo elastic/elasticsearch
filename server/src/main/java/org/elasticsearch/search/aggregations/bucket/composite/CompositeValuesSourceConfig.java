@@ -33,7 +33,7 @@ public class CompositeValuesSourceConfig {
 
     private final String name;
     @Nullable
-    private final MappedField<?> mappedField;
+    private final MappedField mappedField;
     private final ValuesSource vs;
     private final DocValueFormat format;
     private final int reverseMul;
@@ -56,7 +56,7 @@ public class CompositeValuesSourceConfig {
      */
     CompositeValuesSourceConfig(
         String name,
-        @Nullable MappedField<?> mappedField,
+        @Nullable MappedField mappedField,
         ValuesSource vs,
         DocValueFormat format,
         SortOrder order,

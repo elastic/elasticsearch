@@ -1124,7 +1124,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, SearchExecutionContext context) {
-        MappedField<?> idField = context.getMappedField(IdFieldMapper.NAME);
+        MappedField idField = context.getMappedField(IdFieldMapper.NAME);
         if (idField == null) {
             // no mappings, nothing to exclude
             return;

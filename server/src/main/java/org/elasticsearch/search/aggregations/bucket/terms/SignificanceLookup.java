@@ -55,7 +55,7 @@ class SignificanceLookup {
     }
 
     private final AggregationContext context;
-    private final MappedField<?> mappedField;
+    private final MappedField mappedField;
     private final DocValueFormat format;
     private final Query backgroundFilter;
     private final int supersetNumDocs;
@@ -64,7 +64,7 @@ class SignificanceLookup {
     SignificanceLookup(
         AggregationContext context,
         SamplingContext samplingContext,
-        MappedField<?> mappedField,
+        MappedField mappedField,
         DocValueFormat format,
         QueryBuilder backgroundFilter
     ) throws IOException {

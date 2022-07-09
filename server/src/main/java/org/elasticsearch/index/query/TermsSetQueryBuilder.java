@@ -246,7 +246,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
      * Visible only for testing purposes.
      */
     List<Query> createTermQueries(SearchExecutionContext context) {
-        final MappedField<?> fieldType = context.getMappedField(fieldName);
+        final MappedField fieldType = context.getMappedField(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
             if (fieldType != null) {
@@ -261,7 +261,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     private LongValuesSource createValuesSource(SearchExecutionContext context) {
         LongValuesSource longValuesSource;
         if (minimumShouldMatchField != null) {
-            MappedField<?> msmField = context.getMappedField(minimumShouldMatchField);
+            MappedField msmField = context.getMappedField(minimumShouldMatchField);
             if (msmField == null) {
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }

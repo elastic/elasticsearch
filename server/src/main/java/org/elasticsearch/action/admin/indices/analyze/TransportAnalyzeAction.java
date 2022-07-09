@@ -185,13 +185,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (indexService == null) {
                 throw new IllegalArgumentException("analysis based on a specific field requires an index");
             }
-            MappedField<?> fieldType = indexService.mapperService().mappedField(request.field());
-            if (fieldType != null) {
-                if (fieldType.type() instanceof StringFieldType) {
+            MappedField mappedField = indexService.mapperService().mappedField(request.field());
+            if (mappedField != null) {
+                if (mappedField.type() instanceof StringFieldType) {
                     return indexService.mapperService()
                         .indexAnalyzer(
-                            fieldType.name(),
-                            f -> { throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name()); }
+                            mappedField.name(),
+                            f -> { throw new IllegalArgumentException("No analyzer configured for field " + mappedField.name()); }
                         );
                 } else {
                     throw new IllegalArgumentException(

@@ -36,7 +36,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
 
     protected AbstractPointGeometryFieldMapper(
         String simpleName,
-        MappedField<? extends AbstractGeometryFieldType<T>> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
@@ -50,7 +50,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
 
     protected AbstractPointGeometryFieldMapper(
         String simpleName,
-        MappedField<? extends AbstractGeometryFieldType<T>> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser,

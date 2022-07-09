@@ -42,7 +42,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         CharsRefBuilder spare
     ) throws IOException {
         if (suggestionContext.getMappedField() != null) {
-            final MappedField<CompletionFieldMapper.CompletionFieldType> mappedField = suggestionContext.getMappedField();
+            final MappedField mappedField = suggestionContext.getMappedField();
+            CompletionFieldMapper.CompletionFieldType completionFieldType = (CompletionFieldMapper.CompletionFieldType) mappedField.type();
             CompletionSuggestion completionSuggestion = emptySuggestion(name, suggestionContext, spare);
             int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
             TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
@@ -51,10 +52,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             for (TopSuggestDocs.SuggestScoreDoc suggestDoc : collector.get().scoreLookupDocs()) {
                 // collect contexts
                 Map<String, Set<String>> contexts = Collections.emptyMap();
-                if (mappedField.type().hasContextMappings()) {
+                if (completionFieldType.hasContextMappings()) {
                     List<CharSequence> rawContexts = collector.getContexts(suggestDoc.doc);
                     if (rawContexts.size() > 0) {
-                        contexts = mappedField.type().getContextMappings().getNamedContexts(rawContexts);
+                        contexts = completionFieldType.getContextMappings().getNamedContexts(rawContexts);
                     }
                 }
                 if (numResult++ < suggestionContext.getSize()) {

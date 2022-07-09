@@ -127,7 +127,7 @@ public final class QueryParserHelper {
                 fieldName = fieldName + fieldSuffix;
             }
 
-            MappedField<?> mappedField = context.getMappedField(fieldName);
+            MappedField mappedField = context.getMappedField(fieldName);
             if (acceptMetadataField == false && mappedField.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;

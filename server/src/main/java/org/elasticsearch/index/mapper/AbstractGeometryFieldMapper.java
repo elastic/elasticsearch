@@ -130,7 +130,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     protected AbstractGeometryFieldMapper(
         String simpleName,
-        MappedField<? extends AbstractGeometryFieldType<T>> mappedField,
+        MappedField mappedField,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
         MultiFields multiFields,
@@ -145,7 +145,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     protected AbstractGeometryFieldMapper(
         String simpleName,
-        MappedField<? extends AbstractGeometryFieldType<T>> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser,

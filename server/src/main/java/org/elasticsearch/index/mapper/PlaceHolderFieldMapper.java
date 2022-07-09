@@ -94,7 +94,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
             PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(type, Map.of());
             return new PlaceHolderFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name), mappedFieldType),
+                new MappedField(context.buildFullName(name), mappedFieldType),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 unknownParams
@@ -296,7 +296,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
     public PlaceHolderFieldMapper(
         String simpleName,
-        MappedField<PlaceHolderFieldType> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Map<String, Object> unknownParams

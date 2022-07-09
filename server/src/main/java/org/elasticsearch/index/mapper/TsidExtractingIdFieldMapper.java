@@ -104,7 +104,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     private TsidExtractingIdFieldMapper() {
-        super(new MappedField<>(NAME, new IdFieldType()));
+        super(new MappedField(NAME, new IdFieldType()));
     }
 
     private static final long SEED = 0;

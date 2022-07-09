@@ -91,7 +91,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     public IndexFieldMapper() {
-        super(new MappedField<>(NAME, IndexFieldType.INSTANCE));
+        super(new MappedField(NAME, IndexFieldType.INSTANCE));
     }
 
     @Override

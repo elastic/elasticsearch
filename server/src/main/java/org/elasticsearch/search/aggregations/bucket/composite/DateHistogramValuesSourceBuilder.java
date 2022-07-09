@@ -240,7 +240,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                 RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
                 // is specified in the builder.
                 final DocValueFormat docValueFormat = format == null ? DocValueFormat.RAW : valuesSourceConfig.format();
-                final MappedField<?> mappedField = valuesSourceConfig.mappedField();
+                final MappedField mappedField = valuesSourceConfig.mappedField();
                 return new CompositeValuesSourceConfig(
                     name,
                     mappedField,

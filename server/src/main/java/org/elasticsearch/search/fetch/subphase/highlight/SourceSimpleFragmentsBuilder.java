@@ -27,7 +27,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     private final ValueFetcher valueFetcher;
 
     public SourceSimpleFragmentsBuilder(
-        MappedField<?> mappedField,
+        MappedField mappedField,
         FetchContext fetchContext,
         boolean fixBrokenAnalysis,
         SourceLookup sourceLookup,

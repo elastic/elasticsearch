@@ -196,7 +196,7 @@ public class MatchQueryParser {
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final MappedField<?> mappedField = context.getMappedField(fieldName);
+        final MappedField mappedField = context.getMappedField(fieldName);
         if (mappedField == null) {
             return newUnmappedFieldQuery(fieldName);
         }
@@ -256,7 +256,7 @@ public class MatchQueryParser {
         return query == null ? zeroTermsQuery.asQuery() : query;
     }
 
-    protected Analyzer getAnalyzer(MappedField<?> fieldType, boolean quoted) {
+    protected Analyzer getAnalyzer(MappedField fieldType, boolean quoted) {
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
         assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
@@ -274,7 +274,7 @@ public class MatchQueryParser {
          */
         MatchQueryBuilder(
             Analyzer analyzer,
-            MappedField<?> mappedField,
+            MappedField mappedField,
             boolean enablePositionIncrements,
             boolean autoGenerateSynonymsPhraseQuery
         ) {

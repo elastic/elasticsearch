@@ -163,7 +163,7 @@ public class RangeFieldMapper extends FieldMapper {
             RangeFieldType ft = setupFieldType(context);
             return new RangeFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name), ft),
+                new MappedField(context.buildFullName(name), ft),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 type,
@@ -341,7 +341,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     private RangeFieldMapper(
         String simpleName,
-        MappedField<RangeFieldType> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         RangeType type,

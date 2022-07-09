@@ -171,7 +171,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    public Query buildShapeQuery(SearchExecutionContext context, MappedField<?> mappedField) {
+    public Query buildShapeQuery(SearchExecutionContext context, MappedField mappedField) {
         if ((mappedField.type() instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(
                 context,

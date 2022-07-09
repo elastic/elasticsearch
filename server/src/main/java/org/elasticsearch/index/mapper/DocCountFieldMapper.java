@@ -77,7 +77,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     private DocCountFieldMapper() {
-        super(new MappedField<>(NAME, DocCountFieldType.INSTANCE));
+        super(new MappedField(NAME, DocCountFieldType.INSTANCE));
     }
 
     @Override

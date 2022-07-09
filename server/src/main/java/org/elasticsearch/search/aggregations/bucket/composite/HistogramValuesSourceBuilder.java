@@ -72,7 +72,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
-                final MappedField<?> mappedField = valuesSourceConfig.mappedField();
+                final MappedField mappedField = valuesSourceConfig.mappedField();
                 return new CompositeValuesSourceConfig(
                     name,
                     mappedField,

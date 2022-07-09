@@ -193,10 +193,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             );
             String fullName = context.buildFullName(name);
             String childName = fullName + KEYED_FIELD_SUFFIX;
-            return new FlattenedFieldMapper(name, new DynamicMappedField<>(fullName, ft) {
+            return new FlattenedFieldMapper(name, new DynamicMappedField(fullName, ft) {
                 @Override
-                public MappedField<?> getChildFieldType(String childPath) {
-                    return new MappedField<>(childName, new KeyedFlattenedFieldType(childPath, ft));
+                public MappedField getChildFieldType(String childPath) {
+                    return new MappedField(childName, new KeyedFlattenedFieldType(childPath, ft));
                 }
             }, this);
         }
@@ -659,7 +659,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String simpleName, MappedField<?> mappedField, Builder builder) {
+    private FlattenedFieldMapper(String simpleName, MappedField mappedField, Builder builder) {
         super(simpleName, mappedField, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(

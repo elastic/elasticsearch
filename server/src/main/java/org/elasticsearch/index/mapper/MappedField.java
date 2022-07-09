@@ -41,12 +41,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class MappedField<T extends MappedFieldType> {
+public class MappedField {
 
     private final String name;
-    private final T type;
+    private final MappedFieldType type;
 
-    public MappedField(String name, T type) {
+    public MappedField(String name, MappedFieldType type) {
         this.name = Mapper.internFieldName(name);
         this.type = type;
     }
@@ -55,7 +55,7 @@ public class MappedField<T extends MappedFieldType> {
         return name;
     }
 
-    public T type() {
+    public MappedFieldType type() {
         return type;
     }
 

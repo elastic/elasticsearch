@@ -103,7 +103,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedField<?> fieldType = context.getMappedField(field);
+        MappedField fieldType = context.getMappedField(field);
         if (fieldType == null) {
             return Queries.newMatchNoDocsQuery("Can't run [" + NAME + "] query on unmapped fields!");
         }

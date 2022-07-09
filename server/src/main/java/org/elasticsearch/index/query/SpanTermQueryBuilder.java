@@ -71,7 +71,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
     @Override
     protected SpanQuery doToQuery(SearchExecutionContext context) throws IOException {
-        MappedField<?> mapper = context.getMappedField(fieldName);
+        MappedField mapper = context.getMappedField(fieldName);
         Term term;
         if (mapper == null) {
             term = new Term(fieldName, BytesRefs.toBytesRef(value));

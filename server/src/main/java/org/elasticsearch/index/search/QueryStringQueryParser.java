@@ -477,7 +477,7 @@ public class QueryStringQueryParser extends QueryParser {
     }
 
     private Query getFuzzyQuerySingle(String field, String termStr, int minSimilarity) throws ParseException {
-        MappedField<?> mappedField = context.getMappedField(field);
+        MappedField mappedField = context.getMappedField(field);
         if (mappedField == null || mappedField.getTextSearchInfo() == TextSearchInfo.NONE) {
             return newUnmappedFieldQuery(field);
         }
@@ -534,7 +534,7 @@ public class QueryStringQueryParser extends QueryParser {
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedField<?> mappedField = context.getMappedField(field);
+            MappedField mappedField = context.getMappedField(field);
             if (mappedField == null || mappedField.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
@@ -556,7 +556,7 @@ public class QueryStringQueryParser extends QueryParser {
         }
     }
 
-    private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr, MappedField<?> mappedField) throws ParseException {
+    private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr, MappedField mappedField) throws ParseException {
         if (analyzeWildcard == false) {
             return mappedField.prefixQuery(getAnalyzer().normalize(field, termStr).utf8ToString(), getMultiTermRewriteMethod(), context);
         }
@@ -690,7 +690,7 @@ public class QueryStringQueryParser extends QueryParser {
         }
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedField<?> mappedField = queryBuilder.context.getMappedField(field);
+            MappedField mappedField = queryBuilder.context.getMappedField(field);
             if (mappedField == null) {
                 return newUnmappedFieldQuery(field);
             }
@@ -748,7 +748,7 @@ public class QueryStringQueryParser extends QueryParser {
     private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedField<?> mappedField = queryBuilder.context.getMappedField(field);
+            MappedField mappedField = queryBuilder.context.getMappedField(field);
             if (mappedField == null) {
                 return newUnmappedFieldQuery(field);
             }

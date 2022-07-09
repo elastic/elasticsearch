@@ -168,7 +168,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private final boolean createdOnOrAfterV8;
 
     private FieldNamesFieldMapper(Explicit<Boolean> enabled, boolean createdOnOrAfterV8) {
-        super(new MappedField<>(NAME, FieldNamesFieldType.get(enabled.value())));
+        super(new MappedField(NAME, FieldNamesFieldType.get(enabled.value())));
         this.enabled = enabled;
         this.createdOnOrAfterV8 = createdOnOrAfterV8;
     }

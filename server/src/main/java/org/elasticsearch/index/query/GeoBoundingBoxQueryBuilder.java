@@ -255,7 +255,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     public Query doToQuery(SearchExecutionContext context) {
-        MappedField<?> fieldType = context.getMappedField(fieldName);
+        MappedField fieldType = context.getMappedField(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

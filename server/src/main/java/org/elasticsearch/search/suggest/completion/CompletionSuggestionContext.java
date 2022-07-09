@@ -27,18 +27,20 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         super(CompletionSuggester.INSTANCE, searchExecutionContext);
     }
 
-    private MappedField<CompletionFieldMapper.CompletionFieldType> mappedField;
+    private MappedField mappedField;
+    CompletionFieldMapper.CompletionFieldType completionFieldType;
     private FuzzyOptions fuzzyOptions;
     private RegexOptions regexOptions;
     private boolean skipDuplicates;
     private Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
 
-    MappedField<CompletionFieldMapper.CompletionFieldType> getMappedField() {
+    MappedField getMappedField() {
         return this.mappedField;
     }
 
-    void setMappedField(MappedField<CompletionFieldMapper.CompletionFieldType> mappedField) {
+    void setMappedField(MappedField mappedField) {
         this.mappedField = mappedField;
+        completionFieldType = (CompletionFieldMapper.CompletionFieldType) mappedField.type();
     }
 
     void setRegexOptions(RegexOptions regexOptions) {
@@ -84,15 +86,19 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
             if (regexOptions == null) {
                 regexOptions = RegexOptions.builder().build();
             }
-            query = mappedField.type()
-                .regexpQuery(mappedField.name(), getRegex(), regexOptions.getFlagsValue(), regexOptions.getMaxDeterminizedStates());
+            query = completionFieldType.regexpQuery(
+                mappedField.name(),
+                getRegex(),
+                regexOptions.getFlagsValue(),
+                regexOptions.getMaxDeterminizedStates()
+            );
         } else if (getText() != null) {
             query = createCompletionQuery(getText());
         } else {
             throw new IllegalArgumentException("'prefix/text' or 'regex' must be defined");
         }
-        if (mappedField.type().hasContextMappings()) {
-            ContextMappings contextMappings = mappedField.type().getContextMappings();
+        if (completionFieldType.hasContextMappings()) {
+            ContextMappings contextMappings = completionFieldType.getContextMappings();
             return contextMappings.toContextQuery(query, queryContexts);
         }
         return query;
@@ -101,19 +107,18 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionQuery createCompletionQuery(BytesRef prefix) {
         final CompletionQuery query;
         if (fuzzyOptions != null) {
-            query = mappedField.type()
-                .fuzzyQuery(
-                    mappedField.name(),
-                    prefix.utf8ToString(),
-                    Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
-                    fuzzyOptions.getFuzzyPrefixLength(),
-                    fuzzyOptions.getFuzzyMinLength(),
-                    fuzzyOptions.getMaxDeterminizedStates(),
-                    fuzzyOptions.isTranspositions(),
-                    fuzzyOptions.isUnicodeAware()
-                );
+            query = completionFieldType.fuzzyQuery(
+                mappedField.name(),
+                prefix.utf8ToString(),
+                Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
+                fuzzyOptions.getFuzzyPrefixLength(),
+                fuzzyOptions.getFuzzyMinLength(),
+                fuzzyOptions.getMaxDeterminizedStates(),
+                fuzzyOptions.isTranspositions(),
+                fuzzyOptions.isUnicodeAware()
+            );
         } else {
-            query = mappedField.type().prefixQuery(mappedField.name(), prefix);
+            query = completionFieldType.prefixQuery(mappedField.name(), prefix);
         }
         return query;
     }

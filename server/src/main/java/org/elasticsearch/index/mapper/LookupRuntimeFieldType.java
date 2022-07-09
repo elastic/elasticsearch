@@ -151,7 +151,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
                 targetField.get(),
                 fetchFields.get()
             );
-            return new LeafRuntimeField(name, new MappedField<>(name, ft), getParameters());
+            return new LeafRuntimeField(name, new MappedField(name, ft), getParameters());
         }
 
         @Override

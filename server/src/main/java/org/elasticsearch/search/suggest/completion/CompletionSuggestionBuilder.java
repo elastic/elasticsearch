@@ -279,22 +279,21 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         if (shardSize != null) {
             suggestionContext.setShardSize(shardSize);
         }
-        MappedField<?> mappedField = context.getMappedField(suggestionContext.getField());
+        MappedField mappedField = context.getMappedField(suggestionContext.getField());
         if (mappedField.type() instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
-        @SuppressWarnings("unchecked")
-        MappedField<CompletionFieldMapper.CompletionFieldType> field = (MappedField<CompletionFieldMapper.CompletionFieldType>) mappedField;
-        suggestionContext.setMappedField(field);
-        if (field.type().hasContextMappings() && contextBytes != null) {
+        CompletionFieldMapper.CompletionFieldType completionFieldType = (CompletionFieldMapper.CompletionFieldType) mappedField.type();
+        suggestionContext.setMappedField(mappedField);
+        if (completionFieldType.hasContextMappings() && contextBytes != null) {
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(
                 contextBytes,
                 context.getParserConfig(),
-                field.type().getContextMappings()
+                completionFieldType.getContextMappings()
             );
             suggestionContext.setQueryContexts(queryContexts);
         } else if (contextBytes != null) {
-            throw new IllegalArgumentException("suggester [" + field.name() + "] doesn't expect any context");
+            throw new IllegalArgumentException("suggester [" + mappedField.name() + "] doesn't expect any context");
         }
         assert suggestionContext.getMappedField() != null : "no completion field type set";
         return suggestionContext;

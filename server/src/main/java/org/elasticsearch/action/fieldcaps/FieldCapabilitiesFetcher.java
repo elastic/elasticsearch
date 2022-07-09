@@ -112,7 +112,7 @@ class FieldCapabilitiesFetcher {
         Predicate<MappedField> filter = buildFilter(indexFieldfilter, filters, types, context);
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
-            MappedField<?> ft = context.getMappedField(field);
+            MappedField ft = context.getMappedField(field);
             if (filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,

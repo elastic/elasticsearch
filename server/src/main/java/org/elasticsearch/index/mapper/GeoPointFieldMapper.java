@@ -338,8 +338,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
-                                   LatLonGeometry... geometries) {
+        public Query geoShapeQuery(
+            String name,
+            SearchExecutionContext context,
+            String fieldName,
+            ShapeRelation relation,
+            LatLonGeometry... geometries
+        ) {
             failIfNotIndexedNorDocValuesFallback(name, context);
             final ShapeField.QueryRelation luceneRelation;
             if (relation == ShapeRelation.INTERSECTS && isPointGeometry(geometries)) {

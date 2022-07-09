@@ -111,14 +111,24 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public Query prefixQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
-                             SearchExecutionContext context) {
+    public Query prefixQuery(
+        String name,
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException(unsupported(name, "prefix", "keyword, text and wildcard"));
     }
 
     @Override
-    public Query wildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
-                               SearchExecutionContext context) {
+    public Query wildcardQuery(
+        String name,
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException(unsupported(name, "wildcard", "keyword, text and wildcard"));
     }
 
@@ -141,8 +151,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                  SearchExecutionContext context) {
+    public Query multiPhraseQuery(
+        String name,
+        TokenStream stream,
+        int slop,
+        boolean enablePositionIncrements,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException(unsupported(name, "phrase", "text"));
     }
 
@@ -152,8 +167,12 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
-                                     SearchExecutionContext context) {
+    public SpanQuery spanPrefixQuery(
+        String name,
+        String value,
+        SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException(unsupported(name, "span prefix", "text"));
     }
 
@@ -181,8 +200,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public final ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(name, format, null),
-            context.getForField(new MappedField<>(name, this)));
+        return new DocValueFetcher(docValueFormat(name, format, null), context.getForField(new MappedField<>(name, this)));
     }
 
     /**

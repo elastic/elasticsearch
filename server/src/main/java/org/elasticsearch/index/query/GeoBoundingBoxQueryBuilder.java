@@ -25,7 +25,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedField;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -300,8 +299,14 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             luceneTopLeft.getLat(),
             luceneBottomRight.getLat()
         );
-        return geoShapeQueryable.geoShapeQuery(fieldType.name(), context, fieldType.name(), SpatialStrategy.RECURSIVE,
-            ShapeRelation.INTERSECTS, rectangle);
+        return geoShapeQueryable.geoShapeQuery(
+            fieldType.name(),
+            context,
+            fieldType.name(),
+            SpatialStrategy.RECURSIVE,
+            ShapeRelation.INTERSECTS,
+            rectangle
+        );
     }
 
     @Override

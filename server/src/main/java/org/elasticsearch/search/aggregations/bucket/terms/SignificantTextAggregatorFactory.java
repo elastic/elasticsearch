@@ -168,8 +168,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             ? null
             : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        final SignificanceLookup lookup = new SignificanceLookup(context, samplingContext, mappedField, DocValueFormat.RAW,
-            backgroundFilter);
+        final SignificanceLookup lookup = new SignificanceLookup(
+            context,
+            samplingContext,
+            mappedField,
+            DocValueFormat.RAW,
+            backgroundFilter
+        );
         final CollectorSource collectorSource = createCollectorSource();
         boolean success = false;
         try {

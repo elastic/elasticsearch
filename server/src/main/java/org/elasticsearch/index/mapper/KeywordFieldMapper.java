@@ -511,9 +511,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(String name, boolean caseInsensitive, String string, SearchExecutionContext queryShardContext,
-                                  String searchAfter)
-            throws IOException {
+        public TermsEnum getTerms(
+            String name,
+            boolean caseInsensitive,
+            String string,
+            SearchExecutionContext queryShardContext,
+            String searchAfter
+        ) throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
             Terms terms = null;
@@ -773,8 +777,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query normalizedWildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method,
-                                             SearchExecutionContext context) {
+        public Query normalizedWildcardQuery(
+            String name,
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexedNorDocValuesFallback(name, context);
             if (isIndexed()) {
                 return super.normalizedWildcardQuery(name, value, method, context);

@@ -96,8 +96,13 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         int topN,
         @Nullable FieldDoc after
     ) {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Numeric(mappedGroupField), groupField, groupSort, topN,
-            after);
+        return new SinglePassGroupingCollector<>(
+            new GroupingDocValuesSelector.Numeric(mappedGroupField),
+            groupField,
+            groupSort,
+            topN,
+            after
+        );
     }
 
     /**
@@ -120,8 +125,13 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         int topN,
         @Nullable FieldDoc after
     ) {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Keyword(mappedGroupField), groupField, groupSort, topN,
-            after);
+        return new SinglePassGroupingCollector<>(
+            new GroupingDocValuesSelector.Keyword(mappedGroupField),
+            groupField,
+            groupSort,
+            topN,
+            after
+        );
     }
 
     private final String groupField;

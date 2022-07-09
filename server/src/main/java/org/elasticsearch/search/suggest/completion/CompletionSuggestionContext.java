@@ -84,8 +84,8 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
             if (regexOptions == null) {
                 regexOptions = RegexOptions.builder().build();
             }
-            query = mappedField.type().regexpQuery(mappedField.name(), getRegex(), regexOptions.getFlagsValue(),
-                regexOptions.getMaxDeterminizedStates());
+            query = mappedField.type()
+                .regexpQuery(mappedField.name(), getRegex(), regexOptions.getFlagsValue(), regexOptions.getMaxDeterminizedStates());
         } else if (getText() != null) {
             query = createCompletionQuery(getText());
         } else {
@@ -101,16 +101,17 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionQuery createCompletionQuery(BytesRef prefix) {
         final CompletionQuery query;
         if (fuzzyOptions != null) {
-            query = mappedField.type().fuzzyQuery(
-                mappedField.name(),
-                prefix.utf8ToString(),
-                Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
-                fuzzyOptions.getFuzzyPrefixLength(),
-                fuzzyOptions.getFuzzyMinLength(),
-                fuzzyOptions.getMaxDeterminizedStates(),
-                fuzzyOptions.isTranspositions(),
-                fuzzyOptions.isUnicodeAware()
-            );
+            query = mappedField.type()
+                .fuzzyQuery(
+                    mappedField.name(),
+                    prefix.utf8ToString(),
+                    Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
+                    fuzzyOptions.getFuzzyPrefixLength(),
+                    fuzzyOptions.getFuzzyMinLength(),
+                    fuzzyOptions.getMaxDeterminizedStates(),
+                    fuzzyOptions.isTranspositions(),
+                    fuzzyOptions.isUnicodeAware()
+                );
         } else {
             query = mappedField.type().prefixQuery(mappedField.name(), prefix);
         }

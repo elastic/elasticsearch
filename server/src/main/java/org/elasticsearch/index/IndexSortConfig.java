@@ -249,8 +249,11 @@ public final class IndexSortConfig {
             try {
                 fieldData = fieldDataLookup.apply(
                     mappedField,
-                    () -> { throw new UnsupportedOperationException(
-                        "index sorting not supported on runtime field [" + mappedField.name() + "]"); }
+                    () -> {
+                        throw new UnsupportedOperationException(
+                            "index sorting not supported on runtime field [" + mappedField.name() + "]"
+                        );
+                    }
                 );
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);

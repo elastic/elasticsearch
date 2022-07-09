@@ -77,8 +77,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query prefixQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
-                             SearchExecutionContext context) {
+    public Query prefixQuery(
+        String name,
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[prefix] queries cannot be executed when '"
@@ -134,8 +139,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query wildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
-                               SearchExecutionContext context) {
+    public Query wildcardQuery(
+        String name,
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
         return wildcardQuery(name, value, method, caseInsensitive, false, context);
     }
 
@@ -192,8 +202,12 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed(name);
-        RegexpQuery query = new RegexpQuery(new Term(name, indexedValueForSearch(name, value)), syntaxFlags, matchFlags,
-            maxDeterminizedStates);
+        RegexpQuery query = new RegexpQuery(
+            new Term(name, indexedValueForSearch(name, value)),
+            syntaxFlags,
+            matchFlags,
+            maxDeterminizedStates
+        );
         if (method != null) {
             query.setRewriteMethod(method);
         }

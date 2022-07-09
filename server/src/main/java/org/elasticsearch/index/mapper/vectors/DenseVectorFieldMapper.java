@@ -130,14 +130,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name),
+                new MappedField<>(
+                    context.buildFullName(name),
                     new DenseVectorFieldType(
-                    indexVersionCreated,
-                    dims.getValue(),
-                    indexed.getValue(),
-                    similarity.getValue(),
-                    meta.getValue()
-                )),
+                        indexVersionCreated,
+                        dims.getValue(),
+                        indexed.getValue(),
+                        similarity.getValue(),
+                        meta.getValue()
+                    )
+                ),
                 dims.getValue(),
                 indexed.getValue(),
                 similarity.getValue(),

@@ -230,8 +230,13 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
-            return new NumberFieldMapper(name, new MappedField<>(context.buildFullName(name), new NumberFieldType( this)),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new NumberFieldMapper(
+                name,
+                new MappedField<>(context.buildFullName(name), new NumberFieldType(this)),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -1484,8 +1489,13 @@ public class NumberFieldMapper extends FieldMapper {
     private final MetricType metricType;
     private final Version indexCreatedVersion;
 
-    private NumberFieldMapper(String simpleName, MappedField<NumberFieldType> mappedField, MultiFields multiFields, CopyTo copyTo,
-                              Builder builder) {
+    private NumberFieldMapper(
+        String simpleName,
+        MappedField<NumberFieldType> mappedField,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
         super(simpleName, mappedField, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();

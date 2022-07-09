@@ -42,11 +42,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
-            BooleanFieldScript.Factory factory,
-            Script script,
-            Map<String, String> meta
-        ) {
+        AbstractScriptFieldType<?> createFieldType(BooleanFieldScript.Factory factory, Script script, Map<String, String> meta) {
             return new BooleanScriptFieldType(factory, script, meta);
         }
 
@@ -100,8 +96,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public BooleanScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
-                                                           Supplier<SearchLookup> searchLookup) {
+    public BooleanScriptFieldData.Builder fielddataBuilder(
+        String name,
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup
+    ) {
         return new BooleanScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), BooleanDocValuesField::new);
     }
 

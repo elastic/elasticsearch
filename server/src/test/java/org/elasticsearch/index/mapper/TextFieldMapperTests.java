@@ -535,7 +535,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
         enabledMapper.mappedField("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }); // no exception
-                                                                                                                         // this time
+                                                                                                                           // this time
 
         e = expectThrows(
             MapperParsingException.class,

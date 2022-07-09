@@ -92,9 +92,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         int value = parser.intValue(false);
         if (value <= 0) {
-            throw new IllegalArgumentException(
-                "Field [" + name() + "] must be a positive integer. Value [" + value + "] is not allowed."
-            );
+            throw new IllegalArgumentException("Field [" + name() + "] must be a positive integer. Value [" + value + "] is not allowed.");
         }
         context.doc().addWithKey(NAME, field(value));
     }

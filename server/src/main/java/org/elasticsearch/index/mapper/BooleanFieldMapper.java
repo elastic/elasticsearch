@@ -125,8 +125,13 @@ public class BooleanFieldMapper extends FieldMapper {
                 meta.getValue()
             );
 
-            return new BooleanFieldMapper(name, new MappedField<>(context.buildFullName(name), ft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new BooleanFieldMapper(
+                name,
+                new MappedField<>(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
 
         private FieldValues<Boolean> scriptValues() {

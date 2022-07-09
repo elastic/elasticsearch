@@ -318,9 +318,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(String name, boolean caseInsensitive, String string, SearchExecutionContext queryShardContext,
-                                  String searchAfter)
-            throws IOException {
+        public TermsEnum getTerms(
+            String name,
+            boolean caseInsensitive,
+            String string,
+            SearchExecutionContext queryShardContext,
+            String searchAfter
+        ) throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
             Terms terms = MultiTerms.getTerms(reader, name);
             if (terms == null) {
@@ -368,9 +372,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             String fieldName = name + KEYED_FIELD_SUFFIX + "." + key;
             if (format != null) {
-                throw new IllegalArgumentException(
-                    "Field [" + fieldName + "] of type [" + typeName() + "] doesn't support formats."
-                );
+                throw new IllegalArgumentException("Field [" + fieldName + "] of type [" + typeName() + "] doesn't support formats.");
             }
             return SourceValueFetcher.identity(fieldName, context, null);
         }

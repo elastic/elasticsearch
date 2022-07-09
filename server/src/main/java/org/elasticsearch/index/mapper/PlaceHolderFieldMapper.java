@@ -190,8 +190,12 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query normalizedWildcardQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
-                                             SearchExecutionContext context) {
+        public Query normalizedWildcardQuery(
+            String name,
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
             throw new QueryShardException(context, fail("normalized wildcard query"));
         }
 
@@ -209,26 +213,40 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                 SearchExecutionContext context) {
+        public Query phraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext context
+        ) {
             throw new QueryShardException(context, fail("phrase query"));
         }
 
         @Override
-        public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                      SearchExecutionContext context) {
+        public Query multiPhraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext context
+        ) {
             throw new QueryShardException(context, fail("multi-phrase query"));
         }
 
         @Override
-        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions,
-                                       SearchExecutionContext context) throws IOException {
+        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context)
+            throws IOException {
             throw new QueryShardException(context, fail("phrase prefix query"));
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
-                                         SearchExecutionContext context) {
+        public SpanQuery spanPrefixQuery(
+            String name,
+            String value,
+            SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+            SearchExecutionContext context
+        ) {
             throw new QueryShardException(context, fail("span prefix query"));
         }
 

@@ -13,7 +13,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MappedField;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;

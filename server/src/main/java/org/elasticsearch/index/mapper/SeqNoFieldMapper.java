@@ -122,7 +122,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();
 
         private SeqNoFieldType() {
-            super( true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
+            super(true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
         }
 
         @Override

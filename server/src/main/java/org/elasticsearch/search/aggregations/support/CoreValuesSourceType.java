@@ -164,8 +164,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
             if ((fieldContext.indexFieldData() instanceof IndexGeoPointFieldData) == false) {
                 throw new IllegalArgumentException(
-                    "Expected geo_point type on field [" + fieldContext.field() + "], but got [" +
-                        fieldContext.mappedField().typeName() + "]"
+                    "Expected geo_point type on field ["
+                        + fieldContext.field()
+                        + "], but got ["
+                        + fieldContext.mappedField().typeName()
+                        + "]"
                 );
             }
 
@@ -205,8 +208,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             MappedFieldType fieldType = fieldContext.mappedField().type();
 
             if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
-                throw new IllegalArgumentException("Asked for range ValuesSource, but field is of type " +
-                    fieldContext.mappedField().name());
+                throw new IllegalArgumentException(
+                    "Asked for range ValuesSource, but field is of type " + fieldContext.mappedField().name()
+                );
             }
             RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType) fieldType;
             return new ValuesSource.Range(fieldContext.indexFieldData(), rangeFieldType.rangeType());

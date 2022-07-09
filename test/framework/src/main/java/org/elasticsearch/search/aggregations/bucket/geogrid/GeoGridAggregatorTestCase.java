@@ -27,7 +27,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -88,7 +88,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     protected abstract Rectangle getTile(double lng, double lat, int precision);
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return createBuilder("foo").field(fieldName);
     }
 
@@ -338,9 +338,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
 
-        MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(aggregationBuilder.field());
+        MappedField mappedField = new MappedField<>(aggregationBuilder.field(), new GeoPointFieldMapper.GeoPointFieldType());
 
-        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, mappedField);
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();

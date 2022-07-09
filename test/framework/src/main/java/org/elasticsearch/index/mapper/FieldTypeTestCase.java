@@ -44,11 +44,11 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         return searchExecutionContext;
     }
 
-    public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue) throws IOException {
+    public static List<?> fetchSourceValue(MappedField fieldType, Object sourceValue) throws IOException {
         return fetchSourceValue(fieldType, sourceValue, null);
     }
 
-    public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
+    public static List<?> fetchSourceValue(MappedField fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
@@ -60,13 +60,13 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         return fetcher.fetchValues(lookup, new ArrayList<>());
     }
 
-    public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
-        String field = fieldType.name();
+    public static List<?> fetchSourceValues(MappedField mappedField, Object... values) throws IOException {
+        String field = mappedField.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
+        ValueFetcher fetcher = mappedField.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, List.of(values)));
         return fetcher.fetchValues(lookup, new ArrayList<>());

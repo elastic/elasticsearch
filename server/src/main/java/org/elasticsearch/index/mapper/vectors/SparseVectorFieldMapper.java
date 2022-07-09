@@ -106,7 +106,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedField<SparseVectorFieldType> mappedField, MultiFields multiFields, CopyTo copyTo) {
+    private SparseVectorFieldMapper(
+        String simpleName,
+        MappedField<SparseVectorFieldType> mappedField,
+        MultiFields multiFields,
+        CopyTo copyTo
+    ) {
         super(simpleName, mappedField, multiFields, copyTo);
     }
 

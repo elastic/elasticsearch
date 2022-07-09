@@ -114,12 +114,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     private final DateFormatter dateTimeFormatter;
     private final DateMathParser dateMathParser;
 
-    DateScriptFieldType(
-        DateFieldScript.Factory scriptFactory,
-        DateFormatter dateTimeFormatter,
-        Script script,
-        Map<String, String> meta
-    ) {
+    DateScriptFieldType(DateFieldScript.Factory scriptFactory, DateFormatter dateTimeFormatter, Script script, Map<String, String> meta) {
         super(
             (name, searchLookup) -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
             script,
@@ -158,8 +153,11 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public DateScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name, leafFactory(name, lookup.get()),
-            Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
+        return new DateScriptFieldData.Builder(
+            name,
+            leafFactory(name, lookup.get()),
+            Resolution.MILLISECONDS.getDefaultToScriptFieldFactory()
+        );
     }
 
     @Override

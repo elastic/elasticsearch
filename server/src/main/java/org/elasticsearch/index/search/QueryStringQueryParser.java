@@ -558,11 +558,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr, MappedField<?> mappedField) throws ParseException {
         if (analyzeWildcard == false) {
-            return mappedField.prefixQuery(
-                getAnalyzer().normalize(field, termStr).utf8ToString(),
-                getMultiTermRewriteMethod(),
-                context
-            );
+            return mappedField.prefixQuery(getAnalyzer().normalize(field, termStr).utf8ToString(), getMultiTermRewriteMethod(), context);
         }
         List<List<String>> tlist;
         // get Analyzer from superclass and tokenize the term
@@ -649,7 +645,8 @@ public class QueryStringQueryParser extends QueryParser {
             return new MatchNoDocsQuery("No mappings yet");
         }
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-            .getMappedField(FieldNamesFieldMapper.NAME).type();
+            .getMappedField(FieldNamesFieldMapper.NAME)
+            .type();
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(fieldName, "*"));

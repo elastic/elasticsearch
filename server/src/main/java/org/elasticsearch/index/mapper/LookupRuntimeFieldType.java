@@ -187,11 +187,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
-                "cannot be executed against lookup field ["
-                    + name
-                    + "] while ["
-                    + ALLOW_EXPENSIVE_QUERIES.getKey()
-                    + "] is set to [false]."
+                "cannot be executed against lookup field [" + name + "] while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
             );
         }
         return new LookupFieldValueFetcher(context);
@@ -214,8 +210,11 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             final MappedField inputField = context.getMappedField(LookupRuntimeFieldType.this.inputField);
             // do not allow unmapped field
             if (inputField == null) {
-                throw new QueryShardException(context, "No field mapping can be found for the field with name [{}]",
-                    LookupRuntimeFieldType.this.inputField);
+                throw new QueryShardException(
+                    context,
+                    "No field mapping can be found for the field with name [{}]",
+                    LookupRuntimeFieldType.this.inputField
+                );
             }
             this.inputFieldValueFetcher = inputField.valueFetcher(context, null);
         }

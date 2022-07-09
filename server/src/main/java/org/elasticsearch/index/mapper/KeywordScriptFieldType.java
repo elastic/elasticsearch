@@ -50,11 +50,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
-            StringFieldScript.Factory factory,
-            Script script,
-            Map<String, String> meta
-        ) {
+        AbstractScriptFieldType<?> createFieldType(StringFieldScript.Factory factory, Script script, Map<String, String> meta) {
             return new KeywordScriptFieldType(factory, script, meta);
         }
 
@@ -98,8 +94,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public StringScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
-                                                          Supplier<SearchLookup> searchLookup) {
+    public StringScriptFieldData.Builder fielddataBuilder(
+        String name,
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup
+    ) {
         return new StringScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), KeywordDocValuesField::new);
     }
 

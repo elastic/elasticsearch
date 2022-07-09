@@ -38,11 +38,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, GeoPointFieldScript.CONTEXT) {
         @Override
-        AbstractScriptFieldType<?> createFieldType(
-            GeoPointFieldScript.Factory factory,
-            Script script,
-            Map<String, String> meta
-        ) {
+        AbstractScriptFieldType<?> createFieldType(GeoPointFieldScript.Factory factory, Script script, Map<String, String> meta) {
             return new GeoPointScriptFieldType(factory, getScript(), meta());
         }
 
@@ -93,8 +89,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public GeoPointScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
-                                                            Supplier<SearchLookup> searchLookup) {
+    public GeoPointScriptFieldData.Builder fielddataBuilder(
+        String name,
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup
+    ) {
         return new GeoPointScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), GeoPointDocValuesField::new);
     }
 
@@ -105,8 +104,13 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
-                               LatLonGeometry... geometries) {
+    public Query geoShapeQuery(
+        String name,
+        SearchExecutionContext context,
+        String fieldName,
+        ShapeRelation relation,
+        LatLonGeometry... geometries
+    ) {
         if (relation == ShapeRelation.CONTAINS && Arrays.stream(geometries).anyMatch(g -> (g instanceof Point) == false)) {
             return new MatchNoDocsQuery();
         }

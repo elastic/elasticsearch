@@ -99,12 +99,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 ignoreZValue.get().value()
             );
             GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser, orientation.get().value());
-            GeoShapeFieldType ft = new GeoShapeFieldType(
-                indexed.get(),
-                orientation.get().value(),
-                geoShapeParser,
-                meta.get()
-            );
+            GeoShapeFieldType ft = new GeoShapeFieldType(indexed.get(), orientation.get().value(), geoShapeParser, meta.get());
             return new GeoShapeFieldMapper(
                 name,
                 new MappedField<>(context.buildFullName(name), ft),
@@ -129,8 +124,13 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
-                                   LatLonGeometry... geometries) {
+        public Query geoShapeQuery(
+            String name,
+            SearchExecutionContext context,
+            String fieldName,
+            ShapeRelation relation,
+            LatLonGeometry... geometries
+        ) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(

@@ -236,8 +236,8 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, mappedField.type()) == false ||
-            checkMatchAllOrRangeQuery(query, mappedField.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, mappedField.type()) == false
+            || checkMatchAllOrRangeQuery(query, mappedField.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;
@@ -250,7 +250,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             upperPoint = null;
         }
 
-        if (mappedField.type() instanceof NumberFieldMapper.NumberFieldType ft) {
+        if (mappedField.type()instanceof NumberFieldMapper.NumberFieldType ft) {
             final ToLongFunction<byte[]> toBucketFunction;
 
             switch (ft.typeName()) {

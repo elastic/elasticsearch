@@ -52,8 +52,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(name, format, null),
-                context.getForField(new MappedField<>(name, this)));
+            return new DocValueFetcher(docValueFormat(name, format, null), context.getForField(new MappedField<>(name, this)));
         }
 
         @Override

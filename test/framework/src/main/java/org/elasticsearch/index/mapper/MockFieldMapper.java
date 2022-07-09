@@ -16,15 +16,15 @@ import java.util.Collections;
 public class MockFieldMapper extends FieldMapper {
 
     public MockFieldMapper(String fullName) {
-        this(new FakeFieldType(fullName));
+        this(new MappedField<>(fullName, new FakeFieldType()));
     }
 
-    public MockFieldMapper(MappedFieldType fieldType) {
-        this(findSimpleName(fieldType.name()), fieldType, MultiFields.empty(), CopyTo.empty());
+    public MockFieldMapper(MappedField mappedField) {
+        this(findSimpleName(mappedField.name()), mappedField, MultiFields.empty(), CopyTo.empty());
     }
 
-    public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
-        super(findSimpleName(fullName), fieldType, multifields, copyTo, false, null);
+    public MockFieldMapper(String fullName, MappedField mappedField, MultiFields multifields, CopyTo copyTo) {
+        super(findSimpleName(fullName), mappedField, multifields, copyTo, false, null);
     }
 
     @Override
@@ -38,8 +38,8 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public static class FakeFieldType extends TermBasedFieldType {
-        public FakeFieldType(String name) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        public FakeFieldType() {
+            super(true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -48,7 +48,7 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
     }
@@ -66,7 +66,7 @@ public class MockFieldMapper extends FieldMapper {
 
         protected Builder(String name) {
             super(name);
-            this.fieldType = new FakeFieldType(name);
+            this.fieldType = new FakeFieldType();
         }
 
         @Override
@@ -87,7 +87,7 @@ public class MockFieldMapper extends FieldMapper {
         @Override
         public MockFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
+            return new MockFieldMapper(name(), new MappedField<>(name(), fieldType), multiFields, copyTo.build());
         }
     }
 }

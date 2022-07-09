@@ -206,8 +206,11 @@ public class MatchQueryParser {
             IllegalArgumentException iae;
             if (mappedField.type() instanceof PlaceHolderFieldMapper.PlaceHolderFieldType) {
                 iae = new IllegalArgumentException(
-                    "Field [" + mappedField.name() + "] of type [" + mappedField.typeName() +
-                        "] in legacy index does not support match queries"
+                    "Field ["
+                        + mappedField.name()
+                        + "] of type ["
+                        + mappedField.typeName()
+                        + "] in legacy index does not support match queries"
                 );
             } else {
                 iae = new IllegalArgumentException(
@@ -236,8 +239,8 @@ public class MatchQueryParser {
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(resolvedFieldName, stringValue);
             if (type == Type.BOOLEAN_PREFIX
-                && (mappedField.type() instanceof TextFieldMapper.TextFieldType ||
-                mappedField.type() instanceof KeywordFieldMapper.KeywordFieldType)) {
+                && (mappedField.type() instanceof TextFieldMapper.TextFieldType
+                    || mappedField.type() instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);

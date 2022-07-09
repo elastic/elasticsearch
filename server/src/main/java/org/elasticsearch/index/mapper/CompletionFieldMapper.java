@@ -205,8 +205,13 @@ public class CompletionFieldMapper extends FieldMapper {
 
             CompletionFieldType ft = new CompletionFieldType(completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
-            return new CompletionFieldMapper(name, new MappedField<>(context.buildFullName(name), ft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new CompletionFieldMapper(
+                name,
+                new MappedField<>(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
 
         private void checkCompletionContextsLimit() {

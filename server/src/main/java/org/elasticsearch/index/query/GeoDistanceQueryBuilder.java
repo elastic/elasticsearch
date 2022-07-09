@@ -24,7 +24,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedField;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -245,8 +244,14 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType.type();
         final Circle circle = new Circle(center.lon(), center.lat(), this.distance);
-        return geoShapeQueryable.geoShapeQuery(fieldType.name(), context, fieldType.name(), SpatialStrategy.RECURSIVE,
-            ShapeRelation.INTERSECTS, circle);
+        return geoShapeQueryable.geoShapeQuery(
+            fieldType.name(),
+            context,
+            fieldType.name(),
+            SpatialStrategy.RECURSIVE,
+            ShapeRelation.INTERSECTS,
+            circle
+        );
     }
 
     @Override

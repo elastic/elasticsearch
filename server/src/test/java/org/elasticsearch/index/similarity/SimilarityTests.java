@@ -205,7 +205,10 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
         assertThat(mapperService.mappedField("field1").getTextSearchInfo().similarity().get(), instanceOf(LMDirichletSimilarity.class));
 
-        LMDirichletSimilarity similarity = (LMDirichletSimilarity) mapperService.mappedField("field1").getTextSearchInfo().similarity().get();
+        LMDirichletSimilarity similarity = (LMDirichletSimilarity) mapperService.mappedField("field1")
+            .getTextSearchInfo()
+            .similarity()
+            .get();
         assertThat(similarity.getMu(), equalTo(3000f));
     }
 

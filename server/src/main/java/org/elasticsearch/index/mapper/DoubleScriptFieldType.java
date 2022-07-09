@@ -43,11 +43,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
-            DoubleFieldScript.Factory factory,
-            Script script,
-            Map<String, String> meta
-        ) {
+        AbstractScriptFieldType<?> createFieldType(DoubleFieldScript.Factory factory, Script script, Map<String, String> meta) {
             return new DoubleScriptFieldType(factory, script, meta);
         }
 
@@ -95,8 +91,11 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     }
 
     @Override
-    public DoubleScriptFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
-                                                          Supplier<SearchLookup> searchLookup) {
+    public DoubleScriptFieldData.Builder fielddataBuilder(
+        String name,
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup
+    ) {
         return new DoubleScriptFieldData.Builder(name, leafFactory(name, searchLookup.get()), DoubleDocValuesField::new);
     }
 

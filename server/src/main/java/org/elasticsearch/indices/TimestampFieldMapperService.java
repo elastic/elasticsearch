@@ -56,8 +56,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
      * The type of the {@code @timestamp} field keyed by index. Futures may be completed with {@code null} to indicate that there is
      * no usable {@code @timestamp} field.
      */
-    private final Map<Index, PlainActionFuture<MappedField<DateFieldMapper.DateFieldType>>> fieldTypesByIndex =
-        ConcurrentCollections.newConcurrentMap();
+    private final Map<Index, PlainActionFuture<MappedField<DateFieldMapper.DateFieldType>>> fieldTypesByIndex = ConcurrentCollections
+        .newConcurrentMap();
 
     public TimestampFieldMapperService(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this.indicesService = indicesService;

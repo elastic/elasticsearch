@@ -250,8 +250,12 @@ public abstract class MappedFieldType {
     }
 
     // Case sensitive form of prefix query
-    public final Query prefixQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
-                                   SearchExecutionContext context) {
+    public final Query prefixQuery(
+        String name,
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context
+    ) {
         return prefixQuery(name, value, method, false, context);
     }
 
@@ -269,8 +273,12 @@ public abstract class MappedFieldType {
     }
 
     // Case sensitive form of wildcard query
-    public final Query wildcardQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
-                                     SearchExecutionContext context) {
+    public final Query wildcardQuery(
+        String name,
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context
+    ) {
         return wildcardQuery(name, value, method, false, context);
     }
 
@@ -291,8 +299,12 @@ public abstract class MappedFieldType {
         );
     }
 
-    public Query normalizedWildcardQuery(String name, String value, @Nullable MultiTermQuery.RewriteMethod method,
-                                         SearchExecutionContext context) {
+    public Query normalizedWildcardQuery(
+        String name,
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context
+    ) {
         throw new QueryShardException(
             context,
             "Can only use wildcard queries on keyword, text and wildcard fields - not on ["
@@ -335,9 +347,13 @@ public abstract class MappedFieldType {
         );
     }
 
-    public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                  SearchExecutionContext context)
-        throws IOException {
+    public Query multiPhraseQuery(
+        String name,
+        TokenStream stream,
+        int slop,
+        boolean enablePositionIncrements,
+        SearchExecutionContext context
+    ) throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
@@ -350,8 +366,12 @@ public abstract class MappedFieldType {
         );
     }
 
-    public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
-                                     SearchExecutionContext context) {
+    public SpanQuery spanPrefixQuery(
+        String name,
+        String value,
+        SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+        SearchExecutionContext context
+    ) {
         throw new IllegalArgumentException(
             "Can only use span prefix queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
@@ -464,9 +484,7 @@ public abstract class MappedFieldType {
 
     protected final void failIfNotIndexedNorDocValuesFallback(String name, SearchExecutionContext context) {
         if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
-            throw new IllegalArgumentException(
-                "Cannot search on field [" + name + "] of legacy index since it does not have doc values."
-            );
+            throw new IllegalArgumentException("Cannot search on field [" + name + "] of legacy index since it does not have doc values.");
         } else if (isIndexed == false && docValues == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name + "] since it is not indexed nor has doc values.");
@@ -592,9 +610,13 @@ public abstract class MappedFieldType {
      * @return null or an enumeration of matching terms and their doc frequencies
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(String name, boolean caseInsensitive, String string, SearchExecutionContext queryShardContext,
-                              String searchAfter)
-        throws IOException {
+    public TermsEnum getTerms(
+        String name,
+        boolean caseInsensitive,
+        String string,
+        SearchExecutionContext queryShardContext,
+        String searchAfter
+    ) throws IOException {
         return null;
     }
 

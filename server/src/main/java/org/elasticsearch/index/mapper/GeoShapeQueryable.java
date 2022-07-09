@@ -41,8 +41,13 @@ import java.util.List;
  */
 public interface GeoShapeQueryable {
 
-    Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
-                        LatLonGeometry... luceneGeometries);
+    Query geoShapeQuery(
+        String name,
+        SearchExecutionContext context,
+        String fieldName,
+        ShapeRelation relation,
+        LatLonGeometry... luceneGeometries
+    );
 
     default Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation, Geometry shape) {
         final LatLonGeometry[] luceneGeometries;

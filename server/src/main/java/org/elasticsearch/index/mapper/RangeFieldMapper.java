@@ -161,8 +161,14 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, new MappedField<>(context.buildFullName(name), ft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
+            return new RangeFieldMapper(
+                name,
+                new MappedField<>(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                type,
+                this
+            );
         }
     }
 
@@ -207,7 +213,7 @@ public class RangeFieldMapper extends FieldMapper {
             this.coerce = coerce;
         }
 
-        public RangeFieldType(String name, DateFormatter formatter) {
+        public RangeFieldType(DateFormatter formatter) {
             this(true, false, true, formatter, false, Collections.emptyMap());
         }
 

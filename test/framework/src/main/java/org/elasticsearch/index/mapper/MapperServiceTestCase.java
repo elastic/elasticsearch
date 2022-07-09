@@ -418,7 +418,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public MappedFieldType getMappedField(String path) {
+            public MappedField<?> getMappedField(String path) {
                 return mapperService.mappedField(path);
             }
 
@@ -449,7 +449,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
+            protected IndexFieldData<?> buildFieldData(MappedField ft) {
                 return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
@@ -643,7 +643,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
+    protected BiFunction<MappedField, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
         return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }

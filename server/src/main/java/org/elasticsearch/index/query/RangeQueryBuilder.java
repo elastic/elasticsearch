@@ -437,7 +437,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (coordinatorRewriteContext != null) {
             final MappedField mappedField = coordinatorRewriteContext.getMappedField(fieldName);
-            if (mappedField.type() instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            if (mappedField.type()instanceof final DateFieldMapper.DateFieldType dateFieldType) {
                 if (coordinatorRewriteContext.hasTimestampData() == false) {
                     return MappedFieldType.Relation.DISJOINT;
                 }
@@ -521,7 +521,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 return new MatchNoDocsQuery("No mappings yet");
             }
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-                .getMappedField(FieldNamesFieldMapper.NAME).type();
+                .getMappedField(FieldNamesFieldMapper.NAME)
+                .type();
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
                 return ExistsQueryBuilder.newFilter(context, fieldName, false);

@@ -448,8 +448,10 @@ public class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
-            MappedField<TextFieldType> tft = new MappedField<>(context.buildFullName(name),
-                buildFieldType(fieldType, context, indexCreatedVersion));
+            MappedField<TextFieldType> tft = new MappedField<>(
+                context.buildFullName(name),
+                buildFieldType(fieldType, context, indexCreatedVersion)
+            );
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft.type());
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
@@ -749,8 +751,12 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
-                                         SearchExecutionContext context) {
+        public SpanQuery spanPrefixQuery(
+            String name,
+            String value,
+            SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexed(name);
             if (prefixFieldType != null
                 && value.length() >= prefixFieldType.minChars
@@ -852,9 +858,13 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                      SearchExecutionContext context)
-            throws IOException {
+        public Query multiPhraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext context
+        ) throws IOException {
             String field = name;
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
@@ -943,12 +953,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public ConstantScoreTextFieldType(boolean indexed, boolean stored, Map<String, String> meta) {
-            this(
-                indexed,
-                stored,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                meta
-            );
+            this(indexed, stored, new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER), meta);
         }
 
         @Override
@@ -972,9 +977,13 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePosIncrements,
-                                 SearchExecutionContext queryShardContext)
-            throws IOException {
+        public Query phraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePosIncrements,
+            SearchExecutionContext queryShardContext
+        ) throws IOException {
             // Disable scoring
             return new ConstantScoreQuery(super.phraseQuery(name, stream, slop, enablePosIncrements, queryShardContext));
         }
@@ -992,9 +1001,13 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions,
-                                       SearchExecutionContext queryShardContext)
-            throws IOException {
+        public Query phrasePrefixQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            int maxExpansions,
+            SearchExecutionContext queryShardContext
+        ) throws IOException {
             // Disable scoring
             return new ConstantScoreQuery(super.phrasePrefixQuery(name, stream, slop, maxExpansions, queryShardContext));
         }
@@ -1008,8 +1021,12 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
-                                         SearchExecutionContext context) {
+        public SpanQuery spanPrefixQuery(
+            String name,
+            String value,
+            SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+            SearchExecutionContext context
+        ) {
             throw new IllegalArgumentException("Cannot use span prefix queries on text field " + name + " of a legacy index");
         }
 

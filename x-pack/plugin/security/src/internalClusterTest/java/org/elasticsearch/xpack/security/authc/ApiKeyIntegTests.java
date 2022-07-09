@@ -1566,14 +1566,27 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             // Keep old privileges
             newClusterPrivileges.toArray(new String[0])
         );
-        updateUser(new User(nativeRealmUser, roleDescriptorWithNewName.getName()));
+        final User updatedUser = AuthenticationTestHelper.userWithRandomMetadataAndDetails(
+            nativeRealmUser,
+            roleDescriptorWithNewName.getName()
+        );
+        updateUser(updatedUser);
 
         // Update API key
         response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
-        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorWithNewName), getApiKeyDocument(apiKeyId));
+        final Map<String, Object> updatedApiKeyDoc = getApiKeyDocument(apiKeyId);
+        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorWithNewName), updatedApiKeyDoc);
+        final Map<String, Object> expectedCreator = new HashMap<>();
+        expectedCreator.put("principal", updatedUser.principal());
+        expectedCreator.put("full_name", updatedUser.fullName());
+        expectedCreator.put("email", updatedUser.email());
+        expectedCreator.put("metadata", updatedUser.metadata());
+        expectedCreator.put("realm_type", "native");
+        expectedCreator.put("realm", "index");
+        expectCreatorForApiKey(expectedCreator, updatedApiKeyDoc);
     }
 
     public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {

@@ -275,8 +275,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
     public Set<String> getAttributeValues(String attributeName) {
         // Only ever accessed on the master service thread so no need for synchronization
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName() + " should be the master service thread";
+        assert MasterService.assertMasterUpdateOrTestThread();
         return attributeValuesByAttribute.computeIfAbsent(
             attributeName,
             ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())

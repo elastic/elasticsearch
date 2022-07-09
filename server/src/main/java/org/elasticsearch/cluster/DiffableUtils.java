@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -242,7 +243,7 @@ public final class DiffableUtils {
                 builder.put(upsert.getKey(), upsert.getValue());
             }
 
-            return builder;
+            return Collections.unmodifiableMap(builder);
         }
     }
 

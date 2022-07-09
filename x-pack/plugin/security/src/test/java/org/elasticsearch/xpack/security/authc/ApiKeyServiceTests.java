@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -1688,23 +1689,24 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final var metadata = ApiKeyTests.randomMetadata();
         final var version = Version.CURRENT;
+        final User user = AuthenticationTestHelper.userWithRandomMetadataAndDetails("user", "role");
         final var authentication = randomValueOtherThanMany(
             Authentication::isApiKey,
-            () -> AuthenticationTestHelper.builder().user(new User("user", "role")).build(false)
+            () -> AuthenticationTestHelper.builder().user(user).build(false)
         );
-
-        final var keyDocSource = ApiKeyService.buildUpdatedDocument(
-            oldApiKeyDoc,
-            authentication,
-            newUserRoles,
-            newKeyRoles,
-            version,
-            metadata
-        );
+        final var request = new UpdateApiKeyRequest(randomAlphaOfLength(10), newKeyRoles, metadata);
+        final var service = createApiKeyService();
+        final var builderWithNoopFlag = service.buildUpdatedDocument(oldApiKeyDoc, version, authentication, request, newUserRoles);
         final var updatedApiKeyDoc = ApiKeyDoc.fromXContent(
-            XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(keyDocSource), XContentType.JSON)
+            XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                BytesReference.bytes(builderWithNoopFlag.builder()),
+                XContentType.JSON
+            )
         );
 
+        // TODO noop tests
+        assertFalse(builderWithNoopFlag.noop());
         assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
         assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
         assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
@@ -1712,7 +1714,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
         assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
 
-        final var service = createApiKeyService(Settings.EMPTY);
         final var actualUserRoles = service.parseRoleDescriptorsBytes(
             "",
             updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
@@ -1741,16 +1742,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(metadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
         }
 
-        assertEquals(authentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.getOrDefault("principal", null));
-        assertEquals(authentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.getOrDefault("fullName", null));
-        assertEquals(authentication.getEffectiveSubject().getUser().email(), updatedApiKeyDoc.creator.getOrDefault("email", null));
-        assertEquals(authentication.getEffectiveSubject().getUser().metadata(), updatedApiKeyDoc.creator.getOrDefault("metadata", null));
-        RealmRef realm = authentication.getEffectiveSubject().getRealm();
-        assertEquals(realm.getName(), updatedApiKeyDoc.creator.getOrDefault("realm", null));
-        assertEquals(realm.getType(), updatedApiKeyDoc.creator.getOrDefault("realm_type", null));
+        assertEquals(authentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.get("principal"));
+        assertEquals(authentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.get("full_name"));
+        assertEquals(authentication.getEffectiveSubject().getUser().email(), updatedApiKeyDoc.creator.get("email"));
+        assertEquals(authentication.getEffectiveSubject().getUser().metadata(), updatedApiKeyDoc.creator.get("metadata"));
+        final RealmRef realm = authentication.getEffectiveSubject().getRealm();
+        assertEquals(realm.getName(), updatedApiKeyDoc.creator.get("realm"));
+        assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
         if (realm.getDomain() != null) {
             @SuppressWarnings("unchecked")
-            final var actualDomain = (Map<String, Object>) updatedApiKeyDoc.creator.getOrDefault("realm_domain", null);
+            final var actualDomain = (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain");
             assertEquals(realm.getDomain().name(), actualDomain.get("name"));
         } else {
             assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));

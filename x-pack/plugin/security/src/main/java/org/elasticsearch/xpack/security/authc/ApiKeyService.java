@@ -438,15 +438,15 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
-    record XContentBuilderWithNoopIndicator(XContentBuilder builder, boolean noop) {}
+    // package private for testing
+    record ApiKeyDocBuilderWithNoopFlag(XContentBuilder builder, boolean noop) {}
 
-    static XContentBuilder buildUpdatedDocument(
+    ApiKeyDocBuilderWithNoopFlag buildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,
+        final Version targetDocVersion,
         final Authentication authentication,
-        final Set<RoleDescriptor> userRoles,
-        final List<RoleDescriptor> keyRoles,
-        final Version version,
-        final Map<String, Object> metadata
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoles
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -457,6 +457,7 @@ public class ApiKeyService {
 
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
+        final List<RoleDescriptor> keyRoles = request.getRoleDescriptors();
         if (keyRoles != null) {
             logger.trace(() -> format("Building API key doc with updated role descriptors [{}]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
@@ -467,12 +468,13 @@ public class ApiKeyService {
 
         addLimitedByRoleDescriptors(builder, userRoles);
 
-        builder.field("name", currentApiKeyDoc.name).field("version", version.id);
+        builder.field("name", currentApiKeyDoc.name).field("version", targetDocVersion.id);
 
         assert currentApiKeyDoc.metadataFlattened == null
             || MetadataUtils.containsReservedMetadata(
                 XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
             ) == false : "API key doc to be updated contains reserved metadata";
+        final Map<String, Object> metadata = request.getMetadata();
         if (metadata != null) {
             logger.trace(() -> format("Building API key doc with updated metadata [{}]", metadata));
             builder.field("metadata_flattened", metadata);
@@ -488,10 +490,13 @@ public class ApiKeyService {
 
         addCreator(builder, authentication);
 
-        return builder.endObject();
+        return new ApiKeyDocBuilderWithNoopFlag(
+            builder.endObject(),
+            isNoop(currentApiKeyDoc, targetDocVersion, authentication, request, userRoles)
+        );
     }
 
-    private boolean isUpdateNoop(
+    private boolean isNoop(
         final ApiKeyDoc apiKeyDoc,
         final Version targetDocVersion,
         final Authentication authentication,
@@ -546,7 +551,6 @@ public class ApiKeyService {
             apiKeyDoc.limitedByRoleDescriptorsBytes,
             RoleReference.ApiKeyRoleType.LIMITED_BY
         );
-        // TODO double check this
         return (userRoles.size() == currentLimitedByRoleDescriptorRoles.size()
             && userRoles.equals(new HashSet<>(currentLimitedByRoleDescriptorRoles)));
     }
@@ -1043,13 +1047,6 @@ public class ApiKeyService {
             currentVersionedDoc.primaryTerm()
         );
         final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
-
-        if (isUpdateNoop(currentVersionedDoc.doc, targetDocVersion, authentication, request, userRoles)) {
-            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
-            listener.onResponse(new UpdateApiKeyResponse(false));
-            return;
-        }
-
         final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
@@ -1061,18 +1058,21 @@ public class ApiKeyService {
             );
         }
 
+        final ApiKeyDocBuilderWithNoopFlag builderWithNoopFlag = buildUpdatedDocument(
+            currentVersionedDoc.doc(),
+            targetDocVersion,
+            authentication,
+            request,
+            userRoles
+        );
+        if (builderWithNoopFlag.noop()) {
+            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
+            listener.onResponse(new UpdateApiKeyResponse(false));
+            return;
+        }
         final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
-            .setSource(
-                buildUpdatedDocument(
-                    currentVersionedDoc.doc(),
-                    authentication,
-                    userRoles,
-                    request.getRoleDescriptors(),
-                    targetDocVersion,
-                    request.getMetadata()
-                )
-            )
+            .setSource(builderWithNoopFlag.builder())
             .setIfSeqNo(currentVersionedDoc.seqNo())
             .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
             .setOpType(DocWriteRequest.OpType.INDEX)

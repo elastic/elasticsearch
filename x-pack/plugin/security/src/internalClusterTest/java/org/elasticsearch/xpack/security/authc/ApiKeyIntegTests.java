@@ -28,11 +28,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
@@ -43,6 +45,9 @@ import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
@@ -1689,7 +1694,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUpdateApiKeyAccountsForSecurityDomains() throws ExecutionException, InterruptedException {
+    public void testUpdateApiKeyAccountsForSecurityDomains() throws ExecutionException, InterruptedException, IOException {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
@@ -1722,6 +1727,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
+        final Map<String, Object> expectedCreator = new HashMap<>();
+        expectedCreator.put("principal", TEST_USER_NAME);
+        expectedCreator.put("full_name", null);
+        expectedCreator.put("email", null);
+        expectedCreator.put("metadata", Map.of());
+        expectedCreator.put("realm_type", authenticatingRealm.getType());
+        expectedCreator.put("realm", authenticatingRealm.getName());
+        final XContentBuilder builder = realmDomain.toXContent(XContentFactory.jsonBuilder(), null);
+        expectedCreator.put("realm_domain", XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2());
+        expectCreatorForApiKey(expectedCreator, getApiKeyDocument(apiKeyId));
     }
 
     public void testNoopUpdateApiKey() throws ExecutionException, InterruptedException, IOException {

@@ -1489,6 +1489,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, updatedApiKeyDoc);
         final var expectedRoleDescriptors = nullRoleDescriptors ? List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR) : newRoleDescriptors;
         expectRoleDescriptorsForApiKey("role_descriptors", expectedRoleDescriptors, updatedApiKeyDoc);
+        final Map<String, Object> expectedCreator = new HashMap<>();
+        expectedCreator.put("principal", TEST_USER_NAME);
+        expectedCreator.put("full_name", null);
+        expectedCreator.put("email", null);
+        expectedCreator.put("metadata", Map.of());
+        expectedCreator.put("realm_type", "file");
+        expectedCreator.put("realm", "file");
+        expectCreatorForApiKey(expectedCreator, updatedApiKeyDoc);
+
         // Check if update resulted in API key role going from `monitor` to `all` cluster privilege and assert that action that requires
         // `all` is authorized or denied accordingly
         final boolean hasAllClusterPrivilege = expectedRoleDescriptors.stream()
@@ -1508,7 +1517,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUpdateApiKeyAutoUpdatesUserRoles() throws IOException, ExecutionException, InterruptedException {
+    public void testUpdateApiKeyAutoUpdatesUserFields() throws IOException, ExecutionException, InterruptedException {
         // Create separate native realm user and role for user role change test
         final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);
         final var nativeRealmRole = randomAlphaOfLengthBetween(5, 10);
@@ -1926,6 +1935,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         @SuppressWarnings("unchecked")
         final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("metadata_flattened");
         assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, equalTo(expectedMetadata));
+    }
+
+    private void expectCreatorForApiKey(final Map<String, Object> expectedCreator, final Map<String, Object> actualRawApiKeyDoc) {
+        assertNotNull(actualRawApiKeyDoc);
+        @SuppressWarnings("unchecked")
+        final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("creator");
+        assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, equalTo(expectedCreator));
     }
 
     @SuppressWarnings("unchecked")

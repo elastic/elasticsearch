@@ -137,10 +137,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
-        LOGGER.info(
-            "JWT 1 still worked, because JWT realm has old JWKs cached in memory",
-            String.join(",", jwtIssuerAndRealm.issuer().algorithms)
-        );
+        LOGGER.info("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Restore original JWKs 1 into the JWT issuer.
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks1Backup, jwtIssuerJwks1OidcSafe);
@@ -150,10 +147,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
-        LOGGER.info(
-            "JWT 1 still worked, because JWT realm has old JWKs cached in memory",
-            String.join(",", jwtIssuerAndRealm.issuer().algorithms)
-        );
+        LOGGER.info("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Generate a replacement set of JWKs 2 for the JWT issuer.
         final List<JwtIssuer.AlgJwkPair> jwtIssuerJwks2Backup = JwtRealmTestCase.randomJwks(
@@ -171,10 +165,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks1(PKC): Pass (Original PKC JWKs are still in the realm)
         // - jwtJwks1(HMAC): Pass (Original HMAC JWKs are still in the realm)
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
-        LOGGER.info(
-            "JWT 1 still worked, because JWT realm has old JWKs cached in memory",
-            String.join(",", jwtIssuerAndRealm.issuer().algorithms)
-        );
+        LOGGER.info("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Create a JWT using the new JWKs.
         final SecureString jwtJwks2 = this.randomJwt(jwtIssuerAndRealm, user);
@@ -187,10 +178,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks2(HMAC): HMAC reload triggered but it is a no-op, so FAIL
         if (isPkcJwtJwks2) {
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
-            LOGGER.info("PKC JWT 2 worked with JWKs 2", String.join(",", jwtIssuerAndRealm.issuer().algorithms));
+            LOGGER.info("PKC JWT 2 worked with JWKs 2");
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
-            LOGGER.info("HMAC JWT 2 failed with JWKs 1", String.join(",", jwtIssuerAndRealm.issuer().algorithms));
+            LOGGER.info("HMAC JWT 2 failed with JWKs 1");
         }
 
         // Try old JWT.

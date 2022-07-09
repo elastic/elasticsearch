@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 /**
@@ -38,6 +39,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         ThreadPool threadPool,
         ApiKeyService apiKeyService,
         AuthenticationService authenticationService,
+        AuthorizationService authorizationService,
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry
     ) {
@@ -46,7 +48,8 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             actionFilters,
             threadPool.getThreadContext(),
             new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry),
-            authenticationService
+            authenticationService,
+            authorizationService
         );
     }
 
@@ -56,9 +59,18 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         ActionFilters actionFilters,
         ThreadContext threadContext,
         ApiKeyGenerator generator,
-        AuthenticationService authenticationService
+        AuthenticationService authenticationService,
+        AuthorizationService authorizationService
     ) {
-        super(GrantApiKeyAction.NAME, transportService, actionFilters, GrantApiKeyRequest::new, authenticationService, threadContext);
+        super(
+            GrantApiKeyAction.NAME,
+            transportService,
+            actionFilters,
+            GrantApiKeyRequest::new,
+            authenticationService,
+            authorizationService,
+            threadContext
+        );
         this.generator = generator;
     }
 

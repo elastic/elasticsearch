@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -68,7 +69,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     private static final String SINGLE_SCRIPT = "single";
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new ValueCountAggregationBuilder("foo").field(fieldName);
     }
 
@@ -240,7 +241,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
         final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
         final String fieldName = "rangeField";
-        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
+        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(rangeType);
         final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name").field(fieldName);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
@@ -250,14 +251,14 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, count -> {
             assertEquals(4.0, count.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(count));
-        }, fieldType);
+        }, new MappedField(fieldName, fieldType));
     }
 
     public void testValueScriptNumber() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field(FIELD_NAME)
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NUMBER_VALUE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
+        MappedFieldType fieldType = createMappedFieldType(ValueType.NUMERIC);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
@@ -266,7 +267,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, new MappedField(FIELD_NAME, fieldType));
     }
 
     public void testSingleScriptNumber() throws IOException {
@@ -274,7 +275,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap())
         );
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
+        MappedFieldType fieldType = createMappedFieldType(ValueType.NUMERIC);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             Document doc = new Document();
@@ -296,14 +297,14 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             // once per document, and only expect a count of 3
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, new MappedField(FIELD_NAME, fieldType));
     }
 
     public void testValueScriptString() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field(FIELD_NAME)
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, STRING_VALUE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
+        MappedFieldType fieldType = createMappedFieldType(ValueType.STRING);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
@@ -312,7 +313,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, new MappedField(FIELD_NAME, fieldType));
     }
 
     public void testSingleScriptString() throws IOException {
@@ -320,7 +321,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap())
         );
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
+        MappedFieldType fieldType = createMappedFieldType(ValueType.STRING);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             Document doc = new Document();
@@ -343,7 +344,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             // once per document, and only expect a count of 3
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, new MappedField(FIELD_NAME, fieldType));
     }
 
     private void testAggregation(
@@ -364,7 +365,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Consumer<InternalValueCount> verify,
         boolean testWithHint
     ) throws IOException {
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, valueType);
+        MappedFieldType fieldType = createMappedFieldType(valueType);
 
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name");
         if (valueType != null && testWithHint) {
@@ -372,7 +373,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }
         aggregationBuilder.field(FIELD_NAME);
 
-        testAggregation(aggregationBuilder, query, indexer, verify, fieldType);
+        testAggregation(aggregationBuilder, query, indexer, verify, new MappedField(FIELD_NAME, fieldType));
     }
 
     private void testAggregation(
@@ -380,21 +381,21 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalValueCount> verify,
-        MappedFieldType... fieldTypes
+        MappedField... mappedFields
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(aggregationBuilder, query, buildIndex, verify, mappedFields);
     }
 
-    private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {
+    private static MappedFieldType createMappedFieldType(ValueType valueType) {
         return switch (valueType) {
-            case BOOLEAN -> new BooleanFieldMapper.BooleanFieldType(name);
-            case STRING -> new KeywordFieldMapper.KeywordFieldType(name);
-            case DOUBLE -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
-            case NUMBER, NUMERIC, LONG -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
-            case DATE -> new DateFieldMapper.DateFieldType(name);
-            case IP -> new IpFieldMapper.IpFieldType(name);
-            case GEOPOINT -> new GeoPointFieldMapper.GeoPointFieldType(name);
-            case RANGE -> new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
+            case BOOLEAN -> new BooleanFieldMapper.BooleanFieldType();
+            case STRING -> new KeywordFieldMapper.KeywordFieldType();
+            case DOUBLE -> new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+            case NUMBER, NUMERIC, LONG -> new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+            case DATE -> new DateFieldMapper.DateFieldType();
+            case IP -> new IpFieldMapper.IpFieldType();
+            case GEOPOINT -> new GeoPointFieldMapper.GeoPointFieldType();
+            case RANGE -> new RangeFieldMapper.RangeFieldType(RangeType.DOUBLE);
         };
     }
 }

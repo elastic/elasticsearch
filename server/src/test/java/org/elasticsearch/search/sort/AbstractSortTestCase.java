@@ -21,7 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -189,7 +189,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
+        TriFunction<MappedField, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
             fieldType,
             fieldIndexName,
             searchLookup) -> {
@@ -222,8 +222,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         ) {
 
             @Override
-            public MappedFieldType getMappedField(String name) {
-                return provideMappedFieldType(name);
+            public MappedField getMappedField(String name) {
+                return provideMappedField(name);
             }
 
             @Override
@@ -237,12 +237,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      * Return a field type. We use {@link NumberFieldMapper.NumberFieldType} by default since it is compatible with all sort modes
      * Tests that require other field types can override this.
      */
-    protected MappedFieldType provideMappedFieldType(String name) {
+    protected MappedField provideMappedField(String name) {
         NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(
-            name,
             NumberFieldMapper.NumberType.DOUBLE
         );
-        return doubleFieldType;
+        return new MappedField(name, doubleFieldType);
     }
 
     @Override

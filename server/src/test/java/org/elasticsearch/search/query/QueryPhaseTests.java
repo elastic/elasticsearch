@@ -59,7 +59,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -640,11 +640,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testNumericSortOptimization() throws Exception {
         final String fieldNameLong = "long-field";
         final String fieldNameDate = "date-field";
-        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
-        MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
+        MappedField fieldLong = new MappedField(fieldNameLong, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField fieldDate = new MappedField(fieldNameDate, new DateFieldMapper.DateFieldType());
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.getMappedField(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(searchExecutionContext.getMappedField(fieldNameDate)).thenReturn(fieldTypeDate);
+        when(searchExecutionContext.getMappedField(fieldNameLong)).thenReturn(fieldLong);
+        when(searchExecutionContext.getMappedField(fieldNameDate)).thenReturn(fieldDate);
         // enough docs to have a tree with several leaf nodes
         final int numDocs = atLeast(3500 * 2);
         Directory dir = newDirectory();
@@ -676,7 +676,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final Sort sortDate = new Sort(sortFieldDate);
         final Sort sortLongDate = new Sort(sortFieldLong, sortFieldDate);
         final Sort sortDateLong = new Sort(sortFieldDate, sortFieldLong);
-        final DocValueFormat dvFormatDate = fieldTypeDate.docValueFormat(null, null);
+        final DocValueFormat dvFormatDate = fieldDate.docValueFormat(null, null);
         final SortAndFormats formatsLong = new SortAndFormats(sortLong, new DocValueFormat[] { DocValueFormat.RAW });
         final SortAndFormats formatsDate = new SortAndFormats(sortDate, new DocValueFormat[] { dvFormatDate });
         final SortAndFormats formatsLongDate = new SortAndFormats(sortLongDate, new DocValueFormat[] { DocValueFormat.RAW, dvFormatDate });

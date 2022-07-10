@@ -24,6 +24,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -89,7 +90,7 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(reader);
 
         SortField sortField = dvProducers.sortField(reverseSort);
-        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType(sortField.getField());
+        MappedField mappedField = new MappedField(sortField.getField(), new MockFieldMapper.FakeFieldType());
         Sort sort = new Sort(sortField);
 
         Comparator<T> comparator = reverseSort ? Collections.reverseOrder() : Comparator.naturalOrder();
@@ -104,8 +105,8 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
 
         FieldDoc after = new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { sortedValues.get(randomIndex) });
         SinglePassGroupingCollector<?> collapsingCollector = numeric
-            ? SinglePassGroupingCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
-            : SinglePassGroupingCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);
+            ? SinglePassGroupingCollector.createNumeric("field", mappedField, sort, expectedNumGroups, after)
+            : SinglePassGroupingCollector.createKeyword("field", mappedField, sort, expectedNumGroups, after);
 
         TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, after, Integer.MAX_VALUE);
         Query query = new MatchAllDocsQuery();

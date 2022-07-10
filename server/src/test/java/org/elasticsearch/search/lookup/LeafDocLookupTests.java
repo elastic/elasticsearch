@@ -11,6 +11,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DynamicMappedField;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -39,18 +40,18 @@ public class LeafDocLookupTests extends ESTestCase {
         docValues = mock(ScriptDocValues.class);
 
         MappedFieldType fieldType1 = mock(MappedFieldType.class);
-        when(fieldType1.name()).thenReturn("field");
         when(fieldType1.valueForDisplay(any())).then(returnsFirstArg());
+        MappedField field1 = new MappedField("field", fieldType1);
         IndexFieldData<?> fieldData1 = createFieldData(docValues, "field");
 
         MappedFieldType fieldType2 = mock(MappedFieldType.class);
-        when(fieldType1.name()).thenReturn("alias");
         when(fieldType1.valueForDisplay(any())).then(returnsFirstArg());
+        MappedField field2 = new MappedField("alias", fieldType2);
         IndexFieldData<?> fieldData2 = createFieldData(docValues, "alias");
 
         docLookup = new LeafDocLookup(
-            field -> field.equals("field") ? fieldType1 : field.equals("alias") ? fieldType2 : null,
-            fieldType -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
+            field -> field.equals("field") ? field1 : field.equals("alias") ? field2 : null,
+            field -> field == field1 ? fieldData1 : field == field2 ? fieldData2 : null,
             null
         );
     }
@@ -73,12 +74,12 @@ public class LeafDocLookupTests extends ESTestCase {
         IndexFieldData<?> fieldData2 = createFieldData(docValues2, "flattened.key2");
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(MapperBuilderContext.ROOT);
-        DynamicMappedField fieldType = fieldMapper.fieldType();
-        MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
-        MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
+        DynamicMappedField dynamicMappedField = (DynamicMappedField) fieldMapper.field();
+        MappedField fieldType1 = dynamicMappedField.getChildFieldType("key1");
+        MappedField fieldType2 = dynamicMappedField.getChildFieldType("key2");
 
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = ft -> {
-            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
+        Function<MappedField, IndexFieldData<?>> fieldDataSupplier = ft -> {
+            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft.type();
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };
 

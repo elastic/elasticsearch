@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -137,7 +138,6 @@ public class SliceBuilderTests extends ESTestCase {
         DocValuesType dvType
     ) {
         MappedFieldType fieldType = new MappedFieldType(
-            fieldName,
             true,
             false,
             dvType != null,
@@ -146,7 +146,7 @@ public class SliceBuilderTests extends ESTestCase {
         ) {
 
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 
@@ -156,22 +156,24 @@ public class SliceBuilderTests extends ESTestCase {
             }
 
             @Override
-            public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
+            public Query termQuery(String name, Object value, @Nullable SearchExecutionContext context) {
                 return null;
             }
 
-            public Query existsQuery(SearchExecutionContext context) {
+            @Override
+            public Query existsQuery(String name, SearchExecutionContext context) {
                 return null;
             }
         };
+        MappedField mappedField = new MappedField(fieldName, fieldType);
         SearchExecutionContext context = mock(SearchExecutionContext.class);
-        when(context.getMappedField(fieldName)).thenReturn(fieldType);
+        when(context.getMappedField(fieldName)).thenReturn(mappedField);
         when(context.getIndexReader()).thenReturn(reader);
         IndexSettings indexSettings = createIndexSettings(indexVersionCreated);
         when(context.getIndexSettings()).thenReturn(indexSettings);
         if (dvType != null) {
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
-            when(context.getForField(fieldType)).thenReturn(fd);
+            when(context.getForField(mappedField)).thenReturn(fd);
         }
         return context;
 

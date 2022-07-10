@@ -429,11 +429,11 @@ public final class DateFieldMapper extends FieldMapper {
             this(isIndexed, isIndexed, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
         }
 
-        public DateFieldType(String name) {
+        public DateFieldType() {
             this(true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
-        public DateFieldType(String name, boolean isIndexed) {
+        public DateFieldType(boolean isIndexed) {
             this(
                 isIndexed,
                 isIndexed,

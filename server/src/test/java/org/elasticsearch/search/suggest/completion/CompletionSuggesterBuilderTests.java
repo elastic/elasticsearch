@@ -14,7 +14,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
@@ -138,14 +138,13 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     @Override
-    protected MappedFieldType mockFieldType(String fieldName) {
+    protected MappedField mockField(String fieldName) {
         CompletionFieldType completionFieldType = new CompletionFieldType(
-            fieldName,
             new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()),
             Collections.emptyMap()
         );
         completionFieldType.setContextMappings(new ContextMappings(contextMappings));
-        return completionFieldType;
+        return new MappedField(fieldName, completionFieldType);
     }
 
     @Override

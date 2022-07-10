@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -315,9 +316,9 @@ public class HighlightBuilderTests extends ESTestCase {
             emptyMap()
         ) {
             @Override
-            public MappedFieldType getMappedField(String name) {
+            public MappedField getMappedField(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.ROOT).fieldType();
+                return builder.build(MapperBuilderContext.ROOT).field();
             }
         };
         mockContext.setMapUnmappedFieldAsString(true);

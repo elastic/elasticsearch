@@ -35,7 +35,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -109,7 +109,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final SortField sort2 = new SortField("sort2", SortField.Type.LONG);
         Sort sort = new Sort(sort1, sort2, collapseField);
 
-        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType(collapseField.getField());
+        MappedField mappedField = new MappedField(collapseField.getField(), new MockFieldMapper.FakeFieldType());
 
         int expectedNumGroups = values.size();
 
@@ -117,7 +117,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         if (numeric) {
             collapsingCollector = SinglePassGroupingCollector.createNumeric(
                 collapseField.getField(),
-                fieldType,
+                mappedField,
                 sort,
                 expectedNumGroups,
                 null
@@ -125,7 +125,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         } else {
             collapsingCollector = SinglePassGroupingCollector.createKeyword(
                 collapseField.getField(),
-                fieldType,
+                mappedField,
                 sort,
                 expectedNumGroups,
                 null
@@ -198,9 +198,9 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             final SegmentSearcher subSearcher = subSearchers[shardIDX];
             final SinglePassGroupingCollector<?> c;
             if (numeric) {
-                c = SinglePassGroupingCollector.createNumeric(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
+                c = SinglePassGroupingCollector.createNumeric(collapseField.getField(), mappedField, sort, expectedNumGroups, null);
             } else {
-                c = SinglePassGroupingCollector.createKeyword(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
+                c = SinglePassGroupingCollector.createKeyword(collapseField.getField(), mappedField, sort, expectedNumGroups, null);
             }
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopGroups(0);
@@ -378,7 +378,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final IndexReader reader = w.getReader();
         final IndexSearcher searcher = newSearcher(reader);
 
-        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        MappedField mappedField = new MappedField("group", new MockFieldMapper.FakeFieldType());
 
         SortField sortField = new SortField("group", SortField.Type.LONG);
         sortField.setMissingValue(Long.MAX_VALUE);
@@ -386,7 +386,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createNumeric(
             "group",
-            fieldType,
+            mappedField,
             sort,
             10,
             null
@@ -425,13 +425,13 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         final IndexReader reader = w.getReader();
         final IndexSearcher searcher = newSearcher(reader);
 
-        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        MappedField mappedField = new MappedField("group", new MockFieldMapper.FakeFieldType());
 
         Sort sort = new Sort(new SortField("group", SortField.Type.STRING));
 
         final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
             "group",
-            fieldType,
+            mappedField,
             sort,
             10,
             null

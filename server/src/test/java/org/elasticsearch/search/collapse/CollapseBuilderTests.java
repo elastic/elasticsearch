@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -135,14 +136,14 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         try (IndexReader reader = DirectoryReader.open(dir)) {
             when(searchExecutionContext.getIndexReader()).thenReturn(reader);
 
-            MappedFieldType numberFieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-            when(searchExecutionContext.getMappedField("field")).thenReturn(numberFieldType);
+            MappedFieldType numberFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+            MappedField numberField = new MappedField("field", numberFieldType);
+            when(searchExecutionContext.getMappedField("field")).thenReturn(numberField);
             CollapseBuilder builder = new CollapseBuilder("field");
             CollapseContext collapseContext = builder.build(searchExecutionContext);
-            assertEquals(collapseContext.getMappedField(), numberFieldType);
+            assertEquals(collapseContext.getMappedField(), numberField);
 
             numberFieldType = new NumberFieldMapper.NumberFieldType(
-                "field",
                 NumberFieldMapper.NumberType.LONG,
                 true,
                 false,
@@ -154,12 +155,12 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 false,
                 null
             );
-            when(searchExecutionContext.getMappedField("field")).thenReturn(numberFieldType);
+            numberField = new MappedField("field", numberFieldType);
+            when(searchExecutionContext.getMappedField("field")).thenReturn(numberField);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
             numberFieldType = new NumberFieldMapper.NumberFieldType(
-                "field",
                 NumberFieldMapper.NumberType.LONG,
                 false,
                 false,
@@ -171,7 +172,8 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 false,
                 null
             );
-            when(searchExecutionContext.getMappedField("field")).thenReturn(numberFieldType);
+            numberField = new MappedField("field", numberFieldType);
+            when(searchExecutionContext.getMappedField("field")).thenReturn(numberField);
             builder.setInnerHits(new InnerHitBuilder());
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
@@ -179,19 +181,22 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`"
             );
 
-            MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field");
-            when(searchExecutionContext.getMappedField("field")).thenReturn(keywordFieldType);
+            MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType();
+            MappedField keywordField = new MappedField("field", keywordFieldType);
+            when(searchExecutionContext.getMappedField("field")).thenReturn(keywordField);
             CollapseBuilder kbuilder = new CollapseBuilder("field");
             collapseContext = kbuilder.build(searchExecutionContext);
-            assertEquals(collapseContext.getMappedField(), keywordFieldType);
+            assertEquals(collapseContext.getMappedField(), keywordField);
 
-            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", true, false, Collections.emptyMap());
-            when(searchExecutionContext.getMappedField("field")).thenReturn(keywordFieldType);
+            keywordFieldType = new KeywordFieldMapper.KeywordFieldType(true, false, Collections.emptyMap());
+            keywordField = new MappedField("field", keywordFieldType);
+            when(searchExecutionContext.getMappedField("field")).thenReturn(keywordField);
             exc = expectThrows(IllegalArgumentException.class, () -> kbuilder.build(searchExecutionContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
-            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
-            when(searchExecutionContext.getMappedField("field")).thenReturn(keywordFieldType);
+            keywordFieldType = new KeywordFieldMapper.KeywordFieldType(false, true, Collections.emptyMap());
+            keywordField = new MappedField("field", keywordFieldType);
+            when(searchExecutionContext.getMappedField("field")).thenReturn(keywordField);
             kbuilder.setInnerHits(new InnerHitBuilder());
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
@@ -211,27 +216,29 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType( true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "some_type";
                 }
 
                 @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 
                 @Override
-                public Query termQuery(Object value, SearchExecutionContext context) {
+                public Query termQuery(String name, Object value, SearchExecutionContext context) {
                     return null;
                 }
 
-                public Query existsQuery(SearchExecutionContext context) {
+                @Override
+                public Query existsQuery(String name, SearchExecutionContext context) {
                     return null;
                 }
             };
-            when(searchExecutionContext.getMappedField("field")).thenReturn(fieldType);
+            MappedField mappedField = new MappedField("field", fieldType);
+            when(searchExecutionContext.getMappedField("field")).thenReturn(mappedField);
             CollapseBuilder builder = new CollapseBuilder("field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(exc.getMessage(), "collapse is not supported for the field [field] of the type [some_type]");

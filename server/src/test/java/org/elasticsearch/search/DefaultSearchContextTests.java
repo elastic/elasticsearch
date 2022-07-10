@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -274,7 +275,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
             when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
-            when(searchExecutionContext.getMappedField(anyString())).thenReturn(mock(MappedFieldType.class));
+            when(searchExecutionContext.getMappedField(anyString())).thenReturn(mock(MappedField.class));
 
             readerContext.close();
             readerContext = new ReaderContext(

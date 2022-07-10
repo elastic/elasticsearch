@@ -12,7 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -56,7 +56,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.mappedField("completion");
+        MappedField completionField = mapperService.mappedField("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
@@ -82,7 +82,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionField.name());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -104,7 +104,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.mappedField("completion");
+        MappedField completionField = mapperService.mappedField("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
@@ -128,7 +128,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionField.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -150,7 +150,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.mappedField("completion");
+        MappedField completionField = mapperService.mappedField("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
@@ -178,7 +178,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionField.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -204,7 +204,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.mappedField("completion");
+        MappedField completionField = mapperService.mappedField("completion");
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("completion")
             .startObject()
@@ -219,7 +219,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
             .endObject();
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionField.name());
         assertContextSuggestFields(fields, 3);
     }
 

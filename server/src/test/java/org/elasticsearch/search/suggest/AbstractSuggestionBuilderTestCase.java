@@ -20,6 +20,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -159,7 +160,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 indexSettings
             );
             ScriptService scriptService = mock(ScriptService.class);
-            MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
+            MappedField mappedField = mockField(suggestionBuilder.field());
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(new HashMap<>() {
                 @Override
                 public NamedAnalyzer get(Object key) {
@@ -171,7 +172,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             when(scriptService.compile(any(Script.class), any())).then(
                 invocation -> new TestTemplateService.MockTemplateScript.Factory(((Script) invocation.getArguments()[0]).getIdOrCode())
             );
-            List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
+            List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(mappedField));
             MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
             SearchExecutionContext mockContext = new SearchExecutionContext(
                 0,
@@ -264,14 +265,13 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected abstract void assertSuggestionContext(SB builder, SuggestionContext context) throws IOException;
 
-    protected MappedFieldType mockFieldType(String fieldName) {
+    protected MappedField mockField(String fieldName) {
         MappedFieldType fieldType = mock(MappedFieldType.class);
-        when(fieldType.name()).thenReturn(fieldName.intern()); // intern field name to not trip assertions that ensure all field names are
-                                                               // interned
         NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
         TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
         when(fieldType.getTextSearchInfo()).thenReturn(tsi);
-        return fieldType;
+        return new MappedField(fieldName.intern(), fieldType); // intern field name to not trip assertions that ensure all field names are
+        // interned
     }
 
     /**

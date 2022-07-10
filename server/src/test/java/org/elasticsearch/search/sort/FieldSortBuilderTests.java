@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -67,7 +68,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
 
     /**
-     * {@link #provideMappedFieldType(String)} will return a
+     * {@link #provideMappedField(String)} will return a
      */
     private static final String MAPPED_STRING_FIELDNAME = "_stringField";
 
@@ -342,26 +343,26 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     @Override
-    protected MappedFieldType provideMappedFieldType(String name) {
+    protected MappedField provideMappedField(String name) {
         if (name.equals(MAPPED_STRING_FIELDNAME)) {
-            return new KeywordFieldMapper.KeywordFieldType(name);
+            return new MappedField(name, new KeywordFieldMapper.KeywordFieldType());
         } else if (name.startsWith("custom-")) {
             final MappedFieldType fieldType;
             if (name.startsWith("custom-keyword")) {
-                fieldType = new KeywordFieldMapper.KeywordFieldType(name);
+                fieldType = new KeywordFieldMapper.KeywordFieldType();
             } else if (name.startsWith("custom-date")) {
-                fieldType = new DateFieldMapper.DateFieldType(name);
+                fieldType = new DateFieldMapper.DateFieldType();
             } else {
                 String type = name.split("-")[1];
                 if (type.equals("INT")) {
                     type = "integer";
                 }
                 NumberFieldMapper.NumberType numberType = NumberFieldMapper.NumberType.valueOf(type.toUpperCase(Locale.ENGLISH));
-                fieldType = new NumberFieldMapper.NumberFieldType(name, numberType);
+                fieldType = new NumberFieldMapper.NumberFieldType(numberType);
             }
-            return fieldType;
+            return new MappedField(name, fieldType);
         } else {
-            return super.provideMappedFieldType(name);
+            return super.provideMappedField(name);
         }
     }
 

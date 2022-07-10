@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
@@ -98,8 +99,8 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     @Override
-    protected MappedFieldType provideMappedFieldType(String name) {
-        return new GeoPointFieldMapper.GeoPointFieldType(name);
+    protected MappedField provideMappedField(String name) {
+        return new MappedField(name, new GeoPointFieldMapper.GeoPointFieldType());
     }
 
     private static GeoPoint[] points(GeoPoint[] original) {

@@ -11,6 +11,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -30,9 +31,9 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
         super.setUp();
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
-        when(fieldType.name()).thenReturn("field");
         // Add 10 when valueForDisplay is called so it is easy to be sure it *was* called
         when(fieldType.valueForDisplay(any())).then(invocation -> (Double) invocation.getArguments()[0] + 10);
+        MappedField mappedField = new MappedField("field", fieldType);
 
         FieldInfo mockFieldInfo = new FieldInfo(
             "field",
@@ -53,7 +54,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
         );
 
         fieldsLookup = new LeafStoredFieldsLookup(
-            field -> field.equals("field") || field.equals("alias") ? fieldType : null,
+            field -> field.equals("field") || field.equals("alias") ? mappedField : null,
             (doc, visitor) -> visitor.doubleField(mockFieldInfo, 2.718)
         );
     }

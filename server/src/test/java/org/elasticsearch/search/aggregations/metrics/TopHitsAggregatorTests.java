@@ -30,7 +30,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHits;
@@ -116,7 +116,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
     }
 
-    private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");
+    private static final MappedField STRING_FIELD = new MappedField("string", new KeywordFieldMapper.KeywordFieldType());
 
     private Aggregation testCase(Query query, AggregationBuilder builder) throws IOException {
         Directory directory = newDirectory();
@@ -130,7 +130,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-        Aggregation result = searchAndReduce(indexSearcher, query, builder, STRING_FIELD_TYPE);
+        Aggregation result = searchAndReduce(indexSearcher, query, builder, STRING_FIELD);
         indexReader.close();
         directory.close();
         return result;
@@ -185,7 +185,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
             .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
-        TopHits result = searchAndReduce(searcher, query, agg, STRING_FIELD_TYPE);
+        TopHits result = searchAndReduce(searcher, query, agg, STRING_FIELD);
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();

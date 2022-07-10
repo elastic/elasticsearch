@@ -1733,6 +1733,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectedCreator.put("metadata", Map.of());
         expectedCreator.put("realm_type", authenticatingRealm.getType());
         expectedCreator.put("realm", authenticatingRealm.getName());
+        // TODO
         final XContentBuilder builder = realmDomain.toXContent(XContentFactory.jsonBuilder(), null);
         expectedCreator.put("realm_domain", XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2());
         expectCreatorForApiKey(expectedCreator, getApiKeyDocument(apiKeyId));

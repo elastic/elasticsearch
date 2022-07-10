@@ -1793,6 +1793,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(realm.getName(), updatedApiKeyDoc.creator.get("realm"));
         assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
         if (realm.getDomain() != null) {
+            // TODO
             final XContentBuilder builder = realm.getDomain().toXContent(XContentFactory.jsonBuilder(), null);
             assertEquals(
                 XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2(),

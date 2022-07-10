@@ -328,7 +328,7 @@ to find the sweet spot.
 
 To get some data into {es} that you can start searching and analyzing:
 
-. Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[`accounts.json`] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
+. Download the https://github.com/elastic/elasticsearch/blob/7.5/docs/src/test/resources/accounts.json?raw=true[`accounts.json`] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
 +
 [source,js]
 --------------------------------------------------

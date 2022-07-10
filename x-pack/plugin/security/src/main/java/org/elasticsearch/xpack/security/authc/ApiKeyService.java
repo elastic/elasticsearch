@@ -500,7 +500,7 @@ public class ApiKeyService {
         final Authentication authentication,
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles
-    ) {
+    ) throws IOException {
         if (apiKeyDoc.version != targetDocVersion.id) {
             return false;
         }
@@ -508,13 +508,25 @@ public class ApiKeyService {
         final Map<String, Object> currentCreator = apiKeyDoc.creator;
         final var user = authentication.getEffectiveSubject().getUser();
         final var sourceRealm = authentication.getEffectiveSubject().getRealm();
+        // TODO gnarly
+        if (sourceRealm.getDomain() != null) {
+            final var currentRealmDomain = currentCreator.get("realm_domain");
+            if (currentRealmDomain == null) {
+                return false;
+            }
+            final XContentBuilder builder = sourceRealm.getDomain().toXContent(XContentFactory.jsonBuilder(), null);
+            if (XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON)
+                .v2()
+                .equals(currentRealmDomain) == false) {
+                return false;
+            }
+        }
         if (false == (Objects.equals(user.principal(), currentCreator.get("principal"))
             && Objects.equals(user.fullName(), currentCreator.get("full_name"))
             && Objects.equals(user.email(), currentCreator.get("email"))
             && Objects.equals(user.metadata(), currentCreator.get("metadata"))
             && Objects.equals(sourceRealm.getName(), currentCreator.get("realm"))
-            && Objects.equals(sourceRealm.getType(), currentCreator.get("realm_type"))
-            && Objects.equals(sourceRealm.getDomain(), currentCreator.get("realm_domain")))) {
+            && Objects.equals(sourceRealm.getType(), currentCreator.get("realm_type")))) {
             return false;
         }
 

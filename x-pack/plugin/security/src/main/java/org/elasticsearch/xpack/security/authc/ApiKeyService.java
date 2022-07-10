@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import com.nimbusds.oauth2.sdk.util.MapUtils;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -508,19 +510,6 @@ public class ApiKeyService {
         final Map<String, Object> currentCreator = apiKeyDoc.creator;
         final var user = authentication.getEffectiveSubject().getUser();
         final var sourceRealm = authentication.getEffectiveSubject().getRealm();
-        // TODO gnarly
-        if (sourceRealm.getDomain() != null) {
-            final var currentRealmDomain = currentCreator.get("realm_domain");
-            if (currentRealmDomain == null) {
-                return false;
-            }
-            final XContentBuilder builder = sourceRealm.getDomain().toXContent(XContentFactory.jsonBuilder(), null);
-            if (XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON)
-                .v2()
-                .equals(currentRealmDomain) == false) {
-                return false;
-            }
-        }
         if (false == (Objects.equals(user.principal(), currentCreator.get("principal"))
             && Objects.equals(user.fullName(), currentCreator.get("full_name"))
             && Objects.equals(user.email(), currentCreator.get("email"))
@@ -528,6 +517,25 @@ public class ApiKeyService {
             && Objects.equals(sourceRealm.getName(), currentCreator.get("realm"))
             && Objects.equals(sourceRealm.getType(), currentCreator.get("realm_type")))) {
             return false;
+        }
+        if (sourceRealm.getDomain() != null) {
+            if (currentCreator.get("realm_domain") == null) {
+                return false;
+            }
+            @SuppressWarnings("unchecked")
+            final var currentRealmDomain = RealmDomain.fromXContent(
+                XContentHelper.mapToXContentParser(
+                    XContentParserConfiguration.EMPTY,
+                    (Map<String, Object>) currentCreator.get("realm_domain")
+                )
+            );
+            if (sourceRealm.getDomain().equals(currentRealmDomain) == false) {
+                return false;
+            }
+        } else {
+            if (currentCreator.get("realm_domain") != null) {
+                return false;
+            }
         }
 
         final Map<String, Object> newMetadata = request.getMetadata();

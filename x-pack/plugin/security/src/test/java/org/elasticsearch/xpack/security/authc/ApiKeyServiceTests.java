@@ -1723,7 +1723,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             ? randomValueOtherThan(oldVersion, () -> VersionUtils.randomVersion(random()))
             : oldVersion;
         final Authentication newAuthentication = changeCreator
-            // TODO
             ? randomValueOtherThanMany(
                 (auth -> auth.isApiKey() || auth.getEffectiveSubject().getUser().equals(oldAuthentication.getEffectiveSubject().getUser())),
                 () -> AuthenticationTestHelper.builder()

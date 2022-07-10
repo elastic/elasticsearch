@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -1688,7 +1689,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
 
         final var metadata = ApiKeyTests.randomMetadata();
-        final var version = Version.CURRENT;
+        final var version = VersionUtils.randomVersion(random());
         final var authentication = randomValueOtherThanMany(
             Authentication::isApiKey,
             () -> AuthenticationTestHelper.builder()
@@ -1706,8 +1707,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             )
         );
 
-        // TODO noop tests
-        assertFalse(builderWithNoopFlag.noop());
+        // TODO
+        final boolean noop = nullKeyRoles && metadata == null && version.id == oldApiKeyDoc.version;
+        assertEquals(noop, builderWithNoopFlag.noop());
         assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
         assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
         assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
@@ -1715,6 +1717,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
         assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
 
+        assertEquals(version.id, updatedApiKeyDoc.version);
         final var actualUserRoles = service.parseRoleDescriptorsBytes(
             "",
             updatedApiKeyDoc.limitedByRoleDescriptorsBytes,

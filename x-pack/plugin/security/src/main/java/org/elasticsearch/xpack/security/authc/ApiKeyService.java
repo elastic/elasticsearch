@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import com.nimbusds.oauth2.sdk.util.MapUtils;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -502,7 +500,7 @@ public class ApiKeyService {
         final Authentication authentication,
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles
-    ) throws IOException {
+    ) {
         if (apiKeyDoc.version != targetDocVersion.id) {
             return false;
         }

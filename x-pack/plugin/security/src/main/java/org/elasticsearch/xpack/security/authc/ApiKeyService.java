@@ -448,7 +448,6 @@ public class ApiKeyService {
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoles
     ) throws IOException {
-        final boolean noop = isNoop(currentApiKeyDoc, targetDocVersion, authentication, request, userRoles);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
@@ -491,7 +490,10 @@ public class ApiKeyService {
 
         addCreator(builder, authentication);
 
-        return new ApiKeyDocBuilderWithNoopFlag(builder.endObject(), noop);
+        return new ApiKeyDocBuilderWithNoopFlag(
+            builder.endObject(),
+            isNoop(currentApiKeyDoc, targetDocVersion, authentication, request, userRoles)
+        );
     }
 
     private boolean isNoop(

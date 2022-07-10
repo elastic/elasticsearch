@@ -15,7 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -226,7 +226,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             return true;
         } else if (query instanceof PointRangeQuery pointQuery) {
             return fieldName.equals(pointQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery existsQuery) {
+        } else if (query instanceof FieldExistsQuery existsQuery) {
             return fieldName.equals(existsQuery.getField());
         } else {
             return false;

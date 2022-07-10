@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,11 +41,11 @@ import java.util.function.LongUnaryOperator;
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     static class Entry {
-        final LeafReaderContext context;
+        final AggregationExecutionContext context;
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
+        Entry(AggregationExecutionContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.context = Objects.requireNonNull(context);
             this.docDeltas = Objects.requireNonNull(docDeltas);
             this.buckets = Objects.requireNonNull(buckets);
@@ -59,7 +58,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     private List<Entry> entries = new ArrayList<>();
     private BucketCollector collector;
-    private LeafReaderContext context;
+    private AggregationExecutionContext context;
     private PackedLongValues.Builder docDeltasBuilder;
     private PackedLongValues.Builder bucketsBuilder;
     private LongHash selectedBuckets;
@@ -120,7 +119,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (context == null) {
-                    context = aggCtx.getLeafReaderContext();
+                    context = aggCtx;
                     docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }
@@ -172,7 +171,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
                 DocIdSetIterator scoreIt = null;
                 if (needsScores) {
-                    Scorer scorer = weight.scorer(entry.context);
+                    Scorer scorer = weight.scorer(entry.context.getLeafReaderContext());
                     // We don't need to check if the scorer is null
                     // since we are sure that there are documents to replay (entry.docDeltas it not empty).
                     scoreIt = scorer.iterator();

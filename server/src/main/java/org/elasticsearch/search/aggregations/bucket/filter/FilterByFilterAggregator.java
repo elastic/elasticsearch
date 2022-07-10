@@ -237,7 +237,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             collectCount(aggCtx.getLeafReaderContext(), live);
         } else {
             segmentsCollected++;
-            collectSubs(aggCtx.getLeafReaderContext(), live, sub);
+            collectSubs(aggCtx, live, sub);
         }
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
@@ -273,7 +273,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      * less memory because there isn't a need to buffer a block of matches.
      * And its a hell of a lot less code.
      */
-    private void collectSubs(LeafReaderContext ctx, Bits live, LeafBucketCollector sub) throws IOException {
+    private void collectSubs(AggregationExecutionContext ctx, Bits live, LeafBucketCollector sub) throws IOException {
         class MatchCollector implements LeafCollector {
             LeafBucketCollector subCollector = sub;
             int filterOrd;
@@ -287,11 +287,11 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             public void setScorer(Scorable scorer) throws IOException {}
         }
         MatchCollector collector = new MatchCollector();
-        filters().get(0).collect(ctx, collector, live);
+        filters().get(0).collect(ctx.getLeafReaderContext(), collector, live);
         for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
             collector.subCollector = collectableSubAggregators.getLeafCollector(ctx);
             collector.filterOrd = filterOrd;
-            filters().get(filterOrd).collect(ctx, collector, live);
+            filters().get(filterOrd).collect(ctx.getLeafReaderContext(), collector, live);
         }
     }
 

@@ -59,6 +59,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -1791,9 +1793,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(realm.getName(), updatedApiKeyDoc.creator.get("realm"));
         assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
         if (realm.getDomain() != null) {
-            @SuppressWarnings("unchecked")
-            final var actualDomain = (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain");
-            assertEquals(realm.getDomain().name(), actualDomain.get("name"));
+            final XContentBuilder builder = realm.getDomain().toXContent(XContentFactory.jsonBuilder(), null);
+            assertEquals(
+                XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2(),
+                updatedApiKeyDoc.creator.get("realm_domain")
+            );
         } else {
             assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
         }

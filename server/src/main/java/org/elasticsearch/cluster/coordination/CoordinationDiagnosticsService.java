@@ -553,67 +553,76 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         // Note: This connection must be explicitly closed below
                         node,
                         ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Releasable releasable) {
-                                logger.trace("Opened connection to {}, making cluster coordination info request", node);
-                                // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
-                                final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
-                                transportService.sendRequest(
-                                    node,
-                                    ClusterFormationInfoAction.NAME,
-                                    new ClusterFormationInfoAction.Request(),
-                                    TransportRequestOptions.timeout(transportTimeout),
-                                    new ActionListenerResponseHandler<>(
-                                        ActionListener.runAfter(ActionListener.runBefore(new ActionListener<>() {
-                                            @Override
-                                            public void onResponse(ClusterFormationInfoAction.Response response) {
-                                                long endTime = System.nanoTime();
-                                                logger.trace(
-                                                    "Received cluster coordination info from {} in {}",
-                                                    node,
-                                                    TimeValue.timeValueNanos(endTime - startTime)
-                                                );
-                                                nodeToClusterFormationStateMap.put(
-                                                    node,
-                                                    new ClusterFormationStateOrException(response.getClusterFormationState())
-                                                );
-                                            }
-
-                                            @Override
-                                            public void onFailure(Exception e) {
-                                                logger.warn("Exception in cluster coordination info request to master node", e);
-                                                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                                            }
-                                        }, () -> Releasables.close(releasable)),
-                                            () -> new PollClusterFormationStateTask(
-                                                node,
-                                                nodeToClusterFormationStateMap,
-                                                multipleCancellablesWrapper
-                                            ).pollUntilCancelled()
-                                        ),
-                                        ClusterFormationInfoAction.Response::new
-                                    )
-                                );
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("Exception connecting to master node", e);
-                                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                                /*
-                                 * Note: We can't call pollUntilCancelled() in a runAfter() in this case because when the corresponding
-                                 * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
-                                 */
-                                new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper)
-                                    .pollUntilCancelled();
-                            }
-                        }
+                        new ConnectedToNodeListener(startTime)
                     );
                 }
             }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
             multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
             return multipleCancellablesWrapper;
+        }
+
+        private class ConnectedToNodeListener implements ActionListener<Releasable> {
+            private final long startTime;
+
+            ConnectedToNodeListener(long startTime) {
+                this.startTime = startTime;
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                logger.trace("Opened connection to {}, making cluster coordination info request", node);
+                // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+                transportService.sendRequest(
+                    node,
+                    ClusterFormationInfoAction.NAME,
+                    new ClusterFormationInfoAction.Request(),
+                    TransportRequestOptions.timeout(transportTimeout),
+                    new ActionListenerResponseHandler<>(
+                        ActionListener.runAfter(
+                            ActionListener.runBefore(
+                                new ClusterFormationInfoResponseListener(startTime),
+                                () -> Releasables.close(releasable)
+                            ),
+                            () -> new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper)
+                                .pollUntilCancelled()
+                        ),
+                        ClusterFormationInfoAction.Response::new
+                    )
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Exception connecting to master node", e);
+                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+                /*
+                 * Note: We can't call pollUntilCancelled() in a runAfter() in this case because when the corresponding
+                 * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
+                 */
+                new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper).pollUntilCancelled();
+            }
+        }
+
+        private class ClusterFormationInfoResponseListener implements ActionListener<ClusterFormationInfoAction.Response> {
+            private final long startTime;
+
+            ClusterFormationInfoResponseListener(long startTime) {
+                this.startTime = startTime;
+            }
+
+            @Override
+            public void onResponse(ClusterFormationInfoAction.Response response) {
+                long endTime = System.nanoTime();
+                logger.trace("Received cluster coordination info from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(response.getClusterFormationState()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Exception in cluster coordination info request to master node", e);
+                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+            }
         }
     }
 

@@ -69,7 +69,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
                 .setModifiedDate((long) a[3])
                 .setLastSuccess(lastSuccess)
                 .setLastFailure(lastFailure)
-                .setInvocationsSinceLastSuccess((Long) a[6])
+                .setInvocationsSinceLastSuccess(a[6] == null ? 0L : ((long) a[6]))
                 .build();
         }
     );

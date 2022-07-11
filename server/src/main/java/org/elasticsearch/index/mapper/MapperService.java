@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -336,6 +337,32 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mappingMetadata != null) {
             merge(mappingMetadata.type(), mappingMetadata.source(), reason);
         }
+    }
+
+    public IndexMetadata mergeAndUpgrade(IndexMetadata indexMetadata, MergeReason reason) {
+        assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
+        MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata != null) {
+            var docMapper = merge(mappingMetadata.type(), mappingMetadata.source(), reason);
+            var mappingSource = upgradeFormats(mappingMetadata, docMapper.mappingSource());
+            if (mappingMetadata.source().equals(mappingSource) == false) {
+                return IndexMetadata.builder(indexMetadata).putMapping(new MappingMetadata(mappingSource)).build();
+            }
+        }
+        return indexMetadata;
+    }
+
+    @SuppressWarnings("unchecked")
+    CompressedXContent upgradeFormats(MappingMetadata mappingMetadata, CompressedXContent newMappingSource) {
+        Map<String, Object> sourceMap = mappingMetadata.getSourceAsMap();
+        Map<String, Object> newMap = XContentHelper.convertToMap(newMappingSource.compressedReference(), true).v2();
+
+        Map<String, Object> properties = (Map<String, Object>)sourceMap.get("properties");
+        if (properties != null) {
+            System.out.println(properties);
+        }
+
+        return mappingMetadata.source();
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {

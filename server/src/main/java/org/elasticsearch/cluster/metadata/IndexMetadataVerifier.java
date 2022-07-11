@@ -90,7 +90,7 @@ public class IndexMetadataVerifier {
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
         newMetadata = archiveBrokenIndexSettings(newMetadata);
-        checkMappingsCompatibility(newMetadata);
+        newMetadata = checkMappingsCompatibility(newMetadata);
         return newMetadata;
     }
 
@@ -128,7 +128,7 @@ public class IndexMetadataVerifier {
      * policy guarantees we can read mappings from previous compatible index versions. A failure here would
      * indicate a compatibility bug (which are unfortunately not that uncommon).
      */
-    private void checkMappingsCompatibility(IndexMetadata indexMetadata) {
+    private IndexMetadata checkMappingsCompatibility(IndexMetadata indexMetadata) {
         try {
 
             // We cannot instantiate real analysis server or similarity service at this point because the node
@@ -194,13 +194,15 @@ public class IndexMetadataVerifier {
                     indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
                     scriptService
                 );
-                mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                indexMetadata = mapperService.mergeAndUpgrade(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {
             logger.error("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
             // Wrap the inner exception so we have the index name in the exception message
             throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
         }
+
+        return indexMetadata;
     }
 
     /**

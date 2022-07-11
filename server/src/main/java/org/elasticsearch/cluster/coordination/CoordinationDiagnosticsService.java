@@ -595,8 +595,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }
 
         /**
-         * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel() is
-         * called on this method, then cancel() is called on all child Cancellables.
+         * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel()
+         * is called on this method, then cancel() is called on all child Cancellables.
          */
         static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
             private final List<Scheduler.Cancellable> delegates;

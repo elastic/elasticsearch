@@ -31,7 +31,11 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     @Nullable
     private final List<RoleDescriptor> roleDescriptors;
 
-    public UpdateApiKeyRequest(String id, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable Map<String, Object> metadata) {
+    public UpdateApiKeyRequest(
+        final String id,
+        @Nullable final List<RoleDescriptor> roleDescriptors,
+        @Nullable final Map<String, Object> metadata
+    ) {
         this.id = Objects.requireNonNull(id, "API key ID must not be null");
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;
@@ -40,7 +44,7 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     public UpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
-        this.roleDescriptors = readOptionalList(in);
+        this.roleDescriptors = in.readOptionalList(RoleDescriptor::new);
         this.metadata = in.readMap();
     }
 
@@ -65,21 +69,12 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
-        writeOptionalList(out);
+        out.writeOptionalCollection(roleDescriptors);
         out.writeGenericMap(metadata);
     }
 
-    private List<RoleDescriptor> readOptionalList(StreamInput in) throws IOException {
-        return in.readBoolean() ? in.readList(RoleDescriptor::new) : null;
-    }
-
-    private void writeOptionalList(StreamOutput out) throws IOException {
-        if (roleDescriptors == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeList(roleDescriptors);
-        }
+    public static UpdateApiKeyRequest usingApiKeyId(String id) {
+        return new UpdateApiKeyRequest(id, null, null);
     }
 
     public String getId() {
@@ -92,5 +87,18 @@ public final class UpdateApiKeyRequest extends ActionRequest {
 
     public List<RoleDescriptor> getRoleDescriptors() {
         return roleDescriptors;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        UpdateApiKeyRequest that = (UpdateApiKeyRequest) o;
+        return id.equals(that.id) && Objects.equals(metadata, that.metadata) && Objects.equals(roleDescriptors, that.roleDescriptors);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, metadata, roleDescriptors);
     }
 }

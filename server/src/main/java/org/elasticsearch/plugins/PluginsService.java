@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -279,7 +280,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static void loadExtensions(Collection<LoadedPlugin> plugins) {
-
         Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
             .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
@@ -291,6 +291,28 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
             }
         }
+    }
+
+    /**
+     * SPI convenience method that uses the {@link ServiceLoader} JDK class to load various SPI providers
+     * from plugins/modules.
+     * <p>
+     * For example:
+     *
+     * <pre>
+     * var pluginHandlers = pluginsService.loadServiceProviders(OperatorHandlerProvider.class);
+     * </pre>
+     * @param service A templated service class to look for providers in plugins
+     * @return an immutable {@link List} of discovered providers in the plugins/modules
+     */
+    public <T> List<? extends T> loadServiceProviders(Class<T> service) {
+        List<T> result = new ArrayList<>();
+
+        for (LoadedPlugin pluginTuple : plugins()) {
+            ServiceLoader.load(service, pluginTuple.loader()).iterator().forEachRemaining(c -> result.add(c));
+        }
+
+        return Collections.unmodifiableList(result);
     }
 
     private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {

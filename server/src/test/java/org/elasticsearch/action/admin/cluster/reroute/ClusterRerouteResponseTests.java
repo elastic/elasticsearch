@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -50,9 +49,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     .build()
             )
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> openMapBuilder = ImmutableOpenMap.builder();
-        openMapBuilder.put("index", indexMetadata);
-        Metadata metadata = Metadata.builder().indices(openMapBuilder.build()).build();
+        Metadata metadata = Metadata.builder().indices(Map.of("index", indexMetadata)).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metadata(metadata).build();
 
         RoutingExplanations routingExplanations = new RoutingExplanations();

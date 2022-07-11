@@ -141,6 +141,15 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     }
 
     @Override
+    protected void emitValueFromCompositeScript(Object value) {
+        if (value != null) {
+            String string = value.toString();
+            checkMaxChars(string);
+            emit(string);
+        }
+    }
+
+    @Override
     protected void emitFromObject(Object v) {
         if (v != null) {
             emit(v.toString());
@@ -148,7 +157,10 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     }
 
     public final void emit(String v) {
-        checkMaxSize(results.size());
+        results.add(v);
+    }
+
+    private void checkMaxChars(String v) {
         chars += v.length();
         if (chars > MAX_CHARS) {
             throw new IllegalArgumentException(
@@ -161,7 +173,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
                 )
             );
         }
-        results.add(v);
     }
 
     public static class Emit {
@@ -172,6 +183,8 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         }
 
         public void emit(String v) {
+            script.checkMaxSize(script.results.size());
+            script.checkMaxChars(v);
             script.emit(v);
         }
     }

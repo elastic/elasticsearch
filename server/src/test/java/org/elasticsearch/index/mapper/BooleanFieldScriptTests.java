@@ -63,7 +63,7 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES * 1000; i++) {
-                            emit(i % 2 == 0);
+                            new Emit(this).value(i % 2 == 0);
                         }
                     }
                 };

@@ -65,7 +65,7 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
-                            emit(0, 0);
+                            new Emit(this).emit(0, 0);
                         }
                     }
                 };

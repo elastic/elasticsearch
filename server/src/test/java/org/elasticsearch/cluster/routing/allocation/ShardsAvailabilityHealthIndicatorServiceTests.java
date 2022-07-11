@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -48,6 +47,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1255,11 +1255,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 )
         );
         Metadata.Builder metadataBuilder = Metadata.builder();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         for (IndexMetadata indexMetadata : indexMetadataList) {
-            indexMetadataMapBuilder.put(indexMetadata.getIndex().getName(), indexMetadata);
+            indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata);
         }
-        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        metadataBuilder.indices(indexMetadataMap);
         metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata);
 
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();

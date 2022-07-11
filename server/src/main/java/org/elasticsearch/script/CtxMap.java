@@ -289,6 +289,6 @@ public class CtxMap extends AbstractMap<String, Object> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), source, metadata);
+        return Objects.hash(source, metadata);
     }
 }

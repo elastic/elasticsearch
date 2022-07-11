@@ -58,8 +58,10 @@ import static org.elasticsearch.core.Strings.format;
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
  *
- * Every time the timer runs, gathers information about the disk usage and
- * shard sizes across the cluster.
+ * Every time the timer runs, if <code>cluster.routing.allocation.disk.threshold_enabled</code>
+ * is enabled, gathers information about the disk usage and shard sizes across the cluster,
+ * computes a new cluster info and notifies the registered listeners. If disk threshold
+ * monitoring is disabled, listeners are called with an empty cluster info.
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
@@ -164,14 +166,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         void execute() {
-            assert countDown.isCountedDown() == false;
-
             if (enabled == false) {
                 logger.info("skipping collecting info from cluster, notifying listeners with empty cluster info");
+                leastAvailableSpaceUsages = Map.of();
+                mostAvailableSpaceUsages = Map.of();
+                indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 callListeners();
                 return;
             }
 
+            assert countDown.isCountedDown() == false;
             logger.trace("starting async refresh");
 
             final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
@@ -347,14 +351,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         nextRefreshListeners.clear();
 
         currentRefresh = new AsyncRefresh(thisRefreshListeners);
-        return () -> {
-            if (enabled == false) {
-                leastAvailableSpaceUsages = Map.of();
-                mostAvailableSpaceUsages = Map.of();
-                indicesStatsSummary = IndicesStatsSummary.EMPTY;
-            }
-            currentRefresh.execute();
-        };
+        return currentRefresh::execute;
     }
 
     private boolean assertRefreshInvariant() {

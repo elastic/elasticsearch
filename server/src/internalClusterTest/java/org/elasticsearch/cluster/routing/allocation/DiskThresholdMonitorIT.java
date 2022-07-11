@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Locale;
 
@@ -68,15 +68,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
                 IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
             );
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(indexName)
-                    .setNames(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-                    .get()
-                    .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE),
-                equalTo("true")
-            );
+            assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
         // Verify that we can adjust things like allocation filters even while blocked
@@ -113,18 +105,10 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         // Verify that the block is removed once the shard migration is complete
         refreshClusterInfo();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertNull(
-            client().admin()
-                .indices()
-                .prepareGetSettings(indexName)
-                .setNames(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-                .get()
-                .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-        );
+        assertNull(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor:TRACE", reason = "to-be-removed!")
-    public void testRemoveExistingIndexBlocksWhenDiskThresholdIsDisabled() throws Exception {
+    public void testRemoveExistingIndexBlocksWhenDiskThresholdMonitorIsDisabled() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
 
@@ -148,15 +132,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
                 IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
             );
-            assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(indexName)
-                    .setNames(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-                    .get()
-                    .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE),
-                equalTo("true")
-            );
+            assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
         // Disable disk threshold monitoring
@@ -167,16 +143,15 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         // Verify that the block is removed
         refreshClusterInfo();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertBusy(
-            () -> assertNull(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(indexName)
-                    .setNames(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-                    .get()
-                    .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-            )
-        );
+        assertNull(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
+
+        // Verify that the cleanup is called even after disabling disk threshold monitoring
+        // by manually adding the block to the index and ensuring that it gets removed.
+        enableIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE);
+        assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
+        refreshClusterInfo();
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertNull(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
 
         // Re-enable and the blocks should be back!
         updateClusterSettings(
@@ -184,16 +159,12 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         );
         refreshClusterInfo();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertBusy(
-            () -> assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(indexName)
-                    .setNames(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-                    .get()
-                    .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE),
-                equalTo("true")
-            )
-        );
+        assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
     }
+
+    // Retrieves the value of the given block on an index.
+    private static String getIndexBlock(Client client, String indexName, String blockName) {
+        return client.admin().indices().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
+    }
+
 }

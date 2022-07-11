@@ -53,8 +53,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
     private final SnapshotInvocationRecord lastSuccess;
     @Nullable
     private final SnapshotInvocationRecord lastFailure;
-    @Nullable
-    private final Long invocationsSinceLastSuccess;
+    private final long invocationsSinceLastSuccess;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
@@ -96,7 +95,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         long modifiedDate,
         SnapshotInvocationRecord lastSuccess,
         SnapshotInvocationRecord lastFailure,
-        Long invocationsSinceLastSuccess
+        long invocationsSinceLastSuccess
     ) {
         this.policy = policy;
         this.headers = headers;
@@ -117,7 +116,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         this.modifiedDate = in.readVLong();
         this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
-        this.invocationsSinceLastSuccess = in.getVersion().onOrAfter(Version.V_8_4_0) ? in.readOptionalVLong() : null;
+        this.invocationsSinceLastSuccess = in.getVersion().onOrAfter(Version.V_8_4_0) ? in.readVLong() : 0L;
     }
 
     @Override
@@ -129,7 +128,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         out.writeOptionalWriteable(this.lastSuccess);
         out.writeOptionalWriteable(this.lastFailure);
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            out.writeOptionalVLong(this.invocationsSinceLastSuccess);
+            out.writeVLong(this.invocationsSinceLastSuccess);
         }
     }
 
@@ -178,7 +177,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         return lastFailure;
     }
 
-    public Long getInvocationsSinceLastSuccess() {
+    public long getInvocationsSinceLastSuccess() {
         return invocationsSinceLastSuccess;
     }
 
@@ -195,9 +194,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         if (Objects.nonNull(lastFailure)) {
             builder.field(LAST_FAILURE.getPreferredName(), lastFailure);
         }
-        if (Objects.nonNull(invocationsSinceLastSuccess)) {
-            builder.field(INVOCATIONS_SINCE_LAST_SUCCESS.getPreferredName(), invocationsSinceLastSuccess);
-        }
+        builder.field(INVOCATIONS_SINCE_LAST_SUCCESS.getPreferredName(), invocationsSinceLastSuccess);
         builder.endObject();
         return builder;
     }
@@ -243,7 +240,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         private Long modifiedDate;
         private SnapshotInvocationRecord lastSuccessDate;
         private SnapshotInvocationRecord lastFailureDate;
-        private Long invocationsSinceLastSuccess;
+        private long invocationsSinceLastSuccess = 0L;
 
         public Builder setPolicy(SnapshotLifecyclePolicy policy) {
             this.policy = policy;
@@ -275,15 +272,12 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
             return this;
         }
 
-        public Builder setInvocationsSinceLastSuccess(Long invocationsSinceLastSuccess) {
+        public Builder setInvocationsSinceLastSuccess(long invocationsSinceLastSuccess) {
             this.invocationsSinceLastSuccess = invocationsSinceLastSuccess;
             return this;
         }
 
         public SnapshotLifecyclePolicyMetadata build() {
-            assert lastSuccessDate != null || invocationsSinceLastSuccess == null
-                : "Cannot have invocations since last success with no recorded success date";
-
             return new SnapshotLifecyclePolicyMetadata(
                 Objects.requireNonNull(policy),
                 Optional.ofNullable(headers).orElse(new HashMap<>()),

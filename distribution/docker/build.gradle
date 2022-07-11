@@ -469,7 +469,7 @@ subprojects { Project subProject ->
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
-      executable 'docker'
+      executable = 'docker'
       outputs.file(tarFile)
       args "save",
         "-o",

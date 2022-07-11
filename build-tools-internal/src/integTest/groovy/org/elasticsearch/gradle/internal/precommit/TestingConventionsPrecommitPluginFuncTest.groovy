@@ -31,7 +31,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
 
     def setupSpec() {
         repository.generateJar('org.apache.lucene', 'tests.util', "1.0",
-                "org.apache.lucene.tests.util.LuceneTestCase",
+                "org.apache.lucene.util.LuceneTestCase",
                 "org.elasticsearch.test.ESSingleNodeTestCase",
                 "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase",
                 "org.elasticsearch.test.AbstractMultiClustersTestCase"
@@ -61,7 +61,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
     def "testing convention tasks are cacheable and uptodate"() {
         given:
         simpleJavaBuild()
-        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
+        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.util.LuceneTestCase") {
             """
             public void testMe() {
             }
@@ -84,7 +84,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
     def "testing convention plugin is configuration cache compatible"() {
         given:
         simpleJavaBuild()
-        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
+        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.util.LuceneTestCase") {
             """
             public void testMe() {
             }
@@ -104,7 +104,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
     def "checks base class convention"() {
         given:
         simpleJavaBuild()
-        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
+        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.util.LuceneTestCase") {
             """
             public void testMe() {
             }
@@ -145,14 +145,14 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         }
         """
 
-        testClazz("org.acme.valid.SomeNameMissmatchingTest", "org.apache.lucene.tests.util.LuceneTestCase") {
+        testClazz("org.acme.valid.SomeNameMissmatchingTest", "org.apache.lucene.util.LuceneTestCase") {
             """
             public void testMe() {
             }
             """
         }
 
-        testClazz("org.acme.valid.SomeMatchingUnitTest", "org.apache.lucene.tests.util.LuceneTestCase") {
+        testClazz("org.acme.valid.SomeMatchingUnitTest", "org.apache.lucene.util.LuceneTestCase") {
             """
             public void testMe() {
             }

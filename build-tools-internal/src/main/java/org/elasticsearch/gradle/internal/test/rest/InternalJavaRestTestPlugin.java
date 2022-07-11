@@ -17,7 +17,6 @@ import org.gradle.api.tasks.SourceSetContainer;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupJavaRestTestDependenciesDefaults;
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the Java based REST tests.

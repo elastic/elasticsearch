@@ -39,7 +39,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
             NamedDomainObjectProvider<SourceSet> sourceSet = sourceSets.named(SourceSet.TEST_SOURCE_SET_NAME);
             setupTaskForSourceSet(project, sourceSet, t -> {
                 t.getSuffixes().convention(List.of("Tests"));
-                t.getBaseClasses().convention(List.of("org.apache.lucene.tests.util.LuceneTestCase"));
+                t.getBaseClasses().convention(List.of("org.apache.lucene.util.LuceneTestCase"));
             });
         });
 

@@ -1,0 +1,5 @@
+pr: 87773
+summary: New setting to close idle connections in OIDC back-channel
+area: Security
+type: enhancement
+issues: []

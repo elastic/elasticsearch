@@ -87,7 +87,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private List<Scheduler.Cancellable> clusterFormationInfoTasks = List.of();
     /*
      * This field holds the results of the tasks in the clusterFormationInfoTasks field above. The field is accessed (reads/writes) from
-     * multiple threads, but is only ever replaced on the cluster change event thread.
+     * multiple threads, but the reference itself is only ever changed on the cluster change event thread.
      */
     // Non-private for testing
     volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
@@ -598,11 +598,11 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * is called on this method, then cancel() is called on all child Cancellables.
          */
         static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
-            private final List<Scheduler.Cancellable> delegates;
-
-            MultipleCancellablesWrapper() {
-                this.delegates = new CopyOnWriteArrayList<>();
-            }
+            /*
+             * This field will be read from and written to on multiple threads. CopyOnWriteArrayList is used here to avoid explicitly
+             * synchronizing access and to avoid ConcurrentModificationExceptions when iterating through the delegates.
+             */
+            private final List<Scheduler.Cancellable> delegates = new CopyOnWriteArrayList<>();
 
             @Override
             public boolean cancel() {

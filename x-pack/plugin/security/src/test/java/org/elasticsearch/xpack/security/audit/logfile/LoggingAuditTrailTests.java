@@ -628,7 +628,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit")
             .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "update_apikey")
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "change_apikey")
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedUpdateKeyAuditEventString, checkedFields.map());
         // clear log

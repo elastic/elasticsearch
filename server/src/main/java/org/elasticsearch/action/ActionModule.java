@@ -276,7 +276,6 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestController;
@@ -421,7 +420,6 @@ import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -902,36 +900,12 @@ public class ActionModule extends AbstractModule {
     public void initImmutableClusterStateHandlers(PluginsService pluginsService) {
         List<ImmutableClusterStateHandler<?>> handlers = new ArrayList<>();
 
-        List<? extends ImmutableClusterStateHandlerProvider> pluginHandlerProviders = pluginsService.loadServiceProviders(
+        List<? extends ImmutableClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
             ImmutableClusterStateHandlerProvider.class
         );
 
-        // Add directly the handlers that the server has
         handlers.add(new ImmutableClusterSettingsAction(clusterSettings));
-
-        Map<Class<? extends Plugin>, ImmutableClusterStateHandlerProvider> classToProviderMap = new HashMap<>();
-        Map<ImmutableClusterStateHandlerProvider, Plugin> loadedPluginForProvider = new HashMap<>();
-
-        // Get all plugin handler providers, map the plugin class they need to the provider
-        for (var pluginHandlerProvider : pluginHandlerProviders) {
-            classToProviderMap.put(pluginHandlerProvider.parentPlugin(), pluginHandlerProvider);
-        }
-
-        // Iterate over the plugins, find loaded plugin instances for what the handler provider needs
-        pluginsService.forEach((plugin) -> {
-            ImmutableClusterStateHandlerProvider handlerProvider = classToProviderMap.get(plugin.getClass());
-            if (handlerProvider != null) {
-                assert plugin.getClass().getClassLoader().equals(handlerProvider.getClass().getClassLoader());
-                loadedPluginForProvider.put(handlerProvider, plugin);
-            }
-        });
-
-        // Once we have the loaded plugin for each handler provider, get the handler instances and add them to the
-        // overall handler list
-        for (var providerPluginsEntry : loadedPluginForProvider.entrySet()) {
-            handlers.addAll(providerPluginsEntry.getKey().handlers(providerPluginsEntry.getValue()));
-        }
-
+        pluginHandlers.forEach(h -> handlers.addAll(h.handlers()));
         // Initialize the controller when merged
     }
 

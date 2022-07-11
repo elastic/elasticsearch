@@ -8,8 +8,6 @@
 
 package org.elasticsearch.immutablestate;
 
-import org.elasticsearch.plugins.Plugin;
-
 import java.util.Collection;
 
 /**
@@ -23,12 +21,5 @@ public interface ImmutableClusterStateHandlerProvider {
      *
      * @return a list of ${@link ImmutableClusterStateHandler}s
      */
-    Collection<ImmutableClusterStateHandler<?>> handlers(Plugin loadedPlugin);
-
-    /**
-     * Returns the class of the plugin which this service provider will use to return the handler list
-     *
-     * @return a class of the plugin related to the service provider
-     */
-    Class<? extends Plugin> parentPlugin();
+    Collection<ImmutableClusterStateHandler<?>> handlers();
 }

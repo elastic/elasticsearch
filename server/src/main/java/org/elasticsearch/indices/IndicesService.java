@@ -164,8 +164,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.core.Strings.format;
@@ -218,7 +216,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    private volatile Map<String, IndexService> indices = emptyMap();
+    private volatile Map<String, IndexService> indices = Map.of();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -860,10 +858,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
-                Map<String, IndexService> newIndices = new HashMap<>(indices);
-                indexService = newIndices.remove(index.getUUID());
+                indexService = indices.get(index.getUUID());
                 assert indexService != null : "IndexService is null for index: " + index;
-                indices = unmodifiableMap(newIndices);
+                indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
                 listener = indexService.getIndexEventListener();
             }
 

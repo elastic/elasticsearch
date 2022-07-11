@@ -772,7 +772,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      */
     final void setStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
         // this should be called from the generic threadpool
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         try {
             if (addSetStopAtCheckpointListener(shouldStopAtCheckpoint, shouldStopAtCheckpointListener) == false) {

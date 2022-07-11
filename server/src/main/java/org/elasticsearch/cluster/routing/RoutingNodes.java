@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -273,10 +274,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     }
 
     public Set<String> getAttributeValues(String attributeName) {
-        // Only ever accessed on the owning thread so no need for synchronization
-        // TODO fix up this assertion
-        // assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-        // : Thread.currentThread().getName() + " should be the master service thread";
+        // Only ever accessed on the master service thread so no need for synchronization
+        assert MasterService.assertMasterUpdateOrTestThread();
         return attributeValuesByAttribute.computeIfAbsent(
             attributeName,
             ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())

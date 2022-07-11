@@ -298,4 +298,14 @@ public class Maps {
         throw new IllegalStateException("Unsupported input format");
     }
 
+    /**
+     * This method creates a "deep" of the {@code source} map using on {@code copyValueFunction} each value
+     */
+    public static <K, V> Map<K, V> copy(Map<K, V> source, Function<V, V> copyValueFunction) {
+        var copy = Maps.<K, V>newHashMapWithExpectedSize(source.size());
+        for (var entry : source.entrySet()) {
+            copy.put(entry.getKey(), copyValueFunction.apply(entry.getValue()));
+        }
+        return copy;
+    }
 }

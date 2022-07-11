@@ -325,6 +325,7 @@ public class ApiKeyService {
                 final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
                     .setId(request.getId())
+                    .setOpType(DocWriteRequest.OpType.CREATE)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
                 final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
@@ -338,6 +339,7 @@ public class ApiKeyService {
                         bulkRequest,
                         TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
+                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
                             listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
                             apiKeyAuthCache.put(request.getId(), listenableFuture);

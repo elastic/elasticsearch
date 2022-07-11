@@ -15,15 +15,12 @@ import org.elasticsearch.gradle.Version;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.logging.LogLevel;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -64,26 +61,21 @@ public class BwcSetupExtension {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.usesService(bwcTaskThrottleProvider);
-            loggedExec.setSpoolOutput(true);
-            loggedExec.setWorkingDir(checkoutDir.get());
-            loggedExec.doFirst(new Action<Task>() {
-                @Override
-                public void execute(Task t) {
-                    // Execution time so that the checkouts are available
-                    String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version());
-                    String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
-                    loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
-                }
-            });
+            loggedExec.getWorkingDir().set(checkoutDir.get());
+
+            loggedExec.getEnvironment().put("JAVA_HOME", unreleasedVersionInfo.zip(checkoutDir, (version, checkoutDir) -> {
+                String minimumCompilerVersion = readFromFile(new File(checkoutDir, minimumCompilerVersionPath(version.version())));
+                return getJavaHome(Integer.parseInt(minimumCompilerVersion));
+            }));
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                loggedExec.executable("cmd");
+                loggedExec.getExecutable().set("cmd");
                 loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
             } else {
-                loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
             }
 
-            loggedExec.args("-g", project.getGradle().getGradleUserHomeDir());
+            loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().toString());
             if (project.getGradle().getStartParameter().isOffline()) {
                 loggedExec.args("--offline");
             }
@@ -93,8 +85,7 @@ public class BwcSetupExtension {
                 loggedExec.args("-Dorg.elasticsearch.build.cache.url=" + buildCacheUrl);
             }
 
-            loggedExec.args("-Dbuild.snapshot=true");
-            loggedExec.args("-Dscan.tag.NESTED");
+            loggedExec.args("-Dbuild.snapshot=true", "-Dscan.tag.NESTED");
             final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
             List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);
             if (nonDefaultLogLevels.contains(logLevel)) {
@@ -110,8 +101,7 @@ public class BwcSetupExtension {
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
             }
-            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version()));
-            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version()));
+            loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.map(v -> v.version().toString()));
             configAction.execute(loggedExec);
         });
     }
@@ -120,32 +110,6 @@ public class BwcSetupExtension {
         return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))
             ? "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH
             : "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;
-    }
-
-    private static class IndentingOutputStream extends OutputStream {
-
-        public final byte[] indent;
-        private final OutputStream delegate;
-
-        IndentingOutputStream(OutputStream delegate, Object version) {
-            this.delegate = delegate;
-            indent = (" [" + version + "] ").getBytes(StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            int[] arr = { b };
-            write(arr, 0, 1);
-        }
-
-        public void write(int[] bytes, int offset, int length) throws IOException {
-            for (int i = 0; i < bytes.length; i++) {
-                delegate.write(bytes[i]);
-                if (bytes[i] == '\n') {
-                    delegate.write(indent);
-                }
-            }
-        }
     }
 
     private static String readFromFile(File file) {

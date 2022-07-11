@@ -187,8 +187,10 @@ public class CircuitBreakerTests extends ESTestCase {
         assertEquals("sequence_inflight", e.getMessage());
 
         // Break on second iteration
-        SequenceMatcher matcher2 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(15000));
+        EqlTestCircuitBreaker breaker = new EqlTestCircuitBreaker(15000);
+        SequenceMatcher matcher2 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, breaker);
         matcher2.match(0, hits);
+        assertEquals(matcher2.ramBytesUsedInFlight() + matcher2.ramBytesUsedCompleted(), breaker.ramBytesUsed);
         e = expectThrows(CircuitBreakingException.class, () -> matcher2.match(0, hits));
         assertEquals("sequence_inflight", e.getMessage());
 

@@ -82,7 +82,12 @@ public class SequenceMatcher {
     private final Stats stats = new Stats();
 
     private boolean headLimit = false;
+
+    // ---------- CIRCUIT BREAKER -----------
+
     private long totalRamBytesUsed = 0;
+    private long prevRamBytesUsedInFlight = 0;
+    private long prevRamBytesUsedCompleted = 0;
 
     @SuppressWarnings("rawtypes")
     public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
@@ -114,9 +119,6 @@ public class SequenceMatcher {
      * Returns false if the process needs to be stopped.
      */
     boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
-        long ramBytesUsedInFlight = ramBytesUsedInFlight();
-        long ramBytesUsedCompleted = ramBytesUsedCompleted();
-
         for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
@@ -145,7 +147,7 @@ public class SequenceMatcher {
             log.trace("{}", stats);
             matched = true;
         }
-        trackMemory(ramBytesUsedInFlight, ramBytesUsedCompleted);
+        trackMemory();
         return matched;
     }
 
@@ -305,21 +307,23 @@ public class SequenceMatcher {
         clearCircuitBreaker();
     }
 
-    private long ramBytesUsedInFlight() {
+    protected long ramBytesUsedInFlight() {
         return RamUsageEstimator.sizeOf(keyToSequences) + RamUsageEstimator.sizeOf(stageToKeys);
     }
 
-    private long ramBytesUsedCompleted() {
+    protected long ramBytesUsedCompleted() {
         return RamUsageEstimator.sizeOfCollection(completed);
     }
 
     private void addMemory(long bytes, String label) {
-        totalRamBytesUsed += bytes;
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        totalRamBytesUsed += bytes;
     }
 
     private void clearCircuitBreaker() {
         circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
+        prevRamBytesUsedInFlight = 0;
+        prevRamBytesUsedCompleted = 0;
         totalRamBytesUsed = 0;
     }
 
@@ -328,11 +332,13 @@ public class SequenceMatcher {
     // expensive, so we just calculate the difference in bytes of the total memory that the matcher's
     // structure occupy for the in-flight tracking of sequences, as well as for the list of completed
     // sequences.
-    private void trackMemory(long prevRamBytesUsedInflight, long prevRamBytesUsedCompleted) {
-        long bytesDiff = ramBytesUsedInFlight() - prevRamBytesUsedInflight;
+    private void trackMemory() {
+        long bytesDiff = ramBytesUsedInFlight() - prevRamBytesUsedInFlight;
         addMemory(bytesDiff, CB_INFLIGHT_LABEL);
+        prevRamBytesUsedInFlight += bytesDiff;
         bytesDiff = ramBytesUsedCompleted() - prevRamBytesUsedCompleted;
         addMemory(bytesDiff, CB_COMPLETED_LABEL);
+        prevRamBytesUsedCompleted += bytesDiff;
     }
 
     @Override

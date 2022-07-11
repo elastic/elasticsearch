@@ -61,7 +61,6 @@ import java.util.stream.Collectors;
  * requires the existence of a master).
  */
 public class CoordinationDiagnosticsService implements ClusterStateListener {
-
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Coordinator coordinator;
@@ -626,9 +625,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     record ClusterFormationStateOrException(
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState,
         Exception exception
-    ) { // non-private for testing
-
-        public ClusterFormationStateOrException {
+    ) {
+        ClusterFormationStateOrException {
             if (clusterFormationState != null && exception != null) {
                 throw new IllegalArgumentException("Cluster formation state and exception cannot both be non-null");
             }

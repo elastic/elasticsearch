@@ -85,7 +85,7 @@ public class SuggestProfilesRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (size < 0) {
-            validationException = addValidationError("[size] parameter cannot be negative but was [" + size + "]", validationException);
+            validationException = addValidationError("[size] parameter cannot be negative, got " + size, validationException);
         }
         if (hint != null) {
             validationException = hint.validate(validationException);

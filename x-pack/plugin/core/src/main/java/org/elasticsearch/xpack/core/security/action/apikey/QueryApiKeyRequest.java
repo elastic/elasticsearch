@@ -102,10 +102,10 @@ public final class QueryApiKeyRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (from != null && from < 0) {
-            validationException = addValidationError("[from] parameter cannot be negative but was [" + from + "]", validationException);
+            validationException = addValidationError("[from] parameter cannot be negative, got " + from, validationException);
         }
         if (size != null && size < 0) {
-            validationException = addValidationError("[size] parameter cannot be negative but was [" + size + "]", validationException);
+            validationException = addValidationError("[size] parameter cannot be negative, got " + size, validationException);
         }
         return validationException;
     }

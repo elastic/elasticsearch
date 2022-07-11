@@ -360,7 +360,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder from(int from) {
         if (from < 0) {
-            throw new IllegalArgumentException("[from] parameter cannot be negative but was [" + from + "]");
+            throw new IllegalArgumentException("[from] parameter cannot be negative, got " + from);
         }
         this.from = from;
         return this;
@@ -378,7 +378,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder size(int size) {
         if (size < 0) {
-            throw new IllegalArgumentException("[size] parameter cannot be negative, found [" + size + "]");
+            throw new IllegalArgumentException("[size] parameter cannot be negative, got " + size);
         }
         this.size = size;
         return this;
@@ -478,7 +478,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder terminateAfter(int terminateAfter) {
         if (terminateAfter < 0) {
-            throw new IllegalArgumentException("terminateAfter must be > 0");
+            throw new IllegalArgumentException("[terminate_after] parameter cannot be negative, got " + terminateAfter);
         }
         this.terminateAfter = terminateAfter;
         return this;
@@ -581,7 +581,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public SearchSourceBuilder trackTotalHitsUpTo(int trackTotalHitsUpTo) {
         if (trackTotalHitsUpTo < TRACK_TOTAL_HITS_DISABLED) {
             throw new IllegalArgumentException(
-                "[track_total_hits] parameter must be positive or equals to -1, " + "got " + trackTotalHitsUpTo
+                "[track_total_hits] parameter must be positive or equals to -1, got " + trackTotalHitsUpTo
             );
         }
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;

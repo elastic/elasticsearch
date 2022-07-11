@@ -178,7 +178,7 @@ public final class CountRequest implements Validatable, ToXContentObject {
 
     public CountRequest terminateAfter(int terminateAfter) {
         if (terminateAfter < 0) {
-            throw new IllegalArgumentException("terminateAfter must be > 0");
+            throw new IllegalArgumentException("[terminate_after] parameter cannot be negative, got " + terminateAfter);
         }
         this.terminateAfter = terminateAfter;
         return this;

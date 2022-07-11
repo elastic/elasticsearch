@@ -63,7 +63,7 @@ setup:
 "test negative terminate_after throws IAE":
 
   - do:
-      catch: /terminateAfter must be > 0/
+      catch: /\[terminate_after\] parameter cannot be negative, got -1/
       count:
         index: index1
         terminate_after: -1

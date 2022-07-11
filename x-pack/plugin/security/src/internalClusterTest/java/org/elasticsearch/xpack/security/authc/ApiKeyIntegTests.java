@@ -1464,9 +1464,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
 
         assertNotNull(response);
-        // In this test, non-null roleDescriptors always result in an update since the role descriptor assigned to the key
-        // either update the role name, or associated privileges.
-        // As such null descriptors (plus matching or null metadata) is the only way we can get a noop here
+        // In this test, non-null roleDescriptors always result in an update since they either update the role name, or associated
+        // privileges. As such null descriptors (plus matching or null metadata) is the only way we can get a noop here
         final boolean metadataChanged = request.getMetadata() != null && false == request.getMetadata().equals(oldMetadata);
         final boolean isUpdated = nullRoleDescriptors == false || metadataChanged;
         assertEquals(isUpdated, response.isUpdated());
@@ -1972,8 +1971,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void expectCreatorForApiKey(final Map<String, Object> expectedCreator, final Map<String, Object> actualRawApiKeyDoc) {
         assertNotNull(actualRawApiKeyDoc);
         @SuppressWarnings("unchecked")
-        final var actualMetadata = (Map<String, Object>) actualRawApiKeyDoc.get("creator");
-        assertThat("for api key doc " + actualRawApiKeyDoc, actualMetadata, equalTo(expectedCreator));
+        final var actualCreator = (Map<String, Object>) actualRawApiKeyDoc.get("creator");
+        assertThat("for api key doc " + actualRawApiKeyDoc, actualCreator, equalTo(expectedCreator));
     }
 
     @SuppressWarnings("unchecked")

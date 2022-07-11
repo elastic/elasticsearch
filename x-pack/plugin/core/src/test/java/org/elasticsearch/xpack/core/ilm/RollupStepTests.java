@@ -23,9 +23,11 @@ import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.RollupILMAction.ROLLUP_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -144,6 +146,101 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+    }
+
+    /**
+     * Test rollup step when a successfully completed rollup index already exists.
+     */
+    public void testPerformActionCompletedRollupIndexExists() {
+        String sourceIndexName = randomAlphaOfLength(10);
+        String lifecycleName = randomAlphaOfLength(5);
+        RollupStep step = createRandomInstance();
+
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setRollupIndexName(rollupIndex);
+
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        // Create a successfully completed rollup index (index.rollup.status: success)
+        IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Map<String, IndexMetadata> indices = Map.of(rollupIndex, indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+
+        Mockito.doThrow(new IllegalStateException("Rollup action should not be invoked"))
+            .when(client)
+            .execute(Mockito.any(), Mockito.any(), Mockito.any());
+
+        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Test rollup step when an in-progress rollup index already exists.
+     */
+    public void testPerformActionRollupInProgressIndexExists() {
+        String sourceIndexName = randomAlphaOfLength(10);
+        String lifecycleName = randomAlphaOfLength(5);
+        RollupStep step = createRandomInstance();
+
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+
+        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(ROLLUP_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setRollupIndexName(rollupIndex);
+
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        // Create an in-progress rollup index (index.rollup.status: started)
+        IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Map<String, IndexMetadata> indices = Map.of(rollupIndex, indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+
+        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("onResponse should not be called in this test, because there's an in-progress rollup index");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof IllegalStateException);
+                assertTrue(e.getMessage().contains("already exists with rollup status [started]"));
+            }
+        });
     }
 
     private void mockClientRollupCall(String sourceIndex) {

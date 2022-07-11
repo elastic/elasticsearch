@@ -81,7 +81,6 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
             .numberOfReplicas(randomIntBetween(0, 5));
 
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
-
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();

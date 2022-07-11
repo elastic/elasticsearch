@@ -57,6 +57,7 @@ public class RollupActionIT extends ESRestTestCase {
     private String index;
     private String policy;
     private String alias;
+    private String dataStream;
 
     private static final String TEMPLATE = """
         {
@@ -94,7 +95,16 @@ public class RollupActionIT extends ESRestTestCase {
         index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
-        logger.info("--> running [{}] with index [{}], alias [{}] and policy [{}]", getTestName(), index, alias, policy);
+        dataStream = "ds-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        logger.info(
+            "--> running [{}] with index [{}], data stream [{}], alias [{}] and policy [{}]",
+            getTestName(),
+            index,
+            dataStream,
+            alias,
+            policy
+        );
     }
 
     private void createIndex(String index, String alias) throws IOException {
@@ -219,8 +229,6 @@ public class RollupActionIT extends ESRestTestCase {
     }
 
     public void testTsdbDataStreams() throws Exception {
-        final String dataStream = "k8s-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
         // Create the ILM policy
         createNewSingletonPolicy(client(), policy, "warm", new RollupILMAction(RollupActionConfigTests.randomConfig()));
 

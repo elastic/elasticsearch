@@ -70,7 +70,7 @@ public class RollupStep extends AsyncActionStep {
 
         IndexMetadata rollupIndexMetadata = currentState.metadata().index(rollupIndexName);
         if (rollupIndexMetadata != null) {
-            IndexMetadata.RollupTaskStatus rollupIndexStatus = IndexMetadata.INDEX_ROLLUP_STATUS.get(indexMetadata.getSettings());
+            IndexMetadata.RollupTaskStatus rollupIndexStatus = IndexMetadata.INDEX_ROLLUP_STATUS.get(rollupIndexMetadata.getSettings());
             if (IndexMetadata.RollupTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
                 logger.warn(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the rollup index [{}] already exists",

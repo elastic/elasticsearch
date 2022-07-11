@@ -190,7 +190,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                     taskContext.onFailure(e);
                     continue;
                 }
-                if (taskContext.getTask().request().dryRun() == false) {
+                if (taskContext.getTask().request().isDryRun() == false) {
                     desiredNodes = newDesiredNodes;
                 }
                 final var replacedExistingHistoryId = previousDesiredNodes != null

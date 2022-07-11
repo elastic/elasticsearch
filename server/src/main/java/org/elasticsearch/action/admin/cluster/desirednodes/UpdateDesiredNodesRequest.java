@@ -92,7 +92,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         return nodes;
     }
 
-    public boolean dryRun() {
+    public boolean isDryRun() {
         return dryRun;
     }
 

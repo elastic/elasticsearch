@@ -681,7 +681,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             if (this.reloadJwks(isJwtAlgHmac) == false) {
                 // Reload failed, or no JWK content changes found, so realm still has no JWKs and Algs to verify JWT
                 final String msg = "Realm [" + super.name() + "] had no JWKs to verify JWT for token=[" + tokenPrincipal + "].";
-                LOGGER.error(msg);
+                LOGGER.debug(msg);
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                 return false;
             }

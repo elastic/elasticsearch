@@ -27,7 +27,7 @@ public class JwtValidateUtilTests extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtilTests.class);
 
     private boolean helpTestSignatureAlgorithm(final String signatureAlgorithm, final boolean requireOidcSafe) throws Exception {
-        LOGGER.info("Testing signature algorithm " + signatureAlgorithm);
+        LOGGER.trace("Testing signature algorithm " + signatureAlgorithm);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, requireOidcSafe);
         final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());

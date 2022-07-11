@@ -138,7 +138,6 @@ class RollupShardIndexer {
             bucketCollector.postCollection();
         }
 
-
         logger.info(
             "Shard [{}] successfully sent [{}], indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),

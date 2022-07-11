@@ -51,7 +51,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         this.serialNumber = certificate.getSerialNumber().toString(16);
         this.hasPrivateKey = hasPrivateKey;
         this.expiry = certificate.getNotAfter().toInstant().atZone(ZoneOffset.UTC);
-        //note: using X500Principal#toString instead of the more canonical X500Principal#getName to match extractSubjectDn
+        // note: using X500Principal#toString instead of the more canonical X500Principal#getName to match extractSubjectDn
         this.issuer = Objects.requireNonNull(certificate.getIssuerX500Principal().toString(), "issuer can not be null");
     }
 

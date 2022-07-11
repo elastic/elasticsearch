@@ -52,25 +52,33 @@ public class CertificateInfoTests extends ESTestCase {
     }
 
     public void testExtractIssuer() throws Exception {
-        //self signed
-        X509Certificate certificate =  readSampleCertificate(selfSignedCertPath);
-        CertificateInfo certificateInfo = new CertificateInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5),
-            randomBoolean(), certificate);
+        // self signed
+        X509Certificate certificate = readSampleCertificate(selfSignedCertPath);
+        CertificateInfo certificateInfo = new CertificateInfo(
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            randomBoolean(),
+            certificate
+        );
         assertEquals(certificate.getSubjectX500Principal().toString(), certificateInfo.issuer());
         assertEquals(certificate.getIssuerX500Principal().toString(), certificateInfo.issuer());
 
-        //root signed
-        certificate =  readSampleCertificate(rootSignedCertPath);
-        certificateInfo = new CertificateInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5),
-            randomBoolean(), certificate);
+        // root signed
+        certificate = readSampleCertificate(rootSignedCertPath);
+        certificateInfo = new CertificateInfo(
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            randomBoolean(),
+            certificate
+        );
         assertNotEquals(certificate.getSubjectX500Principal().toString(), certificateInfo.issuer());
         assertEquals("CN=root-ca, OU=test, O=elasticsearch, C=US", certificateInfo.issuer());
     }
 
     private X509Certificate readSampleCertificate(String dataPath) throws CertificateException, IOException {
-        return CertParsingUtils.readX509Certificates(
-            Collections.singletonList(getDataPath(dataPath))
-        )[0];
+        return CertParsingUtils.readX509Certificates(Collections.singletonList(getDataPath(dataPath)))[0];
     }
 
     private CertificateInfo serializeAndDeserialize(CertificateInfo cert1) throws IOException {

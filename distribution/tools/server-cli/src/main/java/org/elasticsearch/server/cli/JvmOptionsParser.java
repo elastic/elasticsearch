@@ -137,8 +137,9 @@ final class JvmOptionsParser {
             Path.of(substitutions.get("ES_TMPDIR"))
         );
 
-        final int numOptions = systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size();
-        final List<String> finalJvmOptions = new ArrayList<>(numOptions);
+        final List<String> finalJvmOptions = new ArrayList<>(
+            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size()
+        );
         finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
         finalJvmOptions.addAll(substitutedJvmOptions);
         finalJvmOptions.addAll(ergonomicJvmOptions);

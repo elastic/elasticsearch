@@ -84,11 +84,15 @@ class ServerCli extends EnvironmentAwareCommand {
             final SecureString keystorePassword = getKeystorePassword(keystore, terminal);
             env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
+            if (keystore != null) {
+                keystore.decrypt(keystorePassword.getChars());
+            }
+
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);
 
             ServerArgs args = createArgs(options, env, keystore, keystorePassword, processInfo);
-            this.server = startServer(terminal, processInfo, args, env.pluginsFile());
+            this.server = startServer(terminal, processInfo, args);
 
             if (options.has(daemonizeOption)) {
                 server.detach();
@@ -234,7 +238,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args, pluginsDir);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
+        return ServerProcess.start(terminal, processInfo, args);
     }
 }

@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * This class is responsible for working out if APM tracing is enabled, and if so, preparing
@@ -176,8 +177,9 @@ class APMJvmOptions {
     }
 
     private static void extractSecureSettings(KeyStoreWrapper keystore, Map<String, String> propertiesMap) {
+        final Set<String> settingNames = keystore.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (keystore.getSettingNames().contains("xpack.apm." + key)) {
+            if (settingNames.contains("xpack.apm." + key)) {
                 try (SecureString token = keystore.getString("xpack.apm." + key)) {
                     propertiesMap.put(key, token.toString());
                 }

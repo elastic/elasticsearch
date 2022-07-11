@@ -36,7 +36,7 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
 /**
  * A helper to control a {@link Process} running the main Elasticsearch server.
  *
- * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs, Path)}.
+ * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs)}.
  * The process is controlled by internally sending arguments and control signals on stdin,
  * and receiving control signals on stderr. The start method does not return until the
  * server is ready to process requests and has exited the bootstrap thread.
@@ -81,12 +81,11 @@ public class ServerProcess {
      * @param terminal A terminal to connect the standard inputs and outputs to for the new process.
      * @param processInfo Info about the current process, for passing through to the subprocess.
      * @param args Arguments to the server process.
-     * @param pluginsDir The directory in which plugins can be found
      * @return A running server process that is ready for requests
      * @throws UserException If the process failed during bootstrap
      */
-    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
-        return start(terminal, processInfo, args, pluginsDir, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
+    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
+        return start(terminal, processInfo, args, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
     }
 
     // package private so tests can mock options building and process starting
@@ -94,7 +93,6 @@ public class ServerProcess {
         Terminal terminal,
         ProcessInfo processInfo,
         ServerArgs args,
-        Path pluginsDir,
         OptionsBuilder optionsBuilder,
         ProcessStarter processStarter
     ) throws UserException {
@@ -103,7 +101,7 @@ public class ServerProcess {
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(args, processInfo, args.configDir(), pluginsDir, optionsBuilder, processStarter);
+            jvmProcess = createProcess(args, processInfo, args.configDir(), optionsBuilder, processStarter);
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(args, jvmProcess.getOutputStream());
@@ -199,7 +197,6 @@ public class ServerProcess {
         ServerArgs args,
         ProcessInfo processInfo,
         Path configDir,
-        Path pluginsDir,
         OptionsBuilder optionsBuilder,
         ProcessStarter processStarter
     ) throws InterruptedException, IOException, UserException {

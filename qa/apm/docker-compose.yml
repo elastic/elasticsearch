@@ -138,7 +138,6 @@ services:
   # Rather than mess aroud with threads in the test, just run `curl` in a
   # loop to generate traces with a known path
   tracegenerator:
-    container_name: tracegenerator
     depends_on:
       apmserver:
         condition: service_healthy
@@ -146,9 +145,10 @@ services:
         condition: service_healthy
       kibana:
         condition: service_healthy
-    # Using this image is a simple way to get `curl`.
+    # Using this image is a simple way to get `curl`. This will break if we
+    # remove curl from the image.
     image: elasticsearch:test
-    command: /bin/sh -c "while true; do curl -s -k -u admin:changeme http://elasticsearch:9200/_nodes/stats ; sleep 5; done"
+    command: /bin/sh -c "while true; do curl -s -k -u admin:changeme http://elasticsearch:9200/_nodes/stats >/dev/null ; sleep 1; done"
 
 volumes:
   esdata:

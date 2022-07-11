@@ -10,11 +10,13 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.search.aggregations.timeseries.DisjunctionDocIdSetIterator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -218,6 +220,19 @@ public class MultiBucketCollector extends BucketCollector {
                 final LeafCollector c = collectors[i];
                 c.setScorer(scorer);
             }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            final List<DocIdSetIterator> subIterators = new ArrayList<>(collectors.length);
+            for (LeafBucketCollector collector : collectors) {
+                final DocIdSetIterator iterator = collector.competitiveIterator();
+                if (iterator == null) {
+                    return null;
+                }
+                subIterators.add(iterator);
+            }
+            return new DisjunctionDocIdSetIterator(subIterators);
         }
 
         private void removeCollector(int i) {

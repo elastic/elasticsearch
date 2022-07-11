@@ -20,10 +20,12 @@ import java.util.Map;
 public class TimeSeriesAggregationFactory extends AggregatorFactory {
 
     private final boolean keyed;
+    private final boolean needCounts;
 
     public TimeSeriesAggregationFactory(
         String name,
         boolean keyed,
+        boolean needCounts,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -31,11 +33,12 @@ public class TimeSeriesAggregationFactory extends AggregatorFactory {
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.keyed = keyed;
+        this.needCounts = needCounts;
     }
 
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return new TimeSeriesAggregator(name, factories, keyed, context, parent, cardinality, metadata);
+        return new TimeSeriesAggregator(name, factories, keyed, needCounts, context, parent, cardinality, metadata);
     }
 }

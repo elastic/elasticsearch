@@ -43,7 +43,7 @@ public class TimeSeriesAggregationBuilderTests extends AbstractSerializingTestCa
 
     @Override
     protected TimeSeriesAggregationBuilder createTestInstance() {
-        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean());
+        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean(), randomBoolean());
     }
 
     @Override

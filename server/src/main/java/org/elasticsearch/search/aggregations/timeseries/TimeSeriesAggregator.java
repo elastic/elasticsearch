@@ -8,6 +8,9 @@
 
 package org.elasticsearch.search.aggregations.timeseries;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -31,12 +34,14 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     protected final BytesKeyedBucketOrds bucketOrds;
     private final boolean keyed;
+    private final boolean needCounts;
 
     @SuppressWarnings("unchecked")
     public TimeSeriesAggregator(
         String name,
         AggregatorFactories factories,
         boolean keyed,
+        boolean needCounts,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
@@ -44,6 +49,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     ) throws IOException {
         super(name, factories, context, parent, bucketCardinality, metadata);
         this.keyed = keyed;
+        this.needCounts = needCounts;
         bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
     }
 
@@ -91,6 +97,23 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
 
+            private DocsPerOrdIterator competitiveIterator;
+
+            @Override
+            public DocIdSetIterator competitiveIterator() throws IOException {
+                if (needCounts) {
+                    return null;
+                }
+                final DocIdSetIterator subIterator = sub.competitiveIterator();
+                if (subIterator == null) {
+                    return null;
+                }
+                final SortedDocValues tsids = DocValues.getSorted(aggCtx.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
+                // this iterator makes sure we call at least once each included tsid regardless of the sub-iterator
+                this.competitiveIterator = new DocsPerOrdIterator(tsids, 1);
+                return new DisjunctionDocIdSetIterator(List.of(competitiveIterator, subIterator));
+            }
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 long bucketOrdinal = bucketOrds.add(bucket, aggCtx.getTsid());
@@ -99,6 +122,10 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     collectExistingBucket(sub, doc, bucketOrdinal);
                 } else {
                     collectBucket(sub, doc, bucketOrdinal);
+                }
+                if (this.competitiveIterator != null) {
+                    // register the visited doc on the competitive iterator
+                    this.competitiveIterator.visitedDoc(doc);
                 }
             }
         };

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -21,6 +24,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -32,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.timeseries.DocsPerOrdIterator;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortValue;
@@ -127,9 +132,24 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         BucketedSort.Leaf leafSort = sort.forLeaf(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollector() {
+
+            DocsPerOrdIterator docsPerOrdIterator;
+
+            @Override
+            public DocIdSetIterator competitiveIterator() throws IOException {
+                if (aggCtx != null && aggCtx.getTsid() != null) {
+                    // TODO: we need to check that the sorting is that in @timestamp in descending order
+                    SortedDocValues tsids = DocValues.getSorted(aggCtx.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
+                    docsPerOrdIterator = new DocsPerOrdIterator(tsids, size);
+                }
+                return docsPerOrdIterator;
+            }
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                leafSort.collect(doc, bucket);
+                if (leafSort.collect(doc, bucket) && docsPerOrdIterator != null) {
+                    docsPerOrdIterator.visitedDoc(doc);
+                }
             }
 
             @Override

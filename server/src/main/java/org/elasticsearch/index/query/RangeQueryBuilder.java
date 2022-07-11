@@ -437,7 +437,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (coordinatorRewriteContext != null) {
             final MappedField mappedField = coordinatorRewriteContext.getMappedField(fieldName);
-            if (mappedField.type()instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            if (mappedField != null && mappedField.type()instanceof DateFieldMapper.DateFieldType dateFieldType) {
                 if (coordinatorRewriteContext.hasTimestampData() == false) {
                     return MappedFieldType.Relation.DISJOINT;
                 }

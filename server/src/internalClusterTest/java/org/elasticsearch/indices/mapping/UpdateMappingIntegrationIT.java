@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -326,8 +326,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
             MapperService mapperService = indexService.mapperService();
             for (String fieldName : fieldNames) {
-                MappedFieldType fieldType = mapperService.mappedField(fieldName);
-                assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
+                MappedField mappedField = mapperService.mappedField(fieldName);
+                assertNotNull("field " + fieldName + " doesn't exists on " + node, mappedField);
             }
         }
         assertMappingOnMaster(index, fieldNames);

@@ -154,7 +154,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
     private static MappedField fromMapperService(MapperService mapperService) {
         final MappedField mappedField = mapperService.mappedField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (mappedField.type() instanceof DateFieldMapper.DateFieldType) {
+        if (mappedField != null && mappedField.type() instanceof DateFieldMapper.DateFieldType) {
             return mappedField;
         } else {
             return null;

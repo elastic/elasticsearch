@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -633,7 +634,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         private static final String FIELD_NAME = "_test";
 
         protected TestMetadataMapper() {
-            super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+            super(new MappedField(FIELD_NAME, new KeywordFieldMapper.KeywordFieldType()));
         }
 
         @Override

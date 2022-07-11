@@ -31,7 +31,6 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedField;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -175,13 +174,16 @@ public class TermVectorsService {
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
 
-    private static boolean isValidField(MappedFieldType fieldType) {
+    private static boolean isValidField(MappedField mappedField) {
+        if (mappedField == null) {
+            return false;
+        }
         // must be a string
-        if (fieldType instanceof StringFieldType == false) {
+        if (mappedField.type() instanceof StringFieldType == false) {
             return false;
         }
         // and must be indexed
-        if (fieldType.isIndexed() == false) {
+        if (mappedField.isIndexed() == false) {
             return false;
         }
         return true;
@@ -198,7 +200,7 @@ public class TermVectorsService {
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
             MappedField mappedField = indexShard.mapperService().mappedField(field);
-            if (isValidField(mappedField.type()) == false) {
+            if (isValidField(mappedField) == false) {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
@@ -314,8 +316,8 @@ public class TermVectorsService {
         Set<String> seenFields = new HashSet<>();
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
-            MappedFieldType fieldType = indexShard.mapperService().mappedField(field.name()).type();
-            if (isValidField(fieldType) == false) {
+            MappedField mappedField = indexShard.mapperService().mappedField(field.name());
+            if (isValidField(mappedField) == false) {
                 continue;
             }
             if (request.selectedFields() != null && request.selectedFields().contains(field.name()) == false) {

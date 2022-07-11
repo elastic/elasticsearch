@@ -424,6 +424,7 @@ public class Constants {
         "indices:data/read/close_point_in_time",
         "indices:data/read/eql",
         "indices:data/read/eql/async/get",
+        "indices:data/read/esql",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
         "indices:data/read/get",

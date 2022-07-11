@@ -478,44 +478,35 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         return new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap).pollUntilCancelled();
     }
 
-    /**
-     * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel() is
-     * called on this method, then cancel() is called on all child Cancellables.
+    /*
+     * This inner class wraps the logic of polling a master-eligible node for its cluster formation information (which is needed in the
+     * event that the cluster cannot elect a master node).
      */
-    private static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
-        private final List<Scheduler.Cancellable> delegates;
-
-        MultipleCancellablesWrapper() {
-            this.delegates = new CopyOnWriteArrayList<>();
-        }
-
-        @Override
-        public boolean cancel() {
-            delegates.forEach(Scheduler.Cancellable::cancel);
-            return true;
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return delegates.stream().anyMatch(Scheduler.Cancellable::isCancelled);
-        }
-
-        public void addNewCancellable(Scheduler.ScheduledCancellable cancellable) {
-            delegates.add(cancellable);
-        }
-    }
-
-    private class PollClusterFormationStateTask {
+    // Non-private for testing
+    class PollClusterFormationStateTask {
+        /**
+         * The node that is being polled
+         */
         private final DiscoveryNode node;
+        /**
+         * This is a reference to the global nodeToClusterFormationStateMap that was current at the time this object was constructed. The
+         * global map is recreated whenever the task is cancelled. Having this reference prevents accidental writes to that map after
+         * cancellation.
+         */
         private final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap;
+        /**
+         * This is a wrapper Cancellable. After polling begins, every time a new remote request is scheduled (about once every 10
+         * seconds) we get a new Cancellable. This wraps all of them so that we only have to cancel the single Cancellable that is
+         * initially returned from pollUntilCancelled() in order to cancel them all.
+         */
         private final MultipleCancellablesWrapper multipleCancellablesWrapper;
 
         /**
          * This constructor is used to create the root task. It initializes the MultipleCancellablesWrapper that is shared between all
          * the related tasks.
          *
-         * @param node
-         * @param nodeToClusterFormationStateMap
+         * @param node The node to poll for cluster formation information
+         * @param nodeToClusterFormationStateMap A reference to the global nodeToClusterFormationStateMap
          */
         PollClusterFormationStateTask(
             DiscoveryNode node,
@@ -602,8 +593,36 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
             return multipleCancellablesWrapper;
         }
+
+        /**
+         * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel() is
+         * called on this method, then cancel() is called on all child Cancellables.
+         */
+        static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
+            private final List<Scheduler.Cancellable> delegates;
+
+            MultipleCancellablesWrapper() {
+                this.delegates = new CopyOnWriteArrayList<>();
+            }
+
+            @Override
+            public boolean cancel() {
+                delegates.forEach(Scheduler.Cancellable::cancel);
+                return true;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return delegates.stream().anyMatch(Scheduler.Cancellable::isCancelled);
+            }
+
+            public void addNewCancellable(Scheduler.Cancellable cancellable) {
+                delegates.add(cancellable);
+            }
+        }
     }
 
+    // Non-private for testing
     record ClusterFormationStateOrException(
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState,
         Exception exception

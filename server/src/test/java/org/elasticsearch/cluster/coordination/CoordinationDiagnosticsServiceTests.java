@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
@@ -590,7 +592,42 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    public void testPollClusterFormationInfo() throws Exception {
+    public void testMultipleCancellablesWrapper() {
+        CoordinationDiagnosticsService.PollClusterFormationStateTask.MultipleCancellablesWrapper multipleCancellablesWrapper =
+            new CoordinationDiagnosticsService.PollClusterFormationStateTask.MultipleCancellablesWrapper();
+        List<Scheduler.Cancellable> cancellables = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(5, 20); i++) {
+            Scheduler.Cancellable cancellable = createNewCancellable();
+            cancellables.add(cancellable);
+            assertFalse(cancellable.isCancelled());
+            multipleCancellablesWrapper.addNewCancellable(cancellable);
+        }
+        assertFalse(multipleCancellablesWrapper.isCancelled());
+        multipleCancellablesWrapper.cancel();
+        assertTrue(multipleCancellablesWrapper.isCancelled());
+        for (Scheduler.Cancellable cancellable : cancellables) {
+            assertTrue(cancellable.isCancelled());
+        }
+    }
+
+    private Scheduler.Cancellable createNewCancellable() {
+        return new Scheduler.Cancellable() {
+            private boolean cancelled = false;
+
+            @Override
+            public boolean cancel() {
+                this.cancelled = true;
+                return true;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return cancelled;
+            }
+        };
+    }
+
+    public void testPollClusterFormationInfo() {
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
@@ -614,20 +651,74 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                             );
                         }
                     );
+
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+                cluster.stabilise();
+                Cluster.ClusterNode nodeToDisconnect = cluster.clusterNodes.stream()
+                    .filter(clusterNode -> clusterNode.getLocalNode().isMasterNode())
+                    .findAny()
+                    .get();
+                nodeToDisconnect.disconnect();
                 cluster.stabilise();
                 // We're not calling the method on the local node:
                 assertThat(nodeToClusterFormationStateMap.size(), equalTo(masterNodes.size() - 1));
+
+                AtomicInteger exceptions = new AtomicInteger();
                 masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
                     CoordinationDiagnosticsService.ClusterFormationStateOrException clusterFormationStateOrException =
                         nodeToClusterFormationStateMap.get(masterNode);
                     assertNotNull(clusterFormationStateOrException);
-                    assertNotNull(clusterFormationStateOrException.clusterFormationState());
-                    assertNull(clusterFormationStateOrException.exception());
-                    ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = clusterFormationStateOrException
-                        .clusterFormationState();
-                    assertThat(clusterFormationState.getDescription(), not(emptyOrNullString()));
+                    if (clusterFormationStateOrException.clusterFormationState() != null) {
+                        assertNull(clusterFormationStateOrException.exception());
+                        ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = clusterFormationStateOrException
+                            .clusterFormationState();
+                        assertThat(clusterFormationState.getDescription(), not(emptyOrNullString()));
+                    } else {
+                        assertNotNull(clusterFormationStateOrException.exception());
+                        exceptions.getAndIncrement();
+                    }
                 });
+                if (node.equals(nodeToDisconnect)) {
+                    assertThat(exceptions.get(), equalTo(masterNodes.size() - 1));
+                } else {
+                    assertThat(exceptions.get(), equalTo(1));
+                }
+                nodeToDisconnect.heal();
+            });
+        }
+    }
+
+    public void testPollClusterFormationInfoCancel() {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            List<DiscoveryNode> masterNodes = cluster.clusterNodes.stream()
+                .map(Cluster.ClusterNode::getLocalNode)
+                .filter(DiscoveryNode::isMasterNode)
+                .toList();
+            cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
+                ConcurrentMap<
+                    DiscoveryNode,
+                    CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap =
+                        new ConcurrentHashMap<>();
+                List<Scheduler.Cancellable> cancellables = new ArrayList<>();
+                masterNodes.stream()
+                    .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
+                    .forEach(
+                        masterNode -> {
+                            cancellables.add(
+                                node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
+                                    masterNode,
+                                    nodeToClusterFormationStateMap
+                                )
+                            );
+                        }
+                    );
+                cancellables.forEach(Scheduler.Cancellable::cancel); // This is what will most often happen in practice
+                cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+                cluster.stabilise();
+                assertThat(nodeToClusterFormationStateMap.size(), equalTo(0)); // Everything was cancelled
             });
         }
     }

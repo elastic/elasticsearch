@@ -183,14 +183,18 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             for (final var taskContext : taskContexts) {
 
                 final var previousDesiredNodes = desiredNodes;
+                DesiredNodes newDesiredNodes;
                 try {
-                    desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
+                    newDesiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;
                 }
+                if (taskContext.getTask().request().dryRun() == false) {
+                    desiredNodes = newDesiredNodes;
+                }
                 final var replacedExistingHistoryId = previousDesiredNodes != null
-                    && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
+                    && previousDesiredNodes.hasSameHistoryId(newDesiredNodes) == false;
                 taskContext.success(
                     () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId))
                 );

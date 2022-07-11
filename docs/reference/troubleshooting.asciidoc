@@ -50,6 +50,8 @@ include::troubleshooting/data/add-tier.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
 
+include::troubleshooting/discovery-issues.asciidoc[]
+
 include::troubleshooting/data/increase-tier-capacity.asciidoc[]
 
 include::troubleshooting/data/start-ilm.asciidoc[]

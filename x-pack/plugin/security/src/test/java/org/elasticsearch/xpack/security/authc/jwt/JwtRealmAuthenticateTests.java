@@ -133,7 +133,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         jwtIssuerAndRealm.issuer().setJwks(Collections.emptyList(), jwtIssuerJwks1OidcSafe);
         super.printJwtIssuer(jwtIssuerAndRealm.issuer());
         super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
-        LOGGER.info("JWKs 1 emptied, algs=[{}]", jwtIssuerAndRealm.issuer().algorithms);
+        LOGGER.info("JWKs 1 emptied, algs=[{}]", String.join(",",jwtIssuerAndRealm.issuer().algorithms));
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);

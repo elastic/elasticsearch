@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.rollup.v2;
 
-public abstract class AbstractFieldProducer<T> implements Collectable<T> {
+/**
+ * Base class for classes that read metric and label fields.
+ */
+abstract class AbstractFieldProducer<T> implements Collectable<T> {
 
     protected final String field;
     protected boolean isEmpty;
@@ -17,17 +20,33 @@ public abstract class AbstractFieldProducer<T> implements Collectable<T> {
         this.isEmpty = true;
     }
 
+    /**
+     * Collect a value for the field applying the specific subclass collection strategy.
+     * @param value the value to collect.
+     */
     @Override
     public abstract void collect(T value);
 
+    /**
+     * @return the name of the field.
+     */
     public String field() {
         return field;
     }
 
+    /**
+     * @return the value of the field.
+     */
     public abstract Object value();
 
+    /**
+     * Resets the collected value to the specific subclass reset value.
+     */
     public abstract void reset();
 
+    /**
+     * @return true if the field has not collected any value.
+     */
     public boolean isEmpty() {
         return isEmpty;
     }

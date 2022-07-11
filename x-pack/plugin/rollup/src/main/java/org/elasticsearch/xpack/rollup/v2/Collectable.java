@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.rollup.v2;
 
-public interface Collectable<T> {
+/**
+ * Base interface for classes that collect metric and label field values.
+ */
+interface Collectable<T> {
     void collect(T value);
 }

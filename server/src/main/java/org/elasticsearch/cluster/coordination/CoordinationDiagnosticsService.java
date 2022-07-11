@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -512,6 +513,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         /**
          * This constructor is used to create the root task. It initializes the MultipleCancellablesWrapper that is shared between all
          * the related tasks.
+         *
          * @param node
          * @param nodeToClusterFormationStateMap
          */
@@ -535,41 +537,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         /**
          * This method returns a Cancellable quickly, but in the background schedules to query the remote node's cluster formation state
          * in 10 seconds, and repeats doing that until cancel() is called on the returned Cancellable.
+         *
          * @return
          */
         public Scheduler.Cancellable pollUntilCancelled() {
-            Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
-                Version minSupportedVersion = Version.V_8_4_0;
-                if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
-                    logger.trace(
-                        "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                        node,
-                        node.getVersion(),
-                        minSupportedVersion
-                    );
-                } else {
-                    long startTime = System.nanoTime();
-                    transportService.connectToNode(
-                        // Note: This connection must be explicitly closed below
-                        node,
-                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                        new ConnectedToNodeListener(startTime)
-                    );
-                }
-            }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-            multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
-            return multipleCancellablesWrapper;
-        }
-
-        private class ConnectedToNodeListener implements ActionListener<Releasable> {
-            private final long startTime;
-
-            ConnectedToNodeListener(long startTime) {
-                this.startTime = startTime;
-            }
-
-            @Override
-            public void onResponse(Releasable releasable) {
+            StepListener<Releasable> connectionListener = new StepListener<>();
+            StepListener<ClusterFormationInfoAction.Response> clusterFormationInfoResponseListener = new StepListener<>();
+            long startTime = System.nanoTime();
+            connectionListener.whenComplete(releasable -> {
                 logger.trace("Opened connection to {}, making cluster coordination info request", node);
                 // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
@@ -580,20 +555,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     TransportRequestOptions.timeout(transportTimeout),
                     new ActionListenerResponseHandler<>(
                         ActionListener.runAfter(
-                            ActionListener.runBefore(
-                                new ClusterFormationInfoResponseListener(startTime),
-                                () -> Releasables.close(releasable)
-                            ),
+                            ActionListener.runBefore(clusterFormationInfoResponseListener, () -> Releasables.close(releasable)),
                             () -> new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper)
                                 .pollUntilCancelled()
                         ),
                         ClusterFormationInfoAction.Response::new
                     )
                 );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            }, e -> {
                 logger.warn("Exception connecting to master node", e);
                 nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
                 /*
@@ -601,28 +570,37 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                  * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
                  */
                 new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper).pollUntilCancelled();
-            }
-        }
+            });
 
-        private class ClusterFormationInfoResponseListener implements ActionListener<ClusterFormationInfoAction.Response> {
-            private final long startTime;
-
-            ClusterFormationInfoResponseListener(long startTime) {
-                this.startTime = startTime;
-            }
-
-            @Override
-            public void onResponse(ClusterFormationInfoAction.Response response) {
+            clusterFormationInfoResponseListener.whenComplete(response -> {
                 long endTime = System.nanoTime();
                 logger.trace("Received cluster coordination info from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
                 nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(response.getClusterFormationState()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            }, e -> {
                 logger.warn("Exception in cluster coordination info request to master node", e);
                 nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-            }
+            });
+
+            Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
+                Version minSupportedVersion = Version.V_8_4_0;
+                if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                    logger.trace(
+                        "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                        node,
+                        node.getVersion(),
+                        minSupportedVersion
+                    );
+                } else {
+                    transportService.connectToNode(
+                        // Note: This connection must be explicitly closed in the connectionListener
+                        node,
+                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                        connectionListener
+                    );
+                }
+            }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+            multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
+            return multipleCancellablesWrapper;
         }
     }
 

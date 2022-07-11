@@ -199,7 +199,7 @@ public final class SearchPhaseController {
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            assertSameSortTypes(results, firstTopDocs.fields);
+            checkSameSortTypes(results, firstTopDocs.fields);
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
@@ -210,7 +210,7 @@ public final class SearchPhaseController {
         return mergedTopDocs;
     }
 
-    private static void assertSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
+    private static void checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
         if (results.size() < 2) return;
 
         SortField.Type[] firstTypes = new SortField.Type[firstSortFields.length];

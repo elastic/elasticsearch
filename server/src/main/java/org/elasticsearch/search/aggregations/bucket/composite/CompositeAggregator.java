@@ -78,7 +78,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     private final DateHistogramValuesSource[] innerSizedBucketAggregators;
 
     private final List<Entry> entries = new ArrayList<>();
-    private AggregationExecutionContext currentLeaf;
+    private AggregationExecutionContext currentAggCtx;
     private RoaringDocIdSet.Builder docIdSetBuilder;
     private BucketCollector deferredCollectors;
 
@@ -87,14 +87,14 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     CompositeAggregator(
         String name,
         AggregatorFactories factories,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         Map<String, Object> metadata,
         int size,
         CompositeValuesSourceConfig[] sourceConfigs,
         CompositeKey rawAfterKey
     ) throws IOException {
-        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
+        super(name, factories, aggCtx, parent, CardinalityUpperBound.MANY, metadata);
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).toList();
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
@@ -102,7 +102,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).toList();
         this.sources = new SingleDimensionValuesSource<?>[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
-        int bucketLimit = context.multiBucketConsumer().getLimit();
+        int bucketLimit = aggCtx.multiBucketConsumer().getLimit();
         if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException(
                 "Trying to create too many buckets. Must be less than or equal"
@@ -120,8 +120,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         List<DateHistogramValuesSource> dateHistogramValuesSources = new ArrayList<>();
         for (int i = 0; i < sourceConfigs.length; i++) {
             this.sources[i] = sourceConfigs[i].createValuesSource(
-                context.bigArrays(),
-                context.searcher().getIndexReader(),
+                aggCtx.bigArrays(),
+                aggCtx.searcher().getIndexReader(),
                 size,
                 this::addRequestCircuitBreakerBytes
             );
@@ -130,7 +130,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             }
         }
         this.innerSizedBucketAggregators = dateHistogramValuesSources.toArray(new DateHistogramValuesSource[0]);
-        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
+        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size);
         if (rawAfterKey != null) {
             try {
                 this.queue.setAfterKey(rawAfterKey);
@@ -230,10 +230,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     }
 
     private void finishLeaf() {
-        if (currentLeaf != null) {
+        if (currentAggCtx != null) {
             DocIdSet docIdSet = docIdSetBuilder.build();
-            entries.add(new Entry(currentLeaf, docIdSet));
-            currentLeaf = null;
+            entries.add(new Entry(currentAggCtx, docIdSet));
+            currentAggCtx = null;
             docIdSetBuilder = null;
         }
     }
@@ -463,7 +463,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             return LeafBucketCollector.NO_OP_COLLECTOR;
         } else {
             if (fillDocIdSet) {
-                currentLeaf = aggCtx;
+                currentAggCtx = aggCtx;
                 docIdSetBuilder = new RoaringDocIdSet.Builder(aggCtx.getLeafReaderContext().reader().maxDoc());
             }
             if (rawAfterKey != null && sortPrefixLen > 0) {
@@ -538,14 +538,14 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             if (docIdSetIterator == null) {
                 continue;
             }
-            final LeafBucketCollector subCollector = deferredCollectors.getLeafCollector(entry.context);
+            final LeafBucketCollector subCollector = deferredCollectors.getLeafCollector(entry.aggCtx);
             final LeafBucketCollector collector = queue.getLeafCollector(
-                entry.context.getLeafReaderContext(),
+                entry.aggCtx.getLeafReaderContext(),
                 getSecondPassCollector(subCollector)
             );
             DocIdSetIterator scorerIt = null;
             if (needsScores) {
-                Scorer scorer = weight.scorer(entry.context.getLeafReaderContext());
+                Scorer scorer = weight.scorer(entry.aggCtx.getLeafReaderContext());
                 if (scorer != null) {
                     scorerIt = scorer.iterator();
                     subCollector.setScorer(scorer);
@@ -608,11 +608,11 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     }
 
     private static class Entry {
-        final AggregationExecutionContext context;
+        final AggregationExecutionContext aggCtx;
         final DocIdSet docIdSet;
 
-        Entry(AggregationExecutionContext context, DocIdSet docIdSet) {
-            this.context = context;
+        Entry(AggregationExecutionContext aggCtx, DocIdSet docIdSet) {
+            this.aggCtx = aggCtx;
             this.docIdSet = docIdSet;
         }
     }

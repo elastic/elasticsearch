@@ -41,12 +41,12 @@ import java.util.function.LongUnaryOperator;
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     static class Entry {
-        final AggregationExecutionContext context;
+        final AggregationExecutionContext aggCtx;
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        Entry(AggregationExecutionContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
-            this.context = Objects.requireNonNull(context);
+        Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
+            this.aggCtx = Objects.requireNonNull(aggCtx);
             this.docDeltas = Objects.requireNonNull(docDeltas);
             this.buckets = Objects.requireNonNull(buckets);
         }
@@ -58,7 +58,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     private List<Entry> entries = new ArrayList<>();
     private BucketCollector collector;
-    private AggregationExecutionContext context;
+    private AggregationExecutionContext aggCtx;
     private PackedLongValues.Builder docDeltasBuilder;
     private PackedLongValues.Builder bucketsBuilder;
     private LongHash selectedBuckets;
@@ -92,10 +92,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Button up the builders for the current leaf.
      */
     private void finishLeaf() {
-        if (context != null) {
+        if (aggCtx != null) {
             assert docDeltasBuilder != null && bucketsBuilder != null;
             assert docDeltasBuilder.size() > 0;
-            entries.add(new Entry(context, docDeltasBuilder.build(), bucketsBuilder.build()));
+            entries.add(new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build()));
             clearLeaf();
         }
     }
@@ -104,7 +104,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Clear the status for the current leaf.
      */
     private void clearLeaf() {
-        context = null;
+        aggCtx = null;
         docDeltasBuilder = null;
         bucketsBuilder = null;
     }
@@ -118,8 +118,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (context == null) {
-                    context = aggCtx;
+                if (BestBucketsDeferringCollector.this.aggCtx == null) {
+                    BestBucketsDeferringCollector.this.aggCtx = aggCtx;
                     docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }
@@ -168,10 +168,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         for (Entry entry : entries) {
             assert entry.docDeltas.size() > 0 : "segment should have at least one document to replay, got 0";
             try {
-                final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
+                final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.aggCtx);
                 DocIdSetIterator scoreIt = null;
                 if (needsScores) {
-                    Scorer scorer = weight.scorer(entry.context.getLeafReaderContext());
+                    Scorer scorer = weight.scorer(entry.aggCtx.getLeafReaderContext());
                     // We don't need to check if the scorer is null
                     // since we are sure that there are documents to replay (entry.docDeltas it not empty).
                     scoreIt = scorer.iterator();
@@ -265,7 +265,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             // Only create an entry if this segment has buckets after merging
             if (newBuckets.size() > 0) {
                 assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
-                newEntries.add(new Entry(sourceEntry.context, newDocDeltas.build(), newBuckets.build()));
+                newEntries.add(new Entry(sourceEntry.aggCtx, newDocDeltas.build(), newBuckets.build()));
             }
         }
         entries = newEntries;

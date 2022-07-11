@@ -256,14 +256,13 @@ public class JwtValidateUtil {
         // - If JWT alg is HS384, only 384, 400, 512, and 1000 are valid for a JWT HS384 signature. Ignore two HMAC JWKs.
         // - If JWT alg is HS512, only 512 and 1000 are valid for a JWT HS512 signature. Ignore four HMAC JWKs.
         final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
-        LOGGER.trace("JWKs [{}] after Algorithm [{}] match filter.", jwksStrength.size(), alg);
+        LOGGER.debug("JWKs [{}] after Algorithm [{}] match filter.", jwksStrength.size(), alg);
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
         if (jwksStrength.isEmpty()) {
             throw new Exception("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
         }
 
-        LOGGER.debug("JWKs [{}] remaining after filtering for use in JWT signature verification.", jwksStrength.size());
         for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
                 LOGGER.trace(
@@ -287,7 +286,6 @@ public class JwtValidateUtil {
             }
         }
 
-        // At least one JWK passed the kid, alg, and strength checks, but none successfully verified the JWT signature
         throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 

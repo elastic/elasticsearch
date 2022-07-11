@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Map containing ingest source and metadata.
@@ -42,7 +43,6 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
 
     protected final Map<String, Object> source;
     protected final Metadata metadata;
-    private EntrySet entrySet; // cache to avoid recreation
 
     /**
      * Create an IngestSourceAndMetadata with the given metadata, source and default validators
@@ -60,7 +60,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     }
 
     /**
-     * Create IngestSourceAndMetadata with custom validators.
+     * Create IngestSourceAndMetadata from a source and metadata
      *
      * @param source the source document map
      * @param metadata the metadata map
@@ -68,6 +68,14 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     IngestSourceAndMetadata(Map<String, Object> source, Metadata metadata) {
         this.source = source != null ? source : new HashMap<>();
         this.metadata = metadata;
+        Set<String> badKeys = metadata.metadataKeys(this.source.keySet());
+        if (badKeys.size() > 0) {
+            throw new IllegalArgumentException(
+                "unexpected metadata ["
+                    + badKeys.stream().sorted().map(k -> k + ":" + this.source.get(k)).collect(Collectors.joining(", "))
+                    + "] in source"
+            );
+        }
     }
 
     /**
@@ -124,10 +132,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
-        if (entrySet == null) {
-            entrySet = new EntrySet(source.entrySet(), metadata.keys());
-        }
-        return entrySet;
+        return new EntrySet(source.entrySet(), metadata.getKeys());
     }
 
     /**
@@ -164,7 +169,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     @Override
     public void clear() {
         // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped maps clear
-        for (String key : metadata.keys()) {
+        for (String key : metadata.getKeys()) {
             metadata.remove(key);
         }
         source.clear();

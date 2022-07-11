@@ -67,37 +67,37 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
 
     public void testGetString() {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("_routing", "myRouting");
-        Map<String, Object> source = new HashMap<>();
-        source.put("str", "myStr");
-        source.put("toStr", new Object() {
+        metadata.put("a", "A");
+        metadata.put("b", new Object() {
             @Override
             public String toString() {
                 return "myToString()";
             }
         });
-        source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, TestMetadata.withNullableVersion(metadata));
+        metadata.put("c", null);
+        metadata.put("d", 1234);
+        map = new IngestSourceAndMetadata(new HashMap<>(), new TestMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
         md = map.getMetadata();
-        assertNull(md.getString("missing"));
+        assertNull(md.getString("c"));
         assertNull(md.getString("no key"));
-        assertEquals("myToString()", md.getString("toStr"));
-        assertEquals("myStr", md.getString("str"));
-        assertEquals("myRouting", md.getString("_routing"));
+        assertEquals("myToString()", md.getString("b"));
+        assertEquals("A", md.getString("a"));
+        assertEquals("1234", md.getString("d"));
     }
 
     public void testGetNumber() {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("_version", Long.MAX_VALUE);
-        Map<String, Object> source = new HashMap<>();
-        source.put("number", "NaN");
-        source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, new Metadata(metadata, null));
+        metadata.put("a", Long.MAX_VALUE);
+        metadata.put("b", Double.MAX_VALUE);
+        metadata.put("c", "NaN");
+        metadata.put("d", null);
+        map = new IngestSourceAndMetadata(new HashMap<>(), new TestMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
         md = map.getMetadata();
-        assertEquals(Long.MAX_VALUE, md.getNumber("_version"));
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> md.getNumber("number"));
-        assertEquals("unexpected type for [number] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
-        assertNull(md.getNumber("missing"));
+        assertEquals(Long.MAX_VALUE, md.getNumber("a"));
+        assertEquals(Double.MAX_VALUE, md.getNumber("b"));
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> md.getNumber("c"));
+        assertEquals("unexpected type for [c] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
+        assertNull(md.getNumber("d"));
         assertNull(md.getNumber("no key"));
     }
 
@@ -119,7 +119,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new IngestSourceAndMetadata(source, new Metadata(source, null))
         );
-        assertEquals("Unexpected metadata key [_version] in source with value [25]", err.getMessage());
+        assertEquals("unexpected metadata [_version:25] in source", err.getMessage());
     }
 
     public void testExtraMetadata() {
@@ -362,5 +362,13 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         public Object setValue(Object value) {
             throw new UnsupportedOperationException();
         }
+    }
+
+    private static Map<String, Metadata.Validator> allowAllValidators(String... keys) {
+        Map<String, Metadata.Validator> validators = new HashMap<>();
+        for (String key : keys) {
+            validators.put(key, (o, k, v) -> {});
+        }
+        return validators;
     }
 }

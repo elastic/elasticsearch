@@ -108,7 +108,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(DOC_FIELD);
         org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
-        for (String key : metadata.keys()) {
+        for (String key : metadata.getKeys()) {
             Object value = metadata.get(key);
             if (value != null) {
                 builder.field(key, value.toString());

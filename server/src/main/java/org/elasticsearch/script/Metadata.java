@@ -14,6 +14,8 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +52,7 @@ public class Metadata {
         ROUTING,
         Metadata::stringValidator,
         VERSION_TYPE,
-        Metadata::stringValidator,
+        Metadata::versionTypeValidator,
         VERSION,
         Metadata::notNullLongValidator,
         TYPE,
@@ -255,7 +257,7 @@ public class Metadata {
     /**
      * Return the list of keys with mappings
      */
-    public List<String> keys() {
+    public List<String> getKeys() {
         return new ArrayList<>(map.keySet());
     }
 
@@ -274,6 +276,22 @@ public class Metadata {
     // Return a copy of the backing map
     public Map<String, Object> mapCopy() {
         return new HashMap<>(map);
+    }
+
+    /**
+     * Get the metadata keys inside the {@param other} set
+     */
+    public Set<String> metadataKeys(Set<String> other) {
+        Set<String> keys = null;
+        for (String key : validators.keySet()) {
+            if (other.contains(key)) {
+                if (keys == null) {
+                    keys = new HashSet<>();
+                }
+                keys.add(key);
+            }
+        }
+        return keys != null ? keys : Collections.emptySet();
     }
 
     /**
@@ -330,6 +348,32 @@ public class Metadata {
         }
         throw new IllegalArgumentException(
             key + " must be a null or a Map but was [" + value + "] with type [" + value.getClass().getName() + "]"
+        );
+    }
+
+    /**
+     * Allow lower case Strings that map to VersionType values, or null.
+     * @throws IllegalArgumentException if {@param value} cannot be converted via {@link VersionType#fromString(String)}
+     */
+    protected static void versionTypeValidator(MapOperation op, String key, Object value) {
+        if (op == MapOperation.REMOVE || value == null) {
+            return;
+        }
+        if (value instanceof String versionType) {
+            try {
+                VersionType.fromString(versionType);
+                return;
+            } catch (IllegalArgumentException ignored) {}
+        }
+        throw new IllegalArgumentException(
+            key
+                + " must be a null or one of ["
+                + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
+                + "] but was ["
+                + value
+                + "] with type ["
+                + value.getClass().getName()
+                + "]"
         );
     }
 

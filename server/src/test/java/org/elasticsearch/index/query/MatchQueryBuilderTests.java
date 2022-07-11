@@ -34,6 +34,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -147,13 +148,13 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             return;
         }
 
-        MappedFieldType fieldType = context.getMappedField(queryBuilder.fieldName());
-        if (query instanceof TermQuery && fieldType != null) {
+        MappedField mappedField = context.getMappedField(queryBuilder.fieldName());
+        if (query instanceof TermQuery && mappedField != null) {
             String queryValue = queryBuilder.value().toString();
             if (isTextField(queryBuilder.fieldName()) && (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple"))) {
                 queryValue = queryValue.toLowerCase(Locale.ROOT);
             }
-            Query expectedTermQuery = fieldType.termQuery(queryValue, context);
+            Query expectedTermQuery = mappedField.termQuery(queryValue, context);
             assertEquals(expectedTermQuery, query);
         }
 

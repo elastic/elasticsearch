@@ -16,7 +16,7 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.termQuery(10L, randomMockContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.termQuery("_doc_count", 10L, randomMockContext()));
         assertEquals("Field [_doc_count] of type [_doc_count] is not searchable", e.getMessage());
     }
 
@@ -24,22 +24,22 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
+            () -> ft.rangeQuery("_doc_count", null, null, randomBoolean(), randomBoolean(), null, null, null, null)
         );
         assertEquals("Field [_doc_count] of type [_doc_count] does not support range queries", e.getMessage());
     }
 
     public void testExistsQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.existsQuery(randomMockContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.existsQuery("_doc_count", randomMockContext()));
         assertEquals("Field [_doc_count] of type [_doc_count] does not support exists queries", e.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new DocCountFieldMapper.DocCountFieldType();
-        assertEquals(Arrays.asList(14), fetchSourceValue(fieldType, 14));
-        assertEquals(Arrays.asList(14), fetchSourceValue(fieldType, "14"));
-        assertEquals(Arrays.asList(1), fetchSourceValue(fieldType, ""));
-        assertEquals(Arrays.asList(1), fetchSourceValue(fieldType, null));
+        MappedField mappedField = new MappedField(DocCountFieldMapper.NAME, new DocCountFieldMapper.DocCountFieldType());
+        assertEquals(Arrays.asList(14), fetchSourceValue(mappedField, 14));
+        assertEquals(Arrays.asList(14), fetchSourceValue(mappedField, "14"));
+        assertEquals(Arrays.asList(1), fetchSourceValue(mappedField, ""));
+        assertEquals(Arrays.asList(1), fetchSourceValue(mappedField, null));
     }
 }

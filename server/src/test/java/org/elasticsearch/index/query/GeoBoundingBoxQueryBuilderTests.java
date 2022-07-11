@@ -22,7 +22,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -217,10 +217,10 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     @Override
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
-        final MappedFieldType fieldType = context.getMappedField(queryBuilder.fieldName());
-        if (fieldType == null) {
+        final MappedField mappedField = context.getMappedField(queryBuilder.fieldName());
+        if (mappedField == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
-        } else if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType) {
+        } else if (mappedField.type() instanceof GeoPointFieldMapper.GeoPointFieldType) {
             assertEquals(IndexOrDocValuesQuery.class, query.getClass());
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
@@ -232,7 +232,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
             assertEquals(LatLonDocValuesField.newSlowBoxQuery(expectedFieldName, qMinLat, qMaxLat, qMinLon, qMaxLon), dvQuery);
         } else {
-            assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
+            assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, mappedField.type().getClass());
         }
     }
 

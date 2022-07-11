@@ -26,6 +26,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -150,7 +151,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            final MappedFieldType resolvedFieldType = context.getMappedField(queryBuilder.fieldName());
+            final MappedField resolvedFieldType = context.getMappedField(queryBuilder.fieldName());
             if (resolvedFieldType.hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
             } else if (context.getMappedField(resolvedFieldType.name()).getTextSearchInfo().hasNorms()) {
@@ -174,14 +175,14 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
                 query = ((IndexOrDocValuesQuery) query).getIndexQuery();
                 assertThat(query, instanceOf(PointRangeQuery.class));
-                MappedFieldType mappedFieldType = context.getMappedField(expectedFieldName);
+                MappedField mappedField = context.getMappedField(expectedFieldName);
                 final Long fromInMillis;
                 final Long toInMillis;
                 // we have to normalize the incoming value into milliseconds since it could be literally anything
-                if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+                if (mappedField.type() instanceof DateFieldMapper.DateFieldType) {
                     fromInMillis = queryBuilder.from() == null
                         ? null
-                        : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
+                        : ((DateFieldMapper.DateFieldType) mappedField.type()).parseToLong(
                             queryBuilder.from(),
                             queryBuilder.includeLower(),
                             queryBuilder.getDateTimeZone(),
@@ -190,7 +191,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                         );
                     toInMillis = queryBuilder.to() == null
                         ? null
-                        : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
+                        : ((DateFieldMapper.DateFieldType) mappedField.type()).parseToLong(
                             queryBuilder.to(),
                             queryBuilder.includeUpper(),
                             queryBuilder.getDateTimeZone(),
@@ -199,7 +200,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                         );
                 } else {
                     fromInMillis = toInMillis = null;
-                    fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());
+                    fail("unexpected mapped field type: [" + mappedField.getClass() + "] " + mappedField.toString());
                 }
 
                 Long min = fromInMillis;

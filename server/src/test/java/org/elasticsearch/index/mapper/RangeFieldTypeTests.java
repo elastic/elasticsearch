@@ -60,9 +60,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     private RangeFieldType createDefaultFieldType() {
         if (type == RangeType.DATE) {
-            return new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
+            return new RangeFieldType(RangeFieldMapper.Defaults.DATE_FORMATTER);
         }
-        return new RangeFieldType("field", type);
+        return new RangeFieldType(type);
     }
 
     public void testRangeQuery() throws Exception {
@@ -81,7 +81,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
-            ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context)
+            ft.rangeQuery("field", from, to, includeLower, includeUpper, relation, null, null, context)
         );
     }
 
@@ -133,7 +133,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 to = nextTo(from);
             }
         }
-        Query rangeQuery = ft.rangeQuery(from, to, false, false, relation, null, null, context);
+        Query rangeQuery = ft.rangeQuery("field", from, to, false, false, relation, null, null, context);
         assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
         assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
     }
@@ -193,7 +193,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         ShapeRelation relation = randomFrom(ShapeRelation.values());
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.rangeQuery(from, to, true, true, relation, null, null, context)
+            () -> ft.rangeQuery("field", from, to, true, true, relation, null, null, context)
         );
         assertTrue(ex.getMessage().contains("Range query `from` value"));
         assertTrue(ex.getMessage().contains("is greater than `to` value"));
@@ -227,7 +227,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testDateRangeQueryUsingMappingFormat() {
         SearchExecutionContext context = createContext();
-        RangeFieldType strict = new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
+        RangeFieldType strict = new RangeFieldType(RangeFieldMapper.Defaults.DATE_FORMATTER);
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
         ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT, () -> randomFrom(ShapeRelation.values()));
 
@@ -237,7 +237,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchParseException ex = expectThrows(
             ElasticsearchParseException.class,
-            () -> strict.rangeQuery(from, to, true, true, relation, null, null, context)
+            () -> strict.rangeQuery("field", from, to, true, true, relation, null, null, context)
         );
         assertThat(
             ex.getMessage(),
@@ -249,13 +249,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1465975790000L, formatter.parseMillis(from));
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
-        RangeFieldType fieldType = new RangeFieldType("field", formatter);
-        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
+        RangeFieldType fieldType = new RangeFieldType(formatter);
+        final Query query = fieldType.rangeQuery("field", from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
-        DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
-        final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
+        DateFieldType dateFieldType = new DateFieldType(DateFieldMapper.Resolution.MILLISECONDS, formatter);
+        final Query queryOnDateField = dateFieldType.rangeQuery(
+            "field", from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
 
@@ -271,7 +272,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, false, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType(true, false, false, formatter, false, Collections.emptyMap());
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally
@@ -284,6 +285,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         boolean includeLower = randomBoolean();
         boolean includeUpper = randomBoolean();
         final Query query = fieldType.rangeQuery(
+            "field",
             lowerAsString,
             upperAsString,
             includeLower,
@@ -295,7 +297,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         );
 
         // get exact lower and upper bounds similar to what we would parse for `date` fields for same input strings
-        DateFieldType dateFieldType = new DateFieldType("field");
+        DateFieldType dateFieldType = new DateFieldType();
         long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, includeLower == false, null, formatter.toDateMathParser(), () -> 0);
         if (includeLower == false) {
             ++lowerBoundLong;
@@ -491,7 +493,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         ShapeRelation relation = ShapeRelation.INTERSECTS;
         boolean includeLower = true;
         boolean includeUpper = true;
-        assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper), ft.termQuery(value, context));
+        assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper), ft.termQuery("field", value, context));
     }
 
     public void testCaseInsensitiveQuery() throws Exception {
@@ -499,32 +501,32 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
-        QueryShardException ex = expectThrows(QueryShardException.class, () -> ft.termQueryCaseInsensitive(value, context));
+        QueryShardException ex = expectThrows(QueryShardException.class, () -> ft.termQueryCaseInsensitive("field", value, context));
         assertTrue(ex.getMessage().contains("does not support case insensitive term queries"));
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedField longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
+            .field();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("yyyy/MM/dd||epoch_millis")
+        MappedField dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("yyyy/MM/dd||epoch_millis")
             .build(MapperBuilderContext.ROOT)
-            .fieldType();
+            .field();
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
         assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")), fetchSourceValue(dateMapper, dateRange));
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedField longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
+            .field();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
-        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("strict_date_time")
+        MappedField dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("strict_date_time")
             .build(MapperBuilderContext.ROOT)
-            .fieldType();
+            .field();
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
         assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
         assertEquals(List.of(Map.of("lt", "662428800000")), fetchSourceValue(dateMapper, dateRange, "epoch_millis"));

@@ -174,10 +174,10 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             builder.endObject().endObject();
             mapperService = createMapperService(builder);
             assertEquals(Strings.toString(builder), mapperService.documentMapper().mappingSource().toString());
-            MappedFieldType concrete = mapperService.mappedField("concrete");
-            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-            MappedFieldType field = mapperService.mappedField("field");
-            assertThat(field, instanceOf(LongScriptFieldType.class));
+            MappedField concrete = mapperService.mappedField("concrete");
+            assertThat(concrete.type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedField field = mapperService.mappedField("field");
+            assertThat(field.type(), instanceOf(LongScriptFieldType.class));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
@@ -193,10 +193,10 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             expectThrows(IllegalArgumentException.class, () -> merge(mapperService, builder));
 
             // make sure that the whole rejected update, including changes to runtime fields, has not been applied
-            MappedFieldType concrete = mapperService.mappedField("concrete");
-            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-            MappedFieldType field = mapperService.mappedField("field");
-            assertThat(field, instanceOf(LongScriptFieldType.class));
+            MappedField concrete = mapperService.mappedField("concrete");
+            assertThat(concrete.type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedField field = mapperService.mappedField("field");
+            assertThat(field.type(), instanceOf(LongScriptFieldType.class));
             assertNull(mapperService.mappedField("another_field"));
             assertEquals("""
                 {"_doc":{"runtime":{"field":{"type":"long"}},\
@@ -210,10 +210,10 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             String mapping = Strings.toString(fieldMapping(b -> b.field("type", "keyword")));
             mapperService = createMapperService(mapping);
             assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
-            MappedFieldType field = mapperService.mappedField("field");
-            assertThat(field, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedField field = mapperService.mappedField("field");
+            assertThat(field.type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
-        LongScriptFieldType field2;
+        MappedField field2;
         {
             String mapping = Strings.toString(runtimeMapping(builder -> {
                 builder.startObject("field").field("type", "keyword").endObject();
@@ -221,9 +221,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             }));
             merge(mapperService, mapping);
             // field overrides now the concrete field already defined
-            KeywordScriptFieldType field = (KeywordScriptFieldType) mapperService.mappedField("field");
+            MappedField field = mapperService.mappedField("field");
             assertEquals(KeywordFieldMapper.CONTENT_TYPE, field.typeName());
-            field2 = (LongScriptFieldType) mapperService.mappedField("field2");
+            field2 = mapperService.mappedField("field2");
             assertEquals(NumberFieldMapper.NumberType.LONG.typeName(), field2.typeName());
         }
         {
@@ -234,20 +234,20 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 )
             );
             merge(mapperService, mapping);
-            DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.mappedField("field");
+            MappedField field = mapperService.mappedField("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
-            LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.mappedField("field2");
+            MappedField field2Updated = mapperService.mappedField("field2");
             assertSame(field2, field2Updated);
         }
         {
             String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
             merge(mapperService, mapping);
-            DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.mappedField("field");
+            MappedField field = mapperService.mappedField("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
-            LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.mappedField("field2");
+            MappedField field2Updated = mapperService.mappedField("field2");
             assertSame(field2, field2Updated);
-            MappedFieldType concrete = mapperService.mappedField("concrete");
-            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            MappedField concrete = mapperService.mappedField("concrete");
+            assertThat(concrete.type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
         {
             String mapping = Strings.toString(runtimeMapping(builder -> builder.startObject("field3").field("type", "date").endObject()));

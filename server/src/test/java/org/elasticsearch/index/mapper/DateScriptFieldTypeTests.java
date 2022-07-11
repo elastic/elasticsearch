@@ -68,9 +68,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "date")));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", 1545)));
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            MappedFieldType ft = mapperService.mappedField("field");
+            MappedField mappedField = mapperService.mappedField("field");
             SearchExecutionContext sec = createSearchExecutionContext(mapperService);
-            Query rangeQuery = ft.rangeQuery("1200-01-01", "2020-01-01", false, false, ShapeRelation.CONTAINS, null, null, sec);
+            Query rangeQuery = mappedField.rangeQuery("1200-01-01", "2020-01-01", false, false, ShapeRelation.CONTAINS, null, null, sec);
             IndexSearcher searcher = new IndexSearcher(ir);
             assertEquals(1, searcher.count(rangeQuery));
         });
@@ -82,8 +82,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             b.field("format", "yyyy-MM-dd");
         });
         MapperService mapperService = createMapperService(mapping.get());
-        MappedFieldType fieldType = mapperService.mappedField("field");
-        assertThat(fieldType, instanceOf(DateScriptFieldType.class));
+        MappedField mappedField = mapperService.mappedField("field");
+        assertThat(mappedField.type(), instanceOf(DateScriptFieldType.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
 
@@ -93,8 +93,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             b.field("locale", "en_GB");
         });
         MapperService mapperService = createMapperService(mapping.get());
-        MappedFieldType fieldType = mapperService.mappedField("field");
-        assertThat(fieldType, instanceOf(DateScriptFieldType.class));
+        MappedField mappedField = mapperService.mappedField("field");
+        assertThat(mappedField.type(), instanceOf(DateScriptFieldType.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
 
@@ -104,8 +104,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             b.field("format", "yyyy-MM-dd").field("locale", "en_GB");
         });
         MapperService mapperService = createMapperService(mapping.get());
-        MappedFieldType fieldType = mapperService.mappedField("field");
-        assertThat(fieldType, instanceOf(DateScriptFieldType.class));
+        MappedField mappedField = mapperService.mappedField("field");
+        assertThat(mappedField.type(), instanceOf(DateScriptFieldType.class));
         assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
 
@@ -128,8 +128,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     public void testFormatDuel() throws IOException {
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()));
-        DateScriptFieldType scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter);
-        DateFieldMapper.DateFieldType indexed = new DateFieldMapper.DateFieldType("test", formatter);
+        MappedField scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter);
+        MappedField indexed = new MappedField("test", new DateFieldMapper.DateFieldType(formatter));
         for (int i = 0; i < 100; i++) {
             long date = randomDate();
             assertThat(indexed.docValueFormat(null, null).format(date), equalTo(scripted.docValueFormat(null, null).format(date)));
@@ -149,8 +149,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DateScriptFieldType ft = build("add_days", Map.of("days", 1));
-                DateScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                MappedField mappedField = build("add_days", Map.of("days", 1));
+                DateScriptFieldData ifd = (DateScriptFieldData) mappedField.
+                    fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -188,7 +189,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DateScriptFieldData ifd = simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DateScriptFieldData ifd = (DateScriptFieldData) simpleMappedField().
+                    fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181351]}"));
@@ -271,8 +273,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         checkLoop(this::randomDistanceFeatureQuery);
     }
 
-    private Query randomDistanceFeatureQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), ctx);
+    private Query randomDistanceFeatureQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.distanceFeatureQuery(randomDate(), randomTimeValue(), ctx);
     }
 
     @Override
@@ -295,38 +297,38 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedField();
+                MappedField f = simpleMappedField();
                 assertThat(
                     searcher.count(
-                        ft.rangeQuery("2020-07-22T15:36:21.356Z", "2020-07-23T00:00:00.000Z", true, true, null, null, null, mockContext())
+                        f.rangeQuery("2020-07-22T15:36:21.356Z", "2020-07-23T00:00:00.000Z", true, true, null, null, null, mockContext())
                     ),
                     equalTo(1)
                 );
                 assertThat(
                     searcher.count(
-                        ft.rangeQuery("2020-07-22T00:00:00.00Z", "2020-07-22T15:36:21.354Z", true, true, null, null, null, mockContext())
+                        f.rangeQuery("2020-07-22T00:00:00.00Z", "2020-07-22T15:36:21.354Z", true, true, null, null, null, mockContext())
                     ),
                     equalTo(2)
                 );
                 assertThat(
-                    searcher.count(ft.rangeQuery(1595432181351L, 1595432181356L, true, true, null, null, null, mockContext())),
+                    searcher.count(f.rangeQuery(1595432181351L, 1595432181356L, true, true, null, null, null, mockContext())),
                     equalTo(3)
                 );
                 assertThat(
                     searcher.count(
-                        ft.rangeQuery("2020-07-22T15:36:21.356Z", "2020-07-23T00:00:00.000Z", true, false, null, null, null, mockContext())
+                        f.rangeQuery("2020-07-22T15:36:21.356Z", "2020-07-23T00:00:00.000Z", true, false, null, null, null, mockContext())
                     ),
                     equalTo(1)
                 );
                 assertThat(
                     searcher.count(
-                        ft.rangeQuery("2020-07-22T15:36:21.356Z", "2020-07-23T00:00:00.000Z", false, false, null, null, null, mockContext())
+                        f.rangeQuery("2020-07-22T15:36:21.356Z", "2020-07-23T00:00:00.000Z", false, false, null, null, null, mockContext())
                     ),
                     equalTo(0)
                 );
                 checkBadDate(
                     () -> searcher.count(
-                        ft.rangeQuery(
+                        f.rangeQuery(
                             "2020-07-22(-■_■)00:00:00.000Z",
                             "2020-07-23(-■_■)00:00:00.000Z",
                             false,
@@ -358,7 +360,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+    protected Query randomRangeQuery(MappedField mappedField, SearchExecutionContext ctx) {
         long d1 = randomDate();
         long d2 = randomValueOtherThan(d1, DateScriptFieldTypeTests::randomDate);
         if (d1 > d2) {
@@ -366,7 +368,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             d2 = d1;
             d1 = backup;
         }
-        return ft.rangeQuery(d1, d2, randomBoolean(), randomBoolean(), null, null, null, ctx);
+        return mappedField.rangeQuery(d1, d2, randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -391,8 +393,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termQuery(randomDate(), ctx);
+    protected Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termQuery(randomDate(), ctx);
     }
 
     @Override
@@ -401,15 +403,15 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                MappedFieldType ft = simpleMappedField();
+                MappedField mappedField = simpleMappedField();
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(ft.termsQuery(List.of("2020-07-22T15:36:21.354Z"), mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.termsQuery(List.of("1595432181354"), mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.termsQuery(List.of(1595432181354L), mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.termsQuery(List.of(2595432181354L), mockContext())), equalTo(0));
-                assertThat(searcher.count(ft.termsQuery(List.of(1595432181354L, 2595432181354L), mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.termsQuery(List.of(2595432181354L, 1595432181354L), mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.termsQuery(List.of(1595432181355L, 1595432181354L), mockContext())), equalTo(2));
+                assertThat(searcher.count(mappedField.termsQuery(List.of("2020-07-22T15:36:21.354Z"), mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.termsQuery(List.of("1595432181354"), mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.termsQuery(List.of(1595432181354L), mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.termsQuery(List.of(2595432181354L), mockContext())), equalTo(0));
+                assertThat(searcher.count(mappedField.termsQuery(List.of(1595432181354L, 2595432181354L), mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.termsQuery(List.of(2595432181354L, 1595432181354L), mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.termsQuery(List.of(1595432181355L, 1595432181354L), mockContext())), equalTo(2));
                 checkBadDate(
                     () -> searcher.count(
                         simpleMappedField().termsQuery(
@@ -432,22 +434,24 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termsQuery(randomList(1, 100, DateScriptFieldTypeTests::randomDate), ctx);
+    protected Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termsQuery(randomList(1, 100, DateScriptFieldTypeTests::randomDate), ctx);
     }
 
     @Override
-    protected DateScriptFieldType simpleMappedField() {
+    protected MappedField simpleMappedField() {
         return build("read_timestamp");
     }
 
     @Override
-    protected MappedFieldType loopField() {
+    protected MappedField loopField() {
         return build("loop");
     }
 
-    private DateScriptFieldType coolFormattedFieldType() {
-        return build(simpleMappedField().script, DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"));
+    private MappedField coolFormattedFieldType() {
+        MappedField simple = simpleMappedField();
+        return build(((DateScriptFieldType) simple.type()).script,
+            DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"));
     }
 
     @Override
@@ -455,11 +459,11 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return "date";
     }
 
-    private static DateScriptFieldType build(String code) {
+    private static MappedField build(String code) {
         return build(code, Map.of());
     }
 
-    private static DateScriptFieldType build(String code, Map<String, Object> params) {
+    private static MappedField build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
     }
 
@@ -506,8 +510,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         };
     }
 
-    private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter) {
-        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap());
+    private static MappedField build(Script script, DateFormatter dateTimeFormatter) {
+        return new MappedField("test", new DateScriptFieldType(factory(script), dateTimeFormatter, script, emptyMap()));
     }
 
     private static long randomDate() {

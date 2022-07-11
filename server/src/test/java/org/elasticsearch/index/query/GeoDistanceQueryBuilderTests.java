@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -115,10 +116,10 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     @Override
     protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
-        final MappedFieldType fieldType = context.getMappedField(queryBuilder.fieldName());
-        if (fieldType == null) {
+        final MappedField mappedField = context.getMappedField(queryBuilder.fieldName());
+        if (mappedField == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
-        } else if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType) {
+        } else if (mappedField.type() instanceof GeoPointFieldMapper.GeoPointFieldType) {
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
@@ -128,7 +129,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
             assertEquals(LatLonDocValuesField.newSlowDistanceQuery(expectedFieldName, qLat, qLon, queryBuilder.distance()), dvQuery);
         } else {
-            assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
+            assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, mappedField.type().getClass());
         }
     }
 

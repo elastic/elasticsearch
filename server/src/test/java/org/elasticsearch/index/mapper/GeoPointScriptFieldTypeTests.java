@@ -64,8 +64,9 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                GeoPointScriptFieldType ft = build("fromLatLon", Map.of());
-                GeoPointScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                MappedField mappedField = build("fromLatLon", Map.of());
+                GeoPointScriptFieldData ifd = (GeoPointScriptFieldData) mappedField.
+                    fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -98,7 +99,8 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     public void testSort() throws IOException {
-        GeoPointScriptFieldData ifd = simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+        GeoPointScriptFieldData ifd = (GeoPointScriptFieldData) simpleMappedField().
+            fielddataBuilder("test", mockContext()::lookup).build(null, null);
         Exception e = expectThrows(IllegalArgumentException.class, () -> ifd.sortField(null, MultiValueMode.MIN, null, false));
         assertThat(e.getMessage(), equalTo("can't sort on geo_point field without using specific sorting feature, like geo_distance"));
     }
@@ -154,7 +156,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+    protected Query randomRangeQuery(MappedField mappedField, SearchExecutionContext ctx) {
         throw new IllegalArgumentException("Unsupported");
     }
 
@@ -168,7 +170,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+    protected Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx) {
         throw new IllegalArgumentException("Unsupported");
     }
 
@@ -187,17 +189,17 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termsQuery(randomList(100, GeometryTestUtils::randomPoint), mockContext());
+    protected Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termsQuery(randomList(100, GeometryTestUtils::randomPoint), mockContext());
     }
 
     @Override
-    protected GeoPointScriptFieldType simpleMappedField() {
+    protected MappedField simpleMappedField() {
         return build("fromLatLon", Map.of());
     }
 
     @Override
-    protected MappedFieldType loopField() {
+    protected MappedField loopField() {
         return build("loop", Map.of());
     }
 
@@ -206,7 +208,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         return "geo_point";
     }
 
-    private static GeoPointScriptFieldType build(String code, Map<String, Object> params) {
+    private static MappedField build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
@@ -228,7 +230,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         };
     }
 
-    private static GeoPointScriptFieldType build(Script script) {
-        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap());
+    private static MappedField build(Script script) {
+        return new MappedField("test", new GeoPointScriptFieldType(factory(script), script, emptyMap()));
     }
 }

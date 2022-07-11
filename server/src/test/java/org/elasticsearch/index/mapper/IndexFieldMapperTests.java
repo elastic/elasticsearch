@@ -46,10 +46,10 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
             SourceToParse source = source(index, "id", b -> b.field("field", "value"), "", Map.of());
             iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
         }, iw -> {
-            IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.mappedField("_index");
+            MappedField mappedField = mapperService.mappedField("_index");
             SearchLookup lookup = new SearchLookup(mapperService::mappedField, fieldDataLookup());
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
-            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            ValueFetcher valueFetcher = mappedField.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);

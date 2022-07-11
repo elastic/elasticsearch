@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -78,42 +79,42 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
         MapperBuilderContext context = MapperBuilderContext.ROOT;
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).fieldType();
+        final MappedField stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).field();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
-        for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType()
+        for (MappedField mapper : Arrays.asList(
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).field(),
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).field(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).field(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).field()
         )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, "test", () -> { throw new UnsupportedOperationException(); });
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new NumberFieldMapper.Builder(
+        final MappedField floatMapper = new NumberFieldMapper.Builder(
             "float",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
             false,
             true,
             Version.CURRENT
-        ).build(context).fieldType();
+        ).build(context).field();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
-        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder(
+        final MappedField doubleMapper = new NumberFieldMapper.Builder(
             "double",
             DOUBLE,
             ScriptCompiler.NONE,
             false,
             true,
             Version.CURRENT
-        ).build(context).fieldType();
+        ).build(context).field();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
@@ -128,15 +129,15 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
-        MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.fielddataBuilder(ArgumentMatchers.any(), ArgumentMatchers.any())).thenAnswer(invocationOnMock -> {
+        MappedField mappedField = mock(MappedField.class);
+        when(mappedField.fielddataBuilder(ArgumentMatchers.any(), ArgumentMatchers.any())).thenAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>) invocationOnMock.getArguments()[1];
             searchLookupSetOnce.set(searchLookup);
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
         SearchLookup searchLookup = new SearchLookup(null, null);
-        ifdService.getForField(ft, "qualified", () -> searchLookup);
+        ifdService.getForField(mappedField, "qualified", () -> searchLookup);
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
 
@@ -151,12 +152,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.ROOT;
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedField mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
-            .fieldType();
-        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
+            .field();
+        final MappedField mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
-            .fieldType();
+            .field();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("field_1", "thisisastring", Store.NO));
@@ -218,9 +219,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.ROOT;
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedField mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
-            .fieldType();
+            .field();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -303,7 +304,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    private void doTestRequireDocValues(MappedFieldType ft) {
+    private void doTestRequireDocValues(MappedField mappedField) {
         ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
@@ -312,12 +313,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 cache,
                 null
             );
-            if (ft.hasDocValues()) {
-                ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); }); // no exception
+            if (mappedField.hasDocValues()) {
+                ifds.getForField(mappedField, "test", () -> { throw new UnsupportedOperationException(); }); // no exception
             } else {
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); })
+                    () -> ifds.getForField(mappedField, "test", () -> { throw new UnsupportedOperationException(); })
                 );
                 assertThat(e.getMessage(), containsString("doc values"));
             }
@@ -327,17 +328,17 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnLongs() {
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG));
+        doTestRequireDocValues(new MappedField("field", new NumberFieldMapper.NumberFieldType(LONG)));
         doTestRequireDocValues(
-            new NumberFieldMapper.NumberFieldType("field", LONG, true, false, false, false, null, Collections.emptyMap(), null, false, null)
+            new MappedField("field",
+                new NumberFieldMapper.NumberFieldType(LONG, true, false, false, false, null, Collections.emptyMap(), null, false, null))
         );
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE));
+        doTestRequireDocValues(new MappedField("field", new NumberFieldMapper.NumberFieldType(DOUBLE)));
         doTestRequireDocValues(
-            new NumberFieldMapper.NumberFieldType(
-                "field",
+            new MappedField("field", new NumberFieldMapper.NumberFieldType(
                 NumberType.DOUBLE,
                 true,
                 false,
@@ -348,12 +349,13 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null,
                 false,
                 null
-            )
+            ))
         );
     }
 
     public void testRequireDocValuesOnBools() {
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
+        doTestRequireDocValues(new MappedField("field", new BooleanFieldMapper.BooleanFieldType()));
+        doTestRequireDocValues(new MappedField("field",
+            new BooleanFieldMapper.BooleanFieldType(true, false, false, null, null, Collections.emptyMap())));
     }
 }

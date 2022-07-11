@@ -17,7 +17,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -50,8 +50,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     @Override
     protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
-        MappedFieldType fieldType = context.getMappedField(queryBuilder.fieldName());
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(queryBuilder.fieldName());
+        if (mappedField == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         } else { // TODO: Test case when there are no docValues
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();

@@ -16,7 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
@@ -88,7 +88,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 .or(instanceOf(MatchNoDocsQuery.class))
                 .or(instanceOf(AutomatonQuery.class))
         );
-        MappedFieldType mapper = context.getMappedField(queryBuilder.fieldName());
+        MappedField mapper = context.getMappedField(queryBuilder.fieldName());
         if (query instanceof TermQuery termQuery) {
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
@@ -103,7 +103,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         }
     }
 
-    private Query termQuery(MappedFieldType mapper, Object value, boolean caseInsensitive) {
+    private Query termQuery(MappedField mapper, Object value, boolean caseInsensitive) {
         if (caseInsensitive) {
             return mapper.termQueryCaseInsensitive(value, FieldTypeTestCase.MOCK_CONTEXT);
         }

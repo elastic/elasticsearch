@@ -22,13 +22,13 @@ public final class TestRuntimeField implements RuntimeField {
     public static final String CONTENT_TYPE = "test-composite";
 
     private final String name;
-    private final Collection<MappedFieldType> subfields;
+    private final Collection<MappedField> subfields;
 
     public TestRuntimeField(String name, String type) {
-        this(name, Collections.singleton(new TestRuntimeFieldType(name, type)));
+        this(name, Collections.singleton(new MappedField(name, new TestRuntimeFieldType(type))));
     }
 
-    public TestRuntimeField(String name, Collection<MappedFieldType> subfields) {
+    public TestRuntimeField(String name, Collection<MappedField> subfields) {
         this.name = name;
         this.subfields = subfields;
     }
@@ -39,7 +39,7 @@ public final class TestRuntimeField implements RuntimeField {
     }
 
     @Override
-    public Stream<MappedFieldType> asMappedFields() {
+    public Stream<MappedField> asMappedFields() {
         return subfields.stream();
     }
 
@@ -54,13 +54,13 @@ public final class TestRuntimeField implements RuntimeField {
     public static class TestRuntimeFieldType extends MappedFieldType {
         private final String type;
 
-        public TestRuntimeFieldType(String name, String type) {
-            super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        public TestRuntimeFieldType(String type) {
+            super(false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
             this.type = type;
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -70,7 +70,7 @@ public final class TestRuntimeField implements RuntimeField {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             return null;
         }
 
@@ -80,7 +80,7 @@ public final class TestRuntimeField implements RuntimeField {
         }
 
         @Override
-        public boolean isAggregatable() {
+        public boolean isAggregatable(String name) {
             return true;
         }
     }

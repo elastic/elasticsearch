@@ -26,15 +26,15 @@ import static java.util.Collections.emptyMap;
 public class FieldNamesFieldTypeTests extends ESTestCase {
 
     public void testTermQuery() {
-        FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field_name");
+        MappedField fieldNamesField = new MappedField(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.FieldNamesFieldType.get(true));
+        MappedField mappedField = new MappedField("field_name", new KeywordFieldMapper.KeywordFieldType());
 
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
             new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
             settings
         );
-        List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).<FieldMapper>map(MockFieldMapper::new).toList();
+        List<FieldMapper> mappers = Stream.of(fieldNamesField, mappedField).<FieldMapper>map(MockFieldMapper::new).toList();
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
@@ -57,12 +57,12 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
             null,
             emptyMap()
         );
-        Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
+        Query termQuery = fieldNamesField.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
         assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
 
         FieldNamesFieldMapper.FieldNamesFieldType unsearchable = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", null));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", "field_name", null));
         assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());
     }
 }

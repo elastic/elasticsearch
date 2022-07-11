@@ -55,11 +55,12 @@ import java.util.Map;
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType("field", randomBoolean(), randomBoolean(), Map.of());
+        KeywordFieldType ft = new KeywordFieldType(randomBoolean(), randomBoolean(), Map.of());
         // current impl ignores args and should always return INTERSECTS
         assertEquals(
             Relation.INTERSECTS,
             ft.isFieldWithinQuery(
+                "field",
                 null,
                 RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
                 RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
@@ -73,14 +74,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_CONTEXT));
+        MappedFieldType ft = new KeywordFieldType();
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("field", "foo", MOCK_CONTEXT));
 
-        MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
-        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("foo", MOCK_CONTEXT));
+        MappedFieldType ft2 = new KeywordFieldType(false, true, Map.of());
+        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("field", "foo", MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));
+        MappedFieldType unsearchable = new KeywordFieldType(false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> unsearchable.termQuery("field", "bar", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
@@ -98,65 +100,65 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 return new LowerCaseFilter(in);
             }
         };
-        MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
-        assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", MOCK_CONTEXT));
+        MappedFieldType ft = new KeywordFieldType(new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
+        assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("field", "fOo BaR", MOCK_CONTEXT));
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = new KeywordFieldType();
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
-        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
+        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery("field", Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
-        MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
-        assertEquals(new DocValuesTermsQuery("field", terms), ft2.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
+        MappedFieldType ft2 = new KeywordFieldType(false, true, Map.of());
+        assertEquals(new DocValuesTermsQuery("field", terms), ft2.termsQuery("field", Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = new KeywordFieldType(false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT)
+            () -> unsearchable.termsQuery("field", Arrays.asList("foo", "bar"), MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testExistsQuery() {
         {
-            KeywordFieldType ft = new KeywordFieldType("field");
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            KeywordFieldType ft = new KeywordFieldType();
+            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
         }
         {
-            KeywordFieldType ft = new KeywordFieldType("field", false, true, Map.of());
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            KeywordFieldType ft = new KeywordFieldType(false, true, Map.of());
+            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
         }
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
-            KeywordFieldType ft = new KeywordFieldType("field", fieldType);
-            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            KeywordFieldType ft = new KeywordFieldType(fieldType);
+            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
         }
         {
-            KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_CONTEXT));
+            KeywordFieldType ft = new KeywordFieldType(true, false, Collections.emptyMap());
+            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery("field", MOCK_CONTEXT));
         }
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = new KeywordFieldType();
         assertEquals(
             new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
-            ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
+            ft.rangeQuery("field", "foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
         );
 
-        MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
+        MappedFieldType ft2 = new KeywordFieldType(false, true, Map.of());
         assertEquals(
             SortedSetDocValuesField.newSlowRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
-            ft2.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
+            ft2.rangeQuery("field", "foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
         );
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.rangeQuery("field", "foo", "bar", true, false, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
@@ -165,40 +167,41 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
+        MappedFieldType ft = new KeywordFieldType();
+        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("field", "foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = new KeywordFieldType(false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
+            () -> unsearchable.regexpQuery("field", "foo.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.regexpQuery("field", "foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = new KeywordFieldType();
         assertEquals(
             new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true),
-            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
+            ft.fuzzyQuery("field", "foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = new KeywordFieldType(false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
+            () -> unsearchable.fuzzyQuery("field", "foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
             () -> ft.fuzzyQuery(
+                "field",
                 "foo",
                 Fuzziness.AUTO,
                 randomInt(10) + 1,
@@ -211,14 +214,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testNormalizeQueries() {
-        MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
-        ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
-        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+        MappedFieldType ft = new KeywordFieldType();
+        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("field", "FOO", null));
+        ft = new KeywordFieldType(Lucene.STANDARD_ANALYZER);
+        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("field", "FOO", null));
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).build(MapperBuilderContext.ROOT).fieldType();
+        MappedField mapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).build(MapperBuilderContext.ROOT).field();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(mapper, true));
@@ -226,26 +229,26 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
-        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).ignoreAbove(4)
+        MappedField ignoreAboveMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).ignoreAbove(4)
             .build(MapperBuilderContext.ROOT)
-            .fieldType();
+            .field();
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder(
+        MappedField normalizerMapper = new KeywordFieldMapper.Builder(
             "field",
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
             Version.CURRENT
-        ).normalizer("lowercase").build(MapperBuilderContext.ROOT).fieldType();
+        ).normalizer("lowercase").build(MapperBuilderContext.ROOT).field();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));
 
-        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).nullValue("NULL")
+        MappedField nullValueMapper = new KeywordFieldMapper.Builder("field", Version.CURRENT).nullValue("NULL")
             .build(MapperBuilderContext.ROOT)
-            .fieldType();
+            .field();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }
 

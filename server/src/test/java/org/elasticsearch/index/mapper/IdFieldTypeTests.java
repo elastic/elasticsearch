@@ -26,7 +26,7 @@ public class IdFieldTypeTests extends ESTestCase {
             : new TsidExtractingIdFieldMapper.IdFieldType();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
+            () -> ft.rangeQuery("_id", null, null, randomBoolean(), randomBoolean(), null, null, null, null)
         );
         assertEquals("Field [_id] of type [_id] does not support range queries", e.getMessage());
     }
@@ -48,18 +48,18 @@ public class IdFieldTypeTests extends ESTestCase {
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
         Mockito.when(context.indexVersionCreated()).thenReturn(Version.CURRENT);
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
-        Query query = ft.termQuery("id", context);
+        Query query = ft.termQuery("_id", "id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }
 
     public void testIsAggregatable() {
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
-        assertFalse(ft.isAggregatable());
+        assertFalse(ft.isAggregatable("_id"));
 
         ft = new ProvidedIdFieldMapper.IdFieldType(() -> true);
-        assertTrue(ft.isAggregatable());
+        assertTrue(ft.isAggregatable("_id"));
 
         ft = new TsidExtractingIdFieldMapper.IdFieldType();
-        assertFalse(ft.isAggregatable());
+        assertFalse(ft.isAggregatable("_id"));
     }
 }

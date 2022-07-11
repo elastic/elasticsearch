@@ -45,23 +45,24 @@ import static org.hamcrest.Matchers.equalTo;
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
     private static TextFieldType createFieldType() {
-        return new TextFieldType("field");
+        return new TextFieldType();
     }
 
     public void testIsAggregatableDependsOnFieldData() {
         TextFieldType ft = createFieldType();
-        assertFalse(ft.isAggregatable());
+        assertFalse(ft.isAggregatable("field"));
         ft.setFielddata(true);
-        assertTrue(ft.isAggregatable());
+        assertTrue(ft.isAggregatable("field"));
     }
 
     public void testTermQuery() {
         MappedFieldType ft = createFieldType();
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
-        assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")), ft.termQueryCaseInsensitive("fOo", null));
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("field", "foo", null));
+        assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")),
+            ft.termQueryCaseInsensitive("field", "fOo", null));
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
+        MappedFieldType unsearchable = new TextFieldType(false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", "bar", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
@@ -70,12 +71,12 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
-        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery("field", Arrays.asList("foo", "bar"), null));
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = new TextFieldType(false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null)
+            () -> unsearchable.termsQuery("field", Arrays.asList("foo", "bar"), null)
         );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
@@ -84,12 +85,12 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         assertEquals(
             new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
-            ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
+            ft.rangeQuery("field", "foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
         );
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.rangeQuery("field", "foo", "bar", true, false, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
@@ -99,18 +100,18 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testRegexpQuery() {
         MappedFieldType ft = createFieldType();
-        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
+        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("field", "foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = new TextFieldType(false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
+            () -> unsearchable.regexpQuery("field", "foo.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.regexpQuery("field", "foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -119,19 +120,20 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         assertEquals(
             new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true),
-            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
+            ft.fuzzyQuery("field", "foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = new TextFieldType(false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
+            () -> unsearchable.fuzzyQuery("field", "foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
             () -> ft.fuzzyQuery(
+                "field",
                 "foo",
                 Fuzziness.AUTO,
                 randomInt(10) + 1,
@@ -147,18 +149,18 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = createFieldType();
         ft.setIndexPrefixes(2, 10);
 
-        Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, false, randomMockContext());
+        Query q = ft.prefixQuery("field", "goin", CONSTANT_SCORE_REWRITE, false, randomMockContext());
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
 
-        q = ft.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT);
+        q = ft.prefixQuery("field", "internationalisatio", CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT);
         assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
-        q = ft.prefixQuery("Internationalisatio", CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT);
+        q = ft.prefixQuery("field", "Internationalisatio", CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT);
         assertEquals(AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "Internationalisatio")), q);
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.prefixQuery("internationalisatio", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.prefixQuery("field", "internationalisatio", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "
@@ -166,7 +168,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             ee.getMessage()
         );
 
-        q = ft.prefixQuery("g", CONSTANT_SCORE_REWRITE, false, randomMockContext());
+        q = ft.prefixQuery("field", "g", CONSTANT_SCORE_REWRITE, false, randomMockContext());
         Automaton automaton = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
 
         Query expected = new ConstantScoreQuery(
@@ -179,24 +181,24 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        TextFieldType fieldType = createFieldType();
+        MappedField mappedField = new MappedField("field", createFieldType());
 
-        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(mappedField, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mappedField, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mappedField, true));
     }
 
     public void testWildcardQuery() {
         TextFieldType ft = createFieldType();
 
         // case sensitive
-        AutomatonQuery actual = (AutomatonQuery) ft.wildcardQuery("*Butterflies*", null, false, MOCK_CONTEXT);
+        AutomatonQuery actual = (AutomatonQuery) ft.wildcardQuery("field", "*Butterflies*", null, false, MOCK_CONTEXT);
         AutomatonQuery expected = new WildcardQuery(new Term("field", new BytesRef("*Butterflies*")));
         assertEquals(expected, actual);
         assertFalse(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
 
         // case insensitive
-        actual = (AutomatonQuery) ft.wildcardQuery("*Butterflies*", null, true, MOCK_CONTEXT);
+        actual = (AutomatonQuery) ft.wildcardQuery("field", "*Butterflies*", null, true, MOCK_CONTEXT);
         expected = AutomatonQueries.caseInsensitiveWildcardQuery(new Term("field", new BytesRef("*Butterflies*")));
         assertEquals(expected, actual);
         assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
@@ -204,7 +206,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.wildcardQuery("field", "valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -215,7 +217,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     public void testNormalizedWildcardQuery() {
         TextFieldType ft = createFieldType();
 
-        AutomatonQuery actual = (AutomatonQuery) ft.normalizedWildcardQuery("*Butterflies*", null, MOCK_CONTEXT);
+        AutomatonQuery actual = (AutomatonQuery) ft.normalizedWildcardQuery("field", "*Butterflies*", null, MOCK_CONTEXT);
         AutomatonQuery expected = new WildcardQuery(new Term("field", new BytesRef("*butterflies*")));
         assertEquals(expected, actual);
         assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
@@ -223,32 +225,32 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.wildcardQuery("field", "valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testTermIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
-        IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        IntervalsSource termIntervals = ft.termIntervals("field", new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.term(new BytesRef("foo")), termIntervals);
     }
 
     public void testPrefixIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
-        IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        IntervalsSource prefixIntervals = ft.prefixIntervals("field", new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.prefix(new BytesRef("foo")), prefixIntervals);
     }
 
     public void testWildcardIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
-        IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        IntervalsSource wildcardIntervals = ft.wildcardIntervals("field", new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
     }
 
     public void testFuzzyIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
-        IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
+        IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("field", "foo", 1, 2, true, MOCK_CONTEXT);
         FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
         IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), "foo");
         assertEquals(expectedIntervals, fuzzyIntervals);
@@ -257,14 +259,14 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     public void testPrefixIntervalsWithIndexedPrefixes() {
         TextFieldType ft = createFieldType();
         ft.setIndexPrefixes(1, 4);
-        IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        IntervalsSource prefixIntervals = ft.prefixIntervals("field", new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.fixField("field._index_prefix", Intervals.term(new BytesRef("foo"))), prefixIntervals);
     }
 
     public void testWildcardIntervalsWithIndexedPrefixes() {
         TextFieldType ft = createFieldType();
         ft.setIndexPrefixes(1, 4);
-        IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        IntervalsSource wildcardIntervals = ft.wildcardIntervals("field", new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
     }
 }

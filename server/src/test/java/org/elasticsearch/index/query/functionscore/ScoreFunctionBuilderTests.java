@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -53,7 +53,8 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         Mockito.when(context.index()).thenReturn(settings.getIndex());
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);
-        Mockito.when(context.getMappedField(IdFieldMapper.NAME)).thenReturn(new KeywordFieldMapper.KeywordFieldType(IdFieldMapper.NAME));
+        Mockito.when(context.getMappedField(IdFieldMapper.NAME)).thenReturn(
+            new MappedField(IdFieldMapper.NAME, new KeywordFieldMapper.KeywordFieldType()));
         Mockito.when(context.isFieldMapped(IdFieldMapper.NAME)).thenReturn(true);
         builder.toFunction(context);
         assertWarnings("As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
@@ -73,8 +74,8 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         Mockito.when(context.index()).thenReturn(settings.getIndex());
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("foo", NumberType.LONG);
-        Mockito.when(context.getMappedField("foo")).thenReturn(ft);
+        MappedField mappedField = new MappedField("foo", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
+        Mockito.when(context.getMappedField("foo")).thenReturn(mappedField);
         Mockito.when(context.isFieldMapped("foo")).thenReturn(true);
         builder.toFunction(context);
     }

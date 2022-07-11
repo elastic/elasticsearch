@@ -82,6 +82,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -2654,7 +2655,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.refresh("created segment 2");
 
         // test global ordinals are evicted
-        MappedFieldType foo = shard.mapperService().mappedField("foo");
+        MappedField foo = shard.mapperService().mappedField("foo");
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
             shard.indexSettings.getNodeSettings(),
             new IndexFieldDataCache.Listener() {

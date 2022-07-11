@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -121,8 +122,8 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
     }
 
     public void testBlendTerms() {
-        FakeFieldType ft1 = new FakeFieldType("foo");
-        FakeFieldType ft2 = new FakeFieldType("bar");
+        MappedField f1 = new MappedField("foo", new FakeFieldType());
+        MappedField f2 = new MappedField("bar", new FakeFieldType());
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] { 2, 3 };
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
@@ -138,24 +139,24 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             new BytesRef("baz"),
             1f,
             false,
-            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+            Arrays.asList(new FieldAndBoost(f1, 2), new FieldAndBoost(f2, 3))
         );
         assertEquals(expected, actual);
     }
 
     public void testBlendTermsUnsupportedValueWithLenient() {
-        FakeFieldType ft1 = new FakeFieldType("foo");
-        FakeFieldType ft2 = new FakeFieldType("bar") {
+        MappedField f1 = new MappedField("foo", new FakeFieldType());
+        MappedField f2 = new MappedField("bar", new FakeFieldType() {
             @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
+            public Query termQuery(String name, Object value, SearchExecutionContext context) {
                 throw new IllegalArgumentException();
             }
-        };
+        });
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] { 2 };
         Query expected = new DisjunctionMaxQuery(
             Arrays.asList(
-                Queries.newMatchNoDocsQuery("failed [" + ft2.name() + "] query, caused by illegal_argument_exception:[null]"),
+                Queries.newMatchNoDocsQuery("failed [" + f2.name() + "] query, caused by illegal_argument_exception:[null]"),
                 BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f)
             ),
             1f
@@ -172,18 +173,18 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             new BytesRef("baz"),
             1f,
             true,
-            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+            Arrays.asList(new FieldAndBoost(f1, 2), new FieldAndBoost(f2, 3))
         );
         assertEquals(expected, actual);
     }
 
     public void testBlendTermsUnsupportedValueWithoutLenient() {
-        FakeFieldType ft = new FakeFieldType("bar") {
+        MappedField mappedField = new MappedField("bar", new FakeFieldType() {
             @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
+            public Query termQuery(String name, Object value, SearchExecutionContext context) {
                 throw new IllegalArgumentException();
             }
-        };
+        });
         expectThrows(
             IllegalArgumentException.class,
             () -> MultiMatchQueryParser.blendTerm(
@@ -198,19 +199,19 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 new BytesRef("baz"),
                 1f,
                 false,
-                Arrays.asList(new FieldAndBoost(ft, 1))
+                Arrays.asList(new FieldAndBoost(mappedField, 1))
             )
         );
     }
 
     public void testBlendNoTermQuery() {
-        FakeFieldType ft1 = new FakeFieldType("foo");
-        FakeFieldType ft2 = new FakeFieldType("bar") {
+        MappedField f1 = new MappedField("foo", new FakeFieldType());
+        MappedField f2 = new MappedField("bar", new FakeFieldType() {
             @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
+            public Query termQuery(String name, Object value, SearchExecutionContext context) {
                 return new MatchAllDocsQuery();
             }
-        };
+        });
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] { 2 };
         Query expectedDisjunct1 = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
@@ -228,7 +229,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             new BytesRef("baz"),
             1f,
             false,
-            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+            Arrays.asList(new FieldAndBoost(f1, 2), new FieldAndBoost(f2, 3))
         );
         assertEquals(expected, actual);
     }

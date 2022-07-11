@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -104,22 +104,22 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testFailIfFieldMappingNotFound() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text");
-        MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
+        MappedField mappedField = new MappedField("name", new TextFieldMapper.TextFieldType());
+        MappedField result = context.failIfFieldMappingNotFound("name", mappedField);
+        assertThat(result, sameInstance(mappedField));
         QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));
         assertEquals("No field mapping can be found for the field with name [name]", e.getMessage());
 
         context.setAllowUnmappedFields(true);
-        result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
+        result = context.failIfFieldMappingNotFound("name", mappedField);
+        assertThat(result, sameInstance(mappedField));
         result = context.failIfFieldMappingNotFound("name", null);
         assertThat(result, nullValue());
 
         context.setAllowUnmappedFields(false);
         context.setMapUnmappedFieldAsString(true);
-        result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
+        result = context.failIfFieldMappingNotFound("name", mappedField);
+        assertThat(result, sameInstance(mappedField));
         result = context.failIfFieldMappingNotFound("name", null);
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
@@ -149,7 +149,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         IndexFieldMapper mapper = new IndexFieldMapper();
 
-        IndexFieldData<?> forField = context.getForField(mapper.fieldType());
+        IndexFieldData<?> forField = context.getForField(mapper.field());
         String expected = clusterAlias == null
             ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
@@ -299,7 +299,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
     }
 
-    private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
+    private static MappingLookup createMappingLookup(List<MappedField> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().<FieldMapper>map(MockFieldMapper::new).toList();
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
@@ -322,7 +322,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             "uuid",
             null,
             createMappingLookup(
-                List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                List.of(new MappedField("pig", new MockFieldMapper.FakeFieldType()),
+                    new MappedField("cat", new MockFieldMapper.FakeFieldType())),
                 List.of(new TestRuntimeField("runtime", "long"))
             ),
             runtimeMappings
@@ -347,7 +348,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             () -> createSearchExecutionContext(
                 "uuid",
                 null,
-                createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+                createMappingLookup(List.of(new MappedField("pig", new MockFieldMapper.FakeFieldType()),
+                    new MappedField("cat", new MockFieldMapper.FakeFieldType())), List.of()),
                 runtimeMappings
             )
         );
@@ -362,7 +364,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             () -> createSearchExecutionContext(
                 "uuid",
                 null,
-                createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+                createMappingLookup(List.of(new MappedField("pig", new MockFieldMapper.FakeFieldType()),
+                    new MappedField("cat", new MockFieldMapper.FakeFieldType())), List.of()),
                 runtimeMappings
             )
         );
@@ -377,10 +380,10 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
         MappingLookup mappingLookup = createMappingLookup(
             List.of(
-                new MockFieldMapper.FakeFieldType("pig"),
-                new MockFieldMapper.FakeFieldType("pig.subfield"),
-                new MockFieldMapper.FakeFieldType("cat"),
-                new MockFieldMapper.FakeFieldType("cat.subfield")
+                new MappedField("pig", new MockFieldMapper.FakeFieldType()),
+                new MappedField("pig.subfield", new MockFieldMapper.FakeFieldType()),
+                new MappedField("cat", new MockFieldMapper.FakeFieldType()),
+                new MappedField("cat.subfield", new MockFieldMapper.FakeFieldType())
             ),
             List.of(new TestRuntimeField("runtime", "long"))
         );
@@ -480,9 +483,10 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
-        TestRuntimeField.TestRuntimeFieldType fieldType = new TestRuntimeField.TestRuntimeFieldType(name, null) {
+        TestRuntimeField.TestRuntimeFieldType fieldType = new TestRuntimeField.TestRuntimeFieldType(null) {
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
+                                                           Supplier<SearchLookup> searchLookup) {
                 return (cache, breakerService) -> new IndexFieldData<>() {
                     @Override
                     public String getFieldName() {
@@ -581,7 +585,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 };
             }
         };
-        return new TestRuntimeField(name, Collections.singleton(fieldType));
+        return new TestRuntimeField(name, Collections.singleton(new MappedField(name, fieldType)));
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {
@@ -595,12 +599,12 @@ public class SearchExecutionContextTests extends ESTestCase {
             indexWriter.addDocument(List.of(new StringField("indexed_field", "second", Field.Store.NO)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType fieldType = searchExecutionContext.getMappedField(field);
+                MappedField mappedField = searchExecutionContext.getMappedField(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
-                    indexFieldData = searchExecutionContext.getForField(fieldType);
+                    indexFieldData = searchExecutionContext.getForField(mappedField);
                 } else {
-                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType);
+                    indexFieldData = searchExecutionContext.lookup().getForField(mappedField);
                 }
                 searcher.search(query, new Collector() {
                     @Override

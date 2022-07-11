@@ -54,8 +54,8 @@ public class FieldTypeLookupTests extends ESTestCase {
             Collections.emptyList()
         );
 
-        MappedFieldType aliasType = lookup.get("alias");
-        assertEquals(field.fieldType(), aliasType);
+        MappedField aliasField = lookup.get("alias");
+        assertEquals(field.fieldType(), aliasField.type());
     }
 
     public void testGetMatchingFieldNames() {
@@ -71,8 +71,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         TestRuntimeField multi = new TestRuntimeField(
             "flat",
             List.of(
-                new TestRuntimeField.TestRuntimeFieldType("flat.first", "first"),
-                new TestRuntimeField.TestRuntimeFieldType("flat.second", "second")
+                new MappedField("flat.first", new TestRuntimeField.TestRuntimeFieldType("first")),
+                new MappedField("flat.second", new TestRuntimeField.TestRuntimeFieldType("second"))
             )
         );
 
@@ -147,8 +147,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         TestRuntimeField multi = new TestRuntimeField(
             "multi",
             List.of(
-                new TestRuntimeField.TestRuntimeFieldType("multi.string", "string"),
-                new TestRuntimeField.TestRuntimeFieldType("multi.long", "long")
+                new MappedField("multi.string", new TestRuntimeField.TestRuntimeFieldType("string")),
+                new MappedField("multi.long", new TestRuntimeField.TestRuntimeFieldType("long"))
             )
         );
 
@@ -174,7 +174,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         TestRuntimeField fieldOverride = new TestRuntimeField("field", "string");
         TestRuntimeField subfieldOverride = new TestRuntimeField(
             "object",
-            Collections.singleton(new TestRuntimeField.TestRuntimeFieldType("object.subfield", "leaf"))
+            Collections.singleton(new MappedField("object.subfield", new TestRuntimeField.TestRuntimeFieldType("leaf")))
         );
         TestRuntimeField runtime = new TestRuntimeField("runtime", "type");
         TestRuntimeField flattenedRuntime = new TestRuntimeField("flattened.runtime", "type");
@@ -231,10 +231,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         String objectKey = "key1.key2";
         String searchFieldName = fieldName + "." + objectKey;
 
-        MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertNotNull(searchFieldType);
-        assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
-        FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
+        MappedField searchField = lookup.get(searchFieldName);
+        assertNotNull(searchField);
+        assertThat(searchField.type(), Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
+        FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchField.type();
         assertEquals(objectKey, keyedFieldType.key());
 
         assertThat(lookup.getMatchingFieldNames("object1.*"), contains("object1.object2.field"));
@@ -257,10 +257,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         String objectKey = "key1.key2";
         String searchFieldName = aliasName + "." + objectKey;
 
-        MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertNotNull(searchFieldType);
-        assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
-        FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
+        MappedField searchField = lookup.get(searchFieldName);
+        assertNotNull(searchField);
+        assertThat(searchField.type(), Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
+        FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchField.type();
         assertEquals(objectKey, keyedFieldType.key());
     }
 
@@ -343,7 +343,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         {
             TestRuntimeField multi = new TestRuntimeField(
                 "multi",
-                Collections.singleton(new TestRuntimeField.TestRuntimeFieldType("multi.first", "leaf"))
+                Collections.singleton(new MappedField("multi.first", new TestRuntimeField.TestRuntimeFieldType("leaf")))
             );
             TestRuntimeField runtime = new TestRuntimeField("multi.first", "runtime");
             IllegalArgumentException iae = expectThrows(
@@ -356,8 +356,8 @@ public class FieldTypeLookupTests extends ESTestCase {
             TestRuntimeField multi = new TestRuntimeField(
                 "multi",
                 List.of(
-                    new TestRuntimeField.TestRuntimeFieldType("multi", "leaf"),
-                    new TestRuntimeField.TestRuntimeFieldType("multi", "leaf")
+                    new MappedField("multi", new TestRuntimeField.TestRuntimeFieldType("leaf")),
+                    new MappedField("multi", new TestRuntimeField.TestRuntimeFieldType("leaf"))
                 )
             );
 
@@ -374,9 +374,9 @@ public class FieldTypeLookupTests extends ESTestCase {
             TestRuntimeField multi = new TestRuntimeField(
                 "multi",
                 List.of(
-                    new TestRuntimeField.TestRuntimeFieldType("first", "leaf"),
-                    new TestRuntimeField.TestRuntimeFieldType("second", "leaf"),
-                    new TestRuntimeField.TestRuntimeFieldType("multi.third", "leaf")
+                    new MappedField("first", new TestRuntimeField.TestRuntimeFieldType("leaf")),
+                    new MappedField("second", new TestRuntimeField.TestRuntimeFieldType("leaf")),
+                    new MappedField("multi.third", new TestRuntimeField.TestRuntimeFieldType("leaf"))
                 )
             );
             IllegalStateException ise = expectThrows(
@@ -389,8 +389,8 @@ public class FieldTypeLookupTests extends ESTestCase {
             TestRuntimeField multi = new TestRuntimeField(
                 "multi",
                 List.of(
-                    new TestRuntimeField.TestRuntimeFieldType("multi.", "leaf"),
-                    new TestRuntimeField.TestRuntimeFieldType("multi.f", "leaf")
+                    new MappedField("multi.", new TestRuntimeField.TestRuntimeFieldType("leaf")),
+                    new MappedField("multi.f", new TestRuntimeField.TestRuntimeFieldType("leaf"))
                 )
             );
             IllegalStateException ise = expectThrows(

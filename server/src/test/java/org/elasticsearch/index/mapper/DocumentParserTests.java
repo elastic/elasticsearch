@@ -2396,8 +2396,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
                     return new TestRuntimeField(
                         n,
                         List.of(
-                            new TestRuntimeField.TestRuntimeFieldType(n + ".foo", KeywordFieldMapper.CONTENT_TYPE),
-                            new TestRuntimeField.TestRuntimeFieldType(n + ".bar", KeywordFieldMapper.CONTENT_TYPE)
+                            new MappedField(n + ".foo", new TestRuntimeField.TestRuntimeFieldType(KeywordFieldMapper.CONTENT_TYPE)),
+                            new MappedField(n + ".bar", new TestRuntimeField.TestRuntimeFieldType(KeywordFieldMapper.CONTENT_TYPE))
                         )
                     );
                 }

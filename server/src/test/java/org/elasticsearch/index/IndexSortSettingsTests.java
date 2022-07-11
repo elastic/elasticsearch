@@ -18,6 +18,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -125,29 +126,31 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testIndexSortingNoDocValues() {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
-        MappedFieldType fieldType = new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        MappedFieldType fieldType = new MappedFieldType(false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
             public String typeName() {
                 return null;
             }
 
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
+                                                           Supplier<SearchLookup> searchLookup) {
                 searchLookup.get();
                 return null;
             }
 
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
+            public Query termQuery(String name, Object value, SearchExecutionContext context) {
                 throw new UnsupportedOperationException();
             }
         };
-        Exception iae = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, fieldType));
+        Exception iae = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings,
+            new MappedField("field", fieldType)));
         assertEquals("docvalues not found for index sort field:[field]", iae.getMessage());
         assertThat(iae.getCause(), instanceOf(UnsupportedOperationException.class));
         assertEquals("index sorting not supported on runtime field [field]", iae.getCause().getMessage());
@@ -155,8 +158,9 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSortingAgainstAliases() {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
-        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, Map.of("field", aliased)));
+        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, Map.of("field",
+            new MappedField("aliased", aliased))));
         assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
     }
 
@@ -164,8 +168,8 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexSettings indexSettings = indexSettings(
             Settings.builder().put("index.version.created", Version.V_7_12_0).put("index.sort.field", "field").build()
         );
-        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
-        Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
+        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType();
+        Sort sort = buildIndexSort(indexSettings, Map.of("field", new MappedField("aliased", aliased)));
         assertThat(sort.getSort(), arrayWithSize(1));
         assertThat(sort.getSort()[0].getField(), equalTo("aliased"));
         assertWarnings(
@@ -183,7 +187,9 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
-        Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
+        Sort sort = buildIndexSort(indexSettings,
+            new MappedField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.FIELD_TYPE),
+            new MappedField("@timestamp", new DateFieldMapper.DateFieldType()));
         assertThat(sort.getSort(), arrayWithSize(2));
         assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
         assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
@@ -198,19 +204,20 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings,
+            new MappedField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.FIELD_TYPE)));
         assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
     }
 
-    private Sort buildIndexSort(IndexSettings indexSettings, MappedFieldType... mfts) {
-        Map<String, MappedFieldType> lookup = Maps.newMapWithExpectedSize(mfts.length);
-        for (MappedFieldType mft : mfts) {
-            assertNull(lookup.put(mft.name(), mft));
+    private Sort buildIndexSort(IndexSettings indexSettings, MappedField... mappedFields) {
+        Map<String, MappedField> lookup = Maps.newMapWithExpectedSize(mappedFields.length);
+        for (MappedField mappedField : mappedFields) {
+            assertNull(lookup.put(mappedField.name(), mappedField));
         }
         return buildIndexSort(indexSettings, lookup);
     }
 
-    private Sort buildIndexSort(IndexSettings indexSettings, Map<String, MappedFieldType> lookup) {
+    private Sort buildIndexSort(IndexSettings indexSettings, Map<String, MappedField> lookup) {
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(indexSettings.getSettings(), null);

@@ -58,7 +58,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(11, steps.size());
+        assertEquals(12, steps.size());
 
         assertTrue(steps.get(0) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(0).getKey().getName(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
@@ -82,29 +82,33 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
 
         assertTrue(steps.get(5) instanceof RollupStep);
         assertThat(steps.get(5).getKey().getName(), equalTo(RollupStep.NAME));
-        assertThat(steps.get(5).getNextStepKey().getName(), equalTo(CopyExecutionStateStep.NAME));
+        assertThat(steps.get(5).getNextStepKey().getName(), equalTo(WaitForIndexColorStep.NAME));
 
-        assertTrue(steps.get(6) instanceof CopyExecutionStateStep);
-        assertThat(steps.get(6).getKey().getName(), equalTo(CopyExecutionStateStep.NAME));
-        assertThat(steps.get(6).getNextStepKey().getName(), equalTo(CopySettingsStep.NAME));
+        assertTrue(steps.get(6) instanceof WaitForIndexColorStep);
+        assertThat(steps.get(6).getKey().getName(), equalTo(WaitForIndexColorStep.NAME));
+        assertThat(steps.get(6).getNextStepKey().getName(), equalTo(CopyExecutionStateStep.NAME));
 
-        assertTrue(steps.get(7) instanceof CopySettingsStep);
-        assertThat(steps.get(7).getKey().getName(), equalTo(CopySettingsStep.NAME));
-        assertThat(steps.get(7).getNextStepKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+        assertTrue(steps.get(7) instanceof CopyExecutionStateStep);
+        assertThat(steps.get(7).getKey().getName(), equalTo(CopyExecutionStateStep.NAME));
+        assertThat(steps.get(7).getNextStepKey().getName(), equalTo(CopySettingsStep.NAME));
 
-        assertTrue(steps.get(8) instanceof BranchingStep);
-        assertThat(steps.get(8).getKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
-        expectThrows(IllegalStateException.class, () -> steps.get(8).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(8)).getNextStepKeyOnFalse().getName(), equalTo(DeleteStep.NAME));
-        assertThat(((BranchingStep) steps.get(8)).getNextStepKeyOnTrue().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+        assertTrue(steps.get(8) instanceof CopySettingsStep);
+        assertThat(steps.get(8).getKey().getName(), equalTo(CopySettingsStep.NAME));
+        assertThat(steps.get(8).getNextStepKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
 
-        assertTrue(steps.get(9) instanceof ReplaceDataStreamBackingIndexStep);
-        assertThat(steps.get(9).getKey().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
-        assertThat(steps.get(9).getNextStepKey().getName(), equalTo(DeleteStep.NAME));
+        assertTrue(steps.get(9) instanceof BranchingStep);
+        assertThat(steps.get(9).getKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+        expectThrows(IllegalStateException.class, () -> steps.get(9).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(9)).getNextStepKeyOnFalse().getName(), equalTo(DeleteStep.NAME));
+        assertThat(((BranchingStep) steps.get(9)).getNextStepKeyOnTrue().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
 
-        assertTrue(steps.get(10) instanceof DeleteStep);
-        assertThat(steps.get(10).getKey().getName(), equalTo(DeleteStep.NAME));
-        assertThat(steps.get(10).getNextStepKey(), equalTo(nextStepKey));
+        assertTrue(steps.get(10) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(10).getKey().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+        assertThat(steps.get(10).getNextStepKey().getName(), equalTo(DeleteStep.NAME));
+
+        assertTrue(steps.get(11) instanceof DeleteStep);
+        assertThat(steps.get(11).getKey().getName(), equalTo(DeleteStep.NAME));
+        assertThat(steps.get(11).getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testEqualsAndHashCode() {

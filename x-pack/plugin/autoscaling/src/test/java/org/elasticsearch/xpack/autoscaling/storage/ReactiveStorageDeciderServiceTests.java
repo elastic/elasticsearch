@@ -615,7 +615,12 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         AllocationDecider no = new AllocationDecider() {
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return Decision.NO;
             }
         };

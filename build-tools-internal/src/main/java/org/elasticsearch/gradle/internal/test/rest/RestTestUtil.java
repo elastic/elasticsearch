@@ -61,10 +61,10 @@ public class RestTestUtil {
     }
 
     public static void setupYamlRestTestDependenciesDefaults(Project project, SourceSet sourceSet) {
-        Project yamlTestRunnerProject = project.findProject(":test:yaml-rest-runner");
+        Project testFramework = project.findProject(":test:framework");
         // we shield the project dependency to make integration tests easier
-        if (yamlTestRunnerProject != null) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
+        if (testFramework != null) {
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), testFramework);
         }
     }
 

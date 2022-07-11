@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -99,7 +100,8 @@ public class RollupILMAction implements LifecycleAction {
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
-        StepKey rollupKey = new StepKey(phase, NAME, NAME);
+        StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
+        StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
@@ -134,7 +136,13 @@ public class RollupILMAction implements LifecycleAction {
         );
 
         // Here is where the actual rollup action takes place
-        RollupStep rollupStep = new RollupStep(rollupKey, copyMetadataKey, client, config);
+        RollupStep rollupStep = new RollupStep(rollupKey, waitForGreenRestoredIndexKey, client, config);
+        WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
+            waitForGreenRestoredIndexKey,
+            copyMetadataKey,
+            ClusterHealthStatus.GREEN,
+            (indexName, lifecycleState) -> lifecycleState.rollupIndexName()
+        );
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
             copyLifecyclePolicySettingKey,
@@ -179,6 +187,7 @@ public class RollupILMAction implements LifecycleAction {
             readOnlyStep,
             generateRollupIndexNameStep,
             rollupStep,
+            waitForGreenIndexHealthStep,
             copyExecutionStateStep,
             copySettingsStep,
             isDataStreamBranchingStep,

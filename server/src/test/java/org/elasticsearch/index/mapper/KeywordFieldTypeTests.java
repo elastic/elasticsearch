@@ -20,9 +20,8 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -127,17 +126,17 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         {
             KeywordFieldType ft = new KeywordFieldType();
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
         }
         {
             KeywordFieldType ft = new KeywordFieldType(false, true, Map.of());
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
         }
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
             KeywordFieldType ft = new KeywordFieldType(fieldType);
-            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery("field", MOCK_CONTEXT));
         }
         {
             KeywordFieldType ft = new KeywordFieldType(true, false, Collections.emptyMap());

@@ -12,10 +12,9 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -151,11 +150,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            final MappedField resolvedFieldType = context.getMappedField(queryBuilder.fieldName());
-            if (resolvedFieldType.hasDocValues()) {
-                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.getMappedField(resolvedFieldType.name()).getTextSearchInfo().hasNorms()) {
-                expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
+            final MappedField mappedField = context.getMappedField(queryBuilder.fieldName());
+            if (mappedField.hasDocValues() || context.getMappedField(mappedField.name()).getTextSearchInfo().hasNorms()) {
+                expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
             }
@@ -453,7 +450,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Query luceneQuery = rewrittenRange.toQuery(searchExecutionContext);
         final Query expectedQuery;
         if (searchExecutionContext.getMappedField(query.fieldName()).hasDocValues()) {
-            expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
+            expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(query.fieldName()));
         } else {
             expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
         }

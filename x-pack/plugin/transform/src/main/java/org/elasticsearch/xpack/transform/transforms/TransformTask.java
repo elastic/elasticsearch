@@ -302,7 +302,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
      */
     public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
         // this should be called from the generic threadpool
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         logger.debug(
             "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
             getTransformId(),

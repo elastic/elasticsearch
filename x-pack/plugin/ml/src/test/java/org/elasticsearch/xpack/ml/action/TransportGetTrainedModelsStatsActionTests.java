@@ -124,7 +124,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 )
             )
         );
-        clusterService = new ClusterService(settings, clusterSettings, tp);
+        clusterService = new ClusterService(settings, clusterSettings, tp, null);
         ingestService = new IngestService(clusterService, tp, null, null, null, Collections.singletonList(SKINNY_INGEST_PLUGIN), client);
     }
 

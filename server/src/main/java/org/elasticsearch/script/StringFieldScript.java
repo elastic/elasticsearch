@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -34,29 +33,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
                 @Override
                 public void execute() {
                     emitFromSource();
-                }
-            };
-        }
-
-        @Override
-        public boolean isResultDeterministic() {
-            return true;
-        }
-    };
-
-    /**
-     * PARSE_FROM_SOURCE_PATHS is required for source fallback for the scripting fields API.
-     * A runtime field is used to generate values directly from source when doc values are not
-     * available. This differs from PARSE_FROM_SOURCE by using source paths that account for multi-field
-     * relationships and copy-to relationships. See {@link org.elasticsearch.index.mapper.MappingLookup#sourcePaths(String)}.
-     */
-    public static final StringFieldScript.Factory PARSE_FROM_SOURCE_PATHS = new Factory() {
-        @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
-            return ctx -> new StringFieldScript(field, params, lookup, ctx) {
-                @Override
-                public void execute() {
-                    emitFromSourcePaths();
                 }
             };
         }
@@ -98,14 +74,11 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         StringFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    protected final Set<String> sourcePaths;
-
     private final List<String> results = new ArrayList<>();
     private long chars;
 
     public StringFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
-        this.sourcePaths = searchLookup.sourcePaths(fieldName);
     }
 
     /**
@@ -124,20 +97,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public final void runForDoc(int docId, Consumer<String> consumer) {
         resultsForDoc(docId).forEach(consumer);
-    }
-
-    /**
-     * emitFromSourcePaths is used for the script fields API to handle source fallback
-     * when doc values are not available. This differs from {@link #emitFromSourcePaths()}
-     * by handling multiple source paths for possible mutli-field relationships and copy-to relationships.
-     * See {@link org.elasticsearch.index.mapper.MappingLookup#sourcePaths(String)}.
-     */
-    protected void emitFromSourcePaths() {
-        for (String sourcePath : sourcePaths) {
-            for (Object v : extractFromSource(sourcePath)) {
-                emitFromObject(v);
-            }
-        }
     }
 
     @Override

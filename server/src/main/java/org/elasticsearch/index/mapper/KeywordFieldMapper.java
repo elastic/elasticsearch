@@ -48,7 +48,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.index.fielddata.KeywordValueFetcherIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -703,9 +703,20 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             return new Tuple<>(
                 false,
-                new StringScriptFieldData.Builder(
+                new KeywordValueFetcherIndexFieldData.Builder(
                     name(),
-                    StringFieldScript.PARSE_FROM_SOURCE_PATHS.newFactory(name(), Collections.emptyMap(), searchLookup.get()),
+                    new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
+                        @Override
+                        protected String parseSourceValue(Object value) {
+                            String keywordValue = value.toString();
+                            if (keywordValue.length() > ignoreAbove) {
+                                return null;
+                            }
+
+                            return normalizeValue(normalizer(), name(), keywordValue);
+                        }
+                    },
+                    searchLookup.get().source(),
                     KeywordDocValuesField::new
                 )
             );

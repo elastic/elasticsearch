@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -298,7 +297,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("rollup configuration is missing"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix this")
     public void testRollupSparseMetrics() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
@@ -601,22 +599,24 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                         List<DocumentField> rollupFields = rollupHitDocumentFields.values().stream().toList();
                         List<Object> originalFieldsList = originalFields.stream().flatMap(x -> x.getValues().stream()).toList();
                         List<Object> rollupFieldsList = rollupFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        originalFieldsList.forEach(field -> assertTrue(rollupFieldsList.contains(field)));
-                        rollupFieldsList.forEach(field -> assertTrue(originalFieldsList.contains(field)));
-                        // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
-                        // `counter`. This way we can actually check that the label value stored in the rollup index
-                        // is the last value (which is what we store for a metric of type counter) by comparing the metric
-                        // field value to the label field value.
-                        Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
-                        Object rollupLabelValue = rollupHit.getDocumentFields().values().stream().toList().get(0).getValue();
-                        Optional<Aggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()
-                            .filter(agg -> agg.getName().equals("metric_" + rollupTopHits.getName()))
-                            .findFirst();
-                        // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
-                        if (labelAsMetric.isPresent()) {
-                            double metricValue = ((Max) labelAsMetric.get()).value();
-                            assertEquals(metricValue, rollupLabelValue);
-                            assertEquals(metricValue, originalLabelValue);
+                        if (originalFieldsList.isEmpty() == false && rollupFieldsList.isEmpty() == false) {
+                            // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
+                            // `counter`. This way we can actually check that the label value stored in the rollup index
+                            // is the last value (which is what we store for a metric of type counter) by comparing the metric
+                            // field value to the label field value.
+                            originalFieldsList.forEach(field -> assertTrue(rollupFieldsList.contains(field)));
+                            rollupFieldsList.forEach(field -> assertTrue(originalFieldsList.contains(field)));
+                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
+                            Object rollupLabelValue = rollupHit.getDocumentFields().values().stream().toList().get(0).getValue();
+                            Optional<Aggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()
+                                .filter(agg -> agg.getName().equals("metric_" + rollupTopHits.getName()))
+                                .findFirst();
+                            // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
+                            if (labelAsMetric.isPresent()) {
+                                double metricValue = ((Max) labelAsMetric.get()).value();
+                                assertEquals(metricValue, rollupLabelValue);
+                                assertEquals(metricValue, originalLabelValue);
+                            }
                         }
                     }
                 }
@@ -738,8 +738,13 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                     case "min" -> dateHistogramAggregation.subAggregation(
                         new MinAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
                     );
-                    case "max", "last_value" -> dateHistogramAggregation.subAggregation(
+                    case "max" -> dateHistogramAggregation.subAggregation(
                         new MaxAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
+                    );
+                    case "last_value" -> dateHistogramAggregation.subAggregation(
+                        new TopHitsAggregationBuilder(fieldName + "_" + supportedAggregation).sort(
+                            SortBuilders.fieldSort(timestampField).order(SortOrder.DESC)
+                        ).size(1).fetchField(fieldName).storedField(fieldName)
                     );
                     case "sum" -> dateHistogramAggregation.subAggregation(
                         new SumAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)

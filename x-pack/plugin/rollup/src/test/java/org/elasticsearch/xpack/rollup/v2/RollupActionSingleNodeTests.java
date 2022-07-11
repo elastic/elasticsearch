@@ -114,6 +114,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_LABEL_IPv4_ADDRESS = "label_ipv4_address";
     public static final String FIELD_LABEL_IPv6_ADDRESS = "label_ipv6_address";
     public static final String FIELD_LABEL_DATE = "label_date";
+    public static final String FIELD_LABEL_UNMAPPED = "label_unmapped";
     public static final String FIELD_LABEL_KEYWORD_ARRAY = "label_keyword_array";
     public static final String FIELD_LABEL_DOUBLE_ARRAY = "label_double_array";
 
@@ -217,6 +218,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
             int labelIntegerValue = randomInt();
+            long labelLongValue = randomLong();
             String labelIpv4Address = NetworkAddress.format(randomIp(true));
             String labelIpv6Address = NetworkAddress.format(randomIp(false));
             Date labelDateValue = randomDate();
@@ -241,6 +243,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_LABEL_INTEGER, labelIntegerValue)
                 .field(FIELD_LABEL_KEYWORD, ts)
+                .field(FIELD_LABEL_UNMAPPED, randomBoolean() ? labelLongValue : labelDoubleValue)
                 .field(FIELD_LABEL_TEXT, ts)
                 .field(FIELD_LABEL_BOOLEAN, randomBoolean())
                 .field(FIELD_LABEL_IPv4_ADDRESS, labelIpv4Address)

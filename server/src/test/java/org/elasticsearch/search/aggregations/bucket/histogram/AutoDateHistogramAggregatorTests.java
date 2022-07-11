@@ -32,7 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -407,12 +407,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").setNumBuckets(10)
             .field("bogus_bogus");
 
-        final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
+        final MappedField mappedField = new MappedField("date_field", new DateFieldMapper.DateFieldType());
 
         testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testBooleanFieldDeprecated() throws IOException {
@@ -421,7 +421,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             Document d = new Document();
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
-        }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName));
+        }, a -> {}, new MappedField(fieldName, new BooleanFieldMapper.BooleanFieldType()));
         assertWarnings("Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
     }
 
@@ -430,12 +430,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             .field("bogus_bogus")
             .missing("2017-12-12");
 
-        final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
+        final MappedField mappedField = new MappedField("date_field", new DateFieldMapper.DateFieldType());
 
         testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testIntervalYear() throws IOException {
@@ -936,18 +936,20 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                     configure.accept(aggregationBuilder);
                 }
 
-                final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggregationBuilder.field());
+                final MappedField mappedField = new MappedField(aggregationBuilder.field(), new DateFieldMapper.DateFieldType());
 
-                MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
-                MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedField instantField = new MappedField(INSTANT_FIELD,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+                MappedField numericField = new MappedField(NUMERIC_FIELD,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
                 final InternalAutoDateHistogram histogram = searchAndReduce(
                     indexSearcher,
                     query,
                     aggregationBuilder,
-                    fieldType,
-                    instantFieldType,
-                    numericFieldType
+                    mappedField,
+                    instantField,
+                    numericField
                 );
                 verify.accept(histogram);
             }

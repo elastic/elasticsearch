@@ -67,8 +67,9 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BooleanScriptFieldType ft = simpleMappedFieldType();
-                BooleanScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                MappedField mappedField = simpleMappedField();
+                BooleanScriptFieldData ifd = (BooleanScriptFieldData)
+                    mappedField.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -105,7 +106,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BooleanScriptFieldData ifd = (BooleanScriptFieldData)
+                    simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [false]}"));
@@ -121,7 +123,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedField());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -169,7 +171,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(3));
+                assertThat(searcher.count(simpleMappedField().existsQuery(mockContext())), equalTo(3));
             }
         }
     }
@@ -180,22 +182,22 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedFieldType();
-                assertThat(searcher.count(ft.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(false, true, false, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(0));
+                MappedField field = simpleMappedField();
+                assertThat(searcher.count(field.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(false, true, false, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(0));
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedFieldType();
-                assertThat(searcher.count(ft.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(false, true, true, false, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(0));
+                MappedField field = simpleMappedField();
+                assertThat(searcher.count(field.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(false, true, true, false, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(0));
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -203,43 +205,43 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedFieldType();
-                assertThat(searcher.count(ft.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(false, false, false, false, null, null, null, mockContext())), equalTo(0));
-                assertThat(searcher.count(ft.rangeQuery(true, true, false, false, null, null, null, mockContext())), equalTo(0));
+                MappedField field = simpleMappedField();
+                assertThat(searcher.count(field.rangeQuery(false, false, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(true, true, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(field.rangeQuery(false, true, true, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(field.rangeQuery(false, false, false, false, null, null, null, mockContext())), equalTo(0));
+                assertThat(searcher.count(field.rangeQuery(true, true, false, false, null, null, null, mockContext())), equalTo(0));
             }
         }
     }
 
     public void testRangeQueryDegeneratesIntoNotExpensive() throws IOException {
         assertThat(
-            simpleMappedFieldType().rangeQuery(true, true, false, false, null, null, null, mockContext()),
+            simpleMappedField().rangeQuery(true, true, false, false, null, null, null, mockContext()),
             instanceOf(MatchNoDocsQuery.class)
         );
         assertThat(
-            simpleMappedFieldType().rangeQuery(false, false, false, false, null, null, null, mockContext()),
+            simpleMappedField().rangeQuery(false, false, false, false, null, null, null, mockContext()),
             instanceOf(MatchNoDocsQuery.class)
         );
         // Even if the running the field would blow up because it loops the query *still* just returns none.
         assertThat(
-            loopFieldType().rangeQuery(true, true, false, false, null, null, null, mockContext()),
+            loopField().rangeQuery(true, true, false, false, null, null, null, mockContext()),
             instanceOf(MatchNoDocsQuery.class)
         );
         assertThat(
-            loopFieldType().rangeQuery(false, false, false, false, null, null, null, mockContext()),
+            loopField().rangeQuery(false, false, false, false, null, null, null, mockContext()),
             instanceOf(MatchNoDocsQuery.class)
         );
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+    protected Query randomRangeQuery(MappedField field, SearchExecutionContext ctx) {
         // Builds a random range query that doesn't degenerate into match none
         return switch (randomInt(2)) {
-            case 0 -> ft.rangeQuery(true, true, true, true, null, null, null, ctx);
-            case 1 -> ft.rangeQuery(false, true, true, true, null, null, null, ctx);
-            case 2 -> ft.rangeQuery(false, true, false, true, null, null, null, ctx);
+            case 0 -> field.rangeQuery(true, true, true, true, null, null, null, ctx);
+            case 1 -> field.rangeQuery(false, true, true, true, null, null, null, ctx);
+            case 2 -> field.rangeQuery(false, true, false, true, null, null, null, ctx);
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -250,9 +252,9 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery("true", mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(0));
+                assertThat(searcher.count(simpleMappedField().termQuery(true, mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termQuery("true", mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termQuery(false, mockContext())), equalTo(0));
                 assertThat(searcher.count(build("xor_param", Map.of("param", false)).termQuery(true, mockContext())), equalTo(1));
             }
         }
@@ -260,18 +262,18 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery("false", mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(null, mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(0));
+                assertThat(searcher.count(simpleMappedField().termQuery(false, mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termQuery("false", mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termQuery(null, mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termQuery(true, mockContext())), equalTo(0));
                 assertThat(searcher.count(build("xor_param", Map.of("param", false)).termQuery(false, mockContext())), equalTo(1));
             }
         }
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termQuery(randomBoolean(), ctx);
+    protected Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termQuery(randomBoolean(), ctx);
     }
 
     @Override
@@ -280,35 +282,35 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(true, true), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("true", "true"), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(false, false), mockContext())), equalTo(0));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(true, false), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(true, true), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of("true", "true"), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(false, false), mockContext())), equalTo(0));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(true, false), mockContext())), equalTo(1));
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(false, false), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("false", "false"), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(singletonList(null), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(true, true), mockContext())), equalTo(0));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(true, false), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(false, false), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of("false", "false"), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(singletonList(null), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(true, true), mockContext())), equalTo(0));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(true, false), mockContext())), equalTo(1));
             }
         }
     }
 
     public void testEmptyTermsQueryDegeneratesIntoMatchNone() throws IOException {
-        assertThat(simpleMappedFieldType().termsQuery(List.of(), mockContext()), instanceOf(MatchNoDocsQuery.class));
+        assertThat(simpleMappedField().termsQuery(List.of(), mockContext()), instanceOf(MatchNoDocsQuery.class));
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+    protected Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx) {
         return switch (randomInt(2)) {
-            case 0 -> ft.termsQuery(List.of(true), ctx);
-            case 1 -> ft.termsQuery(List.of(false), ctx);
-            case 2 -> ft.termsQuery(List.of(false, true), ctx);
+            case 0 -> mappedField.termsQuery(List.of(true), ctx);
+            case 1 -> mappedField.termsQuery(List.of(false), ctx);
+            case 2 -> mappedField.termsQuery(List.of(false, true), ctx);
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -349,24 +351,24 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     searcher,
                     source,
                     "*",
-                    simpleMappedFieldType().existsQuery(mockContext()),
-                    ootb.fieldType().existsQuery(mockContext())
+                    simpleMappedField().existsQuery(mockContext()),
+                    ootb.field().existsQuery(mockContext())
                 );
                 boolean term = randomBoolean();
                 assertSameCount(
                     searcher,
                     source,
                     term,
-                    simpleMappedFieldType().termQuery(term, mockContext()),
-                    ootb.fieldType().termQuery(term, mockContext())
+                    simpleMappedField().termQuery(term, mockContext()),
+                    ootb.field().termQuery(term, mockContext())
                 );
                 List<Boolean> terms = randomList(0, 3, ESTestCase::randomBoolean);
                 assertSameCount(
                     searcher,
                     source,
                     terms,
-                    simpleMappedFieldType().termsQuery(terms, mockContext()),
-                    ootb.fieldType().termsQuery(terms, mockContext())
+                    simpleMappedField().termsQuery(terms, mockContext()),
+                    ootb.field().termsQuery(terms, mockContext())
                 );
                 boolean low;
                 boolean high;
@@ -382,8 +384,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     searcher,
                     source,
                     (includeLow ? "[" : "(") + low + "," + high + (includeHigh ? "]" : ")"),
-                    simpleMappedFieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext()),
-                    ootb.fieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext())
+                    simpleMappedField().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext()),
+                    ootb.field().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext())
                 );
             }
         }
@@ -399,12 +401,12 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     @Override
-    protected BooleanScriptFieldType simpleMappedFieldType() {
+    protected MappedField simpleMappedField() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected MappedFieldType loopFieldType() {
+    protected MappedField loopField() {
         return build("loop", Map.of());
     }
 
@@ -413,7 +415,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         return "boolean";
     }
 
-    private static BooleanScriptFieldType build(String code, Map<String, Object> params) {
+    private static MappedField build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
@@ -444,7 +446,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         };
     }
 
-    private static BooleanScriptFieldType build(Script script) {
-        return new BooleanScriptFieldType("test", factory(script), script, emptyMap());
+    private static MappedField build(Script script) {
+        return new MappedField("test", new BooleanScriptFieldType(factory(script), script, emptyMap()));
     }
 }

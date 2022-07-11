@@ -11,7 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.Plugin;
@@ -100,7 +100,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
             .endObject();
         MapperService mapperService = createIndex("test", indexSettings, mapping).mapperService();
 
-        MappedFieldType fieldType = mapperService.mappedField("field");
+        MappedField fieldType = mapperService.mappedField("field");
         assertThat(fieldType.getTextSearchInfo().searchAnalyzer(), instanceOf(NamedAnalyzer.class));
         NamedAnalyzer fieldMapperNamedAnalyzer = fieldType.getTextSearchInfo().searchAnalyzer();
 

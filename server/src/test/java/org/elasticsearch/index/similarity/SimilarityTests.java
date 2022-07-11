@@ -24,7 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
@@ -177,10 +177,10 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .put("index.similarity.my_similarity.independence_measure", "chisquared")
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
-        MappedFieldType fieldType = mapperService.mappedField("field1");
+        MappedField mappedField = mapperService.mappedField("field1");
 
-        assertThat(fieldType.getTextSearchInfo().similarity().get(), instanceOf(DFISimilarity.class));
-        DFISimilarity similarity = (DFISimilarity) fieldType.getTextSearchInfo().similarity().get();
+        assertThat(mappedField.getTextSearchInfo().similarity().get(), instanceOf(DFISimilarity.class));
+        DFISimilarity similarity = (DFISimilarity) mappedField.getTextSearchInfo().similarity().get();
         assertThat(similarity.getIndependence(), instanceOf(IndependenceChiSquared.class));
     }
 

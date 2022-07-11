@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -100,24 +101,24 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex,
         Consumer<R> verify
     ) throws IOException {
-        KeywordFieldMapper.KeywordFieldType k1ft = new KeywordFieldMapper.KeywordFieldType("k1");
-        KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
-        NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberType.LONG);
-        DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
-        testCase(builder, new MatchAllDocsQuery(), iw -> buildIndex.accept(iw, dft), verify, k1ft, k2ft, nft, dft);
+        MappedField k1f = new MappedField("k1", new KeywordFieldMapper.KeywordFieldType());
+        MappedField k2f = new MappedField("k2", new KeywordFieldMapper.KeywordFieldType());
+        MappedField nf = new MappedField("n", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
+        MappedField df = aggregableDateField(false, randomBoolean());
+        testCase(builder, new MatchAllDocsQuery(), iw -> buildIndex.accept(iw, (DateFieldMapper.DateFieldType) df.type()),
+            verify, k1f, k2f, nf, df);
     }
 
-    protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
-        return aggregableDateFieldType(useNanosecondResolution, isSearchable, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+    protected final MappedField aggregableDateField(boolean useNanosecondResolution, boolean isSearchable) {
+        return aggregableDateField(useNanosecondResolution, isSearchable, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
     }
 
-    protected final DateFieldMapper.DateFieldType aggregableDateFieldType(
+    protected final MappedField aggregableDateField(
         boolean useNanosecondResolution,
         boolean isSearchable,
         DateFormatter formatter
     ) {
-        return new DateFieldMapper.DateFieldType(
-            AGGREGABLE_DATE,
+        return new MappedField(AGGREGABLE_DATE, new DateFieldMapper.DateFieldType(
             isSearchable,
             randomBoolean(),
             true,
@@ -126,6 +127,6 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             null,
             null,
             Collections.emptyMap()
-        );
+        ));
     }
 }

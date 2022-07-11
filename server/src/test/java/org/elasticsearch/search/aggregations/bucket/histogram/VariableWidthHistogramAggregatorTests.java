@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -615,16 +616,17 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
                 final MappedFieldType fieldType;
                 if (dataset.size() == 0 || dataset.get(0) instanceof Double) {
-                    fieldType = new NumberFieldMapper.NumberFieldType(aggregationBuilder.field(), NumberFieldMapper.NumberType.DOUBLE);
+                    fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
                 } else if (dataset.get(0) instanceof Long) {
-                    fieldType = new NumberFieldMapper.NumberFieldType(aggregationBuilder.field(), NumberFieldMapper.NumberType.LONG);
+                    fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 } else if (dataset.get(0) instanceof Integer) {
-                    fieldType = new NumberFieldMapper.NumberFieldType(aggregationBuilder.field(), NumberFieldMapper.NumberType.INTEGER);
+                    fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
                 } else {
                     throw new IOException("Test data has an invalid type");
                 }
 
-                final InternalVariableWidthHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                final InternalVariableWidthHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder,
+                    new MappedField(aggregationBuilder.field(), fieldType));
                 verify.accept(histogram);
             }
         }

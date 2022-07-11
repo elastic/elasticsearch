@@ -115,8 +115,8 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             assertTrue(field.fieldType().stored());
             assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
 
-            MappedFieldType fieldType = mapperService.mappedField("field");
-            Object originalValue = fieldType.valueForDisplay(indexedValue);
+            MappedField mappedField = mapperService.mappedField("field");
+            Object originalValue = mappedField.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
     }

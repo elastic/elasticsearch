@@ -98,7 +98,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     public void testSort() throws IOException {
-        GeoPointScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+        GeoPointScriptFieldData ifd = simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
         Exception e = expectThrows(IllegalArgumentException.class, () -> ifd.sortField(null, MultiValueMode.MIN, null, false));
         assertThat(e.getMessage(), equalTo("can't sort on geo_point field without using specific sorting feature, like geo_distance"));
     }
@@ -110,7 +110,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedField());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -139,7 +139,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(2));
+                assertThat(searcher.count(simpleMappedField().existsQuery(mockContext())), equalTo(2));
             }
         }
     }
@@ -148,7 +148,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     public void testRangeQuery() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> simpleMappedFieldType().rangeQuery("0.0", "45.0", false, false, null, null, null, mockContext())
+            () -> simpleMappedField().rangeQuery("0.0", "45.0", false, false, null, null, null, mockContext())
         );
         assertThat(e.getMessage(), equalTo("Runtime field [test] of type [" + typeName() + "] does not support range queries"));
     }
@@ -160,7 +160,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     public void testTermQuery() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().termQuery("0.0,0.0", mockContext()));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedField().termQuery("0.0,0.0", mockContext()));
         assertThat(
             e.getMessage(),
             equalTo("Geometry fields do not support exact searching, use dedicated geometry queries instead: [test]")
@@ -176,7 +176,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     public void testTermsQuery() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> simpleMappedFieldType().termsQuery(List.of("0.0,0.0", "45.0,45.0"), mockContext())
+            () -> simpleMappedField().termsQuery(List.of("0.0,0.0", "45.0,45.0"), mockContext())
         );
 
         assertThat(
@@ -192,12 +192,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected GeoPointScriptFieldType simpleMappedFieldType() {
+    protected GeoPointScriptFieldType simpleMappedField() {
         return build("fromLatLon", Map.of());
     }
 
     @Override
-    protected MappedFieldType loopFieldType() {
+    protected MappedFieldType loopField() {
         return build("loop", Map.of());
     }
 

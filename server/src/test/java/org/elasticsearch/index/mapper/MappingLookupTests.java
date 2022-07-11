@@ -93,11 +93,11 @@ public class MappingLookupTests extends ESTestCase {
     }
 
     public void testAnalyzers() throws IOException {
-        FakeFieldType fieldType1 = new FakeFieldType("field1");
-        FieldMapper fieldMapper1 = new FakeFieldMapper(fieldType1, "index1");
+        FakeField field1 = new FakeField("field1");
+        FieldMapper fieldMapper1 = new FakeFieldMapper(field1, "index1");
 
-        FakeFieldType fieldType2 = new FakeFieldType("field2");
-        FieldMapper fieldMapper2 = new FakeFieldMapper(fieldType2, "index2");
+        FakeField field2 = new FakeField("field2");
+        FieldMapper fieldMapper2 = new FakeFieldMapper(field2, "index2");
 
         MappingLookup mappingLookup = createMappingLookup(Arrays.asList(fieldMapper1, fieldMapper2), emptyList(), emptyList());
 
@@ -120,7 +120,7 @@ public class MappingLookupTests extends ESTestCase {
     }
 
     public void testValidateDoesNotShadow() {
-        FakeFieldType dim = new FakeFieldType("dim") {
+        FakeField dim = new FakeField("dim") {
             @Override
             public boolean isDimension() {
                 return true;
@@ -129,7 +129,7 @@ public class MappingLookupTests extends ESTestCase {
         FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
 
         MetricType metricType = randomFrom(MetricType.values());
-        FakeFieldType metric = new FakeFieldType("metric") {
+        FakeField metric = new FakeField("metric") {
             @Override
             public MetricType getMetricType() {
                 return metricType;
@@ -137,7 +137,7 @@ public class MappingLookupTests extends ESTestCase {
         };
         FieldMapper metricMapper = new FakeFieldMapper(metric, "index1");
 
-        FakeFieldType plain = new FakeFieldType("plain");
+        FakeField plain = new FakeField("plain");
         FieldMapper plainMapper = new FakeFieldMapper(plain, "index1");
 
         MappingLookup mappingLookup = createMappingLookup(List.of(dimMapper, metricMapper, plainMapper), emptyList(), emptyList());
@@ -150,7 +150,7 @@ public class MappingLookupTests extends ESTestCase {
     }
 
     public void testShadowingOnConstruction() {
-        FakeFieldType dim = new FakeFieldType("dim") {
+        FakeField dim = new FakeField("dim") {
             @Override
             public boolean isDimension() {
                 return true;
@@ -159,7 +159,7 @@ public class MappingLookupTests extends ESTestCase {
         FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
 
         MetricType metricType = randomFrom(MetricType.values());
-        FakeFieldType metric = new FakeFieldType("metric") {
+        FakeField metric = new FakeField("metric") {
             @Override
             public MetricType getMetricType() {
                 return metricType;
@@ -229,10 +229,21 @@ public class MappingLookupTests extends ESTestCase {
 
     }
 
-    static class FakeFieldType extends TermBasedFieldType {
+    static class FakeField extends MappedField {
 
-        private FakeFieldType(String name) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private FakeField(String name) {
+            super(name, new TermBasedFieldType(true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap()) {
+
+                @Override
+                public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public String typeName() {
+                    return "fake";
+                }
+            });
         }
 
         @Override
@@ -250,8 +261,8 @@ public class MappingLookupTests extends ESTestCase {
 
         final String indexedValue;
 
-        FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
+        FakeFieldMapper(FakeField fakeField, String indexedValue) {
+            super(fakeField.name(), fakeField, MultiFields.empty(), CopyTo.empty());
             this.indexedValue = indexedValue;
         }
 

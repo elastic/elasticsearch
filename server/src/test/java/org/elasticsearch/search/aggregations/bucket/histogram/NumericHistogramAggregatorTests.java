@@ -21,7 +21,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -117,12 +117,12 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         String fieldName = "date_field";
-        DateFieldMapper.DateFieldType fieldType = dateField(fieldName, DateFieldMapper.Resolution.MILLISECONDS);
+        MappedField mappedField = dateField(fieldName, DateFieldMapper.Resolution.MILLISECONDS);
 
         try (Directory dir = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), dir)) {
             Document document = new Document();
             for (String date : dataset) {
-                long instant = fieldType.parse(date);
+                long instant = ((DateFieldMapper.DateFieldType) mappedField.type()).parse(date);
                 document.add(new SortedNumericDocValuesField(fieldName, instant));
                 indexWriter.addDocument(document);
                 document.clear();
@@ -132,7 +132,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .interval(1000 * 60 * 60 * 24);
             try (IndexReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, mappedField);
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -360,7 +360,8 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field")
                 .interval(5)
                 .extendedBounds(-12, 13);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+            MappedField mappedField = new MappedField("field",
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
@@ -393,10 +394,11 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field")
                 .interval(5)
                 .hardBounds(new DoubleBounds(0.0, 10.0));
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+            MappedField mappedField = new MappedField("field",
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, mappedField);
                 assertEquals(1, histogram.getBuckets().size());
                 assertEquals(0d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());

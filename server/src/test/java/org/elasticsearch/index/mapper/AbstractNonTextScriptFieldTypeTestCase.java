@@ -17,23 +17,23 @@ abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFiel
     public void testFuzzyQueryIsError() {
         assertQueryOnlyOnTextAndKeyword(
             "fuzzy",
-            () -> simpleMappedFieldType().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())
+            () -> simpleMappedField().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())
         );
     }
 
     public void testPrefixQueryIsError() {
-        assertQueryOnlyOnTextKeywordAndWildcard("prefix", () -> simpleMappedFieldType().prefixQuery("cat", null, mockContext()));
+        assertQueryOnlyOnTextKeywordAndWildcard("prefix", () -> simpleMappedField().prefixQuery("cat", null, mockContext()));
     }
 
     public void testRegexpQueryIsError() {
         assertQueryOnlyOnTextAndKeyword(
             "regexp",
-            () -> simpleMappedFieldType().regexpQuery("cat", 0, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, mockContext())
+            () -> simpleMappedField().regexpQuery("cat", 0, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, mockContext())
         );
     }
 
     public void testWildcardQueryIsError() {
-        assertQueryOnlyOnTextKeywordAndWildcard("wildcard", () -> simpleMappedFieldType().wildcardQuery("cat", null, mockContext()));
+        assertQueryOnlyOnTextKeywordAndWildcard("wildcard", () -> simpleMappedField().wildcardQuery("cat", null, mockContext()));
     }
 
     private void assertQueryOnlyOnTextAndKeyword(String queryName, ThrowingRunnable buildQuery) {

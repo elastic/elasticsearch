@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -89,7 +90,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 iw.addDocument(d);
             },
             a -> {},
-            new BooleanFieldMapper.BooleanFieldType(fieldName)
+            new MappedField(fieldName, new BooleanFieldMapper.BooleanFieldType())
         );
         assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }
@@ -761,7 +762,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testFewRoundingPointsUsesFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
-            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            aggregableDateField(false, true, DateFormatter.forPattern("yyyy")),
             IntStream.range(2000, 2010).mapToObj(Integer::toString).collect(toList()),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
             true
@@ -770,7 +771,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testManyRoundingPointsDoesNotUseFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
-            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            aggregableDateField(false, true, DateFormatter.forPattern("yyyy")),
             IntStream.range(2000, 3000).mapToObj(Integer::toString).collect(toList()),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
             false
@@ -783,7 +784,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
      */
     public void testNanosDoesUseFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
-            aggregableDateFieldType(true, true, DateFormatter.forPattern("yyyy")),
+            aggregableDateField(true, true, DateFormatter.forPattern("yyyy")),
             List.of("2017", "2018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
             true
@@ -792,7 +793,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testFarFutureDoesNotUseFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
-            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyyyy")),
+            aggregableDateField(false, true, DateFormatter.forPattern("yyyyyy")),
             List.of("402017", "402018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
             false
@@ -801,7 +802,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testMissingValueDoesNotUseFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
-            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            aggregableDateField(false, true, DateFormatter.forPattern("yyyy")),
             List.of("2017", "2018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).missing("2020"),
             false
@@ -810,7 +811,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testExtendedBoundsUsesFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
-            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            aggregableDateField(false, true, DateFormatter.forPattern("yyyy")),
             List.of("2017", "2018"),
             List.of("2016", "2017", "2018", "2019"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
@@ -823,7 +824,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testHardBoundsUsesFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
-            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            aggregableDateField(false, true, DateFormatter.forPattern("yyyy")),
             List.of("2016", "2017", "2018", "2019"),
             List.of("2017", "2018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
@@ -845,9 +846,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 iw.addDocument(List.of());
             }
         };
-        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        MappedField mappedField = new MappedField("f", new DateFieldMapper.DateFieldType());
         // Exists queries convert to MatchNone if this isn't defined
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        MappedField fnf = new MappedField(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.FieldNamesFieldType.get(true));
         debugTestCase(
             builder,
             new MatchAllDocsQuery(),
@@ -886,8 +887,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     )
                 );
             },
-            ft,
-            fnft
+            mappedField,
+            fnf
         );
     }
 
@@ -904,9 +905,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 iw.addDocument(List.of(new LongPoint("f", date), new NumericDocValuesField("f", date), DocCountFieldMapper.field(2)));
             }
         };
-        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        MappedField mappedField = new MappedField("f", new DateFieldMapper.DateFieldType());
         // Exists queries convert to MatchNone if this isn't defined
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        MappedField fnf = new MappedField(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.FieldNamesFieldType.get(true));
         debugTestCase(
             builder,
             new MatchAllDocsQuery(),
@@ -944,8 +945,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     )
                 );
             },
-            ft,
-            fnft
+            mappedField,
+            fnf
         );
     }
 
@@ -971,9 +972,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 );
             }
         };
-        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        MappedField mappedField = new MappedField("f", new DateFieldMapper.DateFieldType());
         // Exists queries convert to MatchNone if this isn't defined
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        MappedField fnf = new MappedField(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.FieldNamesFieldType.get(true));
         debugTestCase(
             builder,
             new MatchAllDocsQuery(),
@@ -1001,22 +1002,22 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     )
                 );
             },
-            ft,
-            fnft
+            mappedField,
+            fnf
         );
     }
 
     private void aggregationImplementationChoiceTestCase(
-        DateFieldMapper.DateFieldType ft,
+        MappedField mappedField,
         List<String> data,
         DateHistogramAggregationBuilder builder,
         boolean usesFromRange
     ) throws IOException {
-        aggregationImplementationChoiceTestCase(ft, data, data, builder, usesFromRange);
+        aggregationImplementationChoiceTestCase(mappedField, data, data, builder, usesFromRange);
     }
 
     private void aggregationImplementationChoiceTestCase(
-        DateFieldMapper.DateFieldType ft,
+        MappedField mappedField,
         List<String> data,
         List<String> resultingBucketKeys,
         DateHistogramAggregationBuilder builder,
@@ -1024,13 +1025,13 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     ) throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             for (String d : data) {
-                long instant = asLong(d, ft);
+                long instant = asLong(d, mappedField);
                 indexWriter.addDocument(
                     List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant), new LongPoint(AGGREGABLE_DATE, instant))
                 );
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), mappedField);
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
                 if (usesFromRange == false) {
@@ -1106,7 +1107,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                  */
                 assertThat(histo.emptyBucketInfo.rounding.prepareForUnknown().round(0), equalTo(0L));
             },
-            aggregableDateFieldType(false, true)
+            aggregableDateField(false, true)
         );
     }
 
@@ -1129,14 +1130,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         boolean useNanosecondResolution
     ) throws IOException {
         boolean aggregableDateIsSearchable = randomBoolean();
-        DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(useNanosecondResolution, aggregableDateIsSearchable);
+        MappedField mappedField = aggregableDateField(useNanosecondResolution, aggregableDateIsSearchable);
 
         try (Directory directory = newDirectory()) {
 
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String date : dataset) {
-                    long instant = asLong(date, fieldType);
+                    long instant = asLong(date, mappedField);
                     document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
                     if (aggregableDateIsSearchable) {
                         document.add(new LongPoint(AGGREGABLE_DATE, instant));
@@ -1155,7 +1156,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     configure.accept(aggregationBuilder);
                 }
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, maxBucket, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, maxBucket, mappedField);
                 verify.accept(histogram);
             }
         }
@@ -1165,7 +1166,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
 
-    private static long asLong(String dateTime, DateFieldMapper.DateFieldType fieldType) {
-        return fieldType.parse(dateTime);
+    private static long asLong(String dateTime, MappedField mappedField) {
+        return ((DateFieldMapper.DateFieldType) mappedField.type()).parse(dateTime);
     }
 }

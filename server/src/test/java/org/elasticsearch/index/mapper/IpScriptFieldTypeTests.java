@@ -51,10 +51,10 @@ import static org.hamcrest.Matchers.sameInstance;
 public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
     public void testFormat() throws IOException {
-        assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
+        assertThat(simpleMappedField().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedField().docValueFormat("ASDFA", null));
         assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom formats"));
-        e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
+        e = expectThrows(IllegalArgumentException.class, () -> simpleMappedField().docValueFormat(null, ZoneId.of("America/New_York")));
         assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom time zones"));
     }
 
@@ -66,9 +66,10 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IpScriptFieldType ft = build("append_param", Map.of("param", ".1"));
-                BinaryScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
-                DocValueFormat format = ft.docValueFormat(null, null);
+                MappedField mappedField = build("append_param", Map.of("param", ".1"));
+                BinaryScriptFieldData ifd = (BinaryScriptFieldData)
+                    mappedField.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DocValueFormat format = mappedField.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -106,7 +107,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BinaryScriptFieldData ifd = (BinaryScriptFieldData)
+                    simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(
@@ -133,7 +135,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedField());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -162,7 +164,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().existsQuery(mockContext())), equalTo(1));
             }
         }
     }
@@ -177,7 +179,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().rangeQuery("192.0.0.0", "200.0.0.0", false, false, null, null, null, mockContext())
+                        simpleMappedField().rangeQuery("192.0.0.0", "200.0.0.0", false, false, null, null, null, mockContext())
                     ),
                     equalTo(1)
                 );
@@ -186,8 +188,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.rangeQuery("192.0.0.0", "200.0.0.0", randomBoolean(), randomBoolean(), null, null, null, ctx);
+    protected Query randomRangeQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.rangeQuery("192.0.0.0", "200.0.0.0", randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -198,18 +200,18 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IpScriptFieldType fieldType = build("append_param", Map.of("param", ".1"));
-                assertThat(searcher.count(fieldType.termQuery("192.168.0.1", mockContext())), equalTo(1));
-                assertThat(searcher.count(fieldType.termQuery("192.168.0.7", mockContext())), equalTo(0));
-                assertThat(searcher.count(fieldType.termQuery("192.168.0.0/16", mockContext())), equalTo(2));
-                assertThat(searcher.count(fieldType.termQuery("10.168.0.0/16", mockContext())), equalTo(0));
+                MappedField mappedField = build("append_param", Map.of("param", ".1"));
+                assertThat(searcher.count(mappedField.termQuery("192.168.0.1", mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.termQuery("192.168.0.7", mockContext())), equalTo(0));
+                assertThat(searcher.count(mappedField.termQuery("192.168.0.0/16", mockContext())), equalTo(2));
+                assertThat(searcher.count(mappedField.termQuery("10.168.0.0/16", mockContext())), equalTo(0));
             }
         }
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termQuery(randomIp(randomBoolean()), ctx);
+    protected Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termQuery(randomIp(randomBoolean()), ctx);
     }
 
     @Override
@@ -222,11 +224,11 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
-                    searcher.count(simpleMappedFieldType().termsQuery(List.of("192.168.0.1", "1.1.1.1"), mockContext())),
+                    searcher.count(simpleMappedField().termsQuery(List.of("192.168.0.1", "1.1.1.1"), mockContext())),
                     equalTo(2)
                 );
                 assertThat(
-                    searcher.count(simpleMappedFieldType().termsQuery(List.of("192.168.0.0/16", "1.1.1.1"), mockContext())),
+                    searcher.count(simpleMappedField().termsQuery(List.of("192.168.0.0/16", "1.1.1.1"), mockContext())),
                     equalTo(3)
                 );
             }
@@ -234,17 +236,17 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termsQuery(randomList(100, () -> randomIp(randomBoolean())), ctx);
+    protected Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termsQuery(randomList(100, () -> randomIp(randomBoolean())), ctx);
     }
 
     @Override
-    protected IpScriptFieldType simpleMappedFieldType() {
+    protected MappedField simpleMappedField() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected MappedFieldType loopFieldType() {
+    protected MappedField loopField() {
         return build("loop", Map.of());
     }
 
@@ -253,7 +255,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
         return "ip";
     }
 
-    private static IpScriptFieldType build(String code, Map<String, Object> params) {
+    private static MappedField build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
@@ -284,7 +286,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
         };
     }
 
-    private static IpScriptFieldType build(Script script) {
-        return new IpScriptFieldType("test", factory(script), script, emptyMap());
+    private static MappedField build(Script script) {
+        return new MappedField("test", new IpScriptFieldType(factory(script), script, emptyMap()));
     }
 }

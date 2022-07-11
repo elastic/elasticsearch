@@ -46,9 +46,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     private static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
-    protected abstract MappedFieldType simpleMappedFieldType();
+    protected abstract MappedField simpleMappedField();
 
-    protected abstract MappedFieldType loopFieldType();
+    protected abstract MappedField loopField();
 
     protected abstract String typeName();
 
@@ -144,11 +144,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 .endObject();
             concreteIndexMapping = createMapperService(mapping);
         }
-        MappedFieldType scriptFieldType = scriptIndexMapping.mappedField("field");
-        MappedFieldType concreteIndexType = concreteIndexMapping.mappedField("field");
-        assertEquals(concreteIndexType.familyTypeName(), scriptFieldType.familyTypeName());
-        assertEquals(concreteIndexType.isSearchable(), scriptFieldType.isSearchable());
-        assertEquals(concreteIndexType.isAggregatable(), scriptFieldType.isAggregatable());
+        MappedField scriptField = scriptIndexMapping.mappedField("field");
+        MappedField concreteIndex = concreteIndexMapping.mappedField("field");
+        assertEquals(concreteIndex.familyTypeName(), scriptField.familyTypeName());
+        assertEquals(concreteIndex.isSearchable(), scriptField.isSearchable());
+        assertEquals(concreteIndex.isAggregatable(), scriptField.isAggregatable());
     }
 
     @SuppressWarnings("unused")
@@ -166,17 +166,17 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     @SuppressWarnings("unused")
     public abstract void testRangeQuery() throws IOException;
 
-    protected abstract Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx);
+    protected abstract Query randomRangeQuery(MappedField mappedField, SearchExecutionContext ctx);
 
     @SuppressWarnings("unused")
     public abstract void testTermQuery() throws IOException;
 
-    protected abstract Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx);
+    protected abstract Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx);
 
     @SuppressWarnings("unused")
     public abstract void testTermsQuery() throws IOException;
 
-    protected abstract Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx);
+    protected abstract Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx);
 
     protected static SearchExecutionContext mockContext() {
         return mockContext(true);
@@ -194,10 +194,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return true;
     }
 
-    protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
+    protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedField mappedField) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
-        if (mappedFieldType != null) {
-            when(context.getMappedField(anyString())).thenReturn(mappedFieldType);
+        if (mappedField != null) {
+            when(context.getMappedField(anyString())).thenReturn(mappedField);
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
@@ -209,17 +209,17 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     public void testExistsQueryIsExpensive() {
-        checkExpensiveQuery(MappedFieldType::existsQuery);
+        checkExpensiveQuery(MappedField::existsQuery);
     }
 
     public void testExistsQueryInLoop() {
-        checkLoop(MappedFieldType::existsQuery);
+        checkLoop(MappedField::existsQuery);
     }
 
     public void testRangeQueryWithShapeRelationIsError() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> simpleMappedFieldType().rangeQuery(1, 2, true, true, ShapeRelation.DISJOINT, null, null, null)
+            () -> simpleMappedField().rangeQuery(1, 2, true, true, ShapeRelation.DISJOINT, null, null, null)
         );
         assertThat(e.getMessage(), equalTo("Runtime field [test] of type [" + typeName() + "] does not support DISJOINT ranges"));
     }
@@ -256,22 +256,22 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     public void testPhraseQueryIsError() {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
-        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().phraseQuery(null, 1, false, null));
+        assertQueryOnlyOnText("phrase", () -> simpleMappedField().phraseQuery(null, 1, false, null));
     }
 
     public void testPhrasePrefixQueryIsError() {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
-        assertQueryOnlyOnText("phrase prefix", () -> simpleMappedFieldType().phrasePrefixQuery(null, 1, 1, null));
+        assertQueryOnlyOnText("phrase prefix", () -> simpleMappedField().phrasePrefixQuery(null, 1, 1, null));
     }
 
     public void testMultiPhraseQueryIsError() {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
-        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().multiPhraseQuery(null, 1, false, null));
+        assertQueryOnlyOnText("phrase", () -> simpleMappedField().multiPhraseQuery(null, 1, false, null));
     }
 
     public void testSpanPrefixQueryIsError() {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
-        assertQueryOnlyOnText("span prefix", () -> simpleMappedFieldType().spanPrefixQuery(null, null, null));
+        assertQueryOnlyOnText("span prefix", () -> simpleMappedField().spanPrefixQuery(null, null, null));
     }
 
     public final void testCacheable() throws IOException {
@@ -325,16 +325,16 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return reader.document(docId).getBinaryValue("_source").utf8ToString();
     }
 
-    protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, SearchExecutionContext> queryBuilder) {
-        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(simpleMappedFieldType(), mockContext(false)));
+    protected final void checkExpensiveQuery(BiConsumer<MappedField, SearchExecutionContext> queryBuilder) {
+        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(simpleMappedField(), mockContext(false)));
         assertThat(
             e.getMessage(),
             equalTo("queries cannot be executed against runtime fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 
-    protected final void checkLoop(BiConsumer<MappedFieldType, SearchExecutionContext> queryBuilder) {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.accept(loopFieldType(), mockContext()));
+    protected final void checkLoop(BiConsumer<MappedField, SearchExecutionContext> queryBuilder) {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.accept(loopField(), mockContext()));
         assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving runtime fields: test -> test"));
     }
 

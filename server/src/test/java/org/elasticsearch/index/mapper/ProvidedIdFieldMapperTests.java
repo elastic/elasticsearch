@@ -52,19 +52,19 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         boolean[] enabled = new boolean[1];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
-        ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.mappedField("_id");
+        MappedField mappedField = mapperService.mappedField("_id");
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null)
+            () -> mappedField.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
-        assertFalse(ft.isAggregatable());
+        assertFalse(mappedField.isAggregatable());
 
         enabled[0] = true;
-        ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null);
+        mappedField.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
-        assertTrue(ft.isAggregatable());
+        assertTrue(mappedField.isAggregatable());
     }
 
     public void testFetchIdFieldValue() throws IOException {
@@ -77,8 +77,8 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
                 SearchLookup lookup = new SearchLookup(mapperService::mappedField, fieldDataLookup());
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
-                ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.mappedField("_id");
-                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+                MappedField mappedField = mapperService.mappedField("_id");
+                ValueFetcher valueFetcher = mappedField.valueFetcher(searchExecutionContext, null);
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);

@@ -22,7 +22,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
@@ -124,11 +124,11 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("my_agg").field(fieldName)
                 .calendarInterval(DateHistogramInterval.MONTH);
 
-            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
+            MappedField mappedField = new MappedField(fieldName, new RangeFieldMapper.RangeFieldType(rangeType));
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> createAggregator(aggBuilder, searcher, fieldType));
+                expectThrows(IllegalArgumentException.class, () -> createAggregator(aggBuilder, searcher, mappedField));
             }
         }
     }
@@ -1062,12 +1062,13 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalDateHistogram> verify
     ) throws IOException {
-        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(FIELD_NAME, RangeFieldMapper.Defaults.DATE_FORMATTER);
+        MappedField mappedField = new MappedField(FIELD_NAME,
+            new RangeFieldMapper.RangeFieldType(RangeFieldMapper.Defaults.DATE_FORMATTER));
         final DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name").field(FIELD_NAME);
         if (configure != null) {
             configure.accept(aggregationBuilder);
         }
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testCase(aggregationBuilder, query, buildIndex, verify, mappedField);
     }
 
     private void testCase(
@@ -1075,7 +1076,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalDateHistogram> verify,
-        MappedFieldType fieldType
+        MappedField mappedField
     ) throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             buildIndex.accept(indexWriter);
@@ -1084,7 +1085,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, mappedField);
                 verify.accept(histogram);
             }
         }

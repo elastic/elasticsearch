@@ -51,9 +51,9 @@ import static org.hamcrest.Matchers.greaterThan;
 public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
 
     public void testFormat() throws IOException {
-        assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
-        assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
-        assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(1123), equalTo("1,123"));
+        assertThat(simpleMappedField().docValueFormat("#.0", null).format(1), equalTo("1.0"));
+        assertThat(simpleMappedField().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
+        assertThat(simpleMappedField().docValueFormat("#,##0.##", null).format(1123), equalTo("1,123"));
     }
 
     public void testLongFromSource() throws IOException {
@@ -115,7 +115,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                LongScriptFieldData ifd = simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
@@ -156,7 +156,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedField());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -185,7 +185,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().existsQuery(mockContext())), equalTo(1));
             }
         }
     }
@@ -197,7 +197,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedFieldType();
+                MappedFieldType ft = simpleMappedField();
                 assertThat(searcher.count(ft.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(1));
@@ -219,9 +219,9 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termQuery("1", mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
+                assertThat(searcher.count(simpleMappedField().termQuery("1", mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termQuery(1, mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termQuery(1.1, mockContext())), equalTo(0));
                 assertThat(searcher.count(build("add_param", Map.of("param", 1)).termQuery(2, mockContext())), equalTo(1));
             }
         }
@@ -239,11 +239,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("1"), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1.1), mockContext())), equalTo(0));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1.1, 2), mockContext())), equalTo(1));
-                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(2, 1), mockContext())), equalTo(2));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of("1"), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(1), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(1.1), mockContext())), equalTo(0));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(1.1, 2), mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of(2, 1), mockContext())), equalTo(2));
             }
         }
     }
@@ -254,12 +254,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected LongScriptFieldType simpleMappedFieldType() {
+    protected LongScriptFieldType simpleMappedField() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected LongScriptFieldType loopFieldType() {
+    protected LongScriptFieldType loopField() {
         return build("loop", Map.of());
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
@@ -856,7 +857,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     private static class StaticCoordinatorRewriteContextProviderBuilder {
         private ClusterState clusterState = ClusterState.EMPTY_STATE;
-        private final Map<Index, DateFieldMapper.DateFieldType> fields = new HashMap<>();
+        private final Map<Index, MappedField> fields = new HashMap<>();
 
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
             if (clusterState.metadata().index(index) != null) {
@@ -881,7 +882,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
 
-            fields.put(index, new DateFieldMapper.DateFieldType(fieldName));
+            fields.put(index, new MappedField(fieldName, new DateFieldMapper.DateFieldType()));
         }
 
         private void addIndexMinMaxTimestamps(Index index, long minTimestamp, long maxTimestamp) {
@@ -902,7 +903,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
+            fields.put(index, new MappedField("@timestamp", new DateFieldMapper.DateFieldType()));
         }
 
         private void addIndex(Index index) {
@@ -918,7 +919,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
-            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
+            fields.put(index, new MappedField("@timestamp", new DateFieldMapper.DateFieldType()));
         }
 
         public CoordinatorRewriteContextProvider build() {

@@ -19,7 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
@@ -97,10 +97,10 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 }
                 w.addDocument(doc);
             }
-            MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
+            MappedField mappedField = new MappedField("field", new IpFieldMapper.IpFieldType());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, mappedField);
                 assertEquals(numRanges, range.getBuckets().size());
                 for (int i = 0; i < range.getBuckets().size(); i++) {
                     Tuple<BytesRef, BytesRef> expected = requestedRanges[i];

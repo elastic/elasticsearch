@@ -18,14 +18,14 @@ import org.elasticsearch.ElasticsearchException;
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
     public void testPrefixQuery() {
-        MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
+        MappedField mappedField = new MappedField(RoutingFieldMapper.NAME, RoutingFieldMapper.RoutingFieldType.INSTANCE);
 
         Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo*")));
-        assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_CONTEXT));
+        assertEquals(expected, mappedField.prefixQuery("foo*", null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.prefixQuery("foo*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> mappedField.prefixQuery("foo*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "
@@ -35,27 +35,27 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
+        MappedField mappedField = new MappedField(RoutingFieldMapper.NAME, RoutingFieldMapper.RoutingFieldType.INSTANCE);
 
         Query expected = new RegexpQuery(new Term("_routing", new BytesRef("foo?")));
-        assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_CONTEXT));
+        assertEquals(expected, mappedField.regexpQuery("foo?", 0, 0, 10, null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> mappedField.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
+        MappedField mappedField = new MappedField(RoutingFieldMapper.NAME, RoutingFieldMapper.RoutingFieldType.INSTANCE);
 
         Query expected = new WildcardQuery(new Term("_routing", new BytesRef("foo*")));
-        assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
+        assertEquals(expected, mappedField.wildcardQuery("foo*", null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> mappedField.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }

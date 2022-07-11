@@ -128,8 +128,8 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
 
     public void testDateRangeQuery() throws Exception {
         SearchExecutionContext context = createSearchExecutionContext();
-        RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.getMappedField(DATE_RANGE_FIELD_NAME);
-        DateMathParser parser = type.dateMathParser;
+        MappedField mappedField = context.getMappedField(DATE_RANGE_FIELD_NAME);
+        DateMathParser parser = ((RangeFieldMapper.RangeFieldType) mappedField.type()).dateMathParser;
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(
             createSearchExecutionContext()
         );
@@ -151,8 +151,8 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
 
         // also make sure the produced bounds are the same as on a regular `date` field
-        DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.getMappedField(DATE_FIELD_NAME);
-        parser = dateType.dateMathParser;
+        mappedField = context.getMappedField(DATE_RANGE_FIELD_NAME);
+        parser = ((RangeFieldMapper.RangeFieldType) mappedField.type()).dateMathParser;
         Query queryOnDateField = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(
             createSearchExecutionContext()
         );

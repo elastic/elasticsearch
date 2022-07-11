@@ -556,7 +556,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         : this.contentAndFilteredJwksAlgsPkc;
                     JwtValidateUtil.validateSignature(jwt, contentAndFilteredJwksAlgs.filteredJwksAlgs.jwks);
                     // Fall through means success, exception will be caught by inner or outer catch
-                } catch (JwtValidateUtil.VerifySignatureRemainingJwksFailedException e) {
+                } catch (Exception e) {
                     if (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false) {
                         return; // Try reload before. Reload failed, or succeeded but no changes. Helper handles listener and logs.
                     }

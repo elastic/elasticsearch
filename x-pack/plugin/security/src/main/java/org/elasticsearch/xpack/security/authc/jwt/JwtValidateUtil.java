@@ -288,9 +288,7 @@ public class JwtValidateUtil {
         }
 
         // At least one JWK passed the kid, alg, and strength checks, but none successfully verified the JWT signature
-        throw new VerifySignatureRemainingJwksFailedException(
-            "Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs."
-        );
+        throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {
@@ -350,11 +348,5 @@ public class JwtValidateUtil {
         final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
         signedJwt.sign(JwtValidateUtil.createJwsSigner(jwk));
         return new SecureString(signedJwt.serialize().toCharArray());
-    }
-
-    public static class VerifySignatureRemainingJwksFailedException extends Exception {
-        public VerifySignatureRemainingJwksFailedException(String errorMessage) {
-            super(errorMessage);
-        }
     }
 }

@@ -48,7 +48,7 @@ public class LongTransformer implements Operator {
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return lastInput == null && finished == false;
     }
 
     @Override

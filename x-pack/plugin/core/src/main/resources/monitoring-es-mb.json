@@ -732,14 +732,16 @@
                                 "usage": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "ignore_above": 1024,
+                                      "type": "keyword"
                                     }
                                   }
                                 },
                                 "limit": {
                                   "properties": {
                                     "bytes": {
-                                      "type": "long"
+                                      "ignore_above": 1024,
+                                      "type": "keyword"
                                     }
                                   }
                                 }

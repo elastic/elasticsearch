@@ -42,7 +42,6 @@ public abstract class BucketCollector {
         }
     };
 
-
     public static final Collector NO_OP_COLLECTOR = new Collector() {
 
         @Override

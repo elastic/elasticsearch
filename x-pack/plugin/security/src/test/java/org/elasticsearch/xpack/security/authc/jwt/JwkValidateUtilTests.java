@@ -24,24 +24,6 @@ public class JwkValidateUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtilTests.class);
 
-    // // HMAC JWKSet setting can use keys from randomJwkHmac()
-    // // HMAC key setting cannot use randomJwkHmac(), it must use randomJwkHmacString()
-    // public void testConvertHmacJwkToStringToJwk() throws Exception {
-    // final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC));
-    //
-    // // Use HMAC random bytes for OIDC JWKSet setting only. Demonstrate encode/decode fails if used in OIDC HMAC key setting.
-    // final OctetSequenceKey hmacKeyRandomBytes = JwtTestCase.randomJwkHmac(jwsAlgorithm, false);
-    // assertThat(JwkValidateUtil.isJwkHmacOidcSafe(hmacKeyRandomBytes), is(false)); // Unlikely true (UTF8 11-bit space per 32-bit)
-    //
-    // // Convert HMAC random bytes to UTF8 bytes. This makes it usable as an OIDC HMAC key setting.
-    // final OctetSequenceKey hmacKeyString1 = JwtTestCase.conditionJwkHmacForOidc(hmacKeyRandomBytes);
-    // assertThat(JwkValidateUtil.isJwkHmacOidcSafe(hmacKeyString1), is(true));
-    //
-    // // Generate HMAC UTF8 bytes. This is usable as an OIDC HMAC key setting.
-    // final OctetSequenceKey hmacKeyString2 = JwtTestCase.randomJwkHmacOidcSafe(jwsAlgorithm);
-    // assertThat(JwkValidateUtil.isJwkHmacOidcSafe(hmacKeyString2), is(true));
-    // }
-
     public void testComputeBitLengthRsa() throws Exception {
         for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {
             final JWK jwk = JwtTestCase.randomJwkRsa(JWSAlgorithm.parse(signatureAlgorithmRsa));

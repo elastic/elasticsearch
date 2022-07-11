@@ -229,7 +229,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                         modelBytes,
                         request.getThreadsPerAllocation(),
                         request.getNumberOfAllocations(),
-                        request.getQueueCapacity()
+                        request.getQueueCapacity(),
+                        request.getCacheSize()
                     );
                     PersistentTasksCustomMetadata persistentTasks = clusterService.state()
                         .getMetadata()

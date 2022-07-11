@@ -166,7 +166,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
         this.relocatingShards = routingNodes.relocatingShards;
-        this.attributeValuesByAttribute = new ConcurrentHashMap<>();
+        this.attributeValuesByAttribute = new ConcurrentHashMap<>(routingNodes.attributeValuesByAttribute.size());
         for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
             this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }

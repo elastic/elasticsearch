@@ -56,31 +56,31 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
-        DateFieldType ft = new DateFieldType("my_date");
+        DateFieldType ft = new DateFieldType();
         assertEquals(
             Relation.DISJOINT,
-            ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", randomBoolean(), randomBoolean(), null, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", randomBoolean(), randomBoolean(), null, null, context)
         );
     }
 
     public void testIsFieldWithinRangeOnlyDocValues() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
-        DateFieldType ft = new DateFieldType("my_date", false);
+        DateFieldType ft = new DateFieldType(false);
         // in case of only doc-values, we can't establish disjointness
         assertEquals(
             Relation.INTERSECTS,
-            ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", randomBoolean(), randomBoolean(), null, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", randomBoolean(), randomBoolean(), null, null, context)
         );
     }
 
     public void testIsFieldWithinQueryDateMillis() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date");
+        DateFieldType ft = new DateFieldType();
         isFieldWithinRangeTestCase(ft);
     }
 
     public void testIsFieldWithinQueryDateNanos() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", Resolution.NANOSECONDS);
+        DateFieldType ft = new DateFieldType(Resolution.NANOSECONDS);
         isFieldWithinRangeTestCase(ft);
     }
 
@@ -105,9 +105,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
 
         // Fields with no value indexed.
-        DateFieldType ft2 = new DateFieldType("my_date2");
+        DateFieldType ft2 = new DateFieldType();
 
-        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
+        assertEquals(Relation.DISJOINT,
+            ft2.isFieldWithinQuery("my_date2", reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
 
         IOUtils.close(reader, w, dir);
     }
@@ -117,51 +118,55 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(
             Relation.INTERSECTS,
-            ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", randomBoolean(), randomBoolean(), zone, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-09", "2016-01-02", randomBoolean(), randomBoolean(), zone, null, context)
         );
         assertEquals(
             Relation.INTERSECTS,
-            ft.isFieldWithinQuery(reader, "2016-01-02", "2016-06-20", randomBoolean(), randomBoolean(), zone, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2016-01-02", "2016-06-20", randomBoolean(), randomBoolean(), zone, null, context)
         );
         assertEquals(
             Relation.INTERSECTS,
-            ft.isFieldWithinQuery(reader, "2016-01-02", "2016-02-12", randomBoolean(), randomBoolean(), zone, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2016-01-02", "2016-02-12", randomBoolean(), randomBoolean(), zone, null, context)
         );
         assertEquals(
             Relation.DISJOINT,
-            ft.isFieldWithinQuery(reader, "2014-01-02", "2015-02-12", randomBoolean(), randomBoolean(), zone, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2014-01-02", "2015-02-12", randomBoolean(), randomBoolean(), zone, null, context)
         );
         assertEquals(
             Relation.DISJOINT,
-            ft.isFieldWithinQuery(reader, "2016-05-11", "2016-08-30", randomBoolean(), randomBoolean(), zone, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2016-05-11", "2016-08-30", randomBoolean(), randomBoolean(), zone, null, context)
         );
         assertEquals(
             Relation.WITHIN,
-            ft.isFieldWithinQuery(reader, "2015-09-25", "2016-05-29", randomBoolean(), randomBoolean(), zone, null, context)
+            ft.isFieldWithinQuery("my_date", reader, "2015-09-25", "2016-05-29", randomBoolean(), randomBoolean(), zone, null, context)
         );
-        assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", true, true, zone, null, context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", false, false, zone, null, context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", false, true, zone, null, context));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", true, false, zone, null, context));
+        assertEquals(Relation.WITHIN,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", true, true, zone, null, context));
+        assertEquals(Relation.INTERSECTS,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", false, false, zone, null, context));
+        assertEquals(Relation.INTERSECTS,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", false, true, zone, null, context));
+        assertEquals(Relation.INTERSECTS,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", true, false, zone, null, context));
     }
 
     public void testValueFormat() {
-        MappedFieldType ft = new DateFieldType("field");
+        MappedFieldType ft = new DateFieldType();
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2015-10-12T14:10:55"))
             .toInstant()
             .toEpochMilli();
 
-        assertEquals("2015-10-12T14:10:55.000Z", ft.docValueFormat(null, ZoneOffset.UTC).format(instant));
-        assertEquals("2015-10-12T15:10:55.000+01:00", ft.docValueFormat(null, ZoneOffset.ofHours(1)).format(instant));
-        assertEquals("2015", new DateFieldType("field").docValueFormat("YYYY", ZoneOffset.UTC).format(instant));
-        assertEquals(instant, ft.docValueFormat(null, ZoneOffset.UTC).parseLong("2015-10-12T14:10:55", false, null));
-        assertEquals(instant + 999, ft.docValueFormat(null, ZoneOffset.UTC).parseLong("2015-10-12T14:10:55", true, null));
+        assertEquals("2015-10-12T14:10:55.000Z", ft.docValueFormat("my_date", null, ZoneOffset.UTC).format(instant));
+        assertEquals("2015-10-12T15:10:55.000+01:00", ft.docValueFormat("my_date", null, ZoneOffset.ofHours(1)).format(instant));
+        assertEquals("2015", new DateFieldType().docValueFormat("my_date", "YYYY", ZoneOffset.UTC).format(instant));
+        assertEquals(instant, ft.docValueFormat("my_date", null, ZoneOffset.UTC).parseLong("2015-10-12T14:10:55", false, null));
+        assertEquals(instant + 999, ft.docValueFormat("my_date", null, ZoneOffset.UTC).parseLong("2015-10-12T14:10:55", true, null));
         long i = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2015-10-13")).toInstant().toEpochMilli();
-        assertEquals(i - 1, ft.docValueFormat(null, ZoneOffset.UTC).parseLong("2015-10-12||/d", true, null));
+        assertEquals(i - 1, ft.docValueFormat("my_date", null, ZoneOffset.UTC).parseLong("2015-10-12||/d", true, null));
     }
 
     public void testValueForSearch() {
-        MappedFieldType ft = new DateFieldType("field");
+        MappedFieldType ft = new DateFieldType();
         String date = "2015-10-12T12:09:55.000Z";
         long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
         assertEquals(date, ft.valueForDisplay(instant));
@@ -194,21 +199,20 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             emptyMap()
         );
-        MappedFieldType ft = new DateFieldType("field");
+        MappedFieldType ft = new DateFieldType();
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant + 999),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999)
         );
-        assertEquals(expected, ft.termQuery(date, context));
+        assertEquals(expected, ft.termQuery("field", date, context));
 
-        ft = new DateFieldType("field", false);
+        ft = new DateFieldType(false);
         expected = SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999);
-        assertEquals(expected, ft.termQuery(date, context));
+        assertEquals(expected, ft.termQuery("field", date, context));
 
         MappedFieldType unsearchable = new DateFieldType(
-            "field",
             false,
             false,
             false,
@@ -218,7 +222,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             Collections.emptyMap()
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(date, context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", date, context));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
@@ -249,7 +253,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             emptyMap()
         );
-        MappedFieldType ft = new DateFieldType("field");
+        MappedFieldType ft = new DateFieldType();
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date1)).toInstant().toEpochMilli();
@@ -258,11 +262,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         );
-        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+        assertEquals(expected, ft.rangeQuery("field", date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
 
-        MappedFieldType ft2 = new DateFieldType("field", false);
+        MappedFieldType ft2 = new DateFieldType(false);
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
-        assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+        assertEquals(expected2, ft2.rangeQuery("field", date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
 
         instant1 = nowInMillis;
         instant2 = instant1 + 100;
@@ -272,13 +276,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
             )
         );
-        assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
+        assertEquals(expected, ft.rangeQuery("field", "now", instant2, true, true, null, null, null, context));
 
         expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
-        assertEquals(expected2, ft2.rangeQuery("now", instant2, true, true, null, null, null, context));
+        assertEquals(expected2, ft2.rangeQuery("field", "now", instant2, true, true, null, null, null, context));
 
         MappedFieldType unsearchable = new DateFieldType(
-            "field",
             false,
             false,
             false,
@@ -290,7 +293,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.rangeQuery(date1, date2, true, true, null, null, null, context)
+            () -> unsearchable.rangeQuery("field", date1, date2, true, true, null, null, null, context)
         );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
@@ -328,7 +331,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             emptyMap()
         );
 
-        MappedFieldType ft = new DateFieldType("field");
+        MappedFieldType ft = new DateFieldType();
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date1)).toInstant().toEpochMilli();
@@ -342,11 +345,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             instant2,
             new IndexOrDocValuesQuery(pointQuery, dvQuery)
         );
-        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
+        assertEquals(expected, ft.rangeQuery("field", date1, date2, true, true, null, null, null, context));
 
-        ft = new DateFieldType("field", false);
+        ft = new DateFieldType(false);
         expected = new IndexSortSortedNumericDocValuesRangeQuery("field", instant1, instant2, dvQuery);
-        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
+        assertEquals(expected, ft.rangeQuery("field", date1, date2, true, true, null, null, null, context));
     }
 
     public void testDateNanoDocValues() throws IOException {
@@ -382,34 +385,35 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(str)).toInstant();
     }
 
-    private static DateFieldType fieldType(Resolution resolution, String format, String nullValue) {
+    private static MappedField field(Resolution resolution, String format, String nullValue) {
         DateFormatter formatter = DateFormatter.forPattern(format);
-        return new DateFieldType("field", true, false, true, formatter, resolution, nullValue, null, Collections.emptyMap());
+        return new MappedField("field",
+            new DateFieldType(true, false, true, formatter, resolution, nullValue, null, Collections.emptyMap()));
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new DateFieldType("field", Resolution.MILLISECONDS);
+        MappedField mappedField = new MappedField("field", new DateFieldType(Resolution.MILLISECONDS));
         String date = "2020-05-15T21:33:02.000Z";
-        assertEquals(List.of(date), fetchSourceValue(fieldType, date));
-        assertEquals(List.of(date), fetchSourceValue(fieldType, 1589578382000L));
+        assertEquals(List.of(date), fetchSourceValue(mappedField, date));
+        assertEquals(List.of(date), fetchSourceValue(mappedField, 1589578382000L));
 
-        MappedFieldType fieldWithFormat = fieldType(Resolution.MILLISECONDS, "yyyy/MM/dd||epoch_millis", null);
+        MappedField fieldWithFormat = field(Resolution.MILLISECONDS, "yyyy/MM/dd||epoch_millis", null);
         String dateInFormat = "1990/12/29";
         assertEquals(List.of(dateInFormat), fetchSourceValue(fieldWithFormat, dateInFormat));
         assertEquals(List.of(dateInFormat), fetchSourceValue(fieldWithFormat, 662428800000L));
 
-        MappedFieldType millis = fieldType(Resolution.MILLISECONDS, "epoch_millis", null);
+        MappedField millis = field(Resolution.MILLISECONDS, "epoch_millis", null);
         String dateInMillis = "662428800000";
         assertEquals(List.of(dateInMillis), fetchSourceValue(millis, dateInMillis));
         assertEquals(List.of(dateInMillis), fetchSourceValue(millis, 662428800000L));
 
         String nullValueDate = "2020-05-15T21:33:02.000Z";
-        MappedFieldType nullFieldType = fieldType(Resolution.MILLISECONDS, "strict_date_time", nullValueDate);
+        MappedField nullFieldType = field(Resolution.MILLISECONDS, "strict_date_time", nullValueDate);
         assertEquals(List.of(nullValueDate), fetchSourceValue(nullFieldType, null));
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        MappedFieldType mapper = fieldType(Resolution.NANOSECONDS, "strict_date_time", "1970-12-29T00:00:00.000Z");
+        MappedField mapper = field(Resolution.NANOSECONDS, "strict_date_time", "1970-12-29T00:00:00.000Z");
         String date = "1990-12-29T00:00:00.000Z";
         assertEquals(List.of("1990/12/29"), fetchSourceValue(mapper, date, "yyyy/MM/dd"));
         assertEquals(List.of("662428800000"), fetchSourceValue(mapper, date, "epoch_millis"));
@@ -417,13 +421,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseSourceValueNanos() throws IOException {
-        MappedFieldType mapper = fieldType(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", null);
+        MappedField mapper = field(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", null);
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of("2020-05-15T21:33:02.123456789Z"), fetchSourceValue(mapper, date));
         assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchSourceValue(mapper, 1589578382123L));
 
         String nullValueDate = "2020-05-15T21:33:02.123456789Z";
-        MappedFieldType nullValueMapper = fieldType(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
+        MappedField nullValueMapper = field(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
         assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
     }
 }

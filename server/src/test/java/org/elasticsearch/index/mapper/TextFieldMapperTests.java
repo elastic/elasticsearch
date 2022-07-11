@@ -555,7 +555,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
-        TextFieldType fieldType = (TextFieldType) mapperService.mappedField("field");
+        TextFieldType fieldType = (TextFieldType) mapperService.mappedField("field").type();
 
         assertThat(fieldType.fielddataMinFrequency(), equalTo(2d));
         assertThat(fieldType.fielddataMaxFrequency(), equalTo((double) Integer.MAX_VALUE));
@@ -687,11 +687,10 @@ public class TextFieldMapperTests extends MapperTestCase {
                         .endObject()
                 )
             );
-            MappedFieldType textField = mapperService.mappedField("object.field");
+            MappedField textField = mapperService.mappedField("object.field");
             assertNotNull(textField);
-            assertThat(textField, instanceOf(TextFieldType.class));
-            MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
-            assertEquals(prefix.name(), "object.field._index_prefix");
+            assertThat(textField.type(), instanceOf(TextFieldType.class));
+            assertEquals(((TextFieldType) textField.type()).prefixName("object.field"), "object.field._index_prefix");
             ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("object.field", "some text")));
             IndexableField field = doc.rootDoc().getField("object.field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, field.fieldType().indexOptions());
@@ -713,11 +712,10 @@ public class TextFieldMapperTests extends MapperTestCase {
                         .endObject()
                 )
             );
-            MappedFieldType textField = mapperService.mappedField("body.with_prefix");
+            MappedField textField = mapperService.mappedField("body.with_prefix");
             assertNotNull(textField);
-            assertThat(textField, instanceOf(TextFieldType.class));
-            MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
-            assertEquals(prefix.name(), "body.with_prefix._index_prefix");
+            assertThat(textField.type(), instanceOf(TextFieldType.class));
+            assertEquals(((TextFieldType) textField.type()).prefixName("body.with_prefix"), "body.with_prefix._index_prefix");
             ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("body", "some text")));
             IndexableField field = doc.rootDoc().getField("body.with_prefix._index_prefix");
 
@@ -1198,7 +1196,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
-                .fielddataBuilder("test", null)
+                .fielddataBuilder("field", "test", null)
         );
     }
 

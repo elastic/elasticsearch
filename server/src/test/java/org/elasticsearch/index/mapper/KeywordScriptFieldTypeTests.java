@@ -59,8 +59,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"));
-                StringScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                MappedField mappedField = build("append_param", Map.of("param", "-suffix"));
+                StringScriptFieldData ifd = (StringScriptFieldData) mappedField.
+                    fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -98,7 +99,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BinaryScriptFieldData ifd = simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BinaryScriptFieldData ifd = (BinaryScriptFieldData) simpleMappedField()
+                    .fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [\"a\"]}"));
@@ -175,8 +177,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomFuzzyQuery);
     }
 
-    private Query randomFuzzyQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.fuzzyQuery(
+    private Query randomFuzzyQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.fuzzyQuery(
             randomAlphaOfLengthBetween(1, 1000),
             randomFrom(Fuzziness.AUTO, Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO),
             randomInt(),
@@ -206,8 +208,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomPrefixQuery);
     }
 
-    private Query randomPrefixQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
+    private Query randomPrefixQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
     }
 
     @Override
@@ -239,10 +241,10 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+    protected Query randomRangeQuery(MappedField mappedField, SearchExecutionContext ctx) {
         boolean lowerNull = randomBoolean();
         boolean upperNull = randomBoolean();
-        return ft.rangeQuery(
+        return mappedField.rangeQuery(
             lowerNull ? null : randomAlphaOfLengthBetween(0, 1000),
             upperNull ? null : randomAlphaOfLengthBetween(0, 1000),
             lowerNull || randomBoolean(),
@@ -275,7 +277,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomRegexpQuery);
     }
 
-    private Query randomRegexpQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+    private Query randomRegexpQuery(MappedField ft, SearchExecutionContext ctx) {
         return ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFF), 0, Integer.MAX_VALUE, null, ctx);
     }
 
@@ -286,15 +288,15 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
-                assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
+                MappedField mappedField = build("append_param", Map.of("param", "-suffix"));
+                assertThat(searcher.count(mappedField.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx);
+    protected Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx);
     }
 
     @Override
@@ -312,8 +314,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx);
+    protected Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx);
     }
 
     public void testWildcardQuery() throws IOException {
@@ -347,8 +349,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomWildcardQuery);
     }
 
-    private Query randomWildcardQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
+    private Query randomWildcardQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
     }
 
     public void testMatchQuery() throws IOException {
@@ -357,8 +359,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"));
-                SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                MappedField mappedField = build("append_param", Map.of("param", "-Suffix"));
+                SearchExecutionContext searchExecutionContext = mockContext(true, mappedField);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));
             }
@@ -366,12 +368,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected KeywordScriptFieldType simpleMappedField() {
+    protected MappedField simpleMappedField() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected KeywordScriptFieldType loopField() {
+    protected MappedField loopField() {
         return build("loop", Map.of());
     }
 
@@ -380,7 +382,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return "keyword";
     }
 
-    private static KeywordScriptFieldType build(String code, Map<String, Object> params) {
+    private static MappedField build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
@@ -411,7 +413,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         };
     }
 
-    private static KeywordScriptFieldType build(Script script) {
-        return new KeywordScriptFieldType("test", factory(script), script, emptyMap());
+    private static MappedField build(Script script) {
+        return new MappedField("test", new KeywordScriptFieldType(factory(script), script, emptyMap()));
     }
 }

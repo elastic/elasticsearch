@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -60,7 +61,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     }
 
     private RankFeatureMetaFieldMapper() {
-        super(RankFeatureMetaFieldType.INSTANCE);
+        super(new MappedField(NAME, RankFeatureMetaFieldType.INSTANCE));
     }
 
     @Override

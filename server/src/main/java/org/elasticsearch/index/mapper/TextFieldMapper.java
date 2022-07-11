@@ -671,7 +671,7 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
 
-        private String prefixName(String parentName) {
+        String prefixName(String parentName) {
             return parentName + FAST_PREFIX_SUFFIX;
         }
 

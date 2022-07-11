@@ -64,8 +64,9 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1));
-                DoubleScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                MappedField mappedField = build("add_param", Map.of("param", 1));
+                DoubleScriptFieldData ifd = (DoubleScriptFieldData)
+                    mappedField.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -103,7 +104,8 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DoubleScriptFieldData ifd = simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DoubleScriptFieldData ifd = (DoubleScriptFieldData) simpleMappedField()
+                    .fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1.1]}"));
@@ -163,21 +165,21 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.5]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedField();
-                assertThat(searcher.count(ft.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(2));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2.5, 3, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2.5, 3, false, true, null, null, null, mockContext())), equalTo(0));
+                MappedField mappedField = simpleMappedField();
+                assertThat(searcher.count(mappedField.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(mappedField.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(mappedField.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(mappedField.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(2));
+                assertThat(searcher.count(mappedField.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.rangeQuery(2.5, 3, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.rangeQuery(2.5, 3, false, true, null, null, null, mockContext())), equalTo(0));
             }
         }
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
+    protected Query randomRangeQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -196,8 +198,8 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termQuery(randomLong(), ctx);
+    protected Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termQuery(randomLong(), ctx);
     }
 
     @Override
@@ -217,17 +219,17 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termsQuery(List.of(randomLong()), ctx);
+    protected Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termsQuery(List.of(randomLong()), ctx);
     }
 
     @Override
-    protected DoubleScriptFieldType simpleMappedField() {
+    protected MappedField simpleMappedField() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected MappedFieldType loopField() {
+    protected MappedField loopField() {
         return build("loop", Map.of());
     }
 
@@ -236,7 +238,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         return "double";
     }
 
-    private static DoubleScriptFieldType build(String code, Map<String, Object> params) {
+    private static MappedField build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
@@ -267,7 +269,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         };
     }
 
-    private static DoubleScriptFieldType build(Script script) {
-        return new DoubleScriptFieldType("test", factory(script), script, emptyMap());
+    private static MappedField build(Script script) {
+        return new MappedField("test", new DoubleScriptFieldType(factory(script), script, emptyMap()));
     }
 }

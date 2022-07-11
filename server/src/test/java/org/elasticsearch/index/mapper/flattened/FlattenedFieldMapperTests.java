@@ -23,7 +23,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedMappedField;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedMappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
@@ -380,14 +380,14 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("split_queries_on_whitespace", true);
         }));
 
-        RootFlattenedMappedField rootFieldType = (RootFlattenedMappedField) mapperService.mappedField("field");
+        RootFlattenedMappedFieldType rootFieldType = (RootFlattenedMappedFieldType) mapperService.mappedField("field").type();
         assertThat(rootFieldType.getTextSearchInfo().searchAnalyzer().name(), equalTo("_whitespace"));
         assertTokenStreamContents(
             rootFieldType.getTextSearchInfo().searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "Hello", "World" }
         );
 
-        KeyedFlattenedFieldType keyedFieldType = (KeyedFlattenedFieldType) mapperService.mappedField("field.key");
+        KeyedFlattenedFieldType keyedFieldType = (KeyedFlattenedFieldType) mapperService.mappedField("field.key").type();
         assertThat(keyedFieldType.getTextSearchInfo().searchAnalyzer().name(), equalTo("_whitespace"));
         assertTokenStreamContents(
             keyedFieldType.getTextSearchInfo().searchAnalyzer().analyzer().tokenStream("", "Hello World"),

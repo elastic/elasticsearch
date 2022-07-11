@@ -16,7 +16,7 @@ package org.elasticsearch.index.mapper;
  *  - Using the field name 'my_field', which will delegate to the field type
  *    as usual.
  *  - Using any sub-key, for example 'my_field.some_key'. In this case, the
- *    search is delegated to {@link #getChildFieldType(String)}, with 'some_key'
+ *    search is delegated to {@link #getChildField(String)}, with 'some_key'
  *    passed as the argument. The field may create a new field type dynamically
  *    in order to handle the search.
  *
@@ -33,5 +33,5 @@ public abstract class DynamicMappedField extends MappedField {
     /**
      * Returns a dynamic MappedField for the given path
      */
-    public abstract MappedField getChildFieldType(String path);
+    public abstract MappedField getChildField(String path);
 }

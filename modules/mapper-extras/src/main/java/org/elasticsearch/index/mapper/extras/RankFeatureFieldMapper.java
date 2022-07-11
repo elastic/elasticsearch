@@ -78,7 +78,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
             return new RankFeatureFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name), new RankFeatureFieldType(meta.getValue(), positiveScoreImpact.getValue())),
+                new MappedField(context.buildFullName(name), new RankFeatureFieldType(meta.getValue(), positiveScoreImpact.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 positiveScoreImpact.getValue()
@@ -139,7 +139,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     private RankFeatureFieldMapper(
         String simpleName,
-        MappedField<RankFeatureFieldType> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         boolean positiveScoreImpact

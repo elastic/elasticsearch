@@ -25,6 +25,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -115,10 +116,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertSearchable(MappedFieldType fieldType) {
-        assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
-        assertEquals(fieldType.isIndexed(), indexed);
-        assertEquals(fieldType.isSearchable(), indexed);
+    protected void assertSearchable(MappedField mappedField) {
+        assertThat(mappedField.type(), instanceOf(DenseVectorFieldType.class));
+        assertEquals(mappedField.isIndexed(), indexed);
+        assertEquals(mappedField.isSearchable(), indexed);
     }
 
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {

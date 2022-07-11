@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 
@@ -27,7 +28,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     private DenseVectorFieldType createFieldType() {
-        return new DenseVectorFieldType("f", Version.CURRENT, 5, indexed, VectorSimilarity.cosine, Collections.emptyMap());
+        return new DenseVectorFieldType(Version.CURRENT, 5, indexed, VectorSimilarity.cosine, Collections.emptyMap());
     }
 
     public void testHasDocValues() {
@@ -47,28 +48,27 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsAggregatable() {
         DenseVectorFieldType ft = createFieldType();
-        assertFalse(ft.isAggregatable());
+        assertFalse(ft.isAggregatable("field"));
     }
 
     public void testFielddataBuilder() {
         DenseVectorFieldType ft = createFieldType();
-        assertNotNull(ft.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); }));
+        assertNotNull(ft.fielddataBuilder("field", "index", () -> { throw new UnsupportedOperationException(); }));
     }
 
     public void testDocValueFormat() {
         DenseVectorFieldType ft = createFieldType();
-        expectThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
+        expectThrows(IllegalArgumentException.class, () -> ft.docValueFormat("field", null, null));
     }
 
     public void testFetchSourceValue() throws IOException {
         DenseVectorFieldType ft = createFieldType();
         List<Double> vector = List.of(0.0, 1.0, 2.0, 3.0, 4.0);
-        assertEquals(vector, fetchSourceValue(ft, vector));
+        assertEquals(vector, fetchSourceValue(new MappedField("field", ft), vector));
     }
 
     public void testCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
-            "f",
             Version.CURRENT,
             3,
             false,
@@ -77,30 +77,30 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null)
+            () -> unindexedField.createKnnQuery("f", new float[] { 0.3f, 0.1f, 1.0f }, 10, null)
         );
         assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
 
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
-            "f",
             Version.CURRENT,
             3,
             true,
             VectorSimilarity.dot_product,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class, () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> dotProductField.createKnnQuery("f", new float[] { 0.3f, 0.1f, 1.0f }, 10, null));
         assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
 
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
-            "f",
             Version.CURRENT,
             3,
             true,
             VectorSimilarity.cosine,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> cosineField.createKnnQuery("f", new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 }

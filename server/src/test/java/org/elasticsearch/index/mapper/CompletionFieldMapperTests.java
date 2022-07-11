@@ -749,7 +749,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
-        Query prefixQuery = completionFieldMapper.fieldType().prefixQuery(new BytesRef("co"));
+        Query prefixQuery = completionFieldMapper.fieldType().prefixQuery("field", new BytesRef("co"));
         assertThat(prefixQuery, instanceOf(PrefixCompletionQuery.class));
     }
 
@@ -759,6 +759,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType()
             .fuzzyQuery(
+                "field",
                 "co",
                 Fuzziness.fromEdits(FuzzyCompletionQuery.DEFAULT_MAX_EDITS),
                 FuzzyCompletionQuery.DEFAULT_NON_FUZZY_PREFIX,
@@ -775,7 +776,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
         Query prefixQuery = completionFieldMapper.fieldType()
-            .regexpQuery(new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            .regexpQuery("field", new BytesRef("co"), RegExp.ALL, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertThat(prefixQuery, instanceOf(RegexCompletionQuery.class));
     }
 

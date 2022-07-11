@@ -315,7 +315,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }));
 
         List<String> eagerFieldNames = StreamSupport.stream(mapperService.getEagerGlobalOrdinalsFields().spliterator(), false)
-            .map(MappedFieldType::name)
+            .map(MappedField::name)
             .toList();
         assertThat(eagerFieldNames, containsInAnyOrder("eager1", "eager2"));
     }

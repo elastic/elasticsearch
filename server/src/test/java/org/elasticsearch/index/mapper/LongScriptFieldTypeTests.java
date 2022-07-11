@@ -60,9 +60,9 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "long")));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "9223372036854775806.00")));
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            MappedFieldType ft = mapperService.mappedField("field");
+            MappedField mappedField = mapperService.mappedField("field");
             SearchExecutionContext sec = createSearchExecutionContext(mapperService);
-            Query rangeQuery = ft.rangeQuery(0, 9223372036854775807L, false, false, ShapeRelation.CONTAINS, null, null, sec);
+            Query rangeQuery = mappedField.rangeQuery(0, 9223372036854775807L, false, false, ShapeRelation.CONTAINS, null, null, sec);
             IndexSearcher searcher = new IndexSearcher(ir);
             assertEquals(1, searcher.count(rangeQuery));
         });
@@ -76,8 +76,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldType ft = build("add_param", Map.of("param", 1));
-                LongScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                MappedField mappedField = build("add_param", Map.of("param", 1));
+                LongScriptFieldData ifd = (LongScriptFieldData) mappedField.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -115,7 +115,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldData ifd = simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                LongScriptFieldData ifd = (LongScriptFieldData) simpleMappedField()
+                    .fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
@@ -132,7 +133,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                LongScriptFieldData ifd = build("millis_ago", Map.of()).fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                LongScriptFieldData ifd = (LongScriptFieldData) build("millis_ago", Map.of())
+                    .fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181356]}"));
@@ -197,19 +199,19 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = simpleMappedField();
-                assertThat(searcher.count(ft.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(1));
-                assertThat(searcher.count(ft.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(0));
+                MappedField mappedField = simpleMappedField();
+                assertThat(searcher.count(mappedField.rangeQuery("2", "3", true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.rangeQuery(2, 3, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(1));
+                assertThat(searcher.count(mappedField.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(0));
             }
         }
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
+    protected Query randomRangeQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -228,8 +230,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termQuery(randomLong(), ctx);
+    protected Query randomTermQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termQuery(randomLong(), ctx);
     }
 
     @Override
@@ -249,17 +251,17 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.termsQuery(List.of(randomLong()), ctx);
+    protected Query randomTermsQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.termsQuery(List.of(randomLong()), ctx);
     }
 
     @Override
-    protected LongScriptFieldType simpleMappedField() {
+    protected MappedField simpleMappedField() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected LongScriptFieldType loopField() {
+    protected MappedField loopField() {
         return build("loop", Map.of());
     }
 
@@ -268,7 +270,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return "long";
     }
 
-    private static LongScriptFieldType build(String code, Map<String, Object> params) {
+    private static MappedField build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
@@ -314,7 +316,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         }
     }
 
-    private static LongScriptFieldType build(Script script) {
-        return new LongScriptFieldType("test", factory(script), script, emptyMap());
+    private static MappedField build(Script script) {
+        return new MappedField("test", new LongScriptFieldType(factory(script), script, emptyMap()));
     }
 }

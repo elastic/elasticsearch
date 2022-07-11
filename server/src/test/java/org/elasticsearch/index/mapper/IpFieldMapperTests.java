@@ -115,7 +115,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertEquals("field", fields[0].stringValue());
 
         FieldMapper m = (FieldMapper) mapper.mappers().getMapper("field");
-        Query existsQuery = m.fieldType().existsQuery(null);
+        Query existsQuery = m.field().existsQuery(null);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), existsQuery);
     }
 
@@ -214,7 +214,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) mapperService.mappedField("field");
+        IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) mapperService.mappedField("field").type();
         assertFalse(ft.isDimension());
 
         assertDimension(true, IpFieldMapper.IpFieldType::isDimension);

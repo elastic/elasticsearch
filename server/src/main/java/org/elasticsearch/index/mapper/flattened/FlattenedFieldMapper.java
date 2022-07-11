@@ -184,7 +184,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
-            RootFlattenedMappedField ft = new RootFlattenedMappedField(
+            RootFlattenedMappedFieldType ft = new RootFlattenedMappedFieldType(
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),
@@ -195,7 +195,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             String childName = fullName + KEYED_FIELD_SUFFIX;
             return new FlattenedFieldMapper(name, new DynamicMappedField(fullName, ft) {
                 @Override
-                public MappedField getChildFieldType(String childPath) {
+                public MappedField getChildField(String childPath) {
                     return new MappedField(childName, new KeyedFlattenedFieldType(childPath, ft));
                 }
             }, this);
@@ -228,7 +228,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.key = key;
         }
 
-        private KeyedFlattenedFieldType(String key, RootFlattenedMappedField ref) {
+        private KeyedFlattenedFieldType(String key, RootFlattenedMappedFieldType ref) {
             this(ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
@@ -594,11 +594,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
      * A field type that represents all 'root' values. This field type is used in
      * searches on the flattened field itself, e.g. 'my_flattened: some_value'.
      */
-    public static final class RootFlattenedMappedField extends StringFieldType {
+    public static final class RootFlattenedMappedFieldType extends StringFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
 
-        public RootFlattenedMappedField(
+        public RootFlattenedMappedFieldType(
             boolean indexed,
             boolean hasDocValues,
             Map<String, String> meta,
@@ -691,8 +691,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
-    public RootFlattenedMappedField fieldType() {
-        return (RootFlattenedMappedField) super.fieldType();
+    public RootFlattenedMappedFieldType fieldType() {
+        return (RootFlattenedMappedFieldType) super.fieldType();
     }
 
     @Override

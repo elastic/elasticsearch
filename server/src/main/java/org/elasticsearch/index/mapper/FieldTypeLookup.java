@@ -146,7 +146,7 @@ final class FieldTypeLookup {
             DynamicMappedField dft = dynamicFields.get(parentField);
             if (dft != null && Objects.equals(field, parentField) == false) {
                 String key = field.substring(dotIndex + 1);
-                return dft.getChildFieldType(key);
+                return dft.getChildField(key);
             }
         }
     }

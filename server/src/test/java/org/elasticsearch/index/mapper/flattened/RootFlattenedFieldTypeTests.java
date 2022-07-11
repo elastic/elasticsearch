@@ -22,7 +22,8 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedMappedField;
+import org.elasticsearch.index.mapper.MappedField;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedMappedFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,12 +32,12 @@ import java.util.Map;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
-    private static RootFlattenedMappedField createDefaultFieldType() {
-        return new RootFlattenedMappedField("field", true, true, Collections.emptyMap(), false, false);
+    private static RootFlattenedMappedFieldType createDefaultFieldType() {
+        return new RootFlattenedMappedFieldType(true, true, Collections.emptyMap(), false, false);
     }
 
     public void testValueForDisplay() {
-        RootFlattenedMappedField ft = createDefaultFieldType();
+        RootFlattenedMappedFieldType ft = createDefaultFieldType();
 
         String fieldValue = "{ \"key\": \"value\" }";
         BytesRef storedValue = new BytesRef(fieldValue);
@@ -44,37 +45,38 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        RootFlattenedMappedField ft = createDefaultFieldType();
+        RootFlattenedMappedFieldType ft = createDefaultFieldType();
 
         Query expected = new TermQuery(new Term("field", "value"));
-        assertEquals(expected, ft.termQuery("value", null));
+        assertEquals(expected, ft.termQuery("field", "value", null));
 
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
-        assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
+        assertEquals(expected, ft.termQueryCaseInsensitive("field", "Value", null));
 
-        RootFlattenedMappedField unsearchable = new RootFlattenedMappedField("field", false, true, Collections.emptyMap(), false, false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
+        RootFlattenedMappedFieldType unsearchable = new RootFlattenedMappedFieldType(false, true, Collections.emptyMap(), false, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", "field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedMappedField ft = new RootFlattenedMappedField("field", true, false, Collections.emptyMap(), false, false);
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
+        RootFlattenedMappedFieldType ft = new RootFlattenedMappedFieldType(true, false, Collections.emptyMap(), false, false);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery("field", null));
 
-        RootFlattenedMappedField withDv = new RootFlattenedMappedField("field", true, true, Collections.emptyMap(), false, false);
-        assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
+        RootFlattenedMappedFieldType withDv = new RootFlattenedMappedFieldType(true, true, Collections.emptyMap(), false, false);
+        assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery("field", null));
     }
 
     public void testFuzzyQuery() {
-        RootFlattenedMappedField ft = createDefaultFieldType();
+        RootFlattenedMappedFieldType ft = createDefaultFieldType();
 
         Query expected = new FuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
-        Query actual = ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT);
+        Query actual = ft.fuzzyQuery("field", "value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT);
         assertEquals(expected, actual);
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
             () -> ft.fuzzyQuery(
+                "field",
                 "value",
                 Fuzziness.AUTO,
                 randomInt(10) + 1,
@@ -87,17 +89,17 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        RootFlattenedMappedField ft = createDefaultFieldType();
+        RootFlattenedMappedFieldType ft = createDefaultFieldType();
 
         TermRangeQuery expected = new TermRangeQuery("field", new BytesRef("lower"), new BytesRef("upper"), false, false);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_CONTEXT));
+        assertEquals(expected, ft.rangeQuery("field", "lower", "upper", false, false, MOCK_CONTEXT));
 
         expected = new TermRangeQuery("field", new BytesRef("lower"), new BytesRef("upper"), true, true);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, MOCK_CONTEXT));
+        assertEquals(expected, ft.rangeQuery("field", "lower", "upper", true, true, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.rangeQuery("lower", "upper", true, true, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.rangeQuery("field", "lower", "upper", true, true, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
@@ -106,37 +108,37 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        RootFlattenedMappedField ft = createDefaultFieldType();
+        RootFlattenedMappedFieldType ft = createDefaultFieldType();
 
         Query expected = new RegexpQuery(new Term("field", "val.*"));
-        Query actual = ft.regexpQuery("val.*", 0, 0, 10, null, MOCK_CONTEXT);
+        Query actual = ft.regexpQuery("field", "val.*", 0, 0, 10, null, MOCK_CONTEXT);
         assertEquals(expected, actual);
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.regexpQuery("val.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.regexpQuery("field", "val.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testWildcardQuery() {
-        RootFlattenedMappedField ft = createDefaultFieldType();
+        RootFlattenedMappedFieldType ft = createDefaultFieldType();
 
         Query expected = new WildcardQuery(new Term("field", new BytesRef("valu*")));
-        assertEquals(expected, ft.wildcardQuery("valu*", null, MOCK_CONTEXT));
+        assertEquals(expected, ft.wildcardQuery("field", "valu*", null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.wildcardQuery("field", "valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {
         Map<String, Object> sourceValue = Map.of("key", "value");
-        RootFlattenedMappedField ft = createDefaultFieldType();
+        MappedField mappedField = new MappedField("field", createDefaultFieldType());
 
-        assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
-        assertEquals(List.of(), fetchSourceValue(ft, null));
+        assertEquals(List.of(sourceValue), fetchSourceValue(mappedField, sourceValue));
+        assertEquals(List.of(), fetchSourceValue(mappedField, null));
     }
 }

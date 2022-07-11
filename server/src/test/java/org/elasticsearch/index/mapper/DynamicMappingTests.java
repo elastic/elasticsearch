@@ -176,8 +176,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("empty_field", "")));
         assertNotNull(doc.rootDoc().getField("empty_field"));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        MappedFieldType fieldType = mapperService.mappedField("empty_field");
-        assertNotNull(fieldType);
+        MappedField mappedField = mapperService.mappedField("empty_field");
+        assertNotNull(mappedField);
     }
 
     public void testDynamicRuntimeMappingOnEmptyString() throws Exception {
@@ -185,8 +185,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("empty_field", "")));
         assertNull(doc.rootDoc().getField("empty_field"));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        MappedFieldType fieldType = mapperService.mappedField("empty_field");
-        assertNotNull(fieldType);
+        MappedField mappedField = mapperService.mappedField("empty_field");
+        assertNotNull(mappedField);
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {

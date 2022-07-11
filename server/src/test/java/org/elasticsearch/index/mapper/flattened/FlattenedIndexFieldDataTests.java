@@ -23,7 +23,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.DynamicMappedField;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldData;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,13 +47,13 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
         );
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened").build(MapperBuilderContext.ROOT);
-        MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
+        MappedField childField = ((DynamicMappedField) fieldMapper.field()).getChildField("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
             public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
-                assertEquals(fieldType1.name(), fieldName);
+                assertEquals(childField.name(), fieldName);
                 onCacheCalled.incrementAndGet();
             }
         });
@@ -71,7 +72,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
 
         // Load global field data for subfield 'key'.
         IndexFieldData<?> ifd1 = ifdService.getForField(
-            fieldType1,
+            childField,
             "test",
             () -> { throw new UnsupportedOperationException("search lookup not available"); }
         );
@@ -83,9 +84,9 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
         assertEquals(1, onCacheCalled.get());
 
         // Load global field data for the subfield 'other_key'.
-        MappedFieldType fieldType2 = fieldMapper.fieldType().getChildFieldType("other_key");
+        MappedField childField2 = ((DynamicMappedField) fieldMapper.field()).getChildField("other_key");
         IndexFieldData<?> ifd2 = ifdService.getForField(
-            fieldType2,
+            childField2,
             "test",
             () -> { throw new UnsupportedOperationException("search lookup not available"); }
         );

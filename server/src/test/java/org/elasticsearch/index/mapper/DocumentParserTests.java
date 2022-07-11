@@ -2363,7 +2363,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             private static final String FIELD_NAME = "_mock_metadata";
 
             protected MockMetadataMapper() {
-                super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+                super(new MappedField(FIELD_NAME, new KeywordFieldMapper.KeywordFieldType()));
             }
 
             @Override
@@ -2371,7 +2371,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
                     context.doc().add(new StringField(FIELD_NAME, context.parser().text(), Field.Store.YES));
                 } else {
-                    throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a string.");
+                    throw new IllegalArgumentException("Field [" + field().name() + "] must be a string.");
                 }
             }
 

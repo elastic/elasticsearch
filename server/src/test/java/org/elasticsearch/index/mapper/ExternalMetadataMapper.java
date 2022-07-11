@@ -18,7 +18,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     static final String FIELD_VALUE = "true";
 
     protected ExternalMetadataMapper() {
-        super(new BooleanFieldMapper.BooleanFieldType(FIELD_NAME));
+        super(new MappedField(FIELD_NAME, new BooleanFieldMapper.BooleanFieldType()));
     }
 
     @Override

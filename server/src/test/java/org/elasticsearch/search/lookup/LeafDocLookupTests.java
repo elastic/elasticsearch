@@ -75,8 +75,8 @@ public class LeafDocLookupTests extends ESTestCase {
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(MapperBuilderContext.ROOT);
         DynamicMappedField dynamicMappedField = (DynamicMappedField) fieldMapper.field();
-        MappedField fieldType1 = dynamicMappedField.getChildFieldType("key1");
-        MappedField fieldType2 = dynamicMappedField.getChildFieldType("key2");
+        MappedField fieldType1 = dynamicMappedField.getChildField("key1");
+        MappedField fieldType2 = dynamicMappedField.getChildField("key2");
 
         Function<MappedField, IndexFieldData<?>> fieldDataSupplier = ft -> {
             FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft.type();

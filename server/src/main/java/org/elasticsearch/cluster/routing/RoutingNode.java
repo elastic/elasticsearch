@@ -69,10 +69,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.shards = new LinkedHashMap<>(original.shards);
         this.relocatingShards = new LinkedHashSet<>(original.relocatingShards);
         this.initializingShards = new LinkedHashSet<>(original.initializingShards);
-        this.shardsByIndex = Maps.newMapWithExpectedSize(original.shardsByIndex.size());
-        for (Map.Entry<Index, Set<ShardRouting>> entry : original.shardsByIndex.entrySet()) {
-            shardsByIndex.put(entry.getKey(), new HashSet<>(entry.getValue()));
-        }
+        this.shardsByIndex = Maps.copyOf(original.shardsByIndex, HashSet::new);
         assert invariant();
     }
 

@@ -23,6 +23,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * A scripting ctx map with metadata for write ingest contexts.  Delegates all metadata updates to metadata and
+ * all other updates to source.  Implements the {@link Map} interface for backwards compatibility while performing
+ * validation via {@link Metadata}.
+ */
 public class CtxMap extends AbstractMap<String, Object> {
     protected final Map<String, Object> source;
     protected final Metadata metadata;

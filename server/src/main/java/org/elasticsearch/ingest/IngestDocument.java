@@ -77,10 +77,13 @@ public final class IngestDocument {
      * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestCtxMap.splitSourceAndMetadata(sourceAndMetadata);
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestCtxMap.splitSourceAndMetadata(
+            sourceAndMetadata,
+            Arrays.stream(IngestDocument.Metadata.values()).map(IngestDocument.Metadata::getFieldName).collect(Collectors.toSet())
+        );
         this.sourceAndMetadata = new IngestCtxMap(
             sm.v1(),
-            new org.elasticsearch.script.Metadata(sm.v2(), IngestCtxMap.getTimestamp(ingestMetadata))
+            new IngestCtxMap.IngestMetadata(sm.v2(), IngestCtxMap.getTimestamp(ingestMetadata))
         );
         this.ingestMetadata = new HashMap<>(ingestMetadata);
         this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {

@@ -10,7 +10,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Metadata;
-import org.elasticsearch.script.TestMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -21,6 +20,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestCtxMapTests extends ESTestCase {
 
@@ -76,7 +77,7 @@ public class IngestCtxMapTests extends ESTestCase {
         });
         metadata.put("c", null);
         metadata.put("d", 1234);
-        map = new IngestCtxMap(new HashMap<>(), new TestMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
+        map = new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
         md = map.getMetadata();
         assertNull(md.getString("c"));
         assertNull(md.getString("no key"));
@@ -91,7 +92,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("b", Double.MAX_VALUE);
         metadata.put("c", "NaN");
         metadata.put("d", null);
-        map = new IngestCtxMap(new HashMap<>(), new TestMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
+        map = new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
         md = map.getMetadata();
         assertEquals(Long.MAX_VALUE, md.getNumber("a"));
         assertEquals(Double.MAX_VALUE, md.getNumber("b"));
@@ -146,11 +147,18 @@ public class IngestCtxMapTests extends ESTestCase {
         String canRemove = "canRemove";
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(cannotRemove, "value");
-        map = new IngestCtxMap(new HashMap<>(), new TestMetadata(metadata, Map.of(cannotRemove, (o, k, v) -> {
-            if (v == null) {
-                throw new IllegalArgumentException(k + " cannot be null or removed");
-            }
-        }, canRemove, (o, k, v) -> {})));
+        map = new IngestCtxMap(
+            new HashMap<>(),
+            new TestIngestCtxMetadata(
+                metadata,
+                Map.of(
+                    cannotRemove,
+                    new Metadata.FieldProperty<>(String.class, false, true, null),
+                    canRemove,
+                    new Metadata.FieldProperty<>(String.class, true, true, null)
+                )
+            )
+        );
         String msg = "cannotRemove cannot be null or removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
@@ -211,7 +219,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestCtxMap(source, TestMetadata.withNullableVersion(metadata));
+        map = new IngestCtxMap(source, TestIngestCtxMetadata.withNullableVersion(metadata));
         md = map.getMetadata();
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -364,11 +372,18 @@ public class IngestCtxMapTests extends ESTestCase {
         }
     }
 
-    private static Map<String, Metadata.Validator> allowAllValidators(String... keys) {
-        Map<String, Metadata.Validator> validators = new HashMap<>();
+    private static Map<String, Metadata.FieldProperty<?>> allowAllValidators(String... keys) {
+        Map<String, Metadata.FieldProperty<?>> validators = new HashMap<>();
         for (String key : keys) {
-            validators.put(key, (o, k, v) -> {});
+            validators.put(key, Metadata.FieldProperty.ALLOW_ALL);
         }
         return validators;
+    }
+
+    public void testDefaultFieldPropertiesForAllMetadata() {
+        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
+            assertThat(IngestCtxMap.IngestMetadata.PROPERTIES, hasEntry(equalTo(m.getFieldName()), notNullValue()));
+        }
+        assertEquals(IngestDocument.Metadata.values().length, IngestCtxMap.IngestMetadata.PROPERTIES.size());
     }
 }

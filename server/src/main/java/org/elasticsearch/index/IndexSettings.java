@@ -552,7 +552,7 @@ public final class IndexSettings {
      * The bounds for {@code @timestamp} on this index or
      * {@code null} if there are no bounds.
      */
-    private final TimestampBounds timestampBounds;
+    private volatile TimestampBounds timestampBounds;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -697,7 +697,13 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        this.timestampBounds = mode.getTimestampBound(scopedSettings);
+        this.timestampBounds = mode.getTimestampBound(indexMetadata);
+        if (timestampBounds != null) {
+            scopedSettings.addSettingsUpdateConsumer(
+                IndexSettings.TIME_SERIES_END_TIME,
+                endTime -> { this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime); }
+            );
+        }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);

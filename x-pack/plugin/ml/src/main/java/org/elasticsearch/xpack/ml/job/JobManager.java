@@ -23,8 +23,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -128,8 +130,8 @@ public class JobManager {
         this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
-    public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, listener);
+    public void jobExists(String jobId, @Nullable TaskId parentTaskId, ActionListener<Boolean> listener) {
+        jobConfigProvider.jobExists(jobId, true, parentTaskId, listener);
     }
 
     /**
@@ -142,6 +144,7 @@ public class JobManager {
     public void getJob(String jobId, ActionListener<Job> jobListener) {
         jobConfigProvider.getJob(
             jobId,
+            null,
             ActionListener.wrap(
                 r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
                 jobListener::onFailure
@@ -155,10 +158,16 @@ public class JobManager {
      *
      * @param expression   the jobId or an expression matching jobIds
      * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param parentTaskId The parent task ID if available
      * @param jobsListener The jobs listener
      */
-    public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, null, jobsListener);
+    public void expandJobBuilders(
+        String expression,
+        boolean allowNoMatch,
+        @Nullable TaskId parentTaskId,
+        ActionListener<List<Job.Builder>> jobsListener
+    ) {
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, parentTaskId, jobsListener);
     }
 
     /**
@@ -173,6 +182,7 @@ public class JobManager {
         expandJobBuilders(
             expression,
             allowNoMatch,
+            null,
             ActionListener.wrap(
                 jobBuilders -> jobsListener.onResponse(
                     new QueryPage<>(
@@ -316,7 +326,7 @@ public class JobManager {
             actionListener::onFailure
         );
 
-        jobConfigProvider.jobExists(job.getId(), false, ActionListener.wrap(jobExists -> {
+        jobConfigProvider.jobExists(job.getId(), false, null, ActionListener.wrap(jobExists -> {
             if (jobExists) {
                 actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             } else {

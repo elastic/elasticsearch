@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Scorable;
@@ -127,7 +126,7 @@ public class MultiBucketCollector extends BucketCollector {
         this.terminateIfNoop = terminateIfNoop;
         this.collectors = collectors;
         int numNeedsScores = 0;
-        for (Collector collector : collectors) {
+        for (BucketCollector collector : collectors) {
             if (collector.scoreMode().needsScores()) {
                 numNeedsScores += 1;
             }
@@ -138,7 +137,7 @@ public class MultiBucketCollector extends BucketCollector {
     @Override
     public ScoreMode scoreMode() {
         ScoreMode scoreMode = null;
-        for (Collector collector : collectors) {
+        for (BucketCollector collector : collectors) {
             if (scoreMode == null) {
                 scoreMode = collector.scoreMode();
             } else if (scoreMode != collector.scoreMode()) {

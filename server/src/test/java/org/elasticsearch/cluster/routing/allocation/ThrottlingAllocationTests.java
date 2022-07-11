@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -395,10 +394,10 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         final RoutingTable routingTable = routingTableBuilder.build();
 
-        final ImmutableOpenMap.Builder<String, ClusterState.Custom> restores = ImmutableOpenMap.builder();
+        final Map<String, ClusterState.Custom> restores = new HashMap<>();
         if (snapshotIndices.isEmpty() == false) {
             // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
-            ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = ImmutableOpenMap.builder();
+            Map<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = new HashMap<>();
             for (ShardRouting shard : routingTable.allShards()) {
                 if (shard.primary() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     final ShardId shardId = shard.shardId();
@@ -415,7 +414,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 snapshot,
                 RestoreInProgress.State.INIT,
                 new ArrayList<>(snapshotIndices),
-                restoreShards.build()
+                restoreShards
             );
             restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());
         }
@@ -424,7 +423,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(node1))
             .metadata(metadataBuilder.build())
             .routingTable(routingTable)
-            .customs(restores.build())
+            .customs(restores)
             .build();
     }
 

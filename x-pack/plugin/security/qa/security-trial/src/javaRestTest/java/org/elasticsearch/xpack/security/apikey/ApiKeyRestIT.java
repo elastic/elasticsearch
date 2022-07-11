@@ -14,8 +14,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,6 +52,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final SecureString SYSTEM_USER_PASSWORD = new SecureString("system-user-password".toCharArray());
     private static final String END_USER = "end_user";
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
+    private static final String MANAGE_OWN_API_KEY_USER = "manage_own_api_key_user";
 
     @Before
     public void createUsers() throws IOException {
@@ -56,15 +60,20 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRole("system_role", Set.of("grant_api_key"));
         createUser(END_USER, END_USER_PASSWORD, List.of("user_role"));
         createRole("user_role", Set.of("monitor"));
+        createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
+        createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
     }
 
     @After
     public void cleanUp() throws IOException {
-        deleteUser("system_user");
-        deleteUser("end_user");
+        deleteUser(SYSTEM_USER);
+        deleteUser(END_USER);
+        deleteUser(MANAGE_OWN_API_KEY_USER);
         deleteRole("system_role");
         deleteRole("user_role");
+        deleteRole("manage_own_api_key_role");
         invalidateApiKeysForUser(END_USER);
+        invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -85,18 +94,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(actualApiKeyName, equalTo(expectedApiKeyName));
         assertThat(actualApiKeyEncoded, not(emptyString()));
 
-        final Request authenticateRequest = new Request("GET", "_security/_authenticate");
-        authenticateRequest.setOptions(
-            authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + actualApiKeyEncoded)
-        );
-
-        final Response authenticateResponse = client().performRequest(authenticateRequest);
-        assertOK(authenticateResponse);
-        final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
-
-        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
-        // If authentication type is other, authentication.api_key not present.
-        assertThat(authenticate, hasEntry("api_key", Map.of("id", actualApiKeyId, "name", expectedApiKeyName)));
+        doTestAuthenticationWithApiKey(expectedApiKeyName, actualApiKeyId, actualApiKeyEncoded);
     }
 
     public void testGrantApiKeyForOtherUserWithPassword() throws IOException {
@@ -179,21 +177,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testGrantApiKeyWithOnlyManageOwnApiKeyPrivilegeFails() throws IOException {
-        final String manageOwnApiKeyUser = "manage-own-api-key-user";
-        final SecureString manageOwnApiKeyUserPassword = new SecureString("manage-own-api-key-password".toCharArray());
-        final String manageOwnApiKeyRole = "manage_own_api_key_role";
-        createUser(manageOwnApiKeyUser, manageOwnApiKeyUserPassword, List.of(manageOwnApiKeyRole));
-        createRole(manageOwnApiKeyRole, Set.of("manage_own_api_key"));
-
         final Request request = new Request("POST", "_security/api_key/grant");
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(manageOwnApiKeyUser, manageOwnApiKeyUserPassword))
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
         );
         final Map<String, Object> requestBody = Map.ofEntries(
             Map.entry("grant_type", "password"),
-            Map.entry("username", manageOwnApiKeyUser),
-            Map.entry("password", manageOwnApiKeyUserPassword.toString()),
+            Map.entry("username", MANAGE_OWN_API_KEY_USER),
+            Map.entry("password", END_USER_PASSWORD.toString()),
             Map.entry("api_key", Map.of("name", "test_api_key_password"))
         );
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
@@ -202,7 +194,145 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [" + GrantApiKeyAction.NAME + "] is unauthorized for user"));
-        deleteUser(manageOwnApiKeyUser);
-        deleteRole(manageOwnApiKeyRole);
+    }
+
+    public void testUpdateApiKey() throws IOException {
+        final var apiKeyName = "my-api-key-name";
+        final Map<String, String> apiKeyMetadata = Map.of("not", "returned");
+        final Map<String, Object> createApiKeyRequestBody = Map.of("name", apiKeyName, "metadata", apiKeyMetadata);
+
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
+        createApiKeyRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+        );
+
+        final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(createApiKeyResponse); // keys: id, name, api_key, encoded
+        final var apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        assertThat(apiKeyId, not(emptyString()));
+        assertThat(apiKeyEncoded, not(emptyString()));
+
+        doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+    }
+
+    public void testGrantTargetCanUpdateApiKey() throws IOException {
+        final var request = new Request("POST", "_security/api_key/grant");
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD))
+        );
+        final var apiKeyName = "test_api_key_password";
+        final Map<String, Object> requestBody = Map.ofEntries(
+            Map.entry("grant_type", "password"),
+            Map.entry("username", MANAGE_OWN_API_KEY_USER),
+            Map.entry("password", END_USER_PASSWORD.toString()),
+            Map.entry("api_key", Map.of("name", apiKeyName))
+        );
+        request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+
+        final Response response = client().performRequest(request);
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(response); // keys: id, name, api_key, encoded
+        final var apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        assertThat(apiKeyId, not(emptyString()));
+        assertThat(apiKeyEncoded, not(emptyString()));
+
+        doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+    }
+
+    public void testGrantorCannotUpdateApiKeyOfGrantTarget() throws IOException {
+        final var request = new Request("POST", "_security/api_key/grant");
+        final var apiKeyName = "test_api_key_password";
+        final Map<String, Object> requestBody = Map.ofEntries(
+            Map.entry("grant_type", "password"),
+            Map.entry("username", MANAGE_OWN_API_KEY_USER),
+            Map.entry("password", END_USER_PASSWORD.toString()),
+            Map.entry("api_key", Map.of("name", apiKeyName))
+        );
+        request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+        final Response response = adminClient().performRequest(request);
+
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(response); // keys: id, name, api_key, encoded
+        final var apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        assertThat(apiKeyId, not(emptyString()));
+        assertThat(apiKeyEncoded, not(emptyString()));
+
+        final var updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(Map.of(), XContentType.JSON).utf8ToString());
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateApiKeyRequest));
+
+        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("no API key owned by requesting user found for ID [" + apiKeyId + "]"));
+    }
+
+    private void doTestAuthenticationWithApiKey(final String apiKeyName, final String apiKeyId, final String apiKeyEncoded)
+        throws IOException {
+        final var authenticateRequest = new Request("GET", "_security/_authenticate");
+        authenticateRequest.setOptions(authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKeyEncoded));
+
+        final Response authenticateResponse = client().performRequest(authenticateRequest);
+        assertOK(authenticateResponse);
+        final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
+
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
+        // If authentication type is other, authentication.api_key not present.
+        assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName)));
+    }
+
+    private void doTestUpdateApiKey(String apiKeyName, String apiKeyId, String apiKeyEncoded) throws IOException {
+        final var updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
+        final Map<String, Object> updateApiKeyRequestBody = Map.of("metadata", expectedApiKeyMetadata);
+        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
+
+        final Response updateApiKeyResponse = doUpdateUsingRandomAuthMethod(updateApiKeyRequest);
+
+        assertOK(updateApiKeyResponse);
+        final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
+        assertTrue((Boolean) updateApiKeyResponseMap.get("updated"));
+        expectMetadata(apiKeyId, expectedApiKeyMetadata);
+        // validate authentication still works after update
+        doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+    }
+
+    private Response doUpdateUsingRandomAuthMethod(Request updateApiKeyRequest) throws IOException {
+        final boolean useRunAs = randomBoolean();
+        if (useRunAs) {
+            updateApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RUN_AS_USER_HEADER, MANAGE_OWN_API_KEY_USER));
+            return adminClient().performRequest(updateApiKeyRequest);
+        } else {
+            updateApiKeyRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+            );
+            return client().performRequest(updateApiKeyRequest);
+        }
+    }
+
+    private String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {
+        final boolean useBearerTokenAuth = randomBoolean();
+        if (useBearerTokenAuth) {
+            final Tuple<String, String> token = super.createOAuthToken(username, password);
+            return "Bearer " + token.v1();
+        } else {
+            return UsernamePasswordToken.basicAuthHeaderValue(username, password);
+        }
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private void expectMetadata(final String apiKeyId, final Map<String, Object> expectedMetadata) throws IOException {
+        final var request = new Request("GET", "_security/api_key/");
+        request.addParameter("id", apiKeyId);
+        final Response response = adminClient().performRequest(request);
+        assertOK(response);
+        try (XContentParser parser = responseAsParser(response)) {
+            final var apiKeyResponse = GetApiKeyResponse.fromXContent(parser);
+            assertThat(apiKeyResponse.getApiKeyInfos().length, equalTo(1));
+            assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata));
+        }
     }
 }

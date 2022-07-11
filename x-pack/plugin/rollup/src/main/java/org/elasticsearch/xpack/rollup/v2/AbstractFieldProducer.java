@@ -15,7 +15,7 @@ abstract class AbstractFieldProducer<T> implements Collectable<T> {
     protected final String field;
     protected boolean isEmpty;
 
-    public AbstractFieldProducer(String field) {
+    AbstractFieldProducer(String field) {
         this.field = field;
         this.isEmpty = true;
     }

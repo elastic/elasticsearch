@@ -99,7 +99,7 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
                 DoubleFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null)
+                    new SearchLookup(field -> null, (ft, lookup) -> null, (ft, lookup) -> null, field -> null)
                 );
                 DoubleFieldScript doubleFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Double> results = new ArrayList<>();

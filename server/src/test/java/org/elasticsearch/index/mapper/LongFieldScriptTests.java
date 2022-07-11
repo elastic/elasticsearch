@@ -99,7 +99,7 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
                 LongFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null)
+                    new SearchLookup(field -> null, (ft, lookup) -> null, (ft, lookup) -> null, field -> null)
                 );
                 LongFieldScript longFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Long> results = new ArrayList<>();

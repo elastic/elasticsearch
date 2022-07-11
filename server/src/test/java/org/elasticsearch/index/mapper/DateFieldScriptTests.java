@@ -102,7 +102,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null, (ft, lookup) -> null, field -> null),
                     DateFormatter.forPattern("epoch_millis")
                 );
                 DateFieldScript dateFieldScript = leafFactory.newInstance(reader.leaves().get(0));

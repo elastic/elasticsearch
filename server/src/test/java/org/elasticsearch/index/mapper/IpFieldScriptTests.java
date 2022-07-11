@@ -100,7 +100,7 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null)
+                    new SearchLookup(field -> null, (ft, lookup) -> null, (ft, lookup) -> null, field -> null)
                 );
                 IpFieldScript ipFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<InetAddress> results = new ArrayList<>();

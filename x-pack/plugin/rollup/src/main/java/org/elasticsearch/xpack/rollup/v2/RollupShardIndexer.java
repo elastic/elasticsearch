@@ -127,6 +127,7 @@ class RollupShardIndexer {
     }
 
     public RollupIndexerAction.ShardRollupResponse execute() throws IOException {
+        long startTime = System.currentTimeMillis();
         BulkProcessor bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             // TODO: add cancellations
@@ -137,12 +138,14 @@ class RollupShardIndexer {
             bucketCollector.postCollection();
         }
 
+
         logger.info(
-            "Shard {} successfully sent [{}], indexed [{}], failed [{}]",
+            "Shard [{}] successfully sent [{}], indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),
             numSent.get(),
             numIndexed.get(),
-            numFailed.get()
+            numFailed.get(),
+            TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
         );
 
         if (numIndexed.get() != numSent.get()) {

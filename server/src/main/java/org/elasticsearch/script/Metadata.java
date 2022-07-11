@@ -28,10 +28,18 @@ import java.util.stream.Collectors;
  * Ingest and update metadata available to write scripts.
  *
  * Provides a map-like interface for backwards compatibility with the ctx map.
- *
- * Validates all updates to performed via the map-like interface.
+ *  - {@link #put(String, Object)}
+ *  - {@link #get(String)}
+ *  - {@link #remove(String)}
+ *  - {@link #containsKey(String)}
+ *  - {@link #containsValue(Object)}
+ *  - {@link #getKeys()} for iteration
+ *  - {@link #size()}
+ *  - {@link #isMetadata(String)} for determining if a key is a metadata key
  *
  * Provides getters and setters for script usage.
+ *
+ * Validates all updates whether originating in map-like interface or setters.
  */
 public class Metadata {
     protected static final String INDEX = "_index";
@@ -66,8 +74,10 @@ public class Metadata {
     );
 
     protected final Map<String, Object> map;
-    protected final ZonedDateTime timestamp;
     protected final Map<String, Validator> validators;
+
+    // timestamp is new to ingest metadata, so it doesn't need to be backed by the map for back compat
+    protected final ZonedDateTime timestamp;
 
     public Metadata(String index, String id, long version, String routing, VersionType versionType, ZonedDateTime timestamp) {
         this(metadataMap(index, id, version, routing, versionType), timestamp, VALIDATORS);

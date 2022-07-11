@@ -18,7 +18,7 @@ Elasticsearch to hard-code the use of an SDK.
 ## How is tracing configured?
 
    * The `xpack.apm.enabled` setting must be set to `true`
-   * You must supplied credentials for the APM server. See below.
+   * You must supply credentials for the APM server (see below).
 
 All APM settings live under `xpack.apm`. All settings related to the Java agent
 go under `xpack.apm.agent`. Anything you set under there will be propagated to
@@ -61,8 +61,8 @@ create a deployment in Elastic Cloud with Elastic's APM integration.
 ## What do we trace?
 
 We primarily trace "tasks". The tasks framework in Elasticsearch allows work to
-scheduled for execution, cancelled, executed in a different thread pool, and so
-on. Tracing a task results in a "span", which represents the execution of the
+be scheduled for execution, cancelled, executed in a different thread pool, and
+so on. Tracing a task results in a "span", which represents the execution of the
 task in the tracing system. We also instrument REST requests, which are not (at
 present) modelled by tasks.
 

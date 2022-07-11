@@ -65,6 +65,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -912,6 +913,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Cannot merge [java.lang.Boolean] with [java.lang.String]"));
     }
 
+    @SuppressForbidden(reason = "uses a http server")
     public void testHttpClientConnectionTtlBehaviour() throws URISyntaxException, IllegalAccessException, InterruptedException,
         IOException {
         // Create an internal HTTP server, the expectation is: For 2 consecutive HTTP requests, the client port should be different

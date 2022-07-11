@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,11 +30,14 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.ClusterFormationStateOrException;
@@ -677,6 +682,103 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             }
         }
+    }
+
+    public void testDiagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible() {
+        MasterHistory localMasterHistory = mock(MasterHistory.class);
+        Collection<DiscoveryNode> masterEligibleNodes = List.of(node1, node2, node3);
+        boolean explain = true;
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(new RuntimeException()));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(new RuntimeException()));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(new RuntimeException()));
+        TimeValue nodeHasMasterLookupTimeframe = new TimeValue(1, TimeUnit.MILLISECONDS);
+        Coordinator coordinator = mock(Coordinator.class);
+        ClusterFormationFailureHelper.ClusterFormationState localClusterFormationState = getClusterFormationState(true, true);
+        when(coordinator.getClusterFormationState()).thenReturn(localClusterFormationState);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = CoordinationDiagnosticsService
+            .diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
+                localMasterHistory,
+                masterEligibleNodes,
+                coordinator,
+                clusterFormationResponses,
+                nodeHasMasterLookupTimeframe,
+                explain
+            );
+        assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+        assertThat(result.summary(), containsString(" an exception occurred while reaching out to "));
+
+        clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        result = CoordinationDiagnosticsService.diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
+            localMasterHistory,
+            masterEligibleNodes,
+            coordinator,
+            clusterFormationResponses,
+            nodeHasMasterLookupTimeframe,
+            explain
+        );
+        assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+        assertThat(result.summary(), containsString(" the cause has not been determined"));
+
+        clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, false)));
+        result = CoordinationDiagnosticsService.diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
+            localMasterHistory,
+            masterEligibleNodes,
+            coordinator,
+            clusterFormationResponses,
+            nodeHasMasterLookupTimeframe,
+            explain
+        );
+        assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+        assertThat(result.summary(), containsString(" the master eligible nodes are unable to form a quorum"));
+
+        clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(false, true)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, false)));
+        result = CoordinationDiagnosticsService.diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
+            localMasterHistory,
+            masterEligibleNodes,
+            coordinator,
+            clusterFormationResponses,
+            nodeHasMasterLookupTimeframe,
+            explain
+        );
+        assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+        assertThat(result.summary(), containsString(" some master eligible nodes are unable to discover other master eligible nodes"));
+    }
+
+    private ClusterFormationFailureHelper.ClusterFormationState getClusterFormationState(
+        boolean hasDiscoveredAllNodes,
+        boolean hasDiscoveredQuorum
+    ) {
+        Map<String, DiscoveryNode> masterEligibleNodesMap = Map.of("node1", node1, "node2", node2, "node3", node3);
+        List<String> initialMasterNodesSetting = Arrays.stream(generateRandomStringArray(7, 30, false, false)).toList();
+        DiscoveryNode localNode = masterEligibleNodesMap.values().stream().findAny().get();
+        ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
+        masterEligibleNodesMap.forEach(masterEligibleNodesBuilder::put);
+        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes = masterEligibleNodesBuilder.build();
+        return new ClusterFormationFailureHelper.ClusterFormationState(
+            initialMasterNodesSetting,
+            localNode,
+            masterEligibleNodes,
+            randomLong(),
+            randomLong(),
+            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+            Collections.emptyList(),
+            hasDiscoveredAllNodes ? List.of(node1, node2, node3) : List.of(),
+            randomLong(),
+            hasDiscoveredQuorum,
+            new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),
+            Collections.emptyList()
+        );
     }
 
     public void testPollClusterFormationInfo() throws Exception {

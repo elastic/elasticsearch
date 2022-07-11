@@ -216,7 +216,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @return An empty CoordinationDiagnosticsDetails if explain is false, otherwise a CoordinationDiagnosticsDetails containing only
      * "current_master" and "recent_masters"
      */
-    private CoordinationDiagnosticsDetails getDetails(
+    private static CoordinationDiagnosticsDetails getDetails(
         boolean explain,
         MasterHistory localMasterHistory,
         @Nullable Exception remoteException,
@@ -308,13 +308,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         final CoordinationDiagnosticsResult result;
         boolean clusterHasLeader = coordinator.getPeerFinder().getLeader().isPresent();
         boolean noLeaderAndNoMasters = clusterHasLeader == false && masterEligibleNodes.isEmpty();
-        boolean localNodeIsMasterEligible = clusterService.localNode().isMasterNode();
+        boolean isLocalNodeMasterEligible = clusterService.localNode().isMasterNode();
         if (noLeaderAndNoMasters) {
             result = getResultOnNoMasterEligibleNodes(localMasterHistory, explain);
         } else if (clusterHasLeader) {
             DiscoveryNode currentMaster = coordinator.getPeerFinder().getLeader().get();
             result = getResultOnCannotJoinLeader(localMasterHistory, currentMaster, explain);
-        } else if (localNodeIsMasterEligible == false) { // none is elected master and we aren't master eligible
+        } else if (isLocalNodeMasterEligible == false) { // none is elected master and we aren't master eligible
             // NOTE: The logic in this block will be implemented in a future PR
             result = new CoordinationDiagnosticsResult(
                 CoordinationDiagnosticsStatus.RED,
@@ -322,25 +322,34 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 CoordinationDiagnosticsDetails.EMPTY
             );
         } else { // none is elected master and we are master eligible
-            result = diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(localMasterHistory, masterEligibleNodes, explain);
+            result = diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
+                localMasterHistory,
+                masterEligibleNodes,
+                coordinator,
+                clusterFormationResponses,
+                nodeHasMasterLookupTimeframe,
+                explain
+            );
         }
         return result;
     }
 
-    private CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
+    static CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
         MasterHistory localMasterHistory,
         Collection<DiscoveryNode> masterEligibleNodes,
+        Coordinator coordinator,
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses,
+        TimeValue nodeHasMasterLookupTimeframe,
         boolean explain
+
     ) {
         final CoordinationDiagnosticsResult result;
         /*
          * We want to make sure that the same elements are in this set every time we loop through it. We don't care if values are added
          * while we're copying it, which is why this is not synchronized. We only care that once we have a copy it is not changed.
          */
-        final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateOrExceptionMapCopy = Map.copyOf(
-            clusterFormationResponses
-        );
-        for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateOrExceptionMapCopy.entrySet()) {
+        final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationResponses = Map.copyOf(clusterFormationResponses);
+        for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationResponses.entrySet()) {
             Exception remoteException = entry.getValue().exception();
             if (remoteException != null) {
                 return new CoordinationDiagnosticsResult(
@@ -356,7 +365,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             }
         }
         Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeClusterFormationStateMap =
-            nodeToClusterFormationStateOrExceptionMapCopy.entrySet()
+            nodeToClusterFormationResponses.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
         if (anyNodeInClusterReportsDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)) {

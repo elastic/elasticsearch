@@ -18,6 +18,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86061")
 public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 
     @Override

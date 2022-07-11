@@ -744,7 +744,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                     case "last_value" -> dateHistogramAggregation.subAggregation(
                         new TopHitsAggregationBuilder(fieldName + "_" + supportedAggregation).sort(
                             SortBuilders.fieldSort(timestampField).order(SortOrder.DESC)
-                        ).size(1).fetchField(fieldName).storedField(fieldName)
+                        ).size(1).fetchField(fieldName)
                     );
                     case "sum" -> dateHistogramAggregation.subAggregation(
                         new SumAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)

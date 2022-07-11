@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInfere
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.SequenceSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
@@ -55,6 +56,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUp
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenizationUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
@@ -382,6 +385,20 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 QuestionAnsweringConfig::fromXContentLenient
             )
         );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                StrictlyParsedInferenceConfig.class,
+                new ParseField(SequenceSimilarityConfig.NAME),
+                SequenceSimilarityConfig::fromXContentStrict
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                LenientlyParsedInferenceConfig.class,
+                new ParseField(SequenceSimilarityConfig.NAME),
+                SequenceSimilarityConfig::fromXContentLenient
+            )
+        );
 
         // Inference Configs Update
         namedXContent.add(
@@ -445,6 +462,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 InferenceConfigUpdate.class,
                 new ParseField(QuestionAnsweringConfigUpdate.NAME),
                 QuestionAnsweringConfigUpdate::fromXContentStrict
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                InferenceConfigUpdate.class,
+                new ParseField(SequenceSimilarityConfigUpdate.NAME),
+                SequenceSimilarityConfigUpdate::fromXContentStrict
             )
         );
 
@@ -579,6 +603,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 QuestionAnsweringInferenceResults::new
             )
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceResults.class,
+                SequenceSimilarityInferenceResults.NAME,
+                SequenceSimilarityInferenceResults::new
+            )
+        );
         // Inference Configs
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new)
@@ -598,6 +629,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, QuestionAnsweringConfig.NAME, QuestionAnsweringConfig::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceConfig.class, SequenceSimilarityConfig.NAME, SequenceSimilarityConfig::new)
         );
 
         // Inference Configs Updates
@@ -648,6 +682,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 InferenceConfigUpdate.class,
                 QuestionAnsweringConfigUpdate.NAME,
                 QuestionAnsweringConfigUpdate::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceConfigUpdate.class,
+                SequenceSimilarityConfigUpdate.NAME,
+                SequenceSimilarityConfigUpdate::new
             )
         );
 

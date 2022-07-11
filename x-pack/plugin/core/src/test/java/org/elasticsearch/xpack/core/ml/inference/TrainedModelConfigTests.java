@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocationTests
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
@@ -76,7 +78,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 PassThroughConfigTests.createRandom(),
                 TextClassificationConfigTests.createRandom(),
                 FillMaskConfigTests.createRandom(),
-                TextEmbeddingConfigTests.createRandom() }
+                TextEmbeddingConfigTests.createRandom(),
+                QuestionAnsweringConfigTests.createRandom(),
+                SequenceSimilarityConfigTests.createRandom() }
             : new InferenceConfig[] {
                 ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig() };

@@ -150,8 +150,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedField mappedField = build("add_days", Map.of("days", 1));
-                DateScriptFieldData ifd = (DateScriptFieldData) mappedField.
-                    fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DateScriptFieldData ifd = (DateScriptFieldData) mappedField.fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -189,8 +189,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DateScriptFieldData ifd = (DateScriptFieldData) simpleMappedField().
-                    fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DateScriptFieldData ifd = (DateScriptFieldData) simpleMappedField().fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181351]}"));
@@ -414,10 +414,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(mappedField.termsQuery(List.of(1595432181355L, 1595432181354L), mockContext())), equalTo(2));
                 checkBadDate(
                     () -> searcher.count(
-                        simpleMappedField().termsQuery(
-                            List.of("2020-07-22T15:36:21.354Z", "2020-07-22(-■_■)15:36:21.354Z"),
-                            mockContext()
-                        )
+                        simpleMappedField().termsQuery(List.of("2020-07-22T15:36:21.354Z", "2020-07-22(-■_■)15:36:21.354Z"), mockContext())
                     )
                 );
                 assertThat(
@@ -450,8 +447,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     private MappedField coolFormattedFieldType() {
         MappedField simple = simpleMappedField();
-        return build(((DateScriptFieldType) simple.type()).script,
-            DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"));
+        return build(((DateScriptFieldType) simple.type()).script, DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"));
     }
 
     @Override

@@ -90,9 +90,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             if (docValues) {
                 mappedField = new KeywordFieldMapper.Builder(fieldName, Version.CURRENT).build(context).field();
             } else {
-                mappedField = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
-                    .build(context)
-                    .field();
+                mappedField = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true).build(context).field();
             }
         } else if (type.equals("float")) {
             mappedField = new NumberFieldMapper.Builder(

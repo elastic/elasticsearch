@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType( true, true, "key", false, Collections.emptyMap());
+        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap());
     }
 
     public void testIndexedValueForSearch() {
@@ -64,7 +64,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("field", "value", null));
 
-        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(false, true, "key", false, Collections.emptyMap());
+        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key", false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", "field", null));
         assertEquals("Cannot search on field [" + "field" + "] since it is not indexed.", e.getMessage());
     }
@@ -128,8 +128,10 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = new TermRangeQuery("field", new BytesRef("key\0lower"), new BytesRef("key\0upper"), true, true);
         assertEquals(expected, ft.rangeQuery("field", "lower", "upper", true, true, MOCK_CONTEXT));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.rangeQuery("field", "lower", null, false, false, null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.rangeQuery("field", "lower", null, false, false, null)
+        );
         assertEquals("[range] queries on keyed [flattened] fields must include both an upper and a lower bound.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> ft.rangeQuery("field", null, "upper", false, false, MOCK_CONTEXT));
@@ -174,14 +176,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        KeyedFlattenedFieldType ft = createFieldType();
+        MappedField mappedField = new MappedField("field", createFieldType());
         Map<String, Object> sourceValue = Map.of("key", "value");
 
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
 
-        ValueFetcher fetcher = ft.valueFetcher("field", searchExecutionContext, null);
+        ValueFetcher fetcher = mappedField.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap("field", sourceValue));
 
@@ -189,8 +191,10 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         lookup.setSource(Collections.singletonMap("field", null));
         assertEquals(List.of(), fetcher.fetchValues(lookup, new ArrayList<Object>()));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.valueFetcher("field", searchExecutionContext, "format"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mappedField.valueFetcher(searchExecutionContext, "format")
+        );
         assertEquals("Field [field.key] of type [flattened] doesn't support formats.", e.getMessage());
     }
 }

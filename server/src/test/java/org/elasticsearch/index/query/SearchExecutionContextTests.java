@@ -122,14 +122,14 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(result, sameInstance(mappedField));
         result = context.failIfFieldMappingNotFound("name", null);
         assertThat(result, notNullValue());
-        assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
+        assertThat(result.type(), instanceOf(TextFieldMapper.TextFieldType.class));
         assertThat(result.name(), equalTo("name"));
     }
 
     public void testBuildAnonymousFieldType() {
         SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        assertThat(context.buildAnonymousField("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertThat(context.buildAnonymousField("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
+        assertThat(context.buildAnonymousField("keyword").type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(context.buildAnonymousField("long").type(), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
     public void testToQueryFails() {
@@ -322,20 +322,22 @@ public class SearchExecutionContextTests extends ESTestCase {
             "uuid",
             null,
             createMappingLookup(
-                List.of(new MappedField("pig", new MockFieldMapper.FakeFieldType()),
-                    new MappedField("cat", new MockFieldMapper.FakeFieldType())),
+                List.of(
+                    new MappedField("pig", new MockFieldMapper.FakeFieldType()),
+                    new MappedField("cat", new MockFieldMapper.FakeFieldType())
+                ),
                 List.of(new TestRuntimeField("runtime", "long"))
             ),
             runtimeMappings
         );
         assertTrue(context.isFieldMapped("cat"));
-        assertThat(context.getMappedField("cat"), instanceOf(KeywordScriptFieldType.class));
+        assertThat(context.getMappedField("cat").type(), instanceOf(KeywordScriptFieldType.class));
         assertThat(context.getMatchingFieldNames("cat"), equalTo(Set.of("cat")));
         assertTrue(context.isFieldMapped("dog"));
-        assertThat(context.getMappedField("dog"), instanceOf(LongScriptFieldType.class));
+        assertThat(context.getMappedField("dog").type(), instanceOf(LongScriptFieldType.class));
         assertThat(context.getMatchingFieldNames("dog"), equalTo(Set.of("dog")));
         assertTrue(context.isFieldMapped("pig"));
-        assertThat(context.getMappedField("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(context.getMappedField("pig").type(), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(context.getMatchingFieldNames("pig"), equalTo(Set.of("pig")));
         assertThat(context.getMatchingFieldNames("*"), equalTo(Set.of("cat", "dog", "pig", "runtime")));
     }
@@ -348,8 +350,13 @@ public class SearchExecutionContextTests extends ESTestCase {
             () -> createSearchExecutionContext(
                 "uuid",
                 null,
-                createMappingLookup(List.of(new MappedField("pig", new MockFieldMapper.FakeFieldType()),
-                    new MappedField("cat", new MockFieldMapper.FakeFieldType())), List.of()),
+                createMappingLookup(
+                    List.of(
+                        new MappedField("pig", new MockFieldMapper.FakeFieldType()),
+                        new MappedField("cat", new MockFieldMapper.FakeFieldType())
+                    ),
+                    List.of()
+                ),
                 runtimeMappings
             )
         );
@@ -364,8 +371,13 @@ public class SearchExecutionContextTests extends ESTestCase {
             () -> createSearchExecutionContext(
                 "uuid",
                 null,
-                createMappingLookup(List.of(new MappedField("pig", new MockFieldMapper.FakeFieldType()),
-                    new MappedField("cat", new MockFieldMapper.FakeFieldType())), List.of()),
+                createMappingLookup(
+                    List.of(
+                        new MappedField("pig", new MockFieldMapper.FakeFieldType()),
+                        new MappedField("cat", new MockFieldMapper.FakeFieldType())
+                    ),
+                    List.of()
+                ),
                 runtimeMappings
             )
         );
@@ -485,8 +497,11 @@ public class SearchExecutionContextTests extends ESTestCase {
     private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
         TestRuntimeField.TestRuntimeFieldType fieldType = new TestRuntimeField.TestRuntimeFieldType(null) {
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
-                                                           Supplier<SearchLookup> searchLookup) {
+            public IndexFieldData.Builder fielddataBuilder(
+                String name,
+                String fullyQualifiedIndexName,
+                Supplier<SearchLookup> searchLookup
+            ) {
                 return (cache, breakerService) -> new IndexFieldData<>() {
                     @Override
                     public String getFieldName() {

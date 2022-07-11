@@ -190,7 +190,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, mappedField.type()) == false
+        if (checkIfSortedDocsIsApplicable(reader, mappedField) == false
             || mappedField.type() instanceof StringFieldType == false
             || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;

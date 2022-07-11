@@ -3430,6 +3430,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     private static SortField sortFieldFrom(MappedField mappedField) {
+        if (mappedField == null) {
+            return null;
+        }
         MappedFieldType type = mappedField.type();
         if (type instanceof KeywordFieldMapper.KeywordFieldType) {
             return new SortedSetSortField(mappedField.name(), false);

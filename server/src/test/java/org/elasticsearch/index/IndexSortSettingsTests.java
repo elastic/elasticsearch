@@ -133,8 +133,11 @@ public class IndexSortSettingsTests extends ESTestCase {
             }
 
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName,
-                                                           Supplier<SearchLookup> searchLookup) {
+            public IndexFieldData.Builder fielddataBuilder(
+                String name,
+                String fullyQualifiedIndexName,
+                Supplier<SearchLookup> searchLookup
+            ) {
                 searchLookup.get();
                 return null;
             }
@@ -149,8 +152,10 @@ public class IndexSortSettingsTests extends ESTestCase {
                 throw new UnsupportedOperationException();
             }
         };
-        Exception iae = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings,
-            new MappedField("field", fieldType)));
+        Exception iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildIndexSort(indexSettings, new MappedField("field", fieldType))
+        );
         assertEquals("docvalues not found for index sort field:[field]", iae.getMessage());
         assertThat(iae.getCause(), instanceOf(UnsupportedOperationException.class));
         assertEquals("index sorting not supported on runtime field [field]", iae.getCause().getMessage());
@@ -159,8 +164,10 @@ public class IndexSortSettingsTests extends ESTestCase {
     public void testSortingAgainstAliases() {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
         MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, Map.of("field",
-            new MappedField("aliased", aliased))));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildIndexSort(indexSettings, Map.of("field", new MappedField("aliased", aliased)))
+        );
         assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
     }
 
@@ -187,9 +194,11 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
-        Sort sort = buildIndexSort(indexSettings,
+        Sort sort = buildIndexSort(
+            indexSettings,
             new MappedField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.FIELD_TYPE),
-            new MappedField("@timestamp", new DateFieldMapper.DateFieldType()));
+            new MappedField("@timestamp", new DateFieldMapper.DateFieldType())
+        );
         assertThat(sort.getSort(), arrayWithSize(2));
         assertThat(sort.getSort()[0].getField(), equalTo("_tsid"));
         assertThat(sort.getSort()[1].getField(), equalTo("@timestamp"));
@@ -204,8 +213,10 @@ public class IndexSortSettingsTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build()
         );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings,
-            new MappedField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.FIELD_TYPE)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildIndexSort(indexSettings, new MappedField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.FIELD_TYPE))
+        );
         assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
     }
 

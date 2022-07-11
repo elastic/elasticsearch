@@ -22,8 +22,10 @@ public class CompletionFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
 
-        MappedField fieldType = new MappedField("value",
-            new CompletionFieldMapper.CompletionFieldType(defaultAnalyzer, Collections.emptyMap()));
+        MappedField fieldType = new MappedField(
+            "value",
+            new CompletionFieldMapper.CompletionFieldType(defaultAnalyzer, Collections.emptyMap())
+        );
 
         assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
 

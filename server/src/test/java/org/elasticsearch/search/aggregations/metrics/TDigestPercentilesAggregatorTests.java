@@ -180,7 +180,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                 }
 
                 final MappedField mappedField = new MappedField(
-                    "field",
+                    "number",
                     new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
                 );
                 TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, mappedField);

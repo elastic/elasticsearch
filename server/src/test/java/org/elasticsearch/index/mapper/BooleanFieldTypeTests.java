@@ -44,8 +44,10 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 0), ft2.termQuery("field", "false", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType(false, false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> unsearchable.termQuery("field", "true", MOCK_CONTEXT));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termQuery("field", "true", MOCK_CONTEXT)
+        );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
@@ -73,14 +75,10 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(false), fetchSourceValue(mappedField, "false"));
         assertEquals(List.of(false), fetchSourceValue(mappedField, ""));
 
-        MappedField nullField = new MappedField("field", new BooleanFieldMapper.BooleanFieldType(
-            true,
-            false,
-            true,
-            true,
-            null,
-            Collections.emptyMap()
-        ));
+        MappedField nullField = new MappedField(
+            "field",
+            new BooleanFieldMapper.BooleanFieldType(true, false, true, true, null, Collections.emptyMap())
+        );
         assertEquals(List.of(true), fetchSourceValue(nullField, null));
     }
 }

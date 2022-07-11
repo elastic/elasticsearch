@@ -813,7 +813,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("foo", "abc")));
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertThat(mapperService.mappedField("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(mapperService.mappedField("foo").type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
     public void testDynamicTemplateRuntimeMatchMappingType() throws Exception {

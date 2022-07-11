@@ -72,8 +72,10 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(reverseNestedBuilder);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedField mappedField = new MappedField(VALUE_FIELD_NAME,
-                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+                MappedField mappedField = new MappedField(
+                    VALUE_FIELD_NAME,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
                 Nested nested = searchAndReduce(newSearcher(indexReader, false, true), new MatchAllDocsQuery(), nestedBuilder, mappedField);
                 ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
@@ -133,8 +135,10 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(reverseNestedBuilder);
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedField mappedField = new MappedField(VALUE_FIELD_NAME,
-                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+                MappedField mappedField = new MappedField(
+                    VALUE_FIELD_NAME,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
                 Nested nested = searchAndReduce(newSearcher(indexReader, false, true), new MatchAllDocsQuery(), nestedBuilder, mappedField);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
@@ -154,8 +158,10 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         int numParentDocs = randomIntBetween(1, 20);
         int expectedParentDocs = 0;
 
-        MappedField mappedField = new MappedField(VALUE_FIELD_NAME,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField mappedField = new MappedField(
+            VALUE_FIELD_NAME,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {

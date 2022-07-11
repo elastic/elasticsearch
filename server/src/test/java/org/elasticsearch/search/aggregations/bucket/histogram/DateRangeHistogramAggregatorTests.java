@@ -1062,8 +1062,10 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalDateHistogram> verify
     ) throws IOException {
-        MappedField mappedField = new MappedField(FIELD_NAME,
-            new RangeFieldMapper.RangeFieldType(RangeFieldMapper.Defaults.DATE_FORMATTER));
+        MappedField mappedField = new MappedField(
+            FIELD_NAME,
+            new RangeFieldMapper.RangeFieldType(RangeFieldMapper.Defaults.DATE_FORMATTER)
+        );
         final DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name").field(FIELD_NAME);
         if (configure != null) {
             configure.accept(aggregationBuilder);

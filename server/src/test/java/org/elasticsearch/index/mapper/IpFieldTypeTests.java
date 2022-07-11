@@ -60,13 +60,17 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         ip = "2001:db8::2:1";
         String prefix = ip + "/64";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64),
-            ft.termQuery("field", prefix, MOCK_CONTEXT));
+        assertEquals(
+            InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64),
+            ft.termQuery("field", prefix, MOCK_CONTEXT)
+        );
 
         ip = "192.168.1.7";
         prefix = ip + "/16";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16),
-            ft.termQuery("field", prefix, MOCK_CONTEXT));
+        assertEquals(
+            InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16),
+            ft.termQuery("field", prefix, MOCK_CONTEXT)
+        );
 
         ft = new IpFieldMapper.IpFieldType(false);
 
@@ -96,17 +100,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             ft.termQuery("field", prefix, MOCK_CONTEXT)
         );
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
-            false,
-            false,
-            false,
-            null,
-            null,
-            Collections.emptyMap(),
-            false
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(false, false, false, null, null, Collections.emptyMap(), false);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termQuery("field", "::1", MOCK_CONTEXT)
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> unsearchable.termQuery("field", "::1", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
@@ -205,8 +203,17 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
             InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1:0:0:0"), InetAddressPoint.MAX_VALUE),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("field", "255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null,
-                MOCK_CONTEXT)
+            ft.rangeQuery(
+                "field",
+                "255.255.255.255",
+                "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+                false,
+                true,
+                null,
+                null,
+                null,
+                MOCK_CONTEXT
+            )
         );
 
         assertEquals(
@@ -215,7 +222,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             ft.rangeQuery("field", "::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, MOCK_CONTEXT)
         );
 
-        ft = new IpFieldMapper.IpFieldType( false);
+        ft = new IpFieldMapper.IpFieldType(false);
 
         assertEquals(
             convertToDocValuesQuery(InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddressPoint.MAX_VALUE)),
@@ -304,8 +311,17 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1:0:0:0"), InetAddressPoint.MAX_VALUE)
             ),
             // same lo/hi values but inclusive=false so this won't match anything
-            ft.rangeQuery("field", "255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null,
-                MOCK_CONTEXT)
+            ft.rangeQuery(
+                "field",
+                "255.255.255.255",
+                "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+                false,
+                true,
+                null,
+                null,
+                null,
+                MOCK_CONTEXT
+            )
         );
 
         assertEquals(
@@ -316,15 +332,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             ft.rangeQuery("field", "::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, MOCK_CONTEXT)
         );
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
-            false,
-            false,
-            false,
-            null,
-            null,
-            Collections.emptyMap(),
-            false
-        );
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(false, false, false, null, null, Collections.emptyMap(), false);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("field", "::1", "2001::", true, true, null, null, null, MOCK_CONTEXT)
@@ -333,9 +341,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedField mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).build(
-            MapperBuilderContext.ROOT
-        ).field();
+        MappedField mapper = new IpFieldMapper.Builder("field", ScriptCompiler.NONE, true, Version.CURRENT).build(MapperBuilderContext.ROOT)
+            .field();
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
         assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
         assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));

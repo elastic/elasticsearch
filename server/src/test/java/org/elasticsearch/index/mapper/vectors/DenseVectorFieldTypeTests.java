@@ -88,8 +88,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorSimilarity.dot_product,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class,
-            () -> dotProductField.createKnnQuery("f", new float[] { 0.3f, 0.1f, 1.0f }, 10, null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> dotProductField.createKnnQuery("f", new float[] { 0.3f, 0.1f, 1.0f }, 10, null)
+        );
         assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
 
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
@@ -99,8 +101,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorSimilarity.cosine,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class,
-            () -> cosineField.createKnnQuery("f", new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
+        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery("f", new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 }

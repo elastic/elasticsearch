@@ -310,8 +310,16 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      */
     public void testMergingQueries() throws IOException {
         MappedField mappedField = new MappedField("test", new DateFieldMapper.DateFieldType());
-        Query topLevelQuery = mappedField.rangeQuery("2020-01-01", "2020-02-01", true, true, null, null, null,
-            mock(SearchExecutionContext.class));
+        Query topLevelQuery = mappedField.rangeQuery(
+            "2020-01-01",
+            "2020-02-01",
+            true,
+            true,
+            null,
+            null,
+            null,
+            mock(SearchExecutionContext.class)
+        );
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder(
             "t",
             // The range query will be wrapped in IndexOrDocValuesQuery by the date field type
@@ -368,16 +376,19 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRangeFilter() throws IOException {
-        MappedField mappedField = new MappedField("test", new DateFieldMapper.DateFieldType(
-            true,
-            false,
-            false,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+        MappedField mappedField = new MappedField(
+            "test",
+            new DateFieldMapper.DateFieldType(
+                true,
+                false,
+                false,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
             new KeyedFilter("q1", new RangeQueryBuilder("test").from("2020-01-01").to("2020-03-01").includeUpper(false))
@@ -844,16 +855,19 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testComplexUnionDisabledFilterByFilter() throws IOException {
-        MappedField df = new MappedField("date", new DateFieldMapper.DateFieldType(
-            true,
-            false,
-            false,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+        MappedField df = new MappedField(
+            "date",
+            new DateFieldMapper.DateFieldType(
+                true,
+                false,
+                false,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
         MappedField kf = new MappedField("kwd", new KeywordFieldType());
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
@@ -1231,16 +1245,19 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSubAggs() throws IOException {
-        MappedField dateF = new MappedField("test", new DateFieldMapper.DateFieldType(
-            true,
-            false,
-            false,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+        MappedField dateF = new MappedField(
+            "test",
+            new DateFieldMapper.DateFieldType(
+                true,
+                false,
+                false,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
         MappedField intF = new MappedField("int", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
@@ -1315,16 +1332,19 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSubAggsManyDocs() throws IOException {
-        MappedField dateF = new MappedField("test", new DateFieldMapper.DateFieldType(
-            true,
-            false,
-            false,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+        MappedField dateF = new MappedField(
+            "test",
+            new DateFieldMapper.DateFieldType(
+                true,
+                false,
+                false,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
         MappedField intF = new MappedField("int", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
@@ -1385,16 +1405,19 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSubAggsManyFilters() throws IOException {
-        MappedField dateF = new MappedField("test", new DateFieldMapper.DateFieldType(
-            true,
-            false,
-            false,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+        MappedField dateF = new MappedField(
+            "test",
+            new DateFieldMapper.DateFieldType(
+                true,
+                false,
+                false,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
         MappedField intF = new MappedField("int", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
         List<KeyedFilter> buckets = new ArrayList<>();
         DateFormatter formatter = DateFormatter.forPattern("strict_date");
@@ -1497,18 +1520,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
     public void testDocValuesFieldExistsForNumber() throws IOException {
         NumberFieldMapper.NumberType numberType = randomFrom(NumberFieldMapper.NumberType.values());
-        MappedField mappedField = new MappedField("f", new NumberFieldMapper.NumberFieldType(
-            numberType,
-            true,
-            false,
-            true,
-            true,
-            null,
-            Map.of(),
-            null,
-            false,
-            null
-        ));
+        MappedField mappedField = new MappedField(
+            "f",
+            new NumberFieldMapper.NumberFieldType(numberType, true, false, true, true, null, Map.of(), null, false, null)
+        );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), mappedField, true, i -> {
             final LuceneDocument document = new LuceneDocument();
             numberType.addFields(document, "f", i, true, true, false);
@@ -1518,24 +1533,26 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
     public void testDocValuesFieldExistsForNumberWithoutData() throws IOException {
         docValuesFieldExistsNoDataTestCase(
-            new MappedField("f", new NumberFieldMapper.NumberFieldType(
-                randomFrom(NumberFieldMapper.NumberType.values()),
-                true,
-                false,
-                true,
-                true,
-                null,
-                Map.of(),
-                null,
-                false,
-                null
-            ))
+            new MappedField(
+                "f",
+                new NumberFieldMapper.NumberFieldType(
+                    randomFrom(NumberFieldMapper.NumberType.values()),
+                    true,
+                    false,
+                    true,
+                    true,
+                    null,
+                    Map.of(),
+                    null,
+                    false,
+                    null
+                )
+            )
         );
     }
 
     public void testDocValuesFieldExistsForKeyword() throws IOException {
-        MappedField mappedField = new MappedField("f",
-            new KeywordFieldMapper.KeywordFieldType(true, true, Map.of()));
+        MappedField mappedField = new MappedField("f", new KeywordFieldMapper.KeywordFieldType(true, true, Map.of()));
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), mappedField, true, i -> {
             BytesRef text = new BytesRef(randomAlphaOfLength(5));
             return List.of(new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("f", text));
@@ -1543,8 +1560,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesFieldExistsForKeywordWithoutData() throws IOException {
-        docValuesFieldExistsNoDataTestCase(new MappedField("f",
-            new KeywordFieldMapper.KeywordFieldType(true, true, Map.of())));
+        docValuesFieldExistsNoDataTestCase(new MappedField("f", new KeywordFieldMapper.KeywordFieldType(true, true, Map.of())));
     }
 
     private void docValuesFieldExistsTestCase(

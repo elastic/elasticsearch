@@ -41,7 +41,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
         assertNull(lookup.get("bar"));
-        assertEquals(f.fieldType(), lookup.get("foo"));
+        assertEquals(f.field(), lookup.get("foo"));
     }
 
     public void testAddFieldAlias() {
@@ -153,15 +153,15 @@ public class FieldTypeLookupTests extends ESTestCase {
         );
 
         FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(concrete), emptyList(), List.of(runtime, runtimeLong, multi));
-        assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(fieldTypeLookup.get("string"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("concrete").type(), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(fieldTypeLookup.get("string").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
         assertThat(fieldTypeLookup.get("string").typeName(), equalTo("type"));
         assertThat(fieldTypeLookup.get("multi"), nullValue());
-        assertThat(fieldTypeLookup.get("multi.string"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("multi.string").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
         assertThat(fieldTypeLookup.get("multi.string").typeName(), equalTo("string"));
-        assertThat(fieldTypeLookup.get("multi.long"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("multi.long").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
         assertThat(fieldTypeLookup.get("multi.long").typeName(), equalTo("long"));
-        assertThat(fieldTypeLookup.get("multi.outside"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("multi.outside").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
         assertThat(fieldTypeLookup.get("multi.outside").typeName(), equalTo("date"));
         assertThat(fieldTypeLookup.get("multi.anything"), nullValue());
     }
@@ -184,15 +184,15 @@ public class FieldTypeLookupTests extends ESTestCase {
             emptyList(),
             List.of(fieldOverride, runtime, subfieldOverride, flattenedRuntime)
         );
-        assertThat(fieldTypeLookup.get("field"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("field").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
         assertThat(fieldTypeLookup.get("field").typeName(), equalTo("string"));
-        assertThat(fieldTypeLookup.get("object.subfield"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("object.subfield").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
         assertThat(fieldTypeLookup.get("object.subfield").typeName(), equalTo("leaf"));
-        assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("concrete").type(), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(fieldTypeLookup.get("runtime").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
         assertThat(fieldTypeLookup.get("runtime").typeName(), equalTo("type"));
-        assertThat(fieldTypeLookup.get("flattened.anything"), instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
-        assertThat(fieldTypeLookup.get("flattened.runtime"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(fieldTypeLookup.get("flattened.anything").type(), instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
+        assertThat(fieldTypeLookup.get("flattened.runtime").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
     public void testRuntimeFieldsSourcePaths() {
@@ -226,7 +226,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FlattenedFieldMapper mapper = createFlattenedMapper(fieldName);
 
         FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), emptyList(), emptyList());
-        assertEquals(mapper.fieldType(), lookup.get(fieldName));
+        assertEquals(mapper.field(), lookup.get(fieldName));
 
         String objectKey = "key1.key2";
         String searchFieldName = fieldName + "." + objectKey;
@@ -252,7 +252,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
 
         FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), singletonList(alias), emptyList());
-        assertEquals(mapper.fieldType(), lookup.get(aliasName));
+        assertEquals(mapper.field(), lookup.get(aliasName));
 
         String objectKey = "key1.key2";
         String searchFieldName = aliasName + "." + objectKey;

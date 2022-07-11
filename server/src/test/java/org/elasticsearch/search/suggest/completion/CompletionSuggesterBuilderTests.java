@@ -152,7 +152,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         assertThat(context, instanceOf(CompletionSuggestionContext.class));
         assertThat(context.getSuggester(), instanceOf(CompletionSuggester.class));
         CompletionSuggestionContext completionSuggestionCtx = (CompletionSuggestionContext) context;
-        assertThat(completionSuggestionCtx.getMappedField(), instanceOf(CompletionFieldType.class));
+        assertThat(completionSuggestionCtx.getMappedField().type(), instanceOf(CompletionFieldType.class));
         assertEquals(builder.fuzzyOptions, completionSuggestionCtx.getFuzzyOptions());
         Map<String, List<InternalQueryContext>> parsedContextBytes;
         parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(

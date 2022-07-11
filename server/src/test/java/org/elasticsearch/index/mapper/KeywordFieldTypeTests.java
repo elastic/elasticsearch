@@ -81,8 +81,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("field", "foo", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType(false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> unsearchable.termQuery("field", "bar", MOCK_CONTEXT));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termQuery("field", "bar", MOCK_CONTEXT)
+        );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
@@ -236,12 +238,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedField normalizerMapper = new KeywordFieldMapper.Builder(
-            "field",
-            createIndexAnalyzers(),
-            ScriptCompiler.NONE,
-            Version.CURRENT
-        ).normalizer("lowercase").build(MapperBuilderContext.ROOT).field();
+        MappedField normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(), ScriptCompiler.NONE, Version.CURRENT)
+            .normalizer("lowercase")
+            .build(MapperBuilderContext.ROOT)
+            .field();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));

@@ -30,7 +30,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedField;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -107,14 +106,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         fd = ifdService.getForField(floatMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
-        final MappedField doubleMapper = new NumberFieldMapper.Builder(
-            "double",
-            DOUBLE,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            Version.CURRENT
-        ).build(context).field();
+        final MappedField doubleMapper = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, false, true, Version.CURRENT)
+            .build(context)
+            .field();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
@@ -219,9 +213,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.ROOT;
-        final MappedField mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
-            .build(context)
-            .field();
+        final MappedField mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true).build(context).field();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
@@ -330,32 +322,38 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnLongs() {
         doTestRequireDocValues(new MappedField("field", new NumberFieldMapper.NumberFieldType(LONG)));
         doTestRequireDocValues(
-            new MappedField("field",
-                new NumberFieldMapper.NumberFieldType(LONG, true, false, false, false, null, Collections.emptyMap(), null, false, null))
+            new MappedField(
+                "field",
+                new NumberFieldMapper.NumberFieldType(LONG, true, false, false, false, null, Collections.emptyMap(), null, false, null)
+            )
         );
     }
 
     public void testRequireDocValuesOnDoubles() {
         doTestRequireDocValues(new MappedField("field", new NumberFieldMapper.NumberFieldType(DOUBLE)));
         doTestRequireDocValues(
-            new MappedField("field", new NumberFieldMapper.NumberFieldType(
-                NumberType.DOUBLE,
-                true,
-                false,
-                false,
-                false,
-                null,
-                Collections.emptyMap(),
-                null,
-                false,
-                null
-            ))
+            new MappedField(
+                "field",
+                new NumberFieldMapper.NumberFieldType(
+                    NumberType.DOUBLE,
+                    true,
+                    false,
+                    false,
+                    false,
+                    null,
+                    Collections.emptyMap(),
+                    null,
+                    false,
+                    null
+                )
+            )
         );
     }
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new MappedField("field", new BooleanFieldMapper.BooleanFieldType()));
-        doTestRequireDocValues(new MappedField("field",
-            new BooleanFieldMapper.BooleanFieldType(true, false, false, null, null, Collections.emptyMap())));
+        doTestRequireDocValues(
+            new MappedField("field", new BooleanFieldMapper.BooleanFieldType(true, false, false, null, null, Collections.emptyMap()))
+        );
     }
 }

@@ -67,28 +67,28 @@ public class MultiFieldTests extends MapperServiceTestCase {
         assertThat(f.binaryValue(), equalTo(new BytesRef("2010-01-01")));
 
         assertThat(mapperService.mappedField("name"), notNullValue());
-        assertThat(mapperService.mappedField("name"), instanceOf(TextFieldType.class));
+        assertThat(mapperService.mappedField("name").type(), instanceOf(TextFieldType.class));
         assertTrue(mapperService.mappedField("name").isIndexed());
         assertTrue(mapperService.mappedField("name").isSearchable());
         assertTrue(mapperService.mappedField("name").isStored());
         assertTrue(mapperService.mappedField("name").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.mappedField("name.indexed"), notNullValue());
-        assertThat(mapperService.mappedField("name"), instanceOf(TextFieldType.class));
+        assertThat(mapperService.mappedField("name").type(), instanceOf(TextFieldType.class));
         assertTrue(mapperService.mappedField("name.indexed").isIndexed());
         assertTrue(mapperService.mappedField("name.indexed").isSearchable());
         assertFalse(mapperService.mappedField("name.indexed").isStored());
         assertTrue(mapperService.mappedField("name.indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.mappedField("name.not_indexed"), notNullValue());
-        assertThat(mapperService.mappedField("name"), instanceOf(TextFieldType.class));
+        assertThat(mapperService.mappedField("name").type(), instanceOf(TextFieldType.class));
         assertFalse(mapperService.mappedField("name.not_indexed").isIndexed());
         assertFalse(mapperService.mappedField("name.not_indexed").isSearchable());
         assertTrue(mapperService.mappedField("name.not_indexed").isStored());
         assertTrue(mapperService.mappedField("name.not_indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.mappedField("name.test1"), notNullValue());
-        assertThat(mapperService.mappedField("name"), instanceOf(TextFieldType.class));
+        assertThat(mapperService.mappedField("name").type(), instanceOf(TextFieldType.class));
         assertTrue(mapperService.mappedField("name.test1").isIndexed());
         assertTrue(mapperService.mappedField("name.test1").isSearchable());
         assertTrue(mapperService.mappedField("name.test1").isStored());
@@ -96,9 +96,9 @@ public class MultiFieldTests extends MapperServiceTestCase {
         assertThat(mapperService.mappedField("name.test1").eagerGlobalOrdinals(), equalTo(true));
 
         assertThat(mapperService.mappedField("object1.multi1"), notNullValue());
-        assertThat(mapperService.mappedField("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
+        assertThat(mapperService.mappedField("object1.multi1").type(), instanceOf(DateFieldMapper.DateFieldType.class));
         assertThat(mapperService.mappedField("object1.multi1.string"), notNullValue());
-        assertThat(mapperService.mappedField("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(mapperService.mappedField("object1.multi1.string").type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         assertTrue(mapperService.mappedField("object1.multi1.string").isIndexed());
         assertTrue(mapperService.mappedField("object1.multi1.string").isSearchable());
         assertNotNull(mapperService.mappedField("object1.multi1.string").getTextSearchInfo());
@@ -219,7 +219,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.mappedField("name.subfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.mappedField("name.subfield").type(), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
     }
 
     public void testUnmappedLegacyFieldsUnderKnownRootField() throws Exception {
@@ -231,7 +231,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.mappedField("name.subfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.mappedField("name.subfield").type(), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
     }
 
     public void testFieldsUnderUnknownRootField() throws Exception {
@@ -243,8 +243,8 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.mappedField("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
-        assertThat(service.mappedField("name.subfield"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(service.mappedField("name").type(), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.mappedField("name.subfield").type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
     public void testFieldsUnderUnmappedRootField() throws Exception {
@@ -256,7 +256,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.mappedField("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
-        assertThat(service.mappedField("name.subfield"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(service.mappedField("name").type(), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.mappedField("name.subfield").type(), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 }

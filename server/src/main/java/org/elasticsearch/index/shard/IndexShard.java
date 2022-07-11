@@ -2023,7 +2023,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
         final MappedField mappedField = mapperService().mappedField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (mappedField.type() instanceof DateFieldMapper.DateFieldType == false) {
+        if (mappedField == null || mappedField.type() instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
         if (mappedField.isIndexed() == false) {

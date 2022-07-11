@@ -60,8 +60,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedField mappedField = build("append_param", Map.of("param", "-suffix"));
-                StringScriptFieldData ifd = (StringScriptFieldData) mappedField.
-                    fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                StringScriptFieldData ifd = (StringScriptFieldData) mappedField.fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -99,8 +99,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BinaryScriptFieldData ifd = (BinaryScriptFieldData) simpleMappedField()
-                    .fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BinaryScriptFieldData ifd = (BinaryScriptFieldData) simpleMappedField().fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [\"a\"]}"));
@@ -161,10 +161,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));   // Totally wrong, no match
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(
-                    searcher.count(simpleMappedField().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())),
-                    equalTo(3)
-                );
+                assertThat(searcher.count(simpleMappedField().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())), equalTo(3));
             }
         }
     }

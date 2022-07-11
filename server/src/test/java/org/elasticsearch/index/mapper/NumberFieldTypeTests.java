@@ -137,13 +137,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("field", "42", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = unsearchable();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> unsearchable.termQuery("field", "42", MOCK_CONTEXT));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termQuery("field", "42", MOCK_CONTEXT)
+        );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
         MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG, false);
-        ElasticsearchException e2 = expectThrows(ElasticsearchException.class,
-            () -> ft2.termQuery("field", "42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));
+        ElasticsearchException e2 = expectThrows(
+            ElasticsearchException.class,
+            () -> ft2.termQuery("field", "42", MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
         assertEquals(
             "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
             e2.getMessage()
@@ -746,34 +750,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(type);
             assertNull(fieldType.valueForDisplay(null));
         }
-        assertEquals(
-            Byte.valueOf((byte) 3),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.BYTE).valueForDisplay(3)
-        );
+        assertEquals(Byte.valueOf((byte) 3), new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.BYTE).valueForDisplay(3));
         assertEquals(
             Short.valueOf((short) 3),
             new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.SHORT).valueForDisplay(3)
         );
-        assertEquals(
-            Integer.valueOf(3),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER).valueForDisplay(3)
-        );
-        assertEquals(
-            Long.valueOf(3),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG).valueForDisplay(3L)
-        );
+        assertEquals(Integer.valueOf(3), new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER).valueForDisplay(3));
+        assertEquals(Long.valueOf(3), new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG).valueForDisplay(3L));
         assertEquals(
             Double.valueOf(1.2),
             new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.HALF_FLOAT).valueForDisplay(1.2)
         );
-        assertEquals(
-            Double.valueOf(1.2),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.FLOAT).valueForDisplay(1.2)
-        );
-        assertEquals(
-            Double.valueOf(1.2),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE).valueForDisplay(1.2)
-        );
+        assertEquals(Double.valueOf(1.2), new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.FLOAT).valueForDisplay(1.2));
+        assertEquals(Double.valueOf(1.2), new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE).valueForDisplay(1.2));
     }
 
     public void testParsePoint() {
@@ -822,14 +811,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedField mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.INTEGER,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            Version.CURRENT
-        ).build(MapperBuilderContext.ROOT).field();
+        MappedField mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, false, true, Version.CURRENT)
+            .build(MapperBuilderContext.ROOT)
+            .field();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));

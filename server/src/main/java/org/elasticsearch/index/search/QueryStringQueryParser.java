@@ -325,7 +325,8 @@ public class QueryStringQueryParser extends QueryParser {
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
                 // if we are querying a single date field, we also create a range query that leverages the time zone setting
-                if (context.getMappedField(field).type() instanceof DateFieldType && this.timeZone != null) {
+                MappedField mappedField = context.getMappedField(field);
+                if (mappedField != null && mappedField.type() instanceof DateFieldType && this.timeZone != null) {
                     return getRangeQuery(field, queryText, queryText, true, true);
                 }
             }

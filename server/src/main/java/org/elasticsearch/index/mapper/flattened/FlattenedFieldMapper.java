@@ -196,7 +196,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new FlattenedFieldMapper(name, new DynamicMappedField(fullName, ft) {
                 @Override
                 public MappedField getChildField(String childPath) {
-                    return new MappedField(childName, new KeyedFlattenedFieldType(childPath, ft));
+                    return new MappedField(childName, new KeyedFlattenedFieldType(fullName, childPath, ft));
                 }
             }, this);
         }
@@ -210,8 +210,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
      */
     public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
+        private final String rootName;
 
         KeyedFlattenedFieldType(
+            String rootName,
             boolean indexed,
             boolean hasDocValues,
             String key,
@@ -226,10 +228,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 meta
             );
             this.key = key;
+            this.rootName = rootName;
         }
 
-        private KeyedFlattenedFieldType(String key, RootFlattenedMappedFieldType ref) {
-            this(ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedMappedFieldType ref) {
+            this(rootName, ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -370,11 +373,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
-            String fieldName = name + KEYED_FIELD_SUFFIX + "." + key;
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + fieldName + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException(
+                    "Field [" + rootName + "." + key + "] of type [" + typeName() + "] doesn't support formats."
+                );
             }
-            return SourceValueFetcher.identity(fieldName, context, null);
+            return SourceValueFetcher.identity(rootName + "." + key, context, null);
         }
     }
 

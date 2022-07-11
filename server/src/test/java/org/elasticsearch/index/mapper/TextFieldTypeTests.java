@@ -58,8 +58,10 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         MappedFieldType ft = createFieldType();
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("field", "foo", null));
-        assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")),
-            ft.termQueryCaseInsensitive("field", "fOo", null));
+        assertEquals(
+            AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")),
+            ft.termQueryCaseInsensitive("field", "fOo", null)
+        );
 
         MappedFieldType unsearchable = new TextFieldType(false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", "bar", null));

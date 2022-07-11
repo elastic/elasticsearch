@@ -402,7 +402,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     new RareTermsAggregationBuilder("terms").field("nested_value").maxDocCount(1)
                 );
                 MappedField mappedField = new MappedField(
-                    "nesed_value",
+                    "nested_value",
                     new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
                 );
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {

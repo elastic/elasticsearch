@@ -211,10 +211,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         return false;
     }
 
-    protected void assertSearchable(MappedFieldType fieldType) {
+    @Override
+    protected void assertSearchable(MappedField mappedField) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isIndexed());
-        assertTrue(fieldType.isSearchable());
+        assertTrue(mappedField.isIndexed());
+        assertTrue(mappedField.isSearchable());
     }
 
     @Override

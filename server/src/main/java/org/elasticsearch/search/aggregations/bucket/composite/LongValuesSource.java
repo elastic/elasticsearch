@@ -236,8 +236,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, mappedField.type()) == false
-            || checkMatchAllOrRangeQuery(query, mappedField.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, mappedField) == false || checkMatchAllOrRangeQuery(query, mappedField.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

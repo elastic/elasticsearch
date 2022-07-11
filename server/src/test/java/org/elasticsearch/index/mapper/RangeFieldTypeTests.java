@@ -256,7 +256,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType = new DateFieldType(DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(
-            "field", from, to, true, true, relation, null, fieldType.dateMathParser(), context);
+            "field",
+            from,
+            to,
+            true,
+            true,
+            relation,
+            null,
+            fieldType.dateMathParser(),
+            context
+        );
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
 
@@ -506,8 +515,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedField longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
-            .field();
+        MappedField longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT).field();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
@@ -519,8 +527,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        MappedField longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
-            .field();
+        MappedField longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT).field();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 

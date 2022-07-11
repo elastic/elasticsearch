@@ -55,7 +55,7 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
-        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(mappingLookup.fieldTypesLookup().get("test").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
     public void testRuntimeFieldLeafOverride() {
@@ -68,7 +68,7 @@ public class MappingLookupTests extends ESTestCase {
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
-        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(mappingLookup.fieldTypesLookup().get("test").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
     public void testSubfieldOverride() {
@@ -89,7 +89,7 @@ public class MappingLookupTests extends ESTestCase {
         assertThat(mappingLookup.getMapper("object.subfield"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(1, mappingLookup.objectMappers().size());
-        assertThat(mappingLookup.fieldTypesLookup().get("object.subfield"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertThat(mappingLookup.fieldTypesLookup().get("object.subfield").type(), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
     }
 
     public void testAnalyzers() throws IOException {

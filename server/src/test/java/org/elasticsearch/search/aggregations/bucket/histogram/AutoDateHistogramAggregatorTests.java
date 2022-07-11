@@ -938,10 +938,14 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
                 final MappedField mappedField = new MappedField(aggregationBuilder.field(), new DateFieldMapper.DateFieldType());
 
-                MappedField instantField = new MappedField(INSTANT_FIELD,
-                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
-                MappedField numericField = new MappedField(NUMERIC_FIELD,
-                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+                MappedField instantField = new MappedField(
+                    INSTANT_FIELD,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
+                MappedField numericField = new MappedField(
+                    NUMERIC_FIELD,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
                 final InternalAutoDateHistogram histogram = searchAndReduce(
                     indexSearcher,

@@ -37,7 +37,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping);
-        assertThat(service.mappedField("myfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.mappedField("myfield").type(), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
         assertEquals(Strings.toString(mapping), Strings.toString(service.documentMapper().mapping()));
 
         // check that field can be updated
@@ -48,7 +48,7 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         merge(service, mapping);
-        assertThat(service.mappedField("myfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.mappedField("myfield").type(), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
         assertEquals(Strings.toString(mapping), Strings.toString(service.documentMapper().mapping()));
     }
 

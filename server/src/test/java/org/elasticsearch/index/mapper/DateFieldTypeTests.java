@@ -107,8 +107,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType();
 
-        assertEquals(Relation.DISJOINT,
-            ft2.isFieldWithinQuery("my_date2", reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
+        assertEquals(
+            Relation.DISJOINT,
+            ft2.isFieldWithinQuery("my_date2", reader, "2015-10-09", "2016-01-02", false, false, null, null, context)
+        );
 
         IOUtils.close(reader, w, dir);
     }
@@ -140,14 +142,22 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             Relation.WITHIN,
             ft.isFieldWithinQuery("my_date", reader, "2015-09-25", "2016-05-29", randomBoolean(), randomBoolean(), zone, null, context)
         );
-        assertEquals(Relation.WITHIN,
-            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", true, true, zone, null, context));
-        assertEquals(Relation.INTERSECTS,
-            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", false, false, zone, null, context));
-        assertEquals(Relation.INTERSECTS,
-            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", false, true, zone, null, context));
-        assertEquals(Relation.INTERSECTS,
-            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", true, false, zone, null, context));
+        assertEquals(
+            Relation.WITHIN,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", true, true, zone, null, context)
+        );
+        assertEquals(
+            Relation.INTERSECTS,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", false, false, zone, null, context)
+        );
+        assertEquals(
+            Relation.INTERSECTS,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", false, true, zone, null, context)
+        );
+        assertEquals(
+            Relation.INTERSECTS,
+            ft.isFieldWithinQuery("my_date", reader, "2015-10-12", "2016-04-03", true, false, zone, null, context)
+        );
     }
 
     public void testValueFormat() {
@@ -387,8 +397,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static MappedField field(Resolution resolution, String format, String nullValue) {
         DateFormatter formatter = DateFormatter.forPattern(format);
-        return new MappedField("field",
-            new DateFieldType(true, false, true, formatter, resolution, nullValue, null, Collections.emptyMap()));
+        return new MappedField(
+            "field",
+            new DateFieldType(true, false, true, formatter, resolution, nullValue, null, Collections.emptyMap())
+        );
     }
 
     public void testFetchSourceValue() throws IOException {

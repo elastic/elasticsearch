@@ -67,8 +67,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedField mappedField = build("append_param", Map.of("param", ".1"));
-                BinaryScriptFieldData ifd = (BinaryScriptFieldData)
-                    mappedField.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BinaryScriptFieldData ifd = (BinaryScriptFieldData) mappedField.fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 DocValueFormat format = mappedField.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -107,8 +107,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BinaryScriptFieldData ifd = (BinaryScriptFieldData)
-                    simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BinaryScriptFieldData ifd = (BinaryScriptFieldData) simpleMappedField().fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(
@@ -178,9 +178,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
-                    searcher.count(
-                        simpleMappedField().rangeQuery("192.0.0.0", "200.0.0.0", false, false, null, null, null, mockContext())
-                    ),
+                    searcher.count(simpleMappedField().rangeQuery("192.0.0.0", "200.0.0.0", false, false, null, null, null, mockContext())),
                     equalTo(1)
                 );
             }
@@ -223,14 +221,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"1.1.1.1\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(
-                    searcher.count(simpleMappedField().termsQuery(List.of("192.168.0.1", "1.1.1.1"), mockContext())),
-                    equalTo(2)
-                );
-                assertThat(
-                    searcher.count(simpleMappedField().termsQuery(List.of("192.168.0.0/16", "1.1.1.1"), mockContext())),
-                    equalTo(3)
-                );
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of("192.168.0.1", "1.1.1.1"), mockContext())), equalTo(2));
+                assertThat(searcher.count(simpleMappedField().termsQuery(List.of("192.168.0.0/16", "1.1.1.1"), mockContext())), equalTo(3));
             }
         }
     }

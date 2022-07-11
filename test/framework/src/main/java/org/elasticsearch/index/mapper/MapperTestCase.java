@@ -192,7 +192,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
-        T fieldType = (T) mapperService.mappedField("field");
+        T fieldType = (T) mapperService.mappedField("field").type();
         assertThat(checker.apply(fieldType), equalTo(isDimension));
     }
 
@@ -203,7 +203,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
-        T fieldType = (T) mapperService.mappedField("field");
+        T fieldType = (T) mapperService.mappedField("field").type();
         assertThat(checker.apply(fieldType).name(), equalTo(metricType));
     }
 

@@ -360,8 +360,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field")
                 .interval(5)
                 .extendedBounds(-12, 13);
-            MappedField mappedField = new MappedField("field",
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+            MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
@@ -394,8 +393,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field")
                 .interval(5)
                 .hardBounds(new DoubleBounds(0.0, 10.0));
-            MappedField mappedField = new MappedField("field",
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+            MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, mappedField);

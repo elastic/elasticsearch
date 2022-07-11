@@ -809,11 +809,11 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testNestedEarlyTermination() throws Exception {
         MappedField multiValuesfield = new MappedField(
-            "value",
+            "values",
             new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER)
         );
         MappedField singleValueField = new MappedField(
-            "values",
+            "value",
             new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER)
         );
 

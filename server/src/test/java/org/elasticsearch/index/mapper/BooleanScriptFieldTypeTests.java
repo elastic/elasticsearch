@@ -68,8 +68,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedField mappedField = simpleMappedField();
-                BooleanScriptFieldData ifd = (BooleanScriptFieldData)
-                    mappedField.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BooleanScriptFieldData ifd = (BooleanScriptFieldData) mappedField.fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -106,8 +106,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                BooleanScriptFieldData ifd = (BooleanScriptFieldData)
-                    simpleMappedField().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                BooleanScriptFieldData ifd = (BooleanScriptFieldData) simpleMappedField().fielddataBuilder("test", mockContext()::lookup)
+                    .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [false]}"));
@@ -225,14 +225,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             instanceOf(MatchNoDocsQuery.class)
         );
         // Even if the running the field would blow up because it loops the query *still* just returns none.
-        assertThat(
-            loopField().rangeQuery(true, true, false, false, null, null, null, mockContext()),
-            instanceOf(MatchNoDocsQuery.class)
-        );
-        assertThat(
-            loopField().rangeQuery(false, false, false, false, null, null, null, mockContext()),
-            instanceOf(MatchNoDocsQuery.class)
-        );
+        assertThat(loopField().rangeQuery(true, true, false, false, null, null, null, mockContext()), instanceOf(MatchNoDocsQuery.class));
+        assertThat(loopField().rangeQuery(false, false, false, false, null, null, null, mockContext()), instanceOf(MatchNoDocsQuery.class));
     }
 
     @Override

@@ -15,10 +15,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFieldTypeTestCase {
     public void testFuzzyQueryIsError() {
-        assertQueryOnlyOnTextAndKeyword(
-            "fuzzy",
-            () -> simpleMappedField().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())
-        );
+        assertQueryOnlyOnTextAndKeyword("fuzzy", () -> simpleMappedField().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext()));
     }
 
     public void testPrefixQueryIsError() {

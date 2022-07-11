@@ -28,22 +28,25 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testDocValueFormatIsNotSupported() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(Collections.emptyMap());
-        UnsupportedOperationException exc =
-            expectThrows(UnsupportedOperationException.class, () -> fieldType.docValueFormat("field", null, null));
+        UnsupportedOperationException exc = expectThrows(
+            UnsupportedOperationException.class,
+            () -> fieldType.docValueFormat("field", null, null)
+        );
         assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());
     }
 
     public void testExistsQueryIsNotSupported() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(Collections.emptyMap());
-        UnsupportedOperationException exc =
-            expectThrows(UnsupportedOperationException.class, () -> fieldType.existsQuery("field", null));
+        UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class, () -> fieldType.existsQuery("field", null));
         assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());
     }
 
     public void testTermQueryIsNotSupported() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(Collections.emptyMap());
-        UnsupportedOperationException exc =
-            expectThrows(UnsupportedOperationException.class, () -> fieldType.termQuery("field", null, null));
+        UnsupportedOperationException exc = expectThrows(
+            UnsupportedOperationException.class,
+            () -> fieldType.termQuery("field", null, null)
+        );
         assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());
     }
 }

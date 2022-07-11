@@ -105,28 +105,35 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         MappedField k2f = new MappedField("k2", new KeywordFieldMapper.KeywordFieldType());
         MappedField nf = new MappedField("n", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
         MappedField df = aggregableDateField(false, randomBoolean());
-        testCase(builder, new MatchAllDocsQuery(), iw -> buildIndex.accept(iw, (DateFieldMapper.DateFieldType) df.type()),
-            verify, k1f, k2f, nf, df);
+        testCase(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> buildIndex.accept(iw, (DateFieldMapper.DateFieldType) df.type()),
+            verify,
+            k1f,
+            k2f,
+            nf,
+            df
+        );
     }
 
     protected final MappedField aggregableDateField(boolean useNanosecondResolution, boolean isSearchable) {
         return aggregableDateField(useNanosecondResolution, isSearchable, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
     }
 
-    protected final MappedField aggregableDateField(
-        boolean useNanosecondResolution,
-        boolean isSearchable,
-        DateFormatter formatter
-    ) {
-        return new MappedField(AGGREGABLE_DATE, new DateFieldMapper.DateFieldType(
-            isSearchable,
-            randomBoolean(),
-            true,
-            formatter,
-            useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+    protected final MappedField aggregableDateField(boolean useNanosecondResolution, boolean isSearchable, DateFormatter formatter) {
+        return new MappedField(
+            AGGREGABLE_DATE,
+            new DateFieldMapper.DateFieldType(
+                isSearchable,
+                randomBoolean(),
+                true,
+                formatter,
+                useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
     }
 }

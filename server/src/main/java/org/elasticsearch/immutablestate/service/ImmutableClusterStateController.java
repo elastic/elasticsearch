@@ -15,8 +15,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.ImmutableStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Tuple;
@@ -50,6 +52,8 @@ public class ImmutableClusterStateController {
 
     Map<String, ImmutableClusterStateHandler<?>> handlers = null;
     final ClusterService clusterService;
+    private final ImmutableUpdateStateTaskExecutor updateStateTaskExecutor;
+    private final ImmutableUpdateErrorTaskExecutor errorStateTaskExecutor;
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<Package, Void> packageParser = new ConstructingObjectParser<>("immutable_cluster_package", a -> {
@@ -68,6 +72,8 @@ public class ImmutableClusterStateController {
      */
     public ImmutableClusterStateController(ClusterService clusterService) {
         this.clusterService = clusterService;
+        this.updateStateTaskExecutor = new ImmutableUpdateStateTaskExecutor(clusterService.getRerouteService());
+        this.errorStateTaskExecutor = new ImmutableUpdateErrorTaskExecutor();
         packageParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
             if (handlers.containsKey(name) == false) {
                 throw new IllegalStateException("Missing handler definition for content key [" + name + "]");
@@ -155,7 +161,6 @@ public class ImmutableClusterStateController {
             return;
         }
 
-        // Do we need to retry this, or it retries automatically?
         clusterService.submitStateUpdateTask(
             "immutable cluster state [" + namespace + "]",
             new ImmutableStateUpdateStateTask(
@@ -179,7 +184,7 @@ public class ImmutableClusterStateController {
                 }
             ),
             ClusterStateTaskConfig.build(Priority.URGENT),
-            new ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor(namespace, clusterService.getRerouteService())
+            updateStateTaskExecutor
         );
     }
 
@@ -239,7 +244,7 @@ public class ImmutableClusterStateController {
                 }
             }),
             ClusterStateTaskConfig.build(Priority.URGENT),
-            new ImmutableStateUpdateErrorTask.ImmutableUpdateErrorTaskExecutor()
+            errorStateTaskExecutor
         );
     }
 
@@ -297,6 +302,62 @@ public class ImmutableClusterStateController {
     public static class IncompatibleVersionException extends RuntimeException {
         public IncompatibleVersionException(String message) {
             super(message);
+        }
+    }
+
+    /**
+     * Immutable cluster state update task executor
+     *
+     * @param rerouteService instance of {@link RerouteService}, so that we can execute reroute after cluster state is published
+     */
+    public record ImmutableUpdateStateTaskExecutor(RerouteService rerouteService)
+        implements
+            ClusterStateTaskExecutor<ImmutableStateUpdateStateTask> {
+
+        @Override
+        public ClusterState execute(ClusterState currentState, List<TaskContext<ImmutableStateUpdateStateTask>> taskContexts)
+            throws Exception {
+            for (final var taskContext : taskContexts) {
+                currentState = taskContext.getTask().execute(currentState);
+                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
+            }
+            return currentState;
+        }
+
+        @Override
+        public void clusterStatePublished(ClusterState newClusterState) {
+            rerouteService.reroute(
+                "reroute after applying immutable cluster state",
+                Priority.NORMAL,
+                ActionListener.wrap(
+                    r -> logger.trace("reroute after applying immutable cluster state succeeded"),
+                    e -> logger.debug("reroute after applying immutable cluster state failed", e)
+                )
+            );
+        }
+    }
+
+    /**
+     * Immutable cluster error state task executor
+     * <p>
+     * We use this task executor to record any errors while updating immutable cluster state
+     */
+    public record ImmutableUpdateErrorTaskExecutor() implements ClusterStateTaskExecutor<ImmutableStateUpdateErrorTask> {
+        @Override
+        public ClusterState execute(ClusterState currentState, List<TaskContext<ImmutableStateUpdateErrorTask>> taskContexts)
+            throws Exception {
+            for (final var taskContext : taskContexts) {
+                currentState = taskContext.getTask().execute(currentState);
+                taskContext.success(
+                    () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
+                );
+            }
+            return currentState;
+        }
+
+        @Override
+        public void clusterStatePublished(ClusterState newClusterState) {
+            logger.info("Wrote new error state in immutable metadata");
         }
     }
 }

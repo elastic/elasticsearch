@@ -235,12 +235,12 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         doAnswer((Answer<Object>) invocation -> {
             Object[] args = invocation.getArguments();
 
-            if ((args[3] instanceof ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor) == false) {
+            if ((args[3] instanceof ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor) == false) {
                 fail("Should have gotten a state update task to execute, instead got: " + args[3].getClass().getName());
             }
 
-            ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor task =
-                (ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor) args[3];
+            ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor task =
+                (ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor) args[3];
 
             ClusterStateTaskExecutor.TaskContext<ImmutableStateUpdateStateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
                 @Override

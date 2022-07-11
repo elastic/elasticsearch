@@ -13,14 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.ImmutableStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ImmutableStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.immutablestate.TransformState;
 
@@ -137,38 +134,5 @@ public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
         }
 
         return immutableStateMetadata.handlers().get(handlerName).keys();
-    }
-
-    /**
-     * Immutable cluster state update task executor
-     *
-     * @param namespace of the state we are updating
-     * @param rerouteService instance of {@link RerouteService}, so that we can execute reroute after cluster state is published
-     */
-    public record ImmutableUpdateStateTaskExecutor(String namespace, RerouteService rerouteService)
-        implements
-            ClusterStateTaskExecutor<ImmutableStateUpdateStateTask> {
-
-        @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<ImmutableStateUpdateStateTask>> taskContexts)
-            throws Exception {
-            for (final var taskContext : taskContexts) {
-                currentState = taskContext.getTask().execute(currentState);
-                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
-            }
-            return currentState;
-        }
-
-        @Override
-        public void clusterStatePublished(ClusterState newClusterState) {
-            rerouteService.reroute(
-                "reroute after applying immutable cluster state for namespace [" + namespace + "]",
-                Priority.NORMAL,
-                ActionListener.wrap(
-                    r -> logger.trace("reroute after applying immutable cluster state for [{}] succeeded", namespace),
-                    e -> logger.debug("reroute after applying immutable cluster state failed", e)
-                )
-            );
-        }
     }
 }

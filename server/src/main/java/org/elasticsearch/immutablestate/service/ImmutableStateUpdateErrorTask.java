@@ -13,13 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.ImmutableStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-
-import java.util.List;
 
 /**
  * Cluster state update task that sets the error state of the immutable cluster state metadata.
@@ -63,28 +60,5 @@ public class ImmutableStateUpdateErrorTask implements ClusterStateTaskListener {
         ClusterState newState = stateBuilder.metadata(metadataBuilder).build();
 
         return newState;
-    }
-
-    /**
-     * Immutable cluster error state task executor
-     */
-    public record ImmutableUpdateErrorTaskExecutor() implements ClusterStateTaskExecutor<ImmutableStateUpdateErrorTask> {
-
-        @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<ImmutableStateUpdateErrorTask>> taskContexts)
-            throws Exception {
-            for (final var taskContext : taskContexts) {
-                currentState = taskContext.getTask().execute(currentState);
-                taskContext.success(
-                    () -> taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
-                );
-            }
-            return currentState;
-        }
-
-        @Override
-        public void clusterStatePublished(ClusterState newClusterState) {
-            logger.info("Wrote new error state in immutable metadata");
-        }
     }
 }

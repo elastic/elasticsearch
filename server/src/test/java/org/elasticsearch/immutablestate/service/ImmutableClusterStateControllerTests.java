@@ -128,8 +128,8 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         when(clusterService.getRerouteService()).thenReturn(rerouteService);
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
-        ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor taskExecutor =
-            new ImmutableStateUpdateStateTask.ImmutableUpdateStateTaskExecutor("test", clusterService.getRerouteService());
+        ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor taskExecutor =
+            new ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor(clusterService.getRerouteService());
 
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
@@ -207,8 +207,8 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             )
         );
 
-        ImmutableStateUpdateErrorTask.ImmutableUpdateErrorTaskExecutor.TaskContext<ImmutableStateUpdateErrorTask> taskContext =
-            new ImmutableStateUpdateErrorTask.ImmutableUpdateErrorTaskExecutor.TaskContext<>() {
+        ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor.TaskContext<ImmutableStateUpdateErrorTask> taskContext =
+            new ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor.TaskContext<>() {
                 @Override
                 public ImmutableStateUpdateErrorTask getTask() {
                     return task;
@@ -232,8 +232,8 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
                 public void onFailure(Exception failure) {}
             };
 
-        ImmutableStateUpdateErrorTask.ImmutableUpdateErrorTaskExecutor executor =
-            new ImmutableStateUpdateErrorTask.ImmutableUpdateErrorTaskExecutor();
+        ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor executor =
+            new ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor();
 
         ClusterState newState = executor.execute(state, List.of(taskContext));
 

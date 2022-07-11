@@ -37,8 +37,8 @@ public class TestIngestDocument {
      * _versions.  Normally null _version is not allowed, but many tests don't care about that invariant.
      */
     public static IngestDocument ofIngestWithNullableVersion(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
-        return new IngestDocument(new IngestSourceAndMetadata(sm.v1(), TestMetadata.withNullableVersion(sm.v2())), ingestMetadata);
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestCtxMap.splitSourceAndMetadata(sourceAndMetadata);
+        return new IngestDocument(new IngestCtxMap(sm.v1(), TestMetadata.withNullableVersion(sm.v2())), ingestMetadata);
     }
 
     /**
@@ -57,7 +57,7 @@ public class TestIngestDocument {
      * can observe changes to the map directly.
      */
     public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, Metadata.Validator> validators) {
-        return new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), new TestMetadata(metadata, validators)), new HashMap<>());
+        return new IngestDocument(new IngestCtxMap(new HashMap<>(), new TestMetadata(metadata, validators)), new HashMap<>());
     }
 
     /**

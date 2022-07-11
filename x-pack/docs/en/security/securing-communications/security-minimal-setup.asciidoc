@@ -69,9 +69,9 @@ directory:
 ----
 
 . In another terminal window, set the passwords for the built-in users by
-running the <<setup-passwords,`elasticsearch-setup-passwords`>> utility.
+running the <<reset-password,`elasticsearch-reset-password`>> utility.
 +
-IMPORTANT: You can run the `elasticsearch-setup-passwords` utility
+IMPORTANT: You can run the `elasticsearch-reset-password` utility
 against any node in your cluster. However, you should only run this utility *one
 time* for the entire cluster.
 +
@@ -81,7 +81,7 @@ if necessary:
 +
 [source,shell]
 ----
-./bin/elasticsearch-setup-passwords auto
+./bin/elasticsearch-reset-password auto
 ----
 +
 If you want to use your own passwords, run the command with the
@@ -90,17 +90,11 @@ steps you through password configuration for all of the built-in users.
 +
 [source,shell]
 ----
-./bin/elasticsearch-setup-passwords interactive
+./bin/elasticsearch-reset-password interactive
 ----
 
 . Save the generated passwords. You'll need them to add the built-in user to
 {kib}.
-
-WARNING: After you set a password for the `elastic` user, you cannot run the
-`elasticsearch-setup-passwords` command a second time.
-
-If you need to reset the password for the `elastic` user or other
-built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
 
 *Next*: <<add-built-in-users,Configure {kib} to connect to {es} with a password>>
 

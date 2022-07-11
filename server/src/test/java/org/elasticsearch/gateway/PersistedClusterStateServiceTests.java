@@ -1698,7 +1698,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
      * Search the underlying persisted state indices for non-deleted mapping_hash documents that represent the
      * first page of data, collecting and returning the distinct mapping_hashes themselves.
      */
-    private Set<String> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
+    private static Set<String> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
         Set<String> hashes = new HashSet<>();
         try (Directory directory = new NIOFSDirectory(metadataDirectory); DirectoryReader reader = DirectoryReader.open(directory)) {
             final IndexSearcher indexSearcher = new IndexSearcher(reader);
@@ -1718,7 +1718,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             int page = document.getField("page").numericValue().intValue();
                             if (page == 0) {
                                 String hash = document.getField("mapping_hash").stringValue();
-                                hashes.add(hash);
+                                assertTrue(hashes.add(hash));
                             }
                         }
                     }

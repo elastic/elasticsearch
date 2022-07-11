@@ -395,7 +395,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Check if node has the role with the given {@code roleName}.
      *
-     * @param roleName role nae to check
+     * @param roleName role name to check
      * @return true if node has the role of the given name
      */
     public boolean hasRole(String roleName) {

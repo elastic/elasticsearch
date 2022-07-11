@@ -1,0 +1,5 @@
+pr: 88224
+summary: Immutable cluster state controller
+area: Infra/Core
+type: enhancement
+issues: []

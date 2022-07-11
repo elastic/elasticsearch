@@ -110,16 +110,16 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext context) throws IOException {
         finishLeaf();
 
         return new LeafBucketCollector() {
             int lastDoc = 0;
 
             @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (BestBucketsDeferringCollector.this.aggCtx == null) {
-                    BestBucketsDeferringCollector.this.aggCtx = aggCtx;
+            public void collect(int doc, long bucket) {
+                if (aggCtx == null) {
+                    aggCtx = context;
                     docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }

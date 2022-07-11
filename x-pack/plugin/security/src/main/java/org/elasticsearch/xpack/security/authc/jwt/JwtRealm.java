@@ -739,11 +739,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.contentAndFilteredJwksAlgsPkc = newContentAndFilteredJwksAlgs;
         }
         LOGGER.debug(
-            "Reload JWKs succeeded and content changed, doHmac: {}. JWKs old: [{}], new: [{}]. Algorithms old: [{}] new: [{}].",
+            "Reload JWKs succeeded and content changed, doHmac: [{}]. JWKs old: [{}], new: [{}]. Algorithms old: [{}] new: [{}].",
             doHmac,
             oldContentAndFilteredJwksAlgs.filteredJwksAlgs.jwks.size(),
-            String.join(",", oldContentAndFilteredJwksAlgs.filteredJwksAlgs.algs()),
             newContentAndFilteredJwksAlgs.filteredJwksAlgs.jwks.size(),
+            String.join(",", oldContentAndFilteredJwksAlgs.filteredJwksAlgs.algs()),
             String.join(",", newContentAndFilteredJwksAlgs.filteredJwksAlgs.algs())
         );
         // ASSUMPTION: Either PKC JWKs or HMAC JWKs were replaced, so invalidate all JWT cache entries which used old replaced JWKs

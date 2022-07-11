@@ -47,6 +47,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
@@ -1733,7 +1734,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectedCreator.put("metadata", Map.of());
         expectedCreator.put("realm_type", authenticatingRealm.getType());
         expectedCreator.put("realm", authenticatingRealm.getName());
-        // TODO
         final XContentBuilder builder = realmDomain.toXContent(XContentFactory.jsonBuilder(), null);
         expectedCreator.put("realm_domain", XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2());
         expectCreatorForApiKey(expectedCreator, getApiKeyDocument(apiKeyId));

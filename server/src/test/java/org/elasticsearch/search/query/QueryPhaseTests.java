@@ -31,9 +31,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
@@ -154,20 +154,20 @@ public class QueryPhaseTests extends IndexShardTestCase {
         Query matchAllCsq = new ConstantScoreQuery(matchAll);
         Query tq = new TermQuery(new Term("foo", "bar"));
         Query tCsq = new ConstantScoreQuery(tq);
-        Query dvfeq = new DocValuesFieldExistsQuery("foo");
-        Query dvfeq_points = new DocValuesFieldExistsQuery("latLonDVField");
-        Query dvfeqCsq = new ConstantScoreQuery(dvfeq);
+        Query feq = new FieldExistsQuery("foo");
+        Query feq_points = new FieldExistsQuery("latLonDVField");
+        Query feqCsq = new ConstantScoreQuery(feq);
         // field with doc-values but not indexed will need to collect
-        Query dvOnlyfeq = new DocValuesFieldExistsQuery("docValuesOnlyField");
+        Query dvOnlyfeq = new FieldExistsQuery("docValuesOnlyField");
         BooleanQuery bq = new BooleanQuery.Builder().add(matchAll, Occur.SHOULD).add(tq, Occur.MUST).build();
 
         countTestCase(matchAll, reader, false, false);
         countTestCase(matchAllCsq, reader, false, false);
         countTestCase(tq, reader, withDeletions, withDeletions);
         countTestCase(tCsq, reader, withDeletions, withDeletions);
-        countTestCase(dvfeq, reader, withDeletions, true);
-        countTestCase(dvfeq_points, reader, withDeletions, true);
-        countTestCase(dvfeqCsq, reader, withDeletions, true);
+        countTestCase(feq, reader, withDeletions, true);
+        countTestCase(feq_points, reader, withDeletions, true);
+        countTestCase(feqCsq, reader, withDeletions, true);
         countTestCase(dvOnlyfeq, reader, true, true);
         countTestCase(bq, reader, true, true);
         reader.close();

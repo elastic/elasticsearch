@@ -57,6 +57,7 @@ public final class RestGrantApiKeyAction extends SecurityBaseRestHandler impleme
             new ParseField("access_token"),
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareString((req, str) -> req.getGrant().setRunAsUsername(str), new ParseField("run_as"));
         PARSER.declareObject(
             (req, api) -> req.setApiKeyRequest(api),
             (parser, ignore) -> CreateApiKeyRequestBuilder.parse(parser),

@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -120,23 +121,23 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CompositeAggregatorTests extends AggregatorTestCase {
-    private static MappedFieldType[] FIELD_TYPES;
+    private static MappedField[] MAPPED_FIELDS;
     private List<ObjectMapper> objectMappers;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        FIELD_TYPES = new MappedFieldType[9];
-        FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
-        FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
-        FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
-        FIELD_TYPES[3] = new DateFieldMapper.DateFieldType("date", DateFormatter.forPattern("yyyy-MM-dd||epoch_millis"));
-        FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
-        FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
-        FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
-        FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
-        FIELD_TYPES[8] = TimeSeriesIdFieldMapper.FIELD_TYPE;
+        MAPPED_FIELDS = new MappedField[9];
+        MAPPED_FIELDS[0] = new MappedField("keyword", new KeywordFieldMapper.KeywordFieldType());
+        MAPPED_FIELDS[1] = new MappedField("long", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MAPPED_FIELDS[2] = new MappedField("double", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+        MAPPED_FIELDS[3] = new MappedField("date", new DateFieldMapper.DateFieldType(DateFormatter.forPattern("yyyy-MM-dd||epoch_millis")));
+        MAPPED_FIELDS[4] = new MappedField("price", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MAPPED_FIELDS[5] = new MappedField("terms", new KeywordFieldMapper.KeywordFieldType());
+        MAPPED_FIELDS[6] = new MappedField("ip", new IpFieldMapper.IpFieldType());
+        MAPPED_FIELDS[7] = new MappedField("geo_point", new GeoPointFieldMapper.GeoPointFieldType());
+        MAPPED_FIELDS[8] = new MappedField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.FIELD_TYPE);
 
         objectMappers = new ArrayList<>();
     }
@@ -145,7 +146,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        FIELD_TYPES = null;
+        MAPPED_FIELDS = null;
         objectMappers = null;
     }
 
@@ -742,7 +743,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, FIELD_TYPES);
+        }, MAPPED_FIELDS);
     }
 
     /**
@@ -791,8 +792,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
         },
-            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+            new MappedField(nestedPath + "." + leafNameField, new KeywordFieldMapper.KeywordFieldType()),
+            new MappedField("price", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG))
         );
     }
 
@@ -841,8 +842,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(0).getDocCount());
         },
-            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+            new MappedField(nestedPath + "." + leafNameField, new KeywordFieldMapper.KeywordFieldType()),
+            new MappedField("price", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG))
         );
     }
 
@@ -3259,8 +3260,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         List<Consumer<V>> verify
     ) throws IOException {
         assert create.size() == verify.size() : "create and verify should be the same size";
-        Map<String, MappedFieldType> types = Arrays.stream(FIELD_TYPES)
-            .collect(Collectors.toMap(MappedFieldType::name, Function.identity()));
+        Map<String, MappedField> types = Arrays.stream(MAPPED_FIELDS).collect(Collectors.toMap(MappedField::name, Function.identity()));
         Sort indexSort = useIndexSort ? buildIndexSort(sources, types) : null;
         IndexSettings indexSettings = createIndexSettings(indexSort);
         try (Directory directory = newDirectory()) {
@@ -3301,7 +3301,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
                 for (int i = 0; i < create.size(); i++) {
-                    verify.get(i).accept(searchAndReduce(indexSettings, indexSearcher, query, create.get(i).get(), FIELD_TYPES));
+                    verify.get(i).accept(searchAndReduce(indexSettings, indexSearcher, query, create.get(i).get(), MAPPED_FIELDS));
                 }
             }
         }
@@ -3403,25 +3403,25 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
 
-    private static Sort buildIndexSort(List<CompositeValuesSourceBuilder<?>> sources, Map<String, MappedFieldType> fieldTypes) {
+    private static Sort buildIndexSort(List<CompositeValuesSourceBuilder<?>> sources, Map<String, MappedField> mappedFields) {
         List<SortField> sortFields = new ArrayList<>();
-        Map<String, MappedFieldType> remainingFieldTypes = new HashMap<>(fieldTypes);
+        Map<String, MappedField> remainingMappedFields = new HashMap<>(mappedFields);
         List<CompositeValuesSourceBuilder<?>> sourcesToCreateSorts = randomBoolean() ? sources : sources.subList(0, 1);
         for (CompositeValuesSourceBuilder<?> source : sourcesToCreateSorts) {
-            MappedFieldType type = fieldTypes.remove(source.field());
-            remainingFieldTypes.remove(source.field());
-            SortField sortField = sortFieldFrom(type);
+            MappedField mappedField = mappedFields.remove(source.field());
+            remainingMappedFields.remove(source.field());
+            SortField sortField = sortFieldFrom(mappedField);
             if (sortField == null) {
                 break;
             }
             sortFields.add(sortField);
         }
-        while (remainingFieldTypes.size() > 0 && randomBoolean()) {
+        while (remainingMappedFields.size() > 0 && randomBoolean()) {
             // Add extra unused sorts
-            List<String> fields = new ArrayList<>(remainingFieldTypes.keySet());
+            List<String> fields = new ArrayList<>(remainingMappedFields.keySet());
             Collections.sort(fields);
             String field = fields.get(between(0, fields.size() - 1));
-            SortField sortField = sortFieldFrom(remainingFieldTypes.remove(field));
+            SortField sortField = sortFieldFrom(remainingMappedFields.remove(field));
             if (sortField != null) {
                 sortFields.add(sortField);
             }
@@ -3429,16 +3429,17 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         return sortFields.size() > 0 ? new Sort(sortFields.toArray(SortField[]::new)) : null;
     }
 
-    private static SortField sortFieldFrom(MappedFieldType type) {
+    private static SortField sortFieldFrom(MappedField mappedField) {
+        MappedFieldType type = mappedField.type();
         if (type instanceof KeywordFieldMapper.KeywordFieldType) {
-            return new SortedSetSortField(type.name(), false);
+            return new SortedSetSortField(mappedField.name(), false);
         } else if (type instanceof DateFieldMapper.DateFieldType) {
-            return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
+            return new SortedNumericSortField(mappedField.name(), SortField.Type.LONG, false);
         } else if (type instanceof NumberFieldMapper.NumberFieldType) {
             return switch (type.typeName()) {
-                case "byte", "short", "integer" -> new SortedNumericSortField(type.name(), SortField.Type.INT, false);
-                case "long" -> new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
-                case "float", "double" -> new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
+                case "byte", "short", "integer" -> new SortedNumericSortField(mappedField.name(), SortField.Type.INT, false);
+                case "long" -> new SortedNumericSortField(mappedField.name(), SortField.Type.LONG, false);
+                case "float", "double" -> new SortedNumericSortField(mappedField.name(), SortField.Type.DOUBLE, false);
                 default -> null;
             };
         }

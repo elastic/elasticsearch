@@ -18,7 +18,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -164,9 +164,12 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedField longField = new MappedField(
+                    LONG_FIELD,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
-                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longField);
                 verify.accept(rareTerms);
             }
         }

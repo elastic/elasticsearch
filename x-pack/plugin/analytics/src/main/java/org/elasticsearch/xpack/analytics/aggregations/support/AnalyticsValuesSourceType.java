@@ -38,7 +38,11 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
 
             if ((indexFieldData instanceof IndexHistogramFieldData) == false) {
                 throw new IllegalArgumentException(
-                    "Expected histogram type on field [" + fieldContext.field() + "], but got [" + fieldContext.mappedField().typeName() + "]"
+                    "Expected histogram type on field ["
+                        + fieldContext.field()
+                        + "], but got ["
+                        + fieldContext.mappedField().typeName()
+                        + "]"
                 );
             }
             return new HistogramValuesSource.Histogram.Fielddata((IndexHistogramFieldData) indexFieldData);

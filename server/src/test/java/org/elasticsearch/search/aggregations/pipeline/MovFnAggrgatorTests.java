@@ -22,7 +22,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -133,11 +133,14 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggBuilder.field());
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
+                MappedField mappedField = new MappedField(aggBuilder.field(), new DateFieldMapper.DateFieldType());
+                MappedField valueField = new MappedField(
+                    "value_field",
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
                 InternalDateHistogram histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000, new MappedFieldType[] { fieldType, valueFieldType });
+                histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000, mappedField, valueField);
                 verify.accept(histogram);
             }
         }

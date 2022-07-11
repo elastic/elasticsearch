@@ -34,7 +34,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -54,11 +54,11 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     static class ClassAndName {
-        final MappedFieldType fieldType;
+        final MappedField mappedField;
         final Class<? extends Comparable<?>> clazz;
 
-        ClassAndName(MappedFieldType fieldType, Class<? extends Comparable<?>> clazz) {
-            this.fieldType = fieldType;
+        ClassAndName(MappedField mappedField, Class<? extends Comparable<?>> clazz) {
+            this.mappedField = mappedField;
             this.clazz = clazz;
         }
     }
@@ -161,21 +161,21 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             values = new Comparable<?>[numValues];
             if (type.clazz == Long.class) {
                 if (i < indexSortSourcePrefix) {
-                    indexSortFields[i] = new SortedNumericSortField(type.fieldType.name(), SortField.Type.LONG);
+                    indexSortFields[i] = new SortedNumericSortField(type.mappedField.name(), SortField.Type.LONG);
                 }
                 for (int j = 0; j < numValues; j++) {
                     values[j] = randomLong();
                 }
             } else if (type.clazz == Double.class) {
                 if (i < indexSortSourcePrefix) {
-                    indexSortFields[i] = new SortedNumericSortField(type.fieldType.name(), SortField.Type.DOUBLE);
+                    indexSortFields[i] = new SortedNumericSortField(type.mappedField.name(), SortField.Type.DOUBLE);
                 }
                 for (int j = 0; j < numValues; j++) {
                     values[j] = randomDouble();
                 }
             } else if (type.clazz == BytesRef.class) {
                 if (i < indexSortSourcePrefix) {
-                    indexSortFields[i] = new SortedSetSortField(type.fieldType.name(), false);
+                    indexSortFields[i] = new SortedSetSortField(type.mappedField.name(), false);
                 }
                 for (int j = 0; j < numValues; j++) {
                     values[j] = new BytesRef(randomAlphaOfLengthBetween(5, 50));
@@ -210,19 +210,19 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                 values.add(possibleValues.get(j)[randomIntBetween(0, possibleValues.get(j).length - 1)]);
                                 if (types[j].clazz == Long.class) {
                                     long value = (Long) values.get(k);
-                                    document.add(new SortedNumericDocValuesField(types[j].fieldType.name(), value));
-                                    document.add(new LongPoint(types[j].fieldType.name(), value));
+                                    document.add(new SortedNumericDocValuesField(types[j].mappedField.name(), value));
+                                    document.add(new LongPoint(types[j].mappedField.name(), value));
                                 } else if (types[j].clazz == Double.class) {
                                     document.add(
                                         new SortedNumericDocValuesField(
-                                            types[j].fieldType.name(),
+                                            types[j].mappedField.name(),
                                             NumericUtils.doubleToSortableLong((Double) values.get(k))
                                         )
                                     );
                                 } else if (types[j].clazz == BytesRef.class) {
                                     BytesRef value = (BytesRef) values.get(k);
-                                    document.add(new SortedSetDocValuesField(types[j].fieldType.name(), (BytesRef) values.get(k)));
-                                    document.add(new TextField(types[j].fieldType.name(), value.utf8ToString(), Field.Store.NO));
+                                    document.add(new SortedSetDocValuesField(types[j].mappedField.name(), (BytesRef) values.get(k)));
+                                    document.add(new TextField(types[j].mappedField.name(), value.utf8ToString(), Field.Store.NO));
                                 } else {
                                     assert (false);
                                 }
@@ -244,12 +244,12 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             int size = keys.size() > 1 ? randomIntBetween(1, keys.size()) : 1;
             SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource<?>[types.length];
             for (int i = 0; i < types.length; i++) {
-                final MappedFieldType fieldType = types[i].fieldType;
+                final MappedField mappedField = types[i].mappedField;
                 if (types[i].clazz == Long.class) {
                     sources[i] = new LongValuesSource(
                         bigArrays,
-                        fieldType,
-                        context -> DocValues.getSortedNumeric(context.reader(), fieldType.name()),
+                        mappedField,
+                        context -> DocValues.getSortedNumeric(context.reader(), mappedField.name()),
                         value -> value,
                         DocValueFormat.RAW,
                         missingBucket,
@@ -260,8 +260,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 } else if (types[i].clazz == Double.class) {
                     sources[i] = new DoubleValuesSource(
                         bigArrays,
-                        fieldType,
-                        context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
+                        mappedField,
+                        context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), mappedField.name())),
                         DocValueFormat.RAW,
                         missingBucket,
                         MissingOrder.DEFAULT,
@@ -274,8 +274,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         // since ordinals are global in this case.
                         sources[i] = new GlobalOrdinalValuesSource(
                             bigArrays,
-                            fieldType,
-                            context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
+                            mappedField,
+                            context -> DocValues.getSortedSet(context.reader(), mappedField.name()),
                             DocValueFormat.RAW,
                             missingBucket,
                             MissingOrder.DEFAULT,
@@ -286,8 +286,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         sources[i] = new BinaryValuesSource(
                             bigArrays,
                             (b) -> {},
-                            fieldType,
-                            context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())),
+                            mappedField,
+                            context -> FieldData.toString(DocValues.getSortedSet(context.reader(), mappedField.name())),
                             DocValueFormat.RAW,
                             missingBucket,
                             MissingOrder.DEFAULT,
@@ -357,12 +357,12 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
     }
 
-    private static MappedFieldType createNumber(String name, NumberFieldMapper.NumberType type) {
-        return new NumberFieldMapper.NumberFieldType(name, type);
+    private static MappedField createNumber(String name, NumberFieldMapper.NumberType type) {
+        return new MappedField(name, new NumberFieldMapper.NumberFieldType(type));
     }
 
-    private static MappedFieldType createKeyword(String name) {
-        return new KeywordFieldMapper.KeywordFieldType(name);
+    private static MappedField createKeyword(String name) {
+        return new MappedField(name, new KeywordFieldMapper.KeywordFieldType());
     }
 
     private static int compareKey(CompositeKey key1, CompositeKey key2) {

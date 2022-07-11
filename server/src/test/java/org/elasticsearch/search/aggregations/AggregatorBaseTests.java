@@ -15,7 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -78,18 +78,9 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         boolean indexed,
         AggregationContext context
     ) {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(
+        MappedField ft = new MappedField(
             fieldName,
-            numType,
-            indexed,
-            false,
-            true,
-            false,
-            null,
-            Collections.emptyMap(),
-            null,
-            false,
-            null
+            new NumberFieldMapper.NumberFieldType(numType, indexed, false, true, false, null, Collections.emptyMap(), null, false, null)
         );
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
@@ -100,16 +91,18 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         boolean indexed,
         AggregationContext context
     ) {
-        MappedFieldType ft = new DateFieldMapper.DateFieldType(
+        MappedField ft = new MappedField(
             fieldName,
-            indexed,
-            false,
-            true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            resolution,
-            null,
-            null,
-            Collections.emptyMap()
+            new DateFieldMapper.DateFieldType(
+                indexed,
+                false,
+                true,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                resolution,
+                null,
+                null,
+                Collections.emptyMap()
+            )
         );
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }

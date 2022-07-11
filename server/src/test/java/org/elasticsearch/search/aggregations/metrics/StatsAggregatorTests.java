@@ -20,7 +20,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.MockScriptEngine;
@@ -63,21 +63,21 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     // TODO: Script tests, should fail with defaultValuesSourceType disabled.
 
     public void testEmpty() throws IOException {
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        testCase(stats("_name").field(ft.name()), iw -> {}, stats -> {
+        final MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
+        testCase(stats("_name").field(mappedField.name()), iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);
             assertEquals(Float.NaN, stats.getAvg(), 0);
             assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
             assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        }, mappedField);
     }
 
     public void testRandomDoubles() throws IOException {
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE);
+        final MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE));
         final SimpleStatsAggregator expected = new SimpleStatsAggregator();
-        testCase(stats("_name").field(ft.name()), iw -> {
+        testCase(stats("_name").field(mappedField.name()), iw -> {
             int numDocs = randomIntBetween(10, 50);
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
@@ -85,7 +85,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 for (int j = 0; j < numValues; j++) {
                     double value = randomDoubleBetween(-100d, 100d, true);
                     long valueAsLong = NumericUtils.doubleToSortableLong(value);
-                    doc.add(new SortedNumericDocValuesField(ft.name(), valueAsLong));
+                    doc.add(new SortedNumericDocValuesField(mappedField.name(), valueAsLong));
                     expected.add(value);
                 }
                 iw.addDocument(doc);
@@ -97,7 +97,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             assertEquals(expected.max, stats.getMax(), 0);
             assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
             assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        }, mappedField);
     }
 
     public void testRandomLongs() throws IOException {
@@ -149,7 +149,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         double singleSegmentDelta,
         double manySegmentDelta
     ) throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE);
+        final MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE));
 
         double max = Double.NEGATIVE_INFINITY;
         double min = Double.POSITIVE_INFINITY;
@@ -159,10 +159,10 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         }
         double expectedMax = max;
         double expectedMin = min;
-        testCase(stats("_name").field(ft.name()), iw -> {
+        testCase(stats("_name").field(mappedField.name()), iw -> {
             List<List<NumericDocValuesField>> docs = new ArrayList<>();
             for (double value : values) {
-                docs.add(singletonList(new NumericDocValuesField(ft.name(), NumericUtils.doubleToSortableLong(value))));
+                docs.add(singletonList(new NumericDocValuesField(mappedField.name(), NumericUtils.doubleToSortableLong(value))));
             }
             iw.addDocuments(docs);
         }, stats -> {
@@ -172,10 +172,10 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedMax, stats.getMax(), 0d);
             assertEquals(expectedMin, stats.getMin(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
-        testCase(stats("_name").field(ft.name()), iw -> {
+        }, mappedField);
+        testCase(stats("_name").field(mappedField.name()), iw -> {
             for (double value : values) {
-                iw.addDocument(singletonList(new NumericDocValuesField(ft.name(), NumericUtils.doubleToSortableLong(value))));
+                iw.addDocument(singletonList(new NumericDocValuesField(mappedField.name(), NumericUtils.doubleToSortableLong(value))));
             }
         }, stats -> {
             assertEquals(values.length, stats.getCount());
@@ -184,7 +184,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedMax, stats.getMax(), 0d);
             assertEquals(expectedMin, stats.getMin(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        }, mappedField);
     }
 
     public void testUnmapped() throws IOException {
@@ -206,15 +206,15 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             RandomIndexWriter unmappedWriter = new RandomIndexWriter(random(), unmappedDirectory)
         ) {
 
-            final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+            final MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
             final SimpleStatsAggregator expected = new SimpleStatsAggregator();
             final int numDocs = randomIntBetween(10, 50);
             for (int i = 0; i < numDocs; i++) {
                 final long value = randomLongBetween(-100, 100);
-                mappedWriter.addDocument(singleton(new SortedNumericDocValuesField(ft.name(), value)));
+                mappedWriter.addDocument(singleton(new SortedNumericDocValuesField(mappedField.name(), value)));
                 expected.add(value);
             }
-            final StatsAggregationBuilder builder = stats("_name").field(ft.name());
+            final StatsAggregationBuilder builder = stats("_name").field(mappedField.name());
 
             try (
                 IndexReader mappedReader = mappedWriter.getReader();
@@ -223,7 +223,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             ) {
 
                 final IndexSearcher searcher = new IndexSearcher(multiReader);
-                final InternalStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, ft);
+                final InternalStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, mappedField);
 
                 assertEquals(expected.count, stats.getCount(), 0);
                 assertEquals(expected.sum, stats.getSum(), TOLERANCE);
@@ -326,7 +326,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissing() throws IOException {
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        final MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
 
         final long missingValue = randomIntBetween(-100, 100);
 
@@ -336,7 +336,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (randomBoolean()) {
                 final long value = randomLongBetween(-100, 100);
-                docs.add(singleton(new SortedNumericDocValuesField(ft.name(), value)));
+                docs.add(singleton(new SortedNumericDocValuesField(mappedField.name(), value)));
                 expected.add(value);
             } else {
                 docs.add(emptySet());
@@ -344,14 +344,14 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             }
         }
 
-        testCase(stats("_name").field(ft.name()).missing(missingValue), iw -> iw.addDocuments(docs), stats -> {
+        testCase(stats("_name").field(mappedField.name()).missing(missingValue), iw -> iw.addDocuments(docs), stats -> {
             assertEquals(expected.count, stats.getCount(), 0);
             assertEquals(expected.sum, stats.getSum(), TOLERANCE);
             assertEquals(expected.max, stats.getMax(), 0);
             assertEquals(expected.min, stats.getMin(), 0);
             assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
             assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        }, mappedField);
     }
 
     public void testMissingUnmapped() throws IOException {
@@ -374,27 +374,27 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         BiConsumer<SimpleStatsAggregator, InternalStats> verify
     ) throws IOException {
 
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        final MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
 
         final int numDocs = randomIntBetween(10, 50);
         final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
         final SimpleStatsAggregator expected = new SimpleStatsAggregator();
         for (int iDoc = 0; iDoc < numDocs; iDoc++) {
             List<Long> values = randomList(valuesPerField, valuesPerField, () -> randomLongBetween(-100, 100));
-            docs.add(values.stream().map(value -> new SortedNumericDocValuesField(ft.name(), value)).collect(toSet()));
+            docs.add(values.stream().map(value -> new SortedNumericDocValuesField(mappedField.name(), value)).collect(toSet()));
             values.forEach(expected::add);
         }
 
-        testCase(builder, iw -> iw.addDocuments(docs), stats -> verify.accept(expected, stats), ft);
+        testCase(builder, iw -> iw.addDocuments(docs), stats -> verify.accept(expected, stats), mappedField);
     }
 
     private void testCase(
         StatsAggregationBuilder builder,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalStats> verify,
-        MappedFieldType... fieldTypes
+        MappedField... mappedFields
     ) throws IOException {
-        testCase(builder, new MatchAllDocsQuery(), buildIndex, verify, fieldTypes);
+        testCase(builder, new MatchAllDocsQuery(), buildIndex, verify, mappedFields);
     }
 
     static class SimpleStatsAggregator {
@@ -430,7 +430,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new StatsAggregationBuilder("_name").field(fieldName);
     }
 

@@ -24,7 +24,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new PercentilesAggregationBuilder("hdr_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.Hdr());
     }
 
@@ -70,12 +70,12 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
      */
     public void testStringField() throws IOException {
         final String fieldName = "string";
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        MappedField mappedField = new MappedField(fieldName, new KeywordFieldMapper.KeywordFieldType());
         expectThrows(IllegalArgumentException.class, () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("bogus"))));
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("zwomp"))));
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foobar"))));
-        }, hdr -> {}, fieldType, fieldName));
+        }, hdr -> {}, mappedField, fieldName));
     }
 
     /**
@@ -85,7 +85,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     public void testRangeField() throws IOException {
         // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";
-        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, RangeType.DOUBLE);
+        MappedField mappedField = new MappedField(fieldName, new RangeFieldMapper.RangeFieldType(RangeType.DOUBLE));
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
         BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
         expectThrows(
@@ -94,7 +94,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                 new DocValuesFieldExistsQuery(fieldName),
                 iw -> { iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange))); },
                 hdr -> {},
-                fieldType,
+                mappedField,
                 fieldName
             )
         );
@@ -177,15 +177,15 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalHDRPercentiles> verify)
         throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        testCase(query, buildIndex, verify, fieldType, "number");
+        MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        testCase(query, buildIndex, verify, mappedField, "number");
     }
 
     private void testCase(
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalHDRPercentiles> verify,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         String fieldName
     ) throws IOException {
         try (Directory directory = newDirectory()) {
@@ -205,7 +205,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                     builder = new PercentilesAggregationBuilder("test").field(fieldName).percentilesConfig(hdr);
                 }
 
-                HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
+                HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, mappedField);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();

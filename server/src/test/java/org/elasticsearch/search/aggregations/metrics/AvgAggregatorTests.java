@@ -25,8 +25,9 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -243,7 +244,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
+        final MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE));
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             List<List<IndexableField>> docs = new ArrayList<>();
             for (double value : values) {
@@ -258,7 +259,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
              * test.
              */
             iw.addDocuments(docs);
-        }, avg -> assertEquals(expected, avg.getValue(), delta), fieldType);
+        }, avg -> assertEquals(expected, avg.getValue(), delta), mappedField);
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
@@ -278,10 +279,10 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
 
-        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, mappedField);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
@@ -310,7 +311,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedField_WithFormatter() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").format("#")
             .field("value")
@@ -325,11 +326,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             assertEquals((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
             assertEquals("6", avg.getValueAsString());
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testSingleValuedFieldWithValueScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
@@ -342,11 +343,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testScriptSingleValued() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").script(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap())
@@ -360,11 +361,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testScriptSingleValuedWithParams() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
@@ -382,7 +383,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testMultiValuedField() throws IOException {
@@ -401,7 +402,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testScriptMultiValued() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("values", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").script(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap())
@@ -422,7 +423,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testScriptMultiValuedWithParams() throws Exception {
@@ -430,7 +431,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         params.put("inc", 1);
         params.put("field", "values");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("values", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").script(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params)
@@ -451,11 +452,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testSingleValuedFieldWithValueScriptWithParams() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         Map<String, Object> params = Collections.singletonMap("inc", 1);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("value")
@@ -469,11 +470,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testMultiValuedFieldWithValueScriptWithParams() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("values", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         Map<String, Object> params = Collections.singletonMap("inc", 1);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("values")
@@ -494,11 +495,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testMultiValuedFieldWithValueScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("values", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
@@ -518,11 +519,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testOrderByEmptyAggregation() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
 
         AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
             .field("value")
@@ -542,7 +543,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, mappedField);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
@@ -574,9 +575,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalAvg> verify)
         throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testAggregation(aggregationBuilder, query, buildIndex, verify, mappedField);
     }
 
     private void testAggregation(
@@ -584,9 +585,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalAvg> verify,
-        MappedFieldType... fieldTypes
+        MappedField... mappedFields
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(aggregationBuilder, query, buildIndex, verify, mappedFields);
     }
 
     /**
@@ -610,10 +611,10 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value");
 
-        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
+        AggregationContext context = createAggregationContext(indexSearcher, null, mappedField);
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -655,11 +656,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+        final MappedField mappedField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
+        AggregationContext context = createAggregationContext(indexSearcher, null, mappedField);
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -677,7 +678,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         aggregationBuilder = new AvgAggregationBuilder("avg").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
-        context = createAggregationContext(indexSearcher, null, fieldType);
+        context = createAggregationContext(indexSearcher, null, mappedField);
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -704,7 +705,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new AvgAggregationBuilder("foo").field(fieldName);
     }
 }

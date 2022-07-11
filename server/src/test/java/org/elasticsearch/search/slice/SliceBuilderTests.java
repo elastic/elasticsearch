@@ -137,13 +137,7 @@ public class SliceBuilderTests extends ESTestCase {
         String fieldName,
         DocValuesType dvType
     ) {
-        MappedFieldType fieldType = new MappedFieldType(
-            true,
-            false,
-            dvType != null,
-            TextSearchInfo.NONE,
-            Collections.emptyMap()
-        ) {
+        MappedFieldType fieldType = new MappedFieldType(true, false, dvType != null, TextSearchInfo.NONE, Collections.emptyMap()) {
 
             @Override
             public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {

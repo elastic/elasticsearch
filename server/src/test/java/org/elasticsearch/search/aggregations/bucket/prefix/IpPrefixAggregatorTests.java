@@ -18,7 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -138,7 +138,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = Collections.emptyList();
 
         // WHEN
@@ -165,7 +165,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testIpv4Addresses() throws IOException {
@@ -178,7 +178,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
@@ -221,7 +221,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 4L, 1L)
             );
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testIpv6Addresses() throws IOException {
@@ -234,7 +234,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("2001:db8:a4f8:112a:6001:0:12:7f2a", "2001:db8:a4f8:112a::", prefixLength, defaultTime()),
             new TestIpDataHolder("2001:db8:a4f8:112a:7044:1f01:0:44f2", "2001:db8:a4f8:112a::", prefixLength, defaultTime()),
@@ -274,7 +274,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(2L, 1L, 2L)
             );
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testZeroPrefixLength() throws IOException {
@@ -287,7 +287,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("192.168.1.12", "0.0.0.0", prefixLength, defaultTime()),
             new TestIpDataHolder("192.168.1.12", "0.0.0.0", prefixLength, defaultTime()),
@@ -330,7 +330,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of((long) ipAddresses.size())
             );
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testIpv4MaxPrefixLength() throws IOException {
@@ -343,7 +343,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("192.168.1.12", "192.168.1.12", prefixLength, defaultTime()),
             new TestIpDataHolder("192.168.1.12", "192.168.1.12", prefixLength, defaultTime()),
@@ -386,7 +386,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 1L, 2L, 1L, 1L)
             );
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testIpv6MaxPrefixLength() throws IOException {
@@ -399,7 +399,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("2001:db8:a4f8:112a:6001:0:12:7f2a", "2001:db8:a4f8:112a:6001:0:12:7f2a", prefixLength, defaultTime()),
             new TestIpDataHolder("2001:db8:a4f8:112a:7044:1f01:0:44f2", "2001:db8:a4f8:112a:7044:1f01:0:44f2", prefixLength, defaultTime()),
@@ -439,7 +439,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 1L, 1L, 1L)
             );
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testAggregateOnIpv4Field() throws IOException {
@@ -453,7 +453,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType[] fieldTypes = { new IpFieldMapper.IpFieldType(ipv4FieldName), new IpFieldMapper.IpFieldType(ipv6FieldName) };
+        final MappedField mappedIpv4Field = new MappedField(ipv4FieldName, new IpFieldMapper.IpFieldType());
+        final MappedField mappedIpv6Field = new MappedField(ipv6FieldName, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
@@ -500,7 +501,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 4L, 1L)
             );
-        }, fieldTypes);
+        }, mappedIpv4Field, mappedIpv6Field);
     }
 
     public void testAggregateOnIpv6Field() throws IOException {
@@ -514,7 +515,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType[] fieldTypes = { new IpFieldMapper.IpFieldType(ipv4FieldName), new IpFieldMapper.IpFieldType(ipv6FieldName) };
+        final MappedField mappedIpv4Field = new MappedField(ipv4FieldName, new IpFieldMapper.IpFieldType());
+        final MappedField mappedIpv6Field = new MappedField(ipv6FieldName, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("2001:db8:a4f8:112a:6001:0:12:7f2a", "2001:db8:a4f8:112a::", prefixLength, defaultTime()),
             new TestIpDataHolder("2001:db8:a4f8:112a:7044:1f01:0:44f2", "2001:db8:a4f8:112a::", prefixLength, defaultTime()),
@@ -558,7 +560,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(2L, 1L, 2L)
             );
-        }, fieldTypes);
+        }, mappedIpv4Field, mappedIpv6Field);
     }
 
     public void testIpv4AggregationAsSubAggregation() throws IOException {
@@ -580,9 +582,11 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     .minDocCount(1)
                     .prefixLength(prefixLength)
             );
-        final DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType(datetimeFieldName);
-        final IpFieldMapper.IpFieldType ipFieldType = new IpFieldMapper.IpFieldType(ipv4FieldName);
-        final MappedFieldType[] fieldTypes = { ipFieldType, dateFieldType };
+        final DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType();
+        final IpFieldMapper.IpFieldType ipFieldType = new IpFieldMapper.IpFieldType();
+        final MappedField[] mappedFields = {
+            new MappedField(datetimeFieldName, dateFieldType),
+            new MappedField(ipv4FieldName, ipFieldType) };
 
         long day1 = dateFieldType.parse("2021-10-12");
         long day2 = dateFieldType.parse("2021-10-11");
@@ -648,7 +652,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(bucket2Subnets.containsAll(expectedBucket2Subnets));
             assertTrue(expectedBucket1Subnets.containsAll(bucket1Subnets));
             assertTrue(expectedBucket2Subnets.containsAll(bucket2Subnets));
-        }, fieldTypes);
+        }, mappedFields);
     }
 
     public void testIpv6AggregationAsSubAggregation() throws IOException {
@@ -670,9 +674,11 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     .minDocCount(1)
                     .prefixLength(prefixLength)
             );
-        final DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType(datetimeFieldName);
-        final IpFieldMapper.IpFieldType ipFieldType = new IpFieldMapper.IpFieldType(ipv4FieldName);
-        final MappedFieldType[] fieldTypes = { ipFieldType, dateFieldType };
+        final DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType();
+        final IpFieldMapper.IpFieldType ipFieldType = new IpFieldMapper.IpFieldType();
+        final MappedField[] mappedFields = {
+            new MappedField(datetimeFieldName, dateFieldType),
+            new MappedField(ipv4FieldName, ipFieldType) };
 
         long day1 = dateFieldType.parse("2021-11-04");
         long day2 = dateFieldType.parse("2021-11-05");
@@ -735,7 +741,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(bucket2Subnets.containsAll(expectedBucket2Subnets));
             assertTrue(expectedBucket1Subnets.containsAll(bucket1Subnets));
             assertTrue(expectedBucket2Subnets.containsAll(bucket2Subnets));
-        }, fieldTypes);
+        }, mappedFields);
     }
 
     public void testIpPrefixSubAggregations() throws IOException {
@@ -759,8 +765,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     .minDocCount(1)
                     .prefixLength(subPrefixLength)
             );
-        final IpFieldMapper.IpFieldType ipFieldType = new IpFieldMapper.IpFieldType(ipv4FieldName);
-        final MappedFieldType[] fieldTypes = { ipFieldType };
+        final MappedField mappedField = new MappedField(ipv4FieldName, new IpFieldMapper.IpFieldType());
 
         final String FIRST_SUBNET = "192.168.0.0";
         final String SECOND_SUBNET = "192.169.0.0";
@@ -819,7 +824,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(secondSubnetNestedSubnets.containsAll(expectedSecondSubnetNestedSUbnets));
             assertTrue(expectedSecondSubnetNestedSUbnets.containsAll(secondSubnetNestedSubnets));
 
-        }, fieldTypes);
+        }, mappedField);
     }
 
     public void testIpv4AppendPrefixLength() throws IOException {
@@ -832,7 +837,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(true)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
@@ -873,7 +878,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testIpv6AppendPrefixLength() throws IOException {
@@ -886,7 +891,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("2001:db8:a4f8:112a:6001:0:12:7f2a", "2001:db8:a4f8:112a::", prefixLength, defaultTime()),
             new TestIpDataHolder("2001:db8:a4f8:112a:7044:1f01:0:44f2", "2001:db8:a4f8:112a::", prefixLength, defaultTime()),
@@ -924,7 +929,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testMinDocCount() throws IOException {
@@ -938,7 +943,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(minDocCount)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
@@ -982,7 +987,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(4L)
             );
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testAggregationWithQueryFilter() throws IOException {
@@ -995,7 +1000,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .appendPrefixLength(false)
             .minDocCount(1)
             .prefixLength(prefixLength);
-        final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
+        final MappedField mappedField = new MappedField(field, new IpFieldMapper.IpFieldType());
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
             new TestIpDataHolder("192.168.1.12", "192.168.0.0", prefixLength, defaultTime()),
@@ -1047,7 +1052,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(4L)
             );
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testMetricAggregation() throws IOException {
@@ -1064,9 +1069,9 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             .minDocCount(1)
             .prefixLength(prefixLength)
             .subAggregation(new SumAggregationBuilder(subAggregationName).field(timeField));
-        final MappedFieldType[] fieldTypes = {
-            new IpFieldMapper.IpFieldType(ipField),
-            new NumberFieldMapper.NumberFieldType(timeField, NumberFieldMapper.NumberType.LONG) };
+        final MappedField[] mappedFields = {
+            new MappedField(ipField, new IpFieldMapper.IpFieldType()),
+            new MappedField(timeField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)) };
         final List<TestIpDataHolder> ipAddresses = List.of(
             new TestIpDataHolder("2001:db8:a4f8:112a:6001:0:12:7f2a", "2001:db8:a4f8:112a::", prefixLength, 100),
             new TestIpDataHolder("2001:db8:a4f8:112a:7044:1f01:0:44f2", "2001:db8:a4f8:112a::", prefixLength, 110),
@@ -1109,7 +1114,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(210, ((Sum) ipPrefix.getBuckets().get(0).getAggregations().get(subAggregationName)).value(), 0);
             assertEquals(200, ((Sum) ipPrefix.getBuckets().get(1).getAggregations().get(subAggregationName)).value(), 0);
             assertEquals(300, ((Sum) ipPrefix.getBuckets().get(2).getAggregations().get(subAggregationName)).value(), 0);
-        }, fieldTypes);
+        }, mappedFields);
     }
 
     private Function<String, String> appendPrefixLength(int prefixLength) {

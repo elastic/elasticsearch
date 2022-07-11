@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -41,7 +42,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(
                     indexSearcher,
                     null,
-                    new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
+                    new MappedField("test", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER))
                 );
 
                 return new BucketsAggregator("test", AggregatorFactories.EMPTY, context, null, null, null) {

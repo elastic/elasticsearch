@@ -15,8 +15,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -31,8 +32,8 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     // TODO: Add script test cases. Should fail with defaultValuesSourceType() commented out.
 
     public void testEmpty() throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        testCase(ft, iw -> {}, stats -> {
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
+        testCase(mappedField, iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);
             assertEquals(Float.NaN, stats.getAvg(), 0);
@@ -50,9 +51,9 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomDoubles() throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE));
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
-        testCase(ft, iw -> {
+        testCase(mappedField, iw -> {
             int numDocs = randomIntBetween(10, 50);
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
@@ -116,9 +117,9 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
      * Testcase for https://github.com/elastic/elasticsearch/issues/37303
      */
     public void testVarianceNonNegative() throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE));
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
-        testCase(ft, iw -> {
+        testCase(mappedField, iw -> {
             int numDocs = 3;
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
@@ -140,9 +141,9 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomLongs() throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
-        testCase(ft, iw -> {
+        testCase(mappedField, iw -> {
             int numDocs = randomIntBetween(10, 50);
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
@@ -235,7 +236,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     private void verifyStatsOfDoubles(double[] values, double expectedSum, double expectedSumOfSqrs, double delta) throws IOException {
         final String fieldName = "field";
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.DOUBLE);
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE));
         double max = Double.NEGATIVE_INFINITY;
         double min = Double.POSITIVE_INFINITY;
         for (double value : values) {
@@ -244,7 +245,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         }
         double expectedMax = max;
         double expectedMin = min;
-        testCase(ft, iw -> {
+        testCase(mappedField, iw -> {
             for (double value : values) {
                 iw.addDocument(singleton(new NumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(value))));
             }
@@ -259,14 +260,14 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testCase(
-        MappedFieldType ft,
+        MappedField mappedField,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalExtendedStats> verify
     ) throws IOException {
         ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg").field("field")
             .sigma(randomDoubleBetween(0, 10, true));
 
-        testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, ft);
+        testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, mappedField);
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

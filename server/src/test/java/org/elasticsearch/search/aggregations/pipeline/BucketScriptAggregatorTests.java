@@ -22,7 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
@@ -61,8 +61,11 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
     }
 
     public void testScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number_field", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("the_field");
+        MappedField mappedField = new MappedField(
+            "number_field",
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER)
+        );
+        MappedField mappedField1 = new MappedField("the_field", new KeywordFieldMapper.KeywordFieldType());
 
         FiltersAggregationBuilder filters = new FiltersAggregationBuilder("placeholder", new MatchAllQueryBuilder()).subAggregation(
             new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
@@ -91,8 +94,8 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
             f -> {
                 assertThat(((InternalSimpleValue) (f.getBuckets().get(0).getAggregations().get("bucket_script"))).value, equalTo(19.0));
             },
-            fieldType,
-            fieldType1
+            mappedField,
+            mappedField1
         );
     }
 
@@ -101,7 +104,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalFilters> verify,
-        MappedFieldType... fieldType
+        MappedField... mappedFields
     ) throws IOException {
 
         try (Directory directory = newDirectory()) {
@@ -113,7 +116,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalFilters filters;
-                filters = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                filters = searchAndReduce(indexSearcher, query, aggregationBuilder, mappedFields);
                 verify.accept(filters);
             }
         }

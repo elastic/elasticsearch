@@ -231,8 +231,10 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name),
-                    new WildcardFieldType(nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get())),
+                new MappedField<>(
+                    context.buildFullName(name),
+                    new WildcardFieldType(nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get())
+                ),
                 ignoreAbove.get(),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
@@ -273,14 +275,23 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query normalizedWildcardQuery(String name, String value, MultiTermQuery.RewriteMethod method,
-                                             SearchExecutionContext context) {
+        public Query normalizedWildcardQuery(
+            String name,
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
             return wildcardQuery(name, value, method, false, context);
         }
 
         @Override
-        public Query wildcardQuery(String name, String wildcardPattern, RewriteMethod method, boolean caseInsensitive,
-                                   SearchExecutionContext context) {
+        public Query wildcardQuery(
+            String name,
+            String wildcardPattern,
+            RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
 
             String ngramIndexPattern = addLineEndChars(wildcardPattern);
             // Break search term into tokens

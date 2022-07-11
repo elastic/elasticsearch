@@ -20,7 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
     }
 
@@ -179,8 +179,11 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                     builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
                 }
 
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-                TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
+                final MappedField mappedField = new MappedField(
+                    "field",
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
+                TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, mappedField);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();

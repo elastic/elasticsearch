@@ -16,7 +16,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -82,8 +82,8 @@ public class DocCountProviderTests extends AggregatorTestCase {
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalFilter> verify)
         throws IOException {
         AggregationBuilder builder = new FilterAggregationBuilder("f", new MatchAllQueryBuilder());
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD, NumberFieldMapper.NumberType.LONG);
-        MappedFieldType docCountFieldType = new DocCountFieldMapper.DocCountFieldType();
-        testCase(builder, query, indexer, verify, fieldType, docCountFieldType);
+        MappedField mappedField = new MappedField(NUMBER_FIELD, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField docCountField = new MappedField(DocCountFieldMapper.NAME, new DocCountFieldMapper.DocCountFieldType());
+        testCase(builder, query, indexer, verify, mappedField, docCountField);
     }
 }

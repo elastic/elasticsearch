@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -86,7 +86,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
     public void testDiversifiedSampler() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
+        MappedField genreField = new MappedField("genre", new KeywordFieldMapper.KeywordFieldType());
         writeBooks(indexWriter);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
@@ -97,16 +97,16 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             assertEquals("0805080481", terms.getBuckets().get(0).getKeyAsString());
             assertEquals("0812550706", terms.getBuckets().get(1).getKeyAsString());
         };
-        testCase(indexSearcher, genreFieldType, "map", verify);
-        testCase(indexSearcher, genreFieldType, "global_ordinals", verify);
-        testCase(indexSearcher, genreFieldType, "bytes_hash", verify);
+        testCase(indexSearcher, genreField, "map", verify);
+        testCase(indexSearcher, genreField, "global_ordinals", verify);
+        testCase(indexSearcher, genreField, "bytes_hash", verify);
 
-        genreFieldType = new NumberFieldMapper.NumberFieldType("genre_id", NumberFieldMapper.NumberType.LONG);
-        testCase(indexSearcher, genreFieldType, null, verify);
+        genreField = new MappedField("genre_id", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        testCase(indexSearcher, genreField, null, verify);
 
         // wrong field:
-        genreFieldType = new KeywordFieldMapper.KeywordFieldType("wrong_field");
-        testCase(indexSearcher, genreFieldType, null, result -> {
+        genreField = new MappedField("wrong_field", new KeywordFieldMapper.KeywordFieldType());
+        testCase(indexSearcher, genreField, null, result -> {
             Terms terms = result.getAggregations().get("terms");
             assertEquals(1, terms.getBuckets().size());
             assertEquals("0805080481", terms.getBuckets().get(0).getKeyAsString());
@@ -124,7 +124,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
+        MappedField genreField = new MappedField("genre", new KeywordFieldMapper.KeywordFieldType());
         Consumer<InternalSampler> verify = result -> {
             Terms terms = result.getAggregations().get("terms");
             assertThat(terms.getBuckets().size(), greaterThan(0));
@@ -132,38 +132,34 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
 
         try {
             // huge shard_size
-            testCase(indexSearcher, genreFieldType, "map", verify, Integer.MAX_VALUE, 1);
-            testCase(indexSearcher, genreFieldType, "global_ordinals", verify, Integer.MAX_VALUE, 1);
-            testCase(indexSearcher, genreFieldType, "bytes_hash", verify, Integer.MAX_VALUE, 1);
+            testCase(indexSearcher, genreField, "map", verify, Integer.MAX_VALUE, 1);
+            testCase(indexSearcher, genreField, "global_ordinals", verify, Integer.MAX_VALUE, 1);
+            testCase(indexSearcher, genreField, "bytes_hash", verify, Integer.MAX_VALUE, 1);
 
             // huge maxDocsPerValue
-            testCase(indexSearcher, genreFieldType, "map", verify, 100, Integer.MAX_VALUE);
-            testCase(indexSearcher, genreFieldType, "global_ordinals", verify, 100, Integer.MAX_VALUE);
-            testCase(indexSearcher, genreFieldType, "bytes_hash", verify, 100, Integer.MAX_VALUE);
+            testCase(indexSearcher, genreField, "map", verify, 100, Integer.MAX_VALUE);
+            testCase(indexSearcher, genreField, "global_ordinals", verify, 100, Integer.MAX_VALUE);
+            testCase(indexSearcher, genreField, "bytes_hash", verify, 100, Integer.MAX_VALUE);
         } finally {
             indexReader.close();
             directory.close();
         }
     }
 
-    private void testCase(
-        IndexSearcher indexSearcher,
-        MappedFieldType genreFieldType,
-        String executionHint,
-        Consumer<InternalSampler> verify
-    ) throws IOException {
-        testCase(indexSearcher, genreFieldType, executionHint, verify, 100, 1);
+    private void testCase(IndexSearcher indexSearcher, MappedField genreField, String executionHint, Consumer<InternalSampler> verify)
+        throws IOException {
+        testCase(indexSearcher, genreField, executionHint, verify, 100, 1);
     }
 
     private void testCase(
         IndexSearcher indexSearcher,
-        MappedFieldType genreFieldType,
+        MappedField genreField,
         String executionHint,
         Consumer<InternalSampler> verify,
         int shardSize,
         int maxDocsPerValue
     ) throws IOException {
-        MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
+        MappedField idField = new MappedField("id", new KeywordFieldMapper.KeywordFieldType());
 
         SortedDoublesIndexFieldData fieldData = new SortedDoublesIndexFieldData(
             "price",
@@ -175,13 +171,13 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData)
         );
 
-        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
+        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreField.name())
             .executionHint(executionHint)
             .maxDocsPerValue(maxDocsPerValue)
             .shardSize(shardSize)
             .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = searchAndReduce(indexSearcher, query, builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(indexSearcher, query, builder, genreField, idField);
         verify.accept(result);
     }
 
@@ -192,14 +188,14 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-        MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
+        MappedField idField = new MappedField("id", new KeywordFieldMapper.KeywordFieldType());
 
-        MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
+        MappedField genreField = new MappedField("genre", new KeywordFieldMapper.KeywordFieldType());
 
-        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
+        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreField.name())
             .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, genreField, idField);
         Terms terms = result.getAggregations().get("terms");
         assertEquals(0, terms.getBuckets().size());
         indexReader.close();

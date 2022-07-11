@@ -24,7 +24,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -107,12 +107,14 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
+                MappedField mappedField = new MappedField(DATE_FIELD, new DateFieldMapper.DateFieldType());
+                MappedField valueField = new MappedField(
+                    VALUE_FIELD,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
-
-                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, new MappedFieldType[] { fieldType, valueFieldType });
-                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, new MappedFieldType[] { fieldType, valueFieldType });
+                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, mappedField, valueField);
+                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, mappedField, valueField);
             }
 
             // Finally, reduce the pipeline agg
@@ -162,16 +164,14 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
-                MappedFieldType keywordField = keywordField(textField);
-
-                filterResult = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    filterAggregationBuilder,
-                    new MappedFieldType[] { fieldType, valueFieldType, keywordField }
+                MappedField mappedField = new MappedField(DATE_FIELD, new DateFieldMapper.DateFieldType());
+                MappedField valueField = new MappedField(
+                    VALUE_FIELD,
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
                 );
+                MappedField keywordField = keywordField(textField);
+
+                filterResult = searchAndReduce(indexSearcher, query, filterAggregationBuilder, mappedField, valueField, keywordField);
             }
 
             // Finally, reduce the pipeline agg

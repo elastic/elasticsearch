@@ -21,7 +21,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
@@ -68,9 +68,9 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
             assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).value(), equalTo(22.0));
 
         },
-            new KeywordFieldMapper.KeywordFieldType("dim1"),
-            new KeywordFieldMapper.KeywordFieldType("dim2"),
-            new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
+            new MappedField("dim1", new KeywordFieldMapper.KeywordFieldType()),
+            new MappedField("dim2", new KeywordFieldMapper.KeywordFieldType()),
+            new MappedField("val1", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER))
         );
     }
 
@@ -104,14 +104,14 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalTimeSeries> verify,
-        MappedFieldType... fieldTypes
+        MappedField... mappedFields
     ) throws IOException {
-        MappedFieldType[] newFieldTypes = new MappedFieldType[fieldTypes.length + 2];
-        newFieldTypes[0] = TimeSeriesIdFieldMapper.FIELD_TYPE;
-        newFieldTypes[1] = new DateFieldMapper.DateFieldType("@timestamp");
-        System.arraycopy(fieldTypes, 0, newFieldTypes, 2, fieldTypes.length);
+        MappedField[] newMappedFields = new MappedField[mappedFields.length + 2];
+        newMappedFields[0] = new MappedField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.FIELD_TYPE);
+        newMappedFields[1] = new MappedField("@timestamp", new DateFieldMapper.DateFieldType());
+        System.arraycopy(mappedFields, 0, newMappedFields, 2, mappedFields.length);
 
-        testCase(builder, query, buildIndex, verify, newFieldTypes);
+        testCase(builder, query, buildIndex, verify, newMappedFields);
     }
 
 }

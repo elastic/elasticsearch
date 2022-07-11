@@ -21,7 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -527,9 +527,9 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         try {
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value_field", fieldNumberType);
-            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("weight_field", fieldNumberType);
-            WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
+            MappedField mappedField = new MappedField("value_field", new NumberFieldMapper.NumberFieldType(fieldNumberType));
+            MappedField mappedField2 = new MappedField("weight_field", new NumberFieldMapper.NumberFieldType(fieldNumberType));
+            WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, mappedField, mappedField2);
             aggregator.preCollection();
             indexSearcher.search(query, aggregator);
             aggregator.postCollection();

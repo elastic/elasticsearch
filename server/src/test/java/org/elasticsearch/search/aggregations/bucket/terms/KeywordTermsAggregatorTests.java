@@ -20,7 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -97,18 +97,16 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         Consumer<InternalMappedTerms<?, ?>> verify,
         ValueType valueType
     ) throws IOException {
-        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(
+        MappedField keywordField = new MappedField(
             KEYWORD_FIELD,
-            randomBoolean(),
-            true,
-            Collections.emptyMap()
+            new KeywordFieldMapper.KeywordFieldType(randomBoolean(), true, Collections.emptyMap())
         );
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
-                    if (keywordFieldType.isIndexed()) {
+                    if (keywordField.isIndexed()) {
                         document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     }
                     indexWriter.addDocument(document);
@@ -127,7 +125,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordField);
                 verify.accept(rareTerms);
             }
         }

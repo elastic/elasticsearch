@@ -19,7 +19,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -154,7 +154,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType binaryFieldType = new BinaryFieldMapper.BinaryFieldType(BINARY_FIELD);
+                MappedField binaryFieldType = new MappedField(BINARY_FIELD, new BinaryFieldMapper.BinaryFieldType());
 
                 InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, binaryFieldType);
                 verify.accept(rareTerms);

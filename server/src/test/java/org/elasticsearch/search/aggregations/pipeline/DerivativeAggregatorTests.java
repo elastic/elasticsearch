@@ -21,7 +21,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -712,10 +712,13 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(SINGLE_VALUED_FIELD_NAME);
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
+                MappedField mappedField = new MappedField(SINGLE_VALUED_FIELD_NAME, new DateFieldMapper.DateFieldType());
+                MappedField valueField = new MappedField(
+                    "value_field",
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
-                InternalAggregation histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);
+                InternalAggregation histogram = searchAndReduce(indexSearcher, query, aggBuilder, mappedField, valueField);
 
                 verify.accept(histogram);
             }

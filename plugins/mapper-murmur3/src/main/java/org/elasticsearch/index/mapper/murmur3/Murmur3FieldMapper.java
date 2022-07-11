@@ -81,7 +81,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     public static class Murmur3FieldType extends MappedFieldType {
 
         private Murmur3FieldType(boolean isStored, Map<String, String> meta) {
-            super( false, isStored, true, TextSearchInfo.NONE, meta);
+            super(false, isStored, true, TextSearchInfo.NONE, meta);
         }
 
         @Override

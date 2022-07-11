@@ -249,7 +249,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.mappedField("field");
+        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.mappedField(
+            "field"
+        );
         assertFalse(ft.isDimension());
 
         assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
@@ -305,7 +307,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.mappedField("field");
+        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.mappedField(
+            "field"
+        );
         assertNull(ft.getMetricType());
 
         assertMetricType("gauge", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);

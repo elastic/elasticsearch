@@ -14,6 +14,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -69,7 +70,8 @@ public class AggregationCollectorTests extends AggregatorTestCase {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             DirectoryReader reader = indexWriter.getReader()
         ) {
-            return createAggregator(builder, new IndexSearcher(reader), new KeywordFieldType("f")).scoreMode().needsScores();
+            return createAggregator(builder, new IndexSearcher(reader), new MappedField("f", new KeywordFieldType())).scoreMode()
+                .needsScores();
         }
     }
 

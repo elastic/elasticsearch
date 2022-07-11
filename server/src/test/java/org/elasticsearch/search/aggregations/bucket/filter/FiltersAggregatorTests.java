@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -122,7 +123,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexSearcher,
             new MatchAllDocsQuery(),
             builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
+            new MappedField("field", new KeywordFieldMapper.KeywordFieldType())
         );
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
@@ -172,7 +173,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
             (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
-            new NumberFieldMapper.NumberFieldType("m", NumberFieldMapper.NumberType.INTEGER)
+            new MappedField("m", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER))
         );
     }
 
@@ -223,7 +224,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexSearcher,
             new MatchAllDocsQuery(),
             builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
+            new MappedField("field", new KeywordFieldMapper.KeywordFieldType())
         );
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
@@ -283,7 +284,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 indexSearcher,
                 new MatchAllDocsQuery(),
                 builder,
-                new KeywordFieldMapper.KeywordFieldType("field")
+                new MappedField("field", new KeywordFieldMapper.KeywordFieldType())
             );
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);
@@ -628,7 +629,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     )
                 );
             },
-            new KeywordFieldType("a")
+            new MappedField("a", new KeywordFieldMapper.KeywordFieldType())
         );
     }
 
@@ -718,7 +719,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * {@code "segments_counted_in_constant_time", lessThan(searcher.getLeafContexts().size())}.
      */
     public void testTermOnFilteredIndex() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType("foo");
+        MappedField mappedField = new MappedField("foo", new KeywordFieldMapper.KeywordFieldType());
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("foo", "bar")));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -742,7 +743,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
                 IndexSearcher searcher = newIndexSearcher(limitedReader);
-                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
+                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), mappedField);
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
                 searcher.search(context.query(), aggregator);
@@ -784,7 +785,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * always take the fast path in filter-by-filter.
      */
     public void testTermOnFilterWithMatchAll() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType("foo");
+        MappedField mappedField = new MappedField("foo", new KeywordFieldMapper.KeywordFieldType());
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("foo", "bar")));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -808,7 +809,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)
                 );
                 IndexSearcher searcher = newIndexSearcher(limitedReader);
-                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), ft);
+                AggregationContext context = createAggregationContext(searcher, new MatchAllDocsQuery(), mappedField);
                 FilterByFilterAggregator aggregator = createAggregator(builder, context);
                 aggregator.preCollection();
                 searcher.search(context.query(), aggregator);

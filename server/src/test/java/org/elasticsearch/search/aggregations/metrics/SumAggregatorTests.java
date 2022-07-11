@@ -29,7 +29,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.MockScriptEngine;
@@ -202,7 +202,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
                     .mapToObj(value -> singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))))
                     .collect(toList())
             );
-        }, result -> assertEquals(expected, result.value(), delta), defaultFieldType(NumberType.DOUBLE));
+        }, result -> assertEquals(expected, result.value(), delta), defaultMappedField(NumberType.DOUBLE));
     }
 
     public void testUnmapped() throws IOException {
@@ -213,9 +213,9 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberType.LONG);
+        final MappedField mappedField = new MappedField(FIELD_NAME, new NumberFieldMapper.NumberFieldType(NumberType.LONG));
 
-        final SumAggregationBuilder builder = sum("_name").field(fieldType.name());
+        final SumAggregationBuilder builder = sum("_name").field(mappedField.name());
 
         final int numDocs = randomIntBetween(10, 100);
         final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
@@ -223,7 +223,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             final long value = randomLongBetween(0, 1000);
             sum += value;
-            docs.add(singleton(new NumericDocValuesField(fieldType.name(), value)));
+            docs.add(singleton(new NumericDocValuesField(mappedField.name(), value)));
         }
 
         try (Directory mappedDirectory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
@@ -241,7 +241,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
                 final IndexSearcher searcher = newSearcher(multiReader, true, true);
 
-                final Sum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                final Sum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, mappedField);
                 assertEquals(sum, internalSum.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }
@@ -295,8 +295,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissing() throws IOException {
-        final MappedFieldType aggField = defaultFieldType();
-        final MappedFieldType irrelevantField = new NumberFieldMapper.NumberFieldType("irrelevant_field", NumberType.LONG);
+        final MappedField aggField = defaultMappedField();
+        final MappedField irrelevantField = new MappedField("irrelevant_field", new NumberFieldMapper.NumberFieldType(NumberType.LONG));
 
         final int numDocs = randomIntBetween(10, 100);
         final long missingValue = randomLongBetween(1, 1000);
@@ -341,7 +341,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         TriConsumer<Long, List<Set<IndexableField>>, Sum> verify
     ) throws IOException {
 
-        final MappedFieldType fieldType = defaultFieldType();
+        final MappedField mappedField = defaultMappedField();
 
         final int numDocs = randomIntBetween(10, 100);
         final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
@@ -351,7 +351,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             for (int iValue = 0; iValue < valuesPerField; iValue++) {
                 final long value = randomLongBetween(0, 1000);
                 sum += value;
-                doc.add(new SortedNumericDocValuesField(fieldType.name(), value));
+                doc.add(new SortedNumericDocValuesField(mappedField.name(), value));
             }
             docs.add(doc);
         }
@@ -362,14 +362,14 @@ public class SumAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             writer -> writer.addDocuments(docs),
             internalSum -> verify.apply(finalSum, docs, internalSum),
-            fieldType
+            mappedField
         );
     }
 
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Sum> verify)
         throws IOException {
         AggregationBuilder aggregationBuilder = sum("_name").field(FIELD_NAME);
-        testAggregation(aggregationBuilder, query, indexer, verify, defaultFieldType());
+        testAggregation(aggregationBuilder, query, indexer, verify, defaultMappedField());
     }
 
     private void testAggregation(
@@ -377,9 +377,9 @@ public class SumAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> indexer,
         Consumer<Sum> verify,
-        MappedFieldType... fieldTypes
+        MappedField... mappedFields
     ) throws IOException {
-        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
+        testCase(aggregationBuilder, query, indexer, verify, mappedFields);
     }
 
     @Override
@@ -388,7 +388,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new SumAggregationBuilder("_name").field(fieldName);
     }
 
@@ -409,11 +409,11 @@ public class SumAggregatorTests extends AggregatorTestCase {
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
-    private static MappedFieldType defaultFieldType() {
-        return defaultFieldType(NumberType.LONG);
+    private static MappedField defaultMappedField() {
+        return defaultMappedField(NumberType.LONG);
     }
 
-    private static MappedFieldType defaultFieldType(NumberType numberType) {
-        return new NumberFieldMapper.NumberFieldType(FIELD_NAME, numberType);
+    private static MappedField defaultMappedField(NumberType numberType) {
+        return new MappedField(FIELD_NAME, new NumberFieldMapper.NumberFieldType(numberType));
     }
 }

@@ -18,7 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -172,7 +172,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
+        MappedField mappedField = new MappedField(FIELD_NAME, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         MedianAbsoluteDeviationAggregationBuilder aggregationBuilder = new MedianAbsoluteDeviationAggregationBuilder("foo").field(
             FIELD_NAME
@@ -186,7 +186,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }), agg -> {
             assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        }, fieldType);
+        }, mappedField);
     }
 
     public void testSingleScript() throws IOException {
@@ -194,7 +194,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap())
         );
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
+        MappedField mappedField = new MappedField(FIELD_NAME, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
@@ -205,7 +205,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }, agg -> {
             assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        }, fieldType);
+        }, mappedField);
     }
 
     private void testAggregation(
@@ -216,9 +216,9 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad").field(FIELD_NAME)
             .compression(randomDoubleBetween(20, 1000, true));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
+        MappedField mappedField = new MappedField(FIELD_NAME, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
-        testAggregation(builder, query, buildIndex, verify, fieldType);
+        testAggregation(builder, query, buildIndex, verify, mappedField);
     }
 
     private void testAggregation(
@@ -226,9 +226,9 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> indexer,
         Consumer<InternalMedianAbsoluteDeviation> verify,
-        MappedFieldType... fieldTypes
+        MappedField... mappedFields
     ) throws IOException {
-        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
+        testCase(aggregationBuilder, query, indexer, verify, mappedFields);
     }
 
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {
@@ -311,7 +311,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new MedianAbsoluteDeviationAggregationBuilder("foo").field(fieldName);
     }
 

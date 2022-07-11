@@ -20,7 +20,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -42,8 +42,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
      * Uses the sampler aggregation to find the minimum value of a field out of the top 3 scoring documents in a search.
      */
     public void testSampler() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
-        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
+        MappedField textField = new MappedField("text", new TextFieldType());
+        MappedField numericField = new MappedField("int", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -69,8 +69,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                     searcher,
                     new TermQuery(new Term("text", "good")),
                     aggBuilder,
-                    textFieldType,
-                    numericFieldType
+                    textField,
+                    numericField
                 );
                 Min min = sampler.getAggregations().get("min");
                 assertEquals(5.0, min.value(), 0);
@@ -80,8 +80,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRidiculousSize() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
-        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
+        MappedField textField = new MappedField("text", new TextFieldType());
+        MappedField numericField = new MappedField("int", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -108,8 +108,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                     searcher,
                     new TermQuery(new Term("text", "good")),
                     aggBuilder,
-                    textFieldType,
-                    numericFieldType
+                    textField,
+                    numericField
                 );
                 Min min = sampler.getAggregations().get("min");
                 assertEquals(3.0, min.value(), 0);

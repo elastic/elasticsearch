@@ -14,7 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -63,7 +63,7 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         GlobalAggregationBuilder aggregationBuilder = new GlobalAggregationBuilder("_name");
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_global").field("number"));
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        MappedField fieldType = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         testCase(aggregationBuilder, topLevelQuery, buildIndex, (InternalGlobal result) -> {
             Min min = result.getAggregations().get("in_global");

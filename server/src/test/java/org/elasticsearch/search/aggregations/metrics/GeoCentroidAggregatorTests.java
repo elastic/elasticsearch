@@ -40,8 +40,12 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder,
-                    new MappedField("field", fieldType));
+                InternalGeoCentroid result = searchAndReduce(
+                    searcher,
+                    new MatchAllDocsQuery(),
+                    aggBuilder,
+                    new MappedField("field", fieldType)
+                );
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }

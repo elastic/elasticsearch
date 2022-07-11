@@ -8,8 +8,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ingest.IngestDocument;
-
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;

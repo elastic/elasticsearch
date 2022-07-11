@@ -299,7 +299,7 @@ public class Maps {
     }
 
     /**
-     * This method creates a "deep" of the {@code source} map using on {@code copyValueFunction} each value
+     * This method creates a "deep copy" of the {@code source} map using {@code copyValueFunction} on each value
      */
     public static <K, V> Map<K, V> copy(Map<K, V> source, Function<V, V> copyValueFunction) {
         var copy = Maps.<K, V>newHashMapWithExpectedSize(source.size());

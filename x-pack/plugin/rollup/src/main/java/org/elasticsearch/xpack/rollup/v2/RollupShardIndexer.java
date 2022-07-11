@@ -180,7 +180,13 @@ class RollupShardIndexer {
                             )
                         );
                     numFailed.addAndGet(failures.size());
-                    logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
+                    logger.info(
+                        "Shard [{}] failed to populate rollup index, failures summery: failed count: [{}], failed sample: [{}]",
+                        indexShard.shardId(),
+                        failures.size(),
+                        failures.values().iterator().next()
+                    );
+                    logger.trace("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
                 }
             }
 
@@ -189,7 +195,7 @@ class RollupShardIndexer {
                 if (failure != null) {
                     long items = request.numberOfActions();
                     numFailed.addAndGet(items);
-                    logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
+                    logger.info(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
                 }
             }
         };
@@ -234,13 +240,15 @@ class RollupShardIndexer {
                     final long timestamp = aggCtx.getTimestamp();
                     final long histoTimestamp = rounding.round(timestamp);
 
-                    logger.trace(
-                        "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
-                        docId,
-                        DocValueFormat.TIME_SERIES_ID.format(tsid),
-                        timestampFormat.format(timestamp),
-                        timestampFormat.format(histoTimestamp)
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
+                            docId,
+                            DocValueFormat.TIME_SERIES_ID.format(tsid),
+                            timestampFormat.format(timestamp),
+                            timestampFormat.format(histoTimestamp)
+                        );
+                    }
 
                     /*
                      * Sanity checks to ensure that we receive documents in the correct order
@@ -344,11 +352,14 @@ class RollupShardIndexer {
             this.timestamp = timestamp;
             this.docCount = 0;
             this.metricFieldProducers.values().stream().forEach(p -> p.reset());
-            logger.trace(
-                "New bucket for _tsid: [{}], @timestamp: [{}]",
-                DocValueFormat.TIME_SERIES_ID.format(tsid),
-                timestampFormat.format(timestamp)
-            );
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "New bucket for _tsid: [{}], @timestamp: [{}]",
+                    DocValueFormat.TIME_SERIES_ID.format(tsid),
+                    timestampFormat.format(timestamp)
+                );
+            }
+
             return this;
         }
 

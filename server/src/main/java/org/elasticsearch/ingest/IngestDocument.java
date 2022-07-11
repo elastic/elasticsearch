@@ -85,7 +85,6 @@ public final class IngestDocument {
      * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        // TODO(stu): fix
         Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
         this.sourceAndMetadata = new IngestSourceAndMetadata(
             sm.v1(),

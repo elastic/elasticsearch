@@ -83,7 +83,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     public static Tuple<Map<String, Object>, Map<String, Object>> splitSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
         if (sourceAndMetadata instanceof IngestSourceAndMetadata ingestSourceAndMetadata) {
-            return new Tuple<>(new HashMap<>(ingestSourceAndMetadata.source), new HashMap<>(ingestSourceAndMetadata.metadata.mapCopy()));
+            return new Tuple<>(new HashMap<>(ingestSourceAndMetadata.source), new HashMap<>(ingestSourceAndMetadata.metadata.getMap()));
         }
         Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
         Map<String, Object> source = new HashMap<>(sourceAndMetadata);

@@ -273,9 +273,11 @@ public class Metadata {
         return new Metadata(new HashMap<>(map), timestamp, new HashMap<>(validators));
     }
 
-    // Return a copy of the backing map
-    public Map<String, Object> mapCopy() {
-        return new HashMap<>(map);
+    /**
+     * Get the backing map, if modified then the guarantees of this class may not hold
+     */
+    public Map<String, Object> getMap() {
+        return map;
     }
 
     /**

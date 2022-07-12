@@ -50,10 +50,10 @@ The following parameters can be specified in the body of a PUT request:
 `role_descriptors`::
 (Optional, array-of-role-descriptor) An array of new role descriptors for this API key.
 This parameter is optional.
-When it is an empty array, the API key's new permissions will be a _point in time snapshot of permissions of the authenticated user_.
-If you supply role descriptors, the API key's permissions will be the intersection of the supplied permissions and the authenticated user's permissions, thereby limiting the API key's access scope.
-If this parameter is not supplied, the API key's permissions will be the intersection of the API key's previously assigned permissions (if any) and the authenticated user's permissions.
-The structure of role descriptor is the same as the request for create role API.
+When the parameter is supplied but empty, the API key's new permissions will be the current _point in time snapshot of permissions of the authenticated user_.
+If you supply role descriptors, the API key's permissions will be the intersection of the supplied permissions and the authenticated user's current permissions, thereby limiting the API key's access scope.
+If the parameter is not supplied, the API key's already assigned permissions are used: if there are assigned permissions, they are intersected with the user's permissions, otherwise the user's permissions are used.
+The structure of the role descriptor is the same as the request for the create role API.
 For more details, see <<security-api-put-role, create or update roles API>>.
 
 //(Optional, array-of-role-descriptor) An array of new role descriptors for this API key.

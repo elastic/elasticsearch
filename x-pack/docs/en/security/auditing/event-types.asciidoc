@@ -764,8 +764,8 @@ the <<mapping-roles, API request for mapping roles>>.
 The `role_descriptors` objects have the same schema as the `role_descriptor`
 object that is part of the above `role` config object.
 
-The object for an API key update will differ in that it will include an `id`
-field instead of `name` and will not include `expiration`.
+The object for an API key update will differ in that it will not include
+a `name` or `expiration`.
 
 `grant`               ::     An object like:
 +

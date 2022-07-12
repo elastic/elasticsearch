@@ -68,7 +68,7 @@ public final class IngestDocument {
             source
         );
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
+        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getMetadata().getTimestamp());
     }
 
     /**
@@ -76,12 +76,7 @@ public final class IngestDocument {
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestSourceAndMetadata(
-                deepCopyMap(other.sourceAndMetadata.getSource()),
-                deepCopyMap(other.sourceAndMetadata.getMetadata()),
-                other.getIngestSourceAndMetadata().timestamp,
-                other.getIngestSourceAndMetadata().validators
-            ),
+            new IngestSourceAndMetadata(deepCopyMap(other.sourceAndMetadata.getSource()), other.sourceAndMetadata.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
     }
@@ -93,14 +88,12 @@ public final class IngestDocument {
         Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
         this.sourceAndMetadata = new IngestSourceAndMetadata(
             sm.v1(),
-            sm.v2(),
-            IngestSourceAndMetadata.getTimestamp(ingestMetadata),
-            IngestSourceAndMetadata.VALIDATORS
+            new org.elasticsearch.script.Metadata(sm.v2(), IngestSourceAndMetadata.getTimestamp(ingestMetadata))
         );
         this.ingestMetadata = new HashMap<>(ingestMetadata);
         this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
             if (v instanceof String) {
-                return this.sourceAndMetadata.getTimestamp();
+                return this.sourceAndMetadata.getMetadata().getTimestamp();
             }
             return v;
         });
@@ -738,17 +731,10 @@ public final class IngestDocument {
     }
 
     /**
-     * Get all Metadata values in a Map
-     */
-    public Map<String, Object> getMetadataMap() {
-        return sourceAndMetadata.getMetadata();
-    }
-
-    /**
      * Get the strongly typed metadata
      */
     public org.elasticsearch.script.Metadata getMetadata() {
-        return sourceAndMetadata;
+        return sourceAndMetadata.getMetadata();
     }
 
     /**

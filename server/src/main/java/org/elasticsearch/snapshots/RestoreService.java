@@ -1307,7 +1307,7 @@ public class RestoreService implements ClusterStateApplier {
                 // that will be opened by the restore
                 if (currentIndexMetadata == null) {
                     // Index doesn't exist - create it and start recovery
-                    // Make sure that the index we are about to create has a validate name
+                    // Make sure that the index we are about to create has a valid name
                     ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
                     shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
 

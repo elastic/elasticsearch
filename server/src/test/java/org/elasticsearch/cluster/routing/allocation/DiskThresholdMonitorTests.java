@@ -964,7 +964,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         Map<String, DiskUsage> diskUsages,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
-        return new ClusterInfo(diskUsages, null, null, null, null, reservedSpace);
+        return new ClusterInfo(diskUsages, Map.of(), Map.of(), Map.of(), Map.of(), reservedSpace);
     }
 
     private static DiscoveryNode newFrozenOnlyNode(String nodeId) {

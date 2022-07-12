@@ -25,7 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,7 +61,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             ReindexPlugin.class,
             IngestCommonPlugin.class,
             MustachePlugin.class,
-            TestGeoShapeFieldMapperPlugin.class
+            SpatialPlugin.class
         );
     }
 

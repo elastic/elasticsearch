@@ -64,6 +64,7 @@ import org.elasticsearch.discovery.TransportAddressConnector;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportRequest;
@@ -396,8 +397,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void onClusterStateApplied() {
-        assert Thread.currentThread().getName().contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-            || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (getMode() != Mode.CANDIDATE) {
             joinHelper.onClusterStateApplied();
         }

@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoA
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,6 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -455,15 +457,21 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     private void beginPollingClusterFormationInfo() {
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         cancelPollingClusterFormationInfo();
         clusterFormationResponses = new ConcurrentHashMap<>();
         clusterFormationInfoTasks = new CopyOnWriteArrayList<>();
         getMasterEligibleNodes().forEach(
-            masterNode -> fetchClusterFormationInfo(masterNode, clusterFormationResponses, clusterFormationInfoTasks)
+            masterNode -> fetchClusterFormationInfo(
+                masterNode,
+                response -> clusterFormationResponses.put(masterNode, response),
+                clusterFormationInfoTasks
+            )
         );
     }
 
     private void cancelPollingClusterFormationInfo() {
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (clusterFormationResponses != null) {
             clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
             clusterFormationResponses = null;
@@ -475,13 +483,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * This method returns quickly, but in the background schedules to query the remote node's cluster formation state in 10 seconds, and
      * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables.
      * @param node The node to poll for cluster formation information
-     * @param nodeToClusterFormationStateMap The map to put results into
+     * @param responseConsumer The consumer of the cluster formation info for the node, or the exception encountered while contacting it
      * @param cancellables The list to insert all Cancellables into. Since this method continues to schedule tasks approximately every 10
      *                    seconds, there will potentially be many Cancellables generated.
      */
     void fetchClusterFormationInfo(
         DiscoveryNode node,
-        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
+        Consumer<ClusterFormationStateOrException> responseConsumer,
         List<Scheduler.Cancellable> cancellables
     ) {
         StepListener<Releasable> connectionListener = new StepListener<>();
@@ -505,28 +513,28 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                      */
                     ActionListener.runAfter(
                         ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
-                        () -> fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, cancellables)
+                        () -> fetchClusterFormationInfo(node, responseConsumer, cancellables)
                     ),
                     ClusterFormationInfoAction.Response::new
                 )
             );
         }, e -> {
             logger.warn("Exception connecting to master node", e);
-            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+            responseConsumer.accept(new ClusterFormationStateOrException(e));
             /*
              * Note: We can't call fetchClusterFormationInfo() in a runAfter() in this case because when the corresponding
              * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
              */
-            fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, cancellables);
+            fetchClusterFormationInfo(node, responseConsumer, cancellables);
         });
 
         fetchClusterInfoListener.whenComplete(response -> {
             long endTime = System.nanoTime();
             logger.trace("Received cluster coordination info from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(response.getClusterFormationState()));
+            responseConsumer.accept(new ClusterFormationStateOrException(response.getClusterFormationState()));
         }, e -> {
             logger.warn("Exception in cluster coordination info request to master node", e);
-            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+            responseConsumer.accept(new ClusterFormationStateOrException(e));
         });
 
         Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {

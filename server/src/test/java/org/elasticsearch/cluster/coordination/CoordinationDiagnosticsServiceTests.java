@@ -623,17 +623,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     DiscoveryNode,
                     CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap =
                         new ConcurrentHashMap<>();
-                masterNodes.stream()
-                    .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
-                    .forEach(
-                        masterNode -> {
-                            node.coordinationDiagnosticsService.fetchClusterFormationInfo(
-                                masterNode,
-                                nodeToClusterFormationStateMap,
-                                new ArrayList<>()
-                            );
-                        }
+                masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
+                    node.coordinationDiagnosticsService.fetchClusterFormationInfo(
+                        masterNode,
+                        response -> nodeToClusterFormationStateMap.put(masterNode, response),
+                        new ArrayList<>()
                     );
+                });
 
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();
@@ -686,17 +682,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap =
                         new ConcurrentHashMap<>();
                 List<Scheduler.Cancellable> cancellables = new ArrayList<>();
-                masterNodes.stream()
-                    .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
-                    .forEach(
-                        masterNode -> {
-                            node.coordinationDiagnosticsService.fetchClusterFormationInfo(
-                                masterNode,
-                                nodeToClusterFormationStateMap,
-                                cancellables
-                            );
-                        }
+                masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
+                    node.coordinationDiagnosticsService.fetchClusterFormationInfo(
+                        masterNode,
+                        response -> nodeToClusterFormationStateMap.put(masterNode, response),
+                        cancellables
                     );
+                });
                 cancellables.forEach(Scheduler.Cancellable::cancel); // This is what will most often happen in practice
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();

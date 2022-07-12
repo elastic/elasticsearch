@@ -41,7 +41,7 @@ It's not possible to update expired API keys, or API keys that have been invalid
 // TODO body optional
 
 IMPORTANT: An API key's permissions are always limited by the permissions of the authenticated user creating or updating the API key.
-Any call to the update API, **regardless** of whether any parameters are supplied or not, will automatically apply the authenticated user's permissions to the API key.
+Any call to the update API, **regardless** of whether any parameters are supplied or not, will automatically apply the authenticated user's current permissions to the API key.
 This may result in a change in the API key's permissions, even when <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> is not specified in the update request.
 
 The following parameters can be specified in the body of a PUT request:
@@ -50,8 +50,8 @@ The following parameters can be specified in the body of a PUT request:
 `role_descriptors`::
 (Optional, array-of-role-descriptor) An array of new role descriptors for this API key.
 This parameter is optional.
-When it is empty array, the API key's new permissions will be a _point in time snapshot of permissions of the authenticated user_.
-If you supply role descriptors, the API key's permissions will be the intersection of the supplied permissions and the authenticated user's permissions, thereby limiting the access scope for API keys.
+When it is an empty array, the API key's new permissions will be a _point in time snapshot of permissions of the authenticated user_.
+If you supply role descriptors, the API key's permissions will be the intersection of the supplied permissions and the authenticated user's permissions, thereby limiting the API key's access scope.
 If this parameter is not supplied, the API key's permissions will be the intersection of the API key's previously assigned permissions (if any) and the authenticated user's permissions.
 The structure of role descriptor is the same as the request for create role API.
 For more details, see <<security-api-put-role, create or update roles API>>.

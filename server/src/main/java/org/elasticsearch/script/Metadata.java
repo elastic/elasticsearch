@@ -245,6 +245,13 @@ public class Metadata {
         REMOVE
     }
 
+    /**
+     * The properties of a metadata field.
+     * @param type - the class of the field.  Updates must be assignable to this type.  If null, no type checking is performed.
+     * @param nullable - can the field value be null and can it be removed
+     * @param writable - can the field be updated after the initial set
+     * @param extendedValidation - value validation after type checking, may be used for values that may be one of a set
+     */
     public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
 
         public static BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {

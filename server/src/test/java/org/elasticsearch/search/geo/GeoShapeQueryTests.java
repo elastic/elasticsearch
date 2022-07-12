@@ -14,16 +14,26 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class GeoShapeQueryTests extends GeoShapeQueryTestCase {
+
+    @SuppressWarnings("deprecation")
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
+    }
 
     @Override
     protected void createMapping(String indexName, String fieldName, Settings settings) throws Exception {

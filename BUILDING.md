@@ -53,7 +53,7 @@ in our build logic to resolve this.
 Tony Robalik has compiled a good list of rules that aligns with ours when it comes to writing and maintaining elasticsearch
 gradle build logic at http://autonomousapps.com/blog/rules-for-gradle-plugin-authors.html.
 Our current build does not yet tick off all those rules everywhere but the ultimate goal is to follow these principles.
-The reasons for following those rules besidesbetter readability or maintenance are also the goal to support newer gradle
+The reasons for following those rules besides better readability or maintenance are also the goal to support newer gradle
 features that we will benefit from in terms of performance and reliability.
 E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issues/57918), [Project Isolation]([https://gradle.github.io/configuration-cache/#project_isolation) or
 [predictive test selection](https://gradle.com/gradle-enterprise-solutions/predictive-test-selection/)

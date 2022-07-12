@@ -32,15 +32,19 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.ToXContent;
@@ -557,6 +561,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean isPartialSearchableSnapshot;
 
+    @Nullable
+    private final IndexMode indexMode;
+    @Nullable
+    private final Instant timeSeriesStart;
+    @Nullable
+    private final Instant timeSeriesEnd;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -594,7 +605,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final LifecycleExecutionState lifecycleExecutionState,
         final AutoExpandReplicas autoExpandReplicas,
         final boolean isSearchableSnapshot,
-        final boolean isPartialSearchableSnapshot
+        final boolean isPartialSearchableSnapshot,
+        @Nullable final IndexMode indexMode,
+        @Nullable final Instant timeSeriesStart,
+        @Nullable final Instant timeSeriesEnd
     ) {
         this.index = index;
         this.version = version;
@@ -641,6 +655,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSearchableSnapshot = isSearchableSnapshot;
         this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
         this.indexCompatibilityVersion = SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        this.indexMode = indexMode;
+        this.timeSeriesStart = timeSeriesStart;
+        this.timeSeriesEnd = timeSeriesEnd;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -685,7 +702,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.lifecycleExecutionState,
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
-            this.isPartialSearchableSnapshot
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd
         );
     }
 
@@ -846,6 +866,41 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
+     * @return the mode this index is in. This determines the behaviour and features it supports.
+     *         If <code>null</code> is returned then this in index is in standard mode.
+     */
+    @Nullable
+    public IndexMode getIndexMode() {
+        return indexMode;
+    }
+
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     * Together with {@link #getTimeSeriesEnd()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
+    @Nullable
+    public Instant getTimeSeriesStart() {
+        return timeSeriesStart;
+    }
+
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     * Together with {@link #getTimeSeriesStart()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
+    @Nullable
+    public Instant getTimeSeriesEnd() {
+        return timeSeriesEnd;
+    }
+
+    /**
      * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
      */
     @Nullable
@@ -866,6 +921,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_ROLLUP_SOURCE_UUID_KEY = "index.rollup.source.uuid";
     public static final String INDEX_ROLLUP_SOURCE_NAME_KEY = "index.rollup.source.name";
+
+    public static final String INDEX_ROLLUP_STATUS_KEY = "index.rollup.status";
     public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
         INDEX_ROLLUP_SOURCE_UUID_KEY,
         Property.IndexScope,
@@ -875,6 +932,24 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         INDEX_ROLLUP_SOURCE_NAME_KEY,
         Property.IndexScope,
         Property.PrivateIndex
+    );
+
+    public enum RollupTaskStatus {
+        STARTED,
+        SUCCESS;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public static final Setting<RollupTaskStatus> INDEX_ROLLUP_STATUS = Setting.enumSetting(
+        RollupTaskStatus.class,
+        INDEX_ROLLUP_STATUS_KEY,
+        RollupTaskStatus.SUCCESS,
+        Property.IndexScope,
+        Property.InternalIndex
     );
 
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
@@ -924,6 +999,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public IndexLongFieldRange getTimestampRange() {
         return timestampRange;
+    }
+
+    /**
+     * @return the time range this index represents if this index is in time series mode.
+     *         Otherwise <code>null</code> is returned.
+     */
+    @Nullable
+    public IndexLongFieldRange getTimeSeriesTimestampRange() {
+        var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
+        if (bounds != null) {
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -1247,24 +1336,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        out.writeVInt(aliases.size());
-        for (AliasMetadata aliasMetadata : aliases.values()) {
-            aliasMetadata.writeTo(out);
-        }
-        out.writeVInt(customData.size());
-        for (final Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(inSyncAllocationIds.size());
-        for (Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
-            out.writeVInt(cursor.getKey());
-            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
-        }
-        out.writeVInt(rolloverInfos.size());
-        for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
-            rolloverInfo.writeTo(out);
-        }
+        out.writeCollection(aliases.values());
+        out.writeMap(customData, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(
+            inSyncAllocationIds,
+            StreamOutput::writeVInt,
+            (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
+        );
+        out.writeCollection(rolloverInfos.values());
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
@@ -1681,6 +1760,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
+            final String indexMode = settings.get(IndexSettings.MODE.getKey());
+            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
+                && indexMode != null
+                && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1718,7 +1801,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
-                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false)
+                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
+                isTsdb ? IndexMode.TIME_SERIES : null,
+                isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
+                isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null
             );
         }
 
@@ -2269,7 +2355,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
         }
         int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
-        Set<ShardId> shards = new HashSet<>(routingFactor);
+        Set<ShardId> shards = Sets.newHashSetWithExpectedSize(routingFactor);
         for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
             shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
         }

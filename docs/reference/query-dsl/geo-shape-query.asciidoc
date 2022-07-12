@@ -10,9 +10,10 @@ Requires the <<geo-shape,`geo_shape` mapping>> or the
 <<geo-point,`geo_point` mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
-`geo_shape` mapping to find documents that have a shape that intersects
-with the query shape. It will also use the same Prefix Tree configuration
-as defined for the field mapping.
+`geo_shape` mapping to find documents that have a shape that is related
+to the query shape, using a specified spatial relationship: either intersects,
+contained, within or disjoint.
+It will also use the same Prefix Tree configuration as defined for the field mapping.
 
 The query supports two ways of defining the query shape, either by
 providing a whole shape definition, or by referencing the name of a shape

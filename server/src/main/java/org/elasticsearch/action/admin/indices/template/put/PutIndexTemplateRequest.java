@@ -456,10 +456,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         } else {
             out.writeOptionalString(mappings);
         }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        out.writeCollection(aliases);
         out.writeOptionalVInt(version);
     }
 }

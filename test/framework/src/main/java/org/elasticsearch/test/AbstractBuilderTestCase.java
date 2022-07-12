@@ -51,6 +51,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -109,7 +110,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
-    protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
     // we don't include the binary field in the arrays below as it is not searchable
     protected static final String BINARY_FIELD_NAME = "mapped_binary";
     protected static final String[] MAPPED_FIELD_NAMES = new String[] {
@@ -124,8 +124,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         DATE_RANGE_FIELD_NAME,
         OBJECT_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME,
-        GEO_SHAPE_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME };
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
@@ -158,9 +157,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return index;
     }
 
-    @SuppressWarnings("deprecation") // dependencies in server for geo_shape field should be decoupled
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
+        return Collections.emptyList();
     }
 
     /**
@@ -361,7 +359,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> { throw new AssertionError("node.name must be set"); }
             );
             PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
+            pluginsService = new MockPluginsService(nodeSettings, env, plugins);
 
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
@@ -454,8 +452,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                                 "type=geo_point",
                                 GEO_POINT_ALIAS_FIELD_NAME,
                                 "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                                GEO_SHAPE_FIELD_NAME,
-                                "type=geo_shape",
                                 BINARY_FIELD_NAME,
                                 "type=binary"
                             )

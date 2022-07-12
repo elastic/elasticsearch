@@ -278,7 +278,7 @@ public final class DocumentParser {
         innerParseObject(context, mapper);
         // restore the enable path flag
         if (mapper.isNested()) {
-            nested(context, (NestedObjectMapper) mapper);
+            copyNestedFields(context, (NestedObjectMapper) mapper);
         }
     }
 
@@ -344,7 +344,14 @@ public final class DocumentParser {
         );
     }
 
-    private static void nested(DocumentParserContext context, NestedObjectMapper nested) {
+    private static void copyNestedFields(DocumentParserContext context, NestedObjectMapper nested) {
+        if (context.isWithinCopyTo()) {
+            // Only process the nested document after we've finished parsing the actual
+            // doc; we can't copy_to outside of the current nested context, so if we are
+            // in a copy_to context then we're adding data within the doc and we haven't
+            // finished parsing yet.
+            return;
+        }
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
@@ -363,7 +370,7 @@ public final class DocumentParser {
     private static void addFields(Version indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
         String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (field.name().equals(nestedPathFieldName) == false) {
+            if (field.name().equals(nestedPathFieldName) == false && field.name().equals(IdFieldMapper.NAME) == false) {
                 rootDoc.add(field);
             }
         }
@@ -396,8 +403,8 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
-        if (mapper instanceof ObjectMapper) {
-            parseObjectOrNested(context, (ObjectMapper) mapper);
+        if (mapper instanceof ObjectMapper objectMapper) {
+            parseObjectOrNested(context, objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMapper.parse(context);
             if (context.isWithinCopyTo() == false) {
@@ -440,9 +447,10 @@ public final class DocumentParser {
         );
     }
 
-    private static void parseObject(final DocumentParserContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
+    private static void parseObject(final DocumentParserContext context, ObjectMapper parentObjectMapper, String currentFieldName)
+        throws IOException {
         assert currentFieldName != null;
-        Mapper objectMapper = getMapper(context, mapper, currentFieldName);
+        Mapper objectMapper = getMapper(context, parentObjectMapper, currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             if (objectMapper instanceof ObjectMapper objMapper) {
@@ -454,16 +462,17 @@ public final class DocumentParser {
             context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
-            parseObjectDynamic(context, mapper, currentFieldName);
+            parseObjectDynamic(context, parentObjectMapper, currentFieldName);
         }
     }
 
-    private static void parseObjectDynamic(DocumentParserContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
-        ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
+    private static void parseObjectDynamic(DocumentParserContext context, ObjectMapper parentObjectMapper, String currentFieldName)
+        throws IOException {
+        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentObjectMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
+            throw new StrictDynamicMappingException(parentObjectMapper.fullPath(), currentFieldName);
         } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            failIfMatchesRoutingPath(context, mapper, currentFieldName);
+            failIfMatchesRoutingPath(context, parentObjectMapper, currentFieldName);
             // not dynamic, read everything up to end object
             context.parser().skipChildren();
         } else {
@@ -475,6 +484,26 @@ public final class DocumentParser {
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
                 context.addDynamicMapper(dynamicObjectMapper);
+            }
+            if (parentObjectMapper.subobjects() == false) {
+                if (dynamicObjectMapper instanceof NestedObjectMapper) {
+                    throw new MapperParsingException(
+                        "Tried to add nested object ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + parentObjectMapper.name()
+                            + "] which does not support subobjects"
+                    );
+                }
+                if (dynamicObjectMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Tried to add subobject ["
+                            + dynamicObjectMapper.simpleName()
+                            + "] to object ["
+                            + parentObjectMapper.name()
+                            + "] which does not support subobjects"
+                    );
+                }
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);

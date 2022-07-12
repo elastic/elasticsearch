@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -111,8 +110,8 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(meta, docValues, indexed, nullValue, stored, script, onScriptError);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { meta, docValues, indexed, nullValue, stored, script, onScriptError };
         }
 
         @Override
@@ -440,7 +439,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(value == 1);
             }
         };

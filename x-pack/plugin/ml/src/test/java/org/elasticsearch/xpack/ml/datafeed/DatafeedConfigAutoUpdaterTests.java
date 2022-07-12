@@ -50,18 +50,18 @@ import static org.mockito.Mockito.when;
 public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
 
     private DatafeedConfigProvider provider;
-    private List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
-    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+    private final List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
+    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     public void setup() {
         provider = mock(DatafeedConfigProvider.class);
         doAnswer(call -> {
             @SuppressWarnings("unchecked")
-            ActionListener<List<DatafeedConfig.Builder>> handler = (ActionListener<List<DatafeedConfig.Builder>>) call.getArguments()[2];
+            ActionListener<List<DatafeedConfig.Builder>> handler = (ActionListener<List<DatafeedConfig.Builder>>) call.getArguments()[3];
             handler.onResponse(datafeeds);
             return null;
-        }).when(provider).expandDatafeedConfigs(any(), anyBoolean(), any());
+        }).when(provider).expandDatafeedConfigs(any(), anyBoolean(), any(), any());
         doAnswer(call -> {
             @SuppressWarnings("unchecked")
             ActionListener<DatafeedConfig> handler = (ActionListener<DatafeedConfig>) call.getArguments()[4];

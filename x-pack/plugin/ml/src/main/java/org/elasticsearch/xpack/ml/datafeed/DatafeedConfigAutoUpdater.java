@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +26,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.core.Strings.format;
 
 public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateAction {
 
@@ -71,7 +73,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
     @Override
     public void runUpdate() {
         PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = PlainActionFuture.newFuture();
-        provider.expandDatafeedConfigs("_all", true, getdatafeeds);
+        provider.expandDatafeedConfigs("_all", true, null, getdatafeeds);
         List<DatafeedConfig.Builder> datafeedConfigBuilders = getdatafeeds.actionGet();
         List<DatafeedUpdate> updates = datafeedConfigBuilders.stream()
             .map(DatafeedConfig.Builder::build)
@@ -87,10 +89,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
-                "{} datafeeds are currently being updated",
-                updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
-            )
+            () -> format("%s datafeeds are currently being updated", updates.stream().map(DatafeedUpdate::getId).collect(toList()))
         );
 
         List<Exception> failures = new ArrayList<>();
@@ -113,10 +112,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
         }
         if (failures.isEmpty()) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "{} datafeeds are finished being updated",
-                    updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
-                )
+                () -> format("%s datafeeds are finished being updated", updates.stream().map(DatafeedUpdate::getId).collect(toList()))
             );
             return;
         }

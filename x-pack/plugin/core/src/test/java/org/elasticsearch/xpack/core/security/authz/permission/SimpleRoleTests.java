@@ -35,13 +35,12 @@ public class SimpleRoleTests extends ESTestCase {
         final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = new AuthorizationEngine.PrivilegesToCheck(
             new String[] { "monitor" },
             new RoleDescriptor.IndicesPrivileges[0],
-            new RoleDescriptor.ApplicationResourcePrivileges[0]
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            true
         );
         final AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = new AuthorizationEngine.PrivilegesCheckResult(
             true,
-            Map.of("monitor", true),
-            Map.of(),
-            Map.of()
+            new AuthorizationEngine.PrivilegesCheckResult.Details(Map.of("monitor", true), Map.of(), Map.of())
         );
         role.cacheHasPrivileges(Settings.EMPTY, privilegesToCheck, privilegesCheckResult);
 

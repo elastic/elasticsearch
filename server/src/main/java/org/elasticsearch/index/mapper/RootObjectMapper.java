@@ -70,8 +70,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
 
-        public Builder(String name) {
-            super(name);
+        public Builder(String name, Explicit<Boolean> subobjects) {
+            super(name, subobjects);
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -152,7 +152,8 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            RootObjectMapper.Builder builder = new Builder(name);
+            Explicit<Boolean> subobjects = parseSubobjects(node);
+            RootObjectMapper.Builder builder = new Builder(name, subobjects);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -278,9 +279,8 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name());
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
         builder.enabled = enabled;
-        builder.subobjects = subobjects;
         builder.dynamic = dynamic;
         return builder;
     }

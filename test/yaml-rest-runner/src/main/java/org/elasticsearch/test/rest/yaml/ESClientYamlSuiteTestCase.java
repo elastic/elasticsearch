@@ -108,6 +108,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private final ClientYamlTestCandidate testCandidate;
 
+    private static ClientYamlSuiteRestSpec restSpecification;
+
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
     }
@@ -126,6 +128,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             assert blacklistPathMatchers == null;
             final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
+            restSpecification = restSpec;
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
             final Version esVersion = versionVersionTuple.v1();
@@ -317,6 +320,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return adminExecutionContext;
     }
 
+    static ClientYamlSuiteRestSpec getRestSpec() {
+        return restSpecification;
+    }
+
     private static void validateSpec(ClientYamlSuiteRestSpec restSpec) {
         boolean validateSpec = RandomizedTest.systemPropertyAsBoolean(REST_TESTS_VALIDATE_SPEC, true);
         if (validateSpec) {
@@ -341,7 +348,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
+    Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         final Request request = new Request("GET", "/_cat/nodes");
         request.addParameter("h", "version,master");
@@ -370,7 +377,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    private String readOsFromNodesInfo(RestClient restClient) throws IOException {
+    String readOsFromNodesInfo(RestClient restClient) throws IOException {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);

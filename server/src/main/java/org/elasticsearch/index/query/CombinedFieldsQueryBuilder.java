@@ -59,12 +59,16 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
 
+    private static final Operator DEFAULT_OPERATOR = Operator.OR;
+    private static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQueryOption.NONE;
+    private static final boolean DEFAULT_GENERATE_SYNONYMS_PHRASE = true;
+
     private final Object value;
     private final Map<String, Float> fieldsAndBoosts;
-    private Operator operator = Operator.OR;
+    private Operator operator = DEFAULT_OPERATOR;
     private String minimumShouldMatch;
-    private ZeroTermsQueryOption zeroTermsQuery = ZeroTermsQueryOption.NONE;
-    private boolean autoGenerateSynonymsPhraseQuery = true;
+    private ZeroTermsQueryOption zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+    private boolean autoGenerateSynonymsPhraseQuery = DEFAULT_GENERATE_SYNONYMS_PHRASE;
 
     private static final ConstructingObjectParser<CombinedFieldsQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -257,13 +261,19 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             builder.value(fieldEntry.getKey() + "^" + fieldEntry.getValue());
         }
         builder.endArray();
-        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (operator != DEFAULT_OPERATOR) {
+            builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        }
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
-        printBoostAndQueryName(builder);
+        if (zeroTermsQuery != DEFAULT_ZERO_TERMS_QUERY) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        if (autoGenerateSynonymsPhraseQuery != DEFAULT_GENERATE_SYNONYMS_PHRASE) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -33,6 +32,8 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.core.Strings.format;
 
 class AuthenticatorChain {
 
@@ -236,13 +237,7 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "caught exception while trying to read authentication from request [{}]",
-                    context.getRequest()
-                ),
-                e
-            );
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
         if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
@@ -339,10 +334,7 @@ class AuthenticatorChain {
             authenticationSerializer.writeToContext(authentication, context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
-            logger.debug(
-                new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, context.getRequest()),
-                e
-            );
+            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);
             final ElasticsearchSecurityException ese = context.getRequest()
                 .exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken());
             addMetadata(context, ese);

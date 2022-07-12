@@ -10,7 +10,6 @@ package org.elasticsearch.action.support.master;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -43,7 +42,12 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A base class for operations that needs to be performed on the master node.
@@ -141,6 +145,33 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
+    /**
+     * Override this method if the master node action also has an {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler}
+     * interaction.
+     * <p>
+     * We need to check if certain settings or entities are allowed to be modified by the master node
+     * action, depending on if they are set as immutable in 'operator' mode (file based settings, modules, plugins).
+     *
+     * @return an Optional of the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} name
+     */
+    protected Optional<String> immutableStateHandlerName() {
+        return Optional.empty();
+    }
+
+    /**
+     * Override this method to return the keys of the cluster state or cluster entities that are modified by
+     * the Request object.
+     * <p>
+     * This method is used by the immutable state handler logic (see {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler})
+     * to verify if the keys don't conflict with an existing key set as immutable.
+     *
+     * @param request the TransportMasterNode request
+     * @return set of String keys intended to be modified/set/deleted by this request
+     */
+    protected Set<String> modifiedKeys(Request request) {
+        return Collections.emptySet();
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
@@ -197,9 +228,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         ActionListener<Response> delegate = listener.delegateResponse((delegatedListener, t) -> {
                             if (MasterService.isPublishFailureException(t)) {
                                 logger.debug(
-                                    () -> new ParameterizedMessage(
+                                    () -> format(
                                         "master could not publish cluster state or "
-                                            + "stepped down before publishing action [{}], scheduling a retry",
+                                            + "stepped down before publishing action [%s], scheduling a retry",
                                         actionName
                                     ),
                                     t
@@ -241,11 +272,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         retryOnMasterChange(clusterState, cause);
                                     } else {
                                         logger.trace(
-                                            new ParameterizedMessage(
-                                                "failure when forwarding request [{}] to master [{}]",
-                                                actionName,
-                                                masterNode
-                                            ),
+                                            () -> format("failure when forwarding request [%s] to master [%s]", actionName, masterNode),
                                             exp
                                         );
                                         listener.onFailure(exp);
@@ -295,10 +322,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    logger.debug(
-                        () -> new ParameterizedMessage("timed out while retrying [{}] after failure (timeout [{}])", actionName, timeout),
-                        failure
-                    );
+                    logger.debug(() -> format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout), failure);
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                 }
             }, clusterState -> isTaskCancelled() || statePredicate.test(clusterState));

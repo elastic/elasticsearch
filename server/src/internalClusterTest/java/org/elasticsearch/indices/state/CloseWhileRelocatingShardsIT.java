@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertException;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
@@ -173,13 +173,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                             release.await();
                             logger.debug("releasing recovery of shard {}", startRecoveryRequest.shardId());
                         } catch (final InterruptedException e) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "exception when releasing recovery of shard {}",
-                                    startRecoveryRequest.shardId()
-                                ),
-                                e
-                            );
+                            logger.warn(() -> format("exception when releasing recovery of shard %s", startRecoveryRequest.shardId()), e);
                             interruptedRecoveries.add(startRecoveryRequest.shardId().getIndexName());
                             Thread.currentThread().interrupt();
                             return;

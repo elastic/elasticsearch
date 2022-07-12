@@ -45,7 +45,7 @@ public class EvilSecurityTests extends ESTestCase {
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             Environment environment = TestEnvironment.newEnvironment(settings);
-            permissions = Security.createPermissions(environment);
+            permissions = Security.createPermissions(environment, null);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
@@ -86,7 +86,7 @@ public class EvilSecurityTests extends ESTestCase {
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             environment = new Environment(settings, esHome.resolve("conf"));
-            permissions = Security.createPermissions(environment);
+            permissions = Security.createPermissions(environment, null);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
@@ -143,7 +143,7 @@ public class EvilSecurityTests extends ESTestCase {
             .build();
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment));
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment, null));
         assertThat(e, hasToString(containsString("path [" + duplicate.toRealPath() + "] is duplicated by [" + duplicate + "]")));
     }
 

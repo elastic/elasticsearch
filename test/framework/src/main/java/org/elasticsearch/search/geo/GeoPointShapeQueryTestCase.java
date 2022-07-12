@@ -35,15 +35,11 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -56,11 +52,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
-    }
 
     protected abstract void createMapping(String indexName, String fieldName, Settings settings) throws Exception;
 
@@ -704,7 +695,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         ensureGreen();
 
         Line line = randomValueOtherThanMany(
-            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l),
+            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l) || ignoreLons(l.getLons()),
             () -> GeometryTestUtils.randomLine(false)
         );
         for (int i = 0; i < line.length(); i++) {
@@ -729,7 +720,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         ensureGreen();
 
         Polygon polygon = randomValueOtherThanMany(
-            p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p),
+            p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p) || ignoreLons(p.getPolygon().getLons()),
             () -> GeometryTestUtils.randomPolygon(false)
         );
         LinearRing linearRing = polygon.getPolygon();
@@ -748,5 +739,10 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         assertSearchResponse(searchResponse);
         SearchHits searchHits = searchResponse.getHits();
         assertThat(searchHits.getTotalHits().value, equalTo((long) linearRing.length()));
+    }
+
+    /** Only LegacyGeoShape has limited support, so other tests will ignore nothing */
+    protected boolean ignoreLons(double[] lons) {
+        return false;
     }
 }

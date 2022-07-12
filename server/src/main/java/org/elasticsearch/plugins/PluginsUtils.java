@@ -76,7 +76,7 @@ public class PluginsUtils {
     /**
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
-    public static void verifyCompatibility(PluginInfo info) {
+    public static void verifyCompatibility(PluginDescriptor info) {
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
             throw new IllegalArgumentException(
                 "Plugin ["
@@ -157,9 +157,9 @@ public class PluginsUtils {
 
     // get a bundle for a single plugin dir
     private static PluginBundle readPluginBundle(final Path plugin, String type) throws IOException {
-        final PluginInfo info;
+        final PluginDescriptor info;
         try {
-            info = PluginInfo.readFromProperties(plugin);
+            info = PluginDescriptor.readFromProperties(plugin);
         } catch (final IOException e) {
             throw new IllegalStateException(
                 "Could not load plugin descriptor for " + type + " directory [" + plugin.getFileName() + "]",
@@ -182,7 +182,7 @@ public class PluginsUtils {
      * @throws IOException on failed plugin reads
      */
     public static void preInstallJarHellCheck(
-        PluginInfo candidateInfo,
+        PluginDescriptor candidateInfo,
         Path candidateDir,
         Path pluginsDir,
         Path modulesDir,

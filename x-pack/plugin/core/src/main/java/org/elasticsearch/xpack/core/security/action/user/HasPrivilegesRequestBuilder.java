@@ -38,13 +38,12 @@ public class HasPrivilegesRequestBuilder extends ActionRequestBuilder<HasPrivile
     public HasPrivilegesRequestBuilder source(String username, BytesReference source, XContentType xContentType) throws IOException {
         final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = RoleDescriptor.parsePrivilegesToCheck(
             username + "/has_privileges",
+            true, // hard-coded for now, but it doesn't have to be
             source,
             xContentType
         );
         request.username(username);
-        request.clusterPrivileges(privilegesToCheck.cluster());
-        request.indexPrivileges(privilegesToCheck.index());
-        request.applicationPrivileges(privilegesToCheck.application());
+        request.privilegesToCheck(privilegesToCheck);
         return this;
     }
 }

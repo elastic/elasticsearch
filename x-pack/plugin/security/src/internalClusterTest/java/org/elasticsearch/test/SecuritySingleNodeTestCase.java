@@ -10,6 +10,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
@@ -22,7 +23,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
@@ -53,6 +53,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
+    private TestSecurityClient securityClient;
     private static RestClient restClient = null;
 
     @BeforeClass
@@ -118,7 +119,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
-                .map(PluginInfo::getClassname)
+                .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
                 "plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]",
@@ -289,6 +290,17 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return inFipsJvm()
             ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
             : Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch", "bcrypt", "bcrypt9"));
+    }
+
+    protected TestSecurityClient getSecurityClient() {
+        if (securityClient == null) {
+            securityClient = getSecurityClient(SecuritySettingsSource.SECURITY_REQUEST_OPTIONS);
+        }
+        return securityClient;
+    }
+
+    protected TestSecurityClient getSecurityClient(RequestOptions requestOptions) {
+        return new TestSecurityClient(getRestClient(), requestOptions);
     }
 
     private static synchronized RestClient getRestClient(Client client) {

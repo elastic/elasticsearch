@@ -32,7 +32,7 @@ import java.util.Map;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.ROOT),
+        new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS).build(MapperBuilderContext.ROOT),
         new MetadataFieldMapper[0],
         null
     );

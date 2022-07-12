@@ -349,7 +349,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } catch (TimeoutException ex) {
             logger.warn("failed to connect to remote clusters within {}", timeValue.toString());
         } catch (Exception e) {
-            throw new IllegalStateException("failed to connect to remote clusters", e);
+            logger.warn("failed to connect to remote clusters", e);
         }
     }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -127,7 +126,7 @@ public class DiskThresholdMonitor {
             return;
         }
 
-        final ImmutableOpenMap<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
+        final Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
             logger.trace("skipping monitor as no disk usage information is available");
             lastNodes = Collections.emptySet();
@@ -435,7 +434,7 @@ public class DiskThresholdMonitor {
 
     private static void markNodesMissingUsageIneligibleForRelease(
         RoutingNodes routingNodes,
-        ImmutableOpenMap<String, DiskUsage> usages,
+        Map<String, DiskUsage> usages,
         Set<String> indicesToMarkIneligibleForAutoRelease
     ) {
         for (RoutingNode routingNode : routingNodes) {

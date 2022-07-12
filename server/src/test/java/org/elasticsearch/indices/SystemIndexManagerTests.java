@@ -46,7 +46,6 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
@@ -106,10 +105,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "index 1",
+            List.of(
                 new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
-                "index 2",
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
@@ -151,10 +148,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             .build();
 
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "index 1",
+            List.of(
                 new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
-                "index 2",
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
@@ -251,7 +246,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager submits the expected request for an index whose mappings are out-of-date.
      */
     public void testManagerSubmitsPutRequest() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0"))))));
@@ -352,11 +347,11 @@ public class SystemIndexManagerTests extends ESTestCase {
         IndexMetadata.State state
     ) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(
-            descriptor.getPrimaryIndex() == null ? descriptor.getIndexPattern() : descriptor.getPrimaryIndex()
+            descriptor.isAutomaticallyManaged() ? descriptor.getPrimaryIndex() : descriptor.getIndexPattern()
         );
 
         final Settings.Builder settingsBuilder = Settings.builder();
-        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+        if (descriptor.isAutomaticallyManaged() == false || SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
             settingsBuilder.put(getSettings());
         } else {
             settingsBuilder.put(descriptor.getSettings());
@@ -364,7 +359,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         settingsBuilder.put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format);
         indexMetadata.settings(settingsBuilder.build());
 
-        if (descriptor.getAliasName() != null) {
+        if (descriptor.isAutomaticallyManaged() && descriptor.getAliasName() != null) {
             indexMetadata.putAlias(AliasMetadata.builder(descriptor.getAliasName()).build());
         }
         indexMetadata.state(state);

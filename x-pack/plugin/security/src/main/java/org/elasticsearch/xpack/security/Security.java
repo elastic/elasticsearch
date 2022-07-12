@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
@@ -151,6 +152,7 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -178,6 +180,7 @@ import org.elasticsearch.xpack.security.action.apikey.TransportGetApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportGrantApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportKibanaEnrollmentAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportNodeEnrollmentAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -275,6 +278,7 @@ import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestQueryApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestKibanaEnrollAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestNodeEnrollmentAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -640,6 +644,7 @@ public class Security extends Plugin
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
                 threadPool,
+                settings,
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
@@ -776,6 +781,7 @@ public class Security extends Plugin
             client,
             systemIndices.getProfileIndexManager(),
             clusterService,
+            realms::getDomainConfig,
             threadPool
         );
         components.add(profileService);
@@ -1055,6 +1061,7 @@ public class Security extends Plugin
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
+        settingsList.addAll(JwtRealmsServiceSettings.getSettings());
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
@@ -1156,11 +1163,9 @@ public class Security extends Plugin
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
                  * overwrite the query cache implementation to prevent data leakage to unauthorized users.
                  */
-                module.forceQueryCacheProvider((indexSettings, cache) -> {
-                    final OptOutQueryCache queryCache = new OptOutQueryCache(indexSettings, cache, threadContext.get());
-
-                    return queryCache;
-                });
+                module.forceQueryCacheProvider(
+                    (indexSettings, cache) -> new OptOutQueryCache(indexSettings.getIndex(), cache, threadContext.get())
+                );
             }
 
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that
@@ -1178,7 +1183,7 @@ public class Security extends Plugin
             return Arrays.asList(usageAction, infoAction);
         }
 
-        final List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = Arrays.asList(
+        return Arrays.asList(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
@@ -1193,7 +1198,6 @@ public class Security extends Plugin
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
             new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
-            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
             new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
@@ -1220,6 +1224,7 @@ public class Security extends Plugin
             new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
             new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
             new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
+            new ActionHandler<>(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
             new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
             new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
@@ -1228,24 +1233,15 @@ public class Security extends Plugin
             new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
             new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
+            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
+            new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
+            new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
+            new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
+            new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
             usageAction,
             infoAction
         );
-
-        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            return Stream.concat(
-                actionHandlers.stream(),
-                Stream.of(
-                    new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
-                    new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
-                    new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
-                    new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
-                    new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class)
-                )
-            ).toList();
-        } else {
-            return actionHandlers;
-        }
     }
 
     @Override
@@ -1269,7 +1265,7 @@ public class Security extends Plugin
         if (enabled == false) {
             return emptyList();
         }
-        final List<RestHandler> restHandlers = Arrays.asList(
+        return Arrays.asList(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
             new RestClearRolesCacheAction(settings, getLicenseState()),
@@ -1285,7 +1281,6 @@ public class Security extends Plugin
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
             new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetRoleMappingsAction(settings, getLicenseState()),
             new RestPutRoleMappingAction(settings, getLicenseState()),
@@ -1307,6 +1302,7 @@ public class Security extends Plugin
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
             new RestCreateApiKeyAction(settings, getLicenseState()),
+            new RestUpdateApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
@@ -1317,24 +1313,15 @@ public class Security extends Plugin
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
-            new RestNodeEnrollmentAction(settings, getLicenseState())
+            new RestNodeEnrollmentAction(settings, getLicenseState()),
+            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestGetProfileAction(settings, getLicenseState()),
+            new RestActivateProfileAction(settings, getLicenseState()),
+            new RestUpdateProfileDataAction(settings, getLicenseState()),
+            new RestSuggestProfilesAction(settings, getLicenseState()),
+            new RestEnableProfileAction(settings, getLicenseState()),
+            new RestDisableProfileAction(settings, getLicenseState())
         );
-
-        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            return Stream.concat(
-                restHandlers.stream(),
-                Stream.of(
-                    new RestGetProfileAction(settings, getLicenseState()),
-                    new RestActivateProfileAction(settings, getLicenseState()),
-                    new RestUpdateProfileDataAction(settings, getLicenseState()),
-                    new RestSuggestProfilesAction(settings, getLicenseState()),
-                    new RestEnableProfileAction(settings, getLicenseState()),
-                    new RestDisableProfileAction(settings, getLicenseState())
-                )
-            ).toList();
-        } else {
-            return restHandlers;
-        }
     }
 
     @Override
@@ -1413,12 +1400,37 @@ public class Security extends Plugin
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
             validationErrors.add(
-                "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the "
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. Please set the "
                     + "appropriate value for [ "
                     + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()
                     + " ] setting."
             );
         }
+        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
+            final var storedHashAlgo = setting.get(settings);
+            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+                // log instead of validation error for backwards compatibility
+                logger.warn(
+                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                        + "Please set the appropriate value for [{}] setting.",
+                    setting.getKey()
+                );
+            }
+        });
+        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
+        cacheHashAlgoSettings.keySet().forEach((key) -> {
+            final var setting = cacheHashAlgoSettings.get(key);
+            assert setting != null;
+            final var hashAlgoName = setting.toLowerCase(Locale.ROOT);
+            if (hashAlgoName.equals("ssha256") == false && hashAlgoName.startsWith("pbkdf2") == false) {
+                logger.warn(
+                    "[{}] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                        + "The recommended hasher for [{}] is SSHA256.",
+                    setting,
+                    key
+                );
+            }
+        });
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();

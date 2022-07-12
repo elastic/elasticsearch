@@ -134,8 +134,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             {  "index_filter": {
                 "term": {
                   "field": {
-                    "value": "value",
-                    "boost": 1.0
+                    "value": "value"
                   }
                 }
               },

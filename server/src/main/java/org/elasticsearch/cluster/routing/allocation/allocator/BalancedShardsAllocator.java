@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 
@@ -43,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -1167,7 +1167,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static final class ModelIndex implements Iterable<ShardRouting> {
-        private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
+        private final Set<ShardRouting> shards = Sets.newHashSetWithExpectedSize(4); // expect few shards of same index to be allocated on
+                                                                                     // same node
         private int highestPrimary = -1;
 
         ModelIndex() {}

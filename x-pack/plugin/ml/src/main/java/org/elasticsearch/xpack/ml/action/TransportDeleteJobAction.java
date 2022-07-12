@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -57,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -140,8 +140,8 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         synchronized (listenersByJobId) {
             if (listenersByJobId.containsKey(request.getJobId())) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "[{}] Deletion task [{}] will wait for existing deletion task to complete",
+                    () -> format(
+                        "[%s] Deletion task [%s] will wait for existing deletion task to complete",
                         request.getJobId(),
                         task.getId()
                     )
@@ -204,7 +204,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
         // First check that the job exists, because we don't want to audit
         // the beginning of its deletion if it didn't exist in the first place
-        jobConfigProvider.jobExists(request.getJobId(), true, jobExistsListener);
+        jobConfigProvider.jobExists(request.getJobId(), true, null, jobExistsListener);
     }
 
     private void notifyListeners(String jobId, @Nullable AcknowledgedResponse ack, @Nullable Exception error) {
@@ -380,6 +380,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             }
         }, listener::onFailure);
 
-        jobConfigProvider.getJob(jobId, jobListener);
+        jobConfigProvider.getJob(jobId, null, jobListener);
     }
 }

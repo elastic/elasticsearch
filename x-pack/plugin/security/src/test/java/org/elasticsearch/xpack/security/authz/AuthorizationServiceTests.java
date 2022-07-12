@@ -197,6 +197,8 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizatio
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsDenied;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsUnauthorizedAction;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
@@ -2780,11 +2782,9 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             return null;
         }).when(engine).resolveAuthorizationInfo(any(Subject.class), anyActionListener());
-        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = new AuthorizationEngine.PrivilegesCheckResult(
-            randomBoolean(),
-            Map.of(),
-            Map.of(),
-            Map.of()
+        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = randomFrom(
+            ALL_CHECKS_SUCCESS_NO_DETAILS,
+            SOME_CHECKS_FAILURE_NO_DETAILS
         );
         doAnswer(i -> {
             assertThat(i.getArguments().length, equalTo(4));
@@ -2815,7 +2815,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationEngine.PrivilegesToCheck(
                 new String[0],
                 new IndicesPrivileges[0],
-                new RoleDescriptor.ApplicationResourcePrivileges[0]
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
             ),
             List.of(),
             future

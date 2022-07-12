@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
@@ -31,15 +30,15 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private final ImmutableOpenMap<String, MappingMetadata> mappings;
+    private final Map<String, MappingMetadata> mappings;
 
-    public GetMappingsResponse(ImmutableOpenMap<String, MappingMetadata> mappings) {
+    public GetMappingsResponse(Map<String, MappingMetadata> mappings) {
         this.mappings = mappings;
     }
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
             int mappingCount = i.readVInt();
             assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
             if (mappingCount == 1) {
@@ -52,11 +51,11 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> mappings() {
+    public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings();
     }
 

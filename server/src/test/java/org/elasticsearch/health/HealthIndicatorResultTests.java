@@ -26,6 +26,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         String component = randomAlphaOfLength(10);
         HealthStatus status = randomFrom(HealthStatus.RED, HealthStatus.YELLOW, HealthStatus.GREEN);
         String summary = randomAlphaOfLength(20);
+        String helpUrl = randomAlphaOfLength(20);
         Map<String, Object> detailsMap = new HashMap<>();
         detailsMap.put("key", "value");
         HealthIndicatorDetails details = new SimpleHealthIndicatorDetails(detailsMap);
@@ -55,12 +56,13 @@ public class HealthIndicatorResultTests extends ESTestCase {
             action2.affectedResources().add(randomAlphaOfLength(10));
         }
         actions.add(action2);
-        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, details, impacts, actions);
+        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, helpUrl, details, impacts, actions);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertEquals(status.xContentValue(), xContentMap.get("status"));
         assertEquals(summary, xContentMap.get("summary"));
+        assertEquals(helpUrl, xContentMap.get("help_url"));
         assertEquals(detailsMap, xContentMap.get("details"));
         List<Map<String, Object>> expectedImpacts = new ArrayList<>();
         Map<String, Object> expectedImpact1 = new HashMap<>();

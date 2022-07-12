@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,6 +37,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
@@ -87,7 +87,7 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private void nodeOperation(NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
+    private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<OperationTask> tasks = new ArrayList<>();
         processTasks(request, tasks::add);
@@ -133,7 +133,7 @@ public abstract class TransportTasksAction<
                 }
             };
             try {
-                taskOperation(request, tasks.get(taskIndex), taskListener);
+                taskOperation(task, request, tasks.get(taskIndex), taskListener);
             } catch (Exception e) {
                 taskListener.onFailure(e);
             }
@@ -206,8 +206,12 @@ public abstract class TransportTasksAction<
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+     * @param actionTask The related transport action task. Can be used to create a task ID to handle upstream transport cancellations.
+     * @param request the original transport request
+     * @param task the task on which the operation is taking place
+     * @param listener the listener to signal.
      */
-    protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
+    protected abstract void taskOperation(Task actionTask, TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
     private class AsyncAction {
 
@@ -226,7 +230,7 @@ public abstract class TransportTasksAction<
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
+            Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < this.nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(this.nodesIds[i]);
@@ -319,7 +323,7 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, ActionListener.wrap(channel::sendResponse, e -> {
+            nodeOperation(task, request, ActionListener.wrap(channel::sendResponse, e -> {
                 try {
                     channel.sendResponse(e);
                 } catch (IOException e1) {
@@ -393,22 +397,10 @@ public abstract class TransportTasksAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
-            out.writeVInt(results.size());
-            for (TaskResponse result : results) {
-                if (result != null) {
-                    out.writeBoolean(true);
-                    result.writeTo(out);
-                } else {
-                    out.writeBoolean(false);
-                }
-            }
+            out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                int taskFailures = exceptions.size();
-                out.writeVInt(taskFailures);
-                for (TaskOperationFailure exception : exceptions) {
-                    exception.writeTo(out);
-                }
+                out.writeCollection(exceptions);
             }
         }
     }

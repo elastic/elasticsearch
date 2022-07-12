@@ -12,17 +12,22 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -38,6 +43,20 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQueryBuilder> {
 
+    private static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
+    protected static final String GEO_SHAPE_ALIAS_FIELD_NAME = "mapped_geo_shape_alias";
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        final XContentBuilder builder = PutMappingRequest.simpleMapping(
+            GEO_SHAPE_FIELD_NAME,
+            "type=geo_shape",
+            GEO_SHAPE_ALIAS_FIELD_NAME,
+            "type=alias,path=" + GEO_SHAPE_FIELD_NAME
+        );
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(builder)), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(LocalStateSpatialPlugin.class);
@@ -45,11 +64,11 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
 
     @Override
     protected GeoGridQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME, GEO_SHAPE_ALIAS_FIELD_NAME);
         GeoGridQueryBuilder builder = new GeoGridQueryBuilder(fieldName);
 
         // Only use geohex for points
-        int path = randomIntBetween(0, GEO_SHAPE_FIELD_NAME.equals(fieldName) ? 1 : 2);
+        int path = randomIntBetween(0, GEO_SHAPE_FIELD_NAME.equals(fieldName) || GEO_SHAPE_ALIAS_FIELD_NAME.equals(fieldName) ? 1 : 3);
         switch (path) {
             case 0 -> builder.setGridId(GeoGridQueryBuilder.Grid.GEOHASH, randomGeohash());
             case 1 -> builder.setGridId(GeoGridQueryBuilder.Grid.GEOTILE, randomGeotile());

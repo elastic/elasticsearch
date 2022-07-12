@@ -1,17 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.geo;
+package org.elasticsearch.xpack.spatial.search;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryNormalizer;
@@ -31,14 +29,13 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +51,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
+public abstract class CartesianShapeQueryTestCase extends CartesianPointShapeQueryTestCase {
 
     @Override
     protected void createMapping(String indexName, String fieldName, Settings settings) throws Exception {
@@ -691,125 +688,23 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         assertThat(searchHits.getTotalHits().value, equalTo((long) polygons.length));
     }
 
-    // Test for issue #34418
-    public void testEnvelopeSpanningDateline() throws Exception {
-        createMapping(defaultIndexName, defaultFieldName);
-        ensureGreen();
-
-        String doc1 = """
-            {
-              "geo": {
-                "coordinates": [ -33.918711, 18.847685 ],
-                "type": "Point"
-              }
-            }""";
-        client().index(new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
-
-        String doc2 = """
-            {
-              "geo": {
-                "coordinates": [ -49, 18.847685 ],
-                "type": "Point"
-              }
-            }""";
-        client().index(new IndexRequest(defaultIndexName).id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
-
-        String doc3 = """
-            {
-              "geo": {
-                "coordinates": [ 49, 18.847685 ],
-                "type": "Point"
-              }
-            }""";
-        client().index(new IndexRequest(defaultIndexName).id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
-
-        @SuppressWarnings("unchecked")
-        CheckedSupplier<GeoShapeQueryBuilder, IOException> querySupplier = randomFrom(
-            () -> queryBuilder().shapeQuery(defaultFieldName, new Rectangle(-21, -39, 44, 9)).relation(ShapeRelation.WITHIN),
-            () -> {
-                XContentBuilder builder = XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject(defaultFieldName)
-                    .startObject("shape")
-                    .field("type", "envelope")
-                    .startArray("coordinates")
-                    .startArray()
-                    .value(-21)
-                    .value(44)
-                    .endArray()
-                    .startArray()
-                    .value(-39)
-                    .value(9)
-                    .endArray()
-                    .endArray()
-                    .endObject()
-                    .field("relation", "within")
-                    .endObject()
-                    .endObject();
-                try (XContentParser parser = createParser(builder)) {
-                    parser.nextToken();
-                    return GeoShapeQueryBuilder.fromXContent(parser);
-                }
-            },
-            () -> {
-                XContentBuilder builder = XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject(defaultFieldName)
-                    .field("shape", "BBOX (-21, -39, 44, 9)")
-                    .field("relation", "within")
-                    .endObject()
-                    .endObject();
-                try (XContentParser parser = createParser(builder)) {
-                    parser.nextToken();
-                    return GeoShapeQueryBuilder.fromXContent(parser);
-                }
-            }
-        );
-
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(querySupplier.get()).get();
-        assertEquals(2, response.getHits().getTotalHits().value);
-        assertNotEquals("1", response.getHits().getAt(0).getId());
-        assertNotEquals("1", response.getHits().getAt(1).getId());
-    }
-
-    public void testIndexRectangleSpanningDateLine() throws Exception {
-        createMapping(defaultIndexName, defaultFieldName);
-        ensureGreen();
-
-        Rectangle envelope = new Rectangle(178, -178, 10, -10);
-
-        XContentBuilder docSource = GeoJson.toXContent(envelope, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
-
-        Point filterShape = new Point(179, 0);
-
-        SearchResponse result = client().prepareSearch(defaultIndexName)
-            .setQuery(queryBuilder().intersectionQuery(defaultFieldName, filterShape))
-            .get();
-        assertSearchResponse(result);
-        assertHitCount(result, 1);
-    }
-
     protected Line makeRandomLine() {
-        return randomValueOtherThanMany(
-            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l),
-            () -> GeometryTestUtils.randomLine(false)
-        );
+        return randomValueOtherThanMany(l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l), () -> ShapeTestUtils.randomLine(false));
     }
 
     protected Polygon makeRandomPolygon() {
         return randomValueOtherThanMany(
             p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p),
-            () -> GeometryTestUtils.randomPolygon(false)
+            () -> ShapeTestUtils.randomPolygon(false)
         );
     }
 
     protected GeometryCollection<Geometry> makeRandomGeometryCollection() {
-        return GeometryTestUtils.randomGeometryCollection(false);
+        return ShapeTestUtils.randomGeometryCollection(false);
     }
 
     protected GeometryCollection<Geometry> makeRandomGeometryCollectionWithoutCircle(Geometry... extra) {
-        GeometryCollection<Geometry> randomCollection = GeometryTestUtils.randomGeometryCollectionWithoutCircle(false);
+        GeometryCollection<Geometry> randomCollection = ShapeTestUtils.randomGeometryCollectionWithoutCircle(false);
         if (extra.length == 0) return randomCollection;
 
         List<Geometry> geometries = new ArrayList<>();
@@ -821,7 +716,7 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
     }
 
     protected Point nextPoint() {
-        return GeometryTestUtils.randomPoint(false);
+        return ShapeTestUtils.randomPoint(false);
     }
 
     protected Polygon nextPolygon() {
@@ -830,6 +725,6 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
     }
 
     protected Polygon nextPolygon2() {
-        return GeometryTestUtils.randomPolygon(false);
+        return ShapeTestUtils.randomPolygon(false);
     }
 }

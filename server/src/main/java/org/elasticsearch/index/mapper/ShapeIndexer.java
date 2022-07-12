@@ -6,6 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.geo;
+package org.elasticsearch.index.mapper;
 
-public class GeoShapeQueryTests extends GeoShapeQueryTestCase {}
+import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.geometry.Geometry;
+
+import java.util.List;
+
+public interface ShapeIndexer {
+    List<IndexableField> indexShape(Geometry geometry);
+}

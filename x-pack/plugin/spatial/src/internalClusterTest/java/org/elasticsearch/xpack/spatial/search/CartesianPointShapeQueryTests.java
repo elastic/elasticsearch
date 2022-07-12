@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.geo;
+package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
@@ -25,7 +24,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
-public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
+public class CartesianPointShapeQueryTests extends CartesianPointShapeQueryTestCase {
 
     @Override
     protected void createMapping(String indexName, String fieldName, Settings settings) throws Exception {
@@ -33,7 +32,7 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
             .startObject()
             .startObject("properties")
             .startObject(fieldName)
-            .field("type", "geo_point")
+            .field("type", "point")
             .endObject()
             .endObject()
             .endObject();
@@ -46,7 +45,7 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
                 .startObject()
                 .startObject("properties")
                 .startObject(defaultFieldName)
-                .field("type", "geo_point")
+                .field("type", "point")
                 .endObject()
                 .startObject("alias")
                 .field("type", "alias")

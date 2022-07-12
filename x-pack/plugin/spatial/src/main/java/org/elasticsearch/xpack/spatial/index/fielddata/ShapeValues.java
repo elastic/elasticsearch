@@ -8,25 +8,20 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
-import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.function.Supplier;
 
 /**
  * A stateful lightweight per document geo values.
@@ -43,31 +38,19 @@ import java.text.ParseException;
  *
  * There is just one value for one document.
  */
-public abstract class GeoShapeValues {
-
-    public static GeoShapeValues EMPTY = new GeoShapeValues() {
-        private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
-
-        @Override
-        public boolean advanceExact(int doc) {
-            return false;
-        }
-
-        @Override
-        public ValuesSourceType valuesSourceType() {
-            return DEFAULT_VALUES_SOURCE_TYPE;
-        }
-
-        @Override
-        public GeoShapeValue value() {
-            throw new UnsupportedOperationException();
-        }
-    };
+public abstract class ShapeValues<T extends ToXContentFragment> {
+    protected final CoordinateEncoder encoder;
+    protected final Supplier<ShapeValue<T>> supplier;
+    protected final ShapeIndexer missingShapeIndexer;
 
     /**
-     * Creates a new {@link GeoShapeValues} instance
+     * Creates a new {@link ShapeValues} instance
      */
-    protected GeoShapeValues() {}
+    protected ShapeValues(CoordinateEncoder encoder, Supplier<ShapeValue<T>> supplier, ShapeIndexer missingShapeIndexer) {
+        this.encoder = encoder;
+        this.supplier = supplier;
+        this.missingShapeIndexer = missingShapeIndexer;
+    }
 
     /**
      * Advance this instance to the given document id
@@ -80,24 +63,38 @@ public abstract class GeoShapeValues {
     /**
      * Return the value associated with the current document.
      *
-     * Note: the returned {@link GeoShapeValue} might be shared across invocations.
+     * Note: the returned {@link ShapeValue<T>} might be shared across invocations.
      *
      * @return the value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract GeoShapeValue value() throws IOException;
+    public abstract ShapeValue<T> value() throws IOException;
+
+    public ShapeValue<T> missing(String missing) {
+        try {
+            final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
+            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
+            field.add(missingShapeIndexer.indexShape(geometry), geometry);
+            final ShapeValue<T> value = supplier.get();
+            value.reset(field.binaryValue());
+            return value;
+        } catch (IOException | ParseException e) {
+            throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
+        }
+    }
 
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the Geo decoder */
-    public static class GeoShapeValue implements ToXContentFragment {
-        private static final GeoShapeIndexer MISSING_GEOSHAPE_INDEXER = new GeoShapeIndexer(Orientation.CCW, "missing");
-        private final GeometryDocValueReader reader;
+    public abstract static class ShapeValue<T extends ToXContentFragment> implements ToXContentFragment {
+        protected final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final Tile2DVisitor tile2DVisitor;
+        protected final CoordinateEncoder encoder;
 
-        public GeoShapeValue() {
+        public ShapeValue(CoordinateEncoder encoder) {
             this.reader = new GeometryDocValueReader();
             this.boundingBox = new BoundingBox();
             this.tile2DVisitor = new Tile2DVisitor();
+            this.encoder = encoder;
         }
 
         /**
@@ -105,7 +102,7 @@ public abstract class GeoShapeValues {
          */
         public void reset(BytesRef bytesRef) throws IOException {
             this.reader.reset(bytesRef);
-            this.boundingBox.reset(reader.getExtent(), CoordinateEncoder.GEO);
+            this.boundingBox.reset(reader.getExtent(), encoder);
         }
 
         public BoundingBox boundingBox() {
@@ -115,16 +112,7 @@ public abstract class GeoShapeValues {
         /**
          * Select a label position that is within the shape.
          */
-        public GeoPoint labelPosition() throws IOException {
-            // For polygons we prefer to use the centroid, as long as it is within the polygon
-            if (reader.getDimensionalShapeType() == DimensionalShapeType.POLYGON && intersects(new Point(lon(), lat()))) {
-                return new GeoPoint(lat(), lon());
-            }
-            // For all other cases, use the first triangle (or line or point) in the tree which will always intersect the shape
-            LabelPositionVisitor<GeoPoint> visitor = new LabelPositionVisitor<>(CoordinateEncoder.GEO, (x, y) -> new GeoPoint(y, x));
-            reader.visit(visitor);
-            return visitor.labelPosition();
-        }
+        public abstract Location labelPosition() throws IOException;
 
         /**
          * Determine the {@link GeoRelation} between the current shape and a bounding box provided in
@@ -144,11 +132,12 @@ public abstract class GeoShapeValues {
          * which is enough to cover the resolution of the quantization.
          */
         public boolean intersects(Geometry geometry) throws IOException {
-            LatLonGeometry[] latLonGeometries = GeoShapeQueryable.toQuantizeLuceneGeometry(geometry, ShapeRelation.INTERSECTS);
+            Component2D component = null;
+            // TODO: create Component2D for incoming geometry
             Component2DVisitor visitor = Component2DVisitor.getVisitor(
-                LatLonGeometry.create(latLonGeometries),
+                component,
                 ShapeField.QueryRelation.INTERSECTS,
-                CoordinateEncoder.GEO
+                CoordinateEncoder.Cartesian
             );
             reader.visit(visitor);
             return visitor.matches();
@@ -163,35 +152,48 @@ public abstract class GeoShapeValues {
         }
 
         /**
-         * @return the latitude of the centroid of the shape
+         * @return the Y-value (or latitude) of the centroid of the shape
          */
-        public double lat() throws IOException {
-            return CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
+        public double getY() throws IOException {
+            return encoder.decodeY(reader.getCentroidY());
         }
 
         /**
-         * @return the longitude of the centroid of the shape
+         * @return the X-value (or longitude) of the centroid of the shape
          */
-        public double lon() throws IOException {
-            return CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
-        }
-
-        public static GeoShapeValue missing(String missing) {
-            try {
-                final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
-                final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", CoordinateEncoder.GEO);
-                field.add(MISSING_GEOSHAPE_INDEXER.indexShape(geometry), geometry);
-                final GeoShapeValue value = new GeoShapeValue();
-                value.reset(field.binaryValue());
-                return value;
-            } catch (IOException | ParseException e) {
-                throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
-            }
+        public double getX() throws IOException {
+            return encoder.decodeX(reader.getCentroidX());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             throw new IllegalArgumentException("cannot write xcontent for geo_shape doc value");
+        }
+    }
+
+    public static class Location {
+        private double x;
+        private double y;
+
+        Location(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+
+        public double getX() {
+            return x;
+        }
+
+        public double getY() {
+            return y;
+        }
+
+        public double getLat() {
+            return y;
+        }
+
+        public double getLon() {
+            return x;
         }
     }
 
@@ -203,7 +205,7 @@ public abstract class GeoShapeValues {
         public double posLeft;
         public double posRight;
 
-        private BoundingBox() {}
+        public BoundingBox() {}
 
         private void reset(Extent extent, CoordinateEncoder coordinateEncoder) {
             this.top = coordinateEncoder.decodeY(extent.top);

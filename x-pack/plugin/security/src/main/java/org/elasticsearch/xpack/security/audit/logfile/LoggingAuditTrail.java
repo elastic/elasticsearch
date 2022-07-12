@@ -1234,6 +1234,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private void withRequestBody(XContentBuilder builder, CreateApiKeyRequest createApiKeyRequest) throws IOException {
             TimeValue expiration = createApiKeyRequest.getExpiration();
             builder.startObject("apikey")
+                .field("id", createApiKeyRequest.getId())
                 .field("name", createApiKeyRequest.getName())
                 .field("expiration", expiration != null ? expiration.toString() : null)
                 .startArray("role_descriptors");

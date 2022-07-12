@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.timeseries;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -89,13 +88,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub) throws IOException {
-        // TODO: remove this method in a follow up PR
-        throw new UnsupportedOperationException("Shouldn't be here");
-    }
-
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
-        throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
 
             @Override

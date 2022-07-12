@@ -13,9 +13,11 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene92.Lucene92Codec;
+import org.apache.lucene.codecs.lucene93.Lucene93Codec;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
  * {@link PerFieldMapperCodec This Lucene codec} provides the default
@@ -25,7 +27,7 @@ import org.elasticsearch.index.mapper.MapperService;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMapperCodec extends Lucene92Codec {
+public class PerFieldMapperCodec extends Lucene93Codec {
     private final MapperService mapperService;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
@@ -51,11 +53,14 @@ public class PerFieldMapperCodec extends Lucene92Codec {
 
     @Override
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-        KnnVectorsFormat format = mapperService.mappingLookup().getKnnVectorsFormatForField(field);
-        if (format == null) {
-            return super.getKnnVectorsFormatForField(field);
+        Mapper mapper = mapperService.mappingLookup().getMapper(field);
+        if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
+            KnnVectorsFormat format = vectorMapper.getKnnVectorsFormatForField();
+            if (format != null) {
+                return format;
+            }
         }
-        return format;
+        return super.getKnnVectorsFormatForField(field);
     }
 
     @Override

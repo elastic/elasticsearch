@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -920,10 +919,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        Decision decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            firstRouting,
+            firstRoutingNode,
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
-            ((Decision.Single) decision).getExplanation(),
+            decision.getExplanation(),
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting "
                     + "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node, "
@@ -952,7 +956,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            firstRouting,
+            firstRoutingNode,
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertEquals(
             "there is enough disk on this node for the shard to remain, free: [60b]",
@@ -1110,7 +1119,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        Decision decision = diskThresholdDecider.canRemain(startedShard, clusterState.getRoutingNodes().node("data"), routingAllocation);
+        Decision decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(startedShard.index()),
+            startedShard,
+            clusterState.getRoutingNodes().node("data"),
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
@@ -1195,11 +1209,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             )
             .build();
 
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
-        shards.put(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
+        Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = Map.of(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder().add(
-            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, List.of("test"), shards.build())
+            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, List.of("test"), shards)
         );
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))
@@ -1310,7 +1323,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, null, reservedSpace);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
         }
 
         @Override

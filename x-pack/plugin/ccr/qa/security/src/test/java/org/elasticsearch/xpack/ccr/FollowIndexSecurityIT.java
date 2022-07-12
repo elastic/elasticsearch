@@ -6,14 +6,18 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -69,7 +73,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             followIndex("leader_cluster", allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(allowedIndex, numDocs, "*:*"));
             assertThat(getCcrNodeTasks(), contains(new CcrNodeTask("leader_cluster", allowedIndex, allowedIndex, 0)));
-            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 120L, TimeUnit.SECONDS);
+
+            withMonitoring(logger, () -> { assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 120L, TimeUnit.SECONDS); });
+
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
@@ -141,20 +147,22 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
     public void testAutoFollowPatterns() throws Exception {
         assumeTrue("Test should only run with target_cluster=follow", "follow".equals(targetCluster));
 
-        String allowedIndex = "logs-eu_20190101";
-        String disallowedIndex = "logs-us_20190101";
+        final String prefix = getTestName().toLowerCase(Locale.ROOT);
+        String allowedIndex = prefix + "-eu_20190101";
+        String disallowedIndex = prefix + "-us_20190101";
 
+        final String pattern = "pattern_" + prefix;
         {
-            Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+            Request request = new Request("PUT", "/_ccr/auto_follow/" + pattern);
             request.setJsonEntity("""
-                {"leader_index_patterns": ["logs-*"], "remote_cluster": "leader_cluster"}""");
+                {"leader_index_patterns": ["testautofollowpatterns-*"], "remote_cluster": "leader_cluster"}""");
             Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
-            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [logs-*]"));
+            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [testautofollowpatterns-*]"));
         }
 
-        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+        Request request = new Request("PUT", "/_ccr/auto_follow/" + pattern);
         request.setJsonEntity("""
-            {"leader_index_patterns": ["logs-eu*"], "remote_cluster": "leader_cluster"}""");
+            {"leader_index_patterns": ["testautofollowpatterns-eu*"], "remote_cluster": "leader_cluster"}""");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -176,12 +184,14 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertBusy(() -> ensureYellow(allowedIndex), 30, TimeUnit.SECONDS);
             assertBusy(() -> verifyDocuments(allowedIndex, 5, "*:*"), 30, TimeUnit.SECONDS);
             assertThat(indexExists(disallowedIndex), is(false));
-            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 120L, TimeUnit.SECONDS);
-            assertBusy(ESCCRRestTestCase::verifyAutoFollowMonitoring, 120L, TimeUnit.SECONDS);
+            withMonitoring(logger, () -> {
+                assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 120L, TimeUnit.SECONDS);
+                assertBusy(ESCCRRestTestCase::verifyAutoFollowMonitoring, 120L, TimeUnit.SECONDS);
+            });
         } finally {
             // Cleanup by deleting auto follow pattern and pause following:
             try {
-                deleteAutoFollowPattern("test_pattern");
+                deleteAutoFollowPattern(pattern);
                 pauseFollow(allowedIndex);
             } catch (Throwable e) {
                 logger.warn("Failed to cleanup after the test", e);
@@ -303,6 +313,30 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             pauseFollow(backingIndexName(dataStreamName, 1));
             closeIndex(backingIndexName(dataStreamName, 1));
             unfollow(backingIndexName(dataStreamName, 1));
+        }
+    }
+
+    private static void withMonitoring(Logger logger, CheckedRunnable<Exception> runnable) throws Exception {
+        Request enableMonitoring = new Request("PUT", "/_cluster/settings");
+        enableMonitoring.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        enableMonitoring.setJsonEntity(
+            "{\"persistent\":{" + "\"xpack.monitoring.collection.enabled\":true," + "\"xpack.monitoring.collection.interval\":\"1s\"" + "}}"
+        );
+        assertOK(adminClient().performRequest(enableMonitoring));
+        logger.info("monitoring collection enabled");
+        try {
+            runnable.run();
+        } finally {
+            Request disableMonitoring = new Request("PUT", "/_cluster/settings");
+            disableMonitoring.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+            disableMonitoring.setJsonEntity(
+                "{\"persistent\":{"
+                    + "\"xpack.monitoring.collection.enabled\":null,"
+                    + "\"xpack.monitoring.collection.interval\":null"
+                    + "}}"
+            );
+            assertOK(adminClient().performRequest(disableMonitoring));
+            logger.info("monitoring collection disabled");
         }
     }
 

@@ -8,26 +8,21 @@
 
 package org.elasticsearch.gradle.internal.precommit
 
-import org.elasticsearch.gradle.fixtures.AbstractGradlePrecommitPluginFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
-import org.junit.rules.TemporaryFolder
 import spock.lang.Shared
 import spock.lang.Unroll
 
-class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitPluginFuncTest {
+class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
 
-    @ClassRule
-    @Shared
-    public TemporaryFolder repoFolder = new TemporaryFolder()
-
     @Shared
     @ClassRule
-    public LocalRepositoryFixture repository = new LocalRepositoryFixture(repoFolder)
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setupSpec() {
         repository.generateJar('org.apache.lucene', 'tests.util', "1.0",
@@ -79,26 +74,6 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         then:
         result.task(":testTestingConventions").outcome == TaskOutcome.UP_TO_DATE
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
-    }
-
-    def "testing convention plugin is configuration cache compatible"() {
-        given:
-        simpleJavaBuild()
-        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.tests.util.LuceneTestCase") {
-            """
-            public void testMe() {
-            }
-            """
-        }
-        when:
-        def result = gradleRunner("precommit", "--configuration-cache").build()
-        then:
-        assertOutputContains(result.getOutput(), "0 problems were found storing the configuration cache.")
-
-        when:
-        result = gradleRunner("precommit", "--configuration-cache").build()
-        then:
-        assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
     }
 
     def "checks base class convention"() {

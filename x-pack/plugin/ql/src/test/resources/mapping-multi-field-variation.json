@@ -55,6 +55,7 @@
             "properties": {
                 "point": {"type" : "geo_point"}
             }
-        }
+        },
+        "version": {"type" : "version"}
     }
 }

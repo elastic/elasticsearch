@@ -10,23 +10,24 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ILM Provider implementation for the {@link ImmutableClusterStateHandlerProvider} service interface
  */
 public class ILMImmutableStateHandlerProvider implements ImmutableClusterStateHandlerProvider {
-    private static final Set<ImmutableClusterStateHandler<?>> handlers = ConcurrentHashMap.newKeySet();
+    private final IndexLifecycle plugin;
+
+    public ILMImmutableStateHandlerProvider() {
+        throw new IllegalStateException("Provider must be constructed using PluginsService");
+    }
+
+    public ILMImmutableStateHandlerProvider(IndexLifecycle plugin) {
+        this.plugin = plugin;
+    }
 
     @Override
     public Collection<ImmutableClusterStateHandler<?>> handlers() {
-        return handlers;
-    }
-
-    public static void registerHandlers(ImmutableClusterStateHandler<?>... stateHandlers) {
-        handlers.addAll(Arrays.asList(stateHandlers));
+        return plugin.immutableClusterStateHandlers();
     }
 }

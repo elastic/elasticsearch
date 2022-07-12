@@ -17,12 +17,11 @@ import spock.lang.Unroll
 /*
  * Test is ignored on ARM since this test case tests the ability to build certain older BWC branches that we don't support on ARM
  */
-
 @IgnoreIf({ Architecture.current() == Architecture.AARCH64 })
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {
-        // used LoggedExec task is not configuration cache compatible and
+        // Cannot serialize BwcSetupExtension containing project object
         configurationCacheCompatible = false
         internalBuild()
         buildFile << """
@@ -119,4 +118,5 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.0/" +
                         "distribution/archives/darwin-tar/build/install/elasticsearch-8.0.0-SNAPSHOT")
     }
+
 }

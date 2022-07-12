@@ -70,7 +70,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             this.issuer = in.readString();
         } else {
-            this.issuer = "[unknown]";
+            this.issuer = "";
         }
     }
 

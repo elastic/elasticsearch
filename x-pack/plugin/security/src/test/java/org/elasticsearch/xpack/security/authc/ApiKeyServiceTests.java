@@ -1674,7 +1674,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
     }
 
-    public void testBuildUpdatedDocument() throws IOException {
+    public void testMaybeBuildUpdatedDocument() throws IOException {
         final var apiKey = randomAlphaOfLength(16);
         final var hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
@@ -1736,7 +1736,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var request = new UpdateApiKeyRequest(randomAlphaOfLength(10), newKeyRoles, newMetadata);
         final var service = createApiKeyService();
 
-        final XContentBuilder builder = service.buildUpdatedDocument(oldApiKeyDoc, newVersion, newAuthentication, request, newUserRoles);
+        final XContentBuilder builder = service.maybeBuildUpdatedDocument(
+            oldApiKeyDoc,
+            newVersion,
+            newAuthentication,
+            request,
+            newUserRoles
+        );
 
         final boolean noop = (changeCreator || changeMetadata || changeKeyRoles || changeUserRoles || changeVersion) == false;
         if (noop) {

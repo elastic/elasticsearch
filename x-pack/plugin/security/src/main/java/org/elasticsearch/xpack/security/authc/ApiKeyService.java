@@ -445,7 +445,7 @@ public class ApiKeyService {
     /**
      * @return `null` if the update is a noop, i.e., if no changes to `currentApiKeyDoc` are required
      */
-    XContentBuilder buildUpdatedDocument(
+    XContentBuilder maybeBuildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,
         final Version targetDocVersion,
         final Authentication authentication,
@@ -1088,7 +1088,7 @@ public class ApiKeyService {
             );
         }
 
-        final XContentBuilder builder = buildUpdatedDocument(
+        final XContentBuilder builder = maybeBuildUpdatedDocument(
             currentVersionedDoc.doc(),
             targetDocVersion,
             authentication,

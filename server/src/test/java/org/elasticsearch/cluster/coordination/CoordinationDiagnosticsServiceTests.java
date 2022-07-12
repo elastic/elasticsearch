@@ -592,23 +592,6 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    private Scheduler.Cancellable createNewCancellable() {
-        return new Scheduler.Cancellable() {
-            private boolean cancelled = false;
-
-            @Override
-            public boolean cancel() {
-                this.cancelled = true;
-                return true;
-            }
-
-            @Override
-            public boolean isCancelled() {
-                return cancelled;
-            }
-        };
-    }
-
     public void testFetchClusterFormationInfo() {
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);

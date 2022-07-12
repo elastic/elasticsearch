@@ -13,12 +13,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -33,9 +31,9 @@ import java.util.stream.Collectors;
  *  - {@link #remove(String)}
  *  - {@link #containsKey(String)}
  *  - {@link #containsValue(Object)}
- *  - {@link #getKeys()} for iteration
+ *  - {@link #keySet()} for iteration
  *  - {@link #size()}
- *  - {@link #isMetadata(String)} for determining if a key is a metadata key
+ *  - {@link #isAvailable(String)} for determining if a key is a metadata key
  *
  * Provides getters and setters for script usage.
  *
@@ -194,7 +192,7 @@ public class Metadata {
     /**
      * Get the String version of the value associated with {@code key}, or null
      */
-    public String getString(String key) {
+    protected String getString(String key) {
         return Objects.toString(get(key), null);
     }
 
@@ -202,7 +200,7 @@ public class Metadata {
      * Get the {@link Number} associated with key, or null
      * @throws IllegalArgumentException if the value is not a {@link Number}
      */
-    public Number getNumber(String key) {
+    protected Number getNumber(String key) {
         Object value = get(key);
         if (value == null) {
             return null;
@@ -210,7 +208,7 @@ public class Metadata {
         if (value instanceof Number number) {
             return number;
         }
-        throw new IllegalArgumentException(
+        throw new IllegalStateException(
             "unexpected type for [" + key + "] with value [" + value + "], expected Number, got [" + value.getClass().getName() + "]"
         );
     }
@@ -219,13 +217,13 @@ public class Metadata {
      * Is this key a Metadata key?  A {@link #remove}d key would return false for {@link #containsKey(String)} but true for
      * this call.
      */
-    public boolean isMetadata(String key) {
+    public boolean isAvailable(String key) {
         return validators.containsKey(key);
     }
 
     /**
      * Create the mapping from key to value.
-     * @throws IllegalArgumentException if {@link #isMetadata(String)} is false or the key cannot be updated to the value.
+     * @throws IllegalArgumentException if {@link #isAvailable(String)} is false or the key cannot be updated to the value.
      */
     public Object put(String key, Object value) {
         Validator v = validators.getOrDefault(key, this::badKey);
@@ -256,7 +254,7 @@ public class Metadata {
 
     /**
      * Remove the mapping associated with {@param key}
-     * @throws IllegalArgumentException if {@link #isMetadata(String)} is false or the key cannot be removed.
+     * @throws IllegalArgumentException if {@link #isAvailable(String)} is false or the key cannot be removed.
      */
     public Object remove(String key) {
         Validator v = validators.getOrDefault(key, this::badKey);
@@ -267,8 +265,8 @@ public class Metadata {
     /**
      * Return the list of keys with mappings
      */
-    public List<String> getKeys() {
-        return new ArrayList<>(map.keySet());
+    public Set<String> keySet() {
+        return Collections.unmodifiableSet(map.keySet());
     }
 
     /**
@@ -291,22 +289,6 @@ public class Metadata {
     }
 
     /**
-     * Get the metadata keys inside the {@param other} set
-     */
-    public Set<String> metadataKeys(Set<String> other) {
-        Set<String> keys = null;
-        for (String key : validators.keySet()) {
-            if (other.contains(key)) {
-                if (keys == null) {
-                    keys = new HashSet<>();
-                }
-                keys.add(key);
-            }
-        }
-        return keys != null ? keys : Collections.emptySet();
-    }
-
-    /**
      * Allow a String or null.
      * @throws IllegalArgumentException if {@param value} is neither a {@link String} nor null
      */
@@ -323,7 +305,7 @@ public class Metadata {
      * Allow Numbers that can be represented as longs without loss of precision or null
      * @throws IllegalArgumentException if the value cannot be represented as a long
      */
-    public static void longValidator(MapOperation op, String key, Object value) {
+    protected static void longValidator(MapOperation op, String key, Object value) {
         if (op == MapOperation.REMOVE || value == null) {
             return;
         }
@@ -354,7 +336,7 @@ public class Metadata {
      * Allow maps.
      * @throws IllegalArgumentException if {@param value} is not a {@link Map}
      */
-    public static void mapValidator(MapOperation op, String key, Object value) {
+    protected static void mapValidator(MapOperation op, String key, Object value) {
         if (op == MapOperation.REMOVE || value == null || value instanceof Map<?, ?>) {
             return;
         }

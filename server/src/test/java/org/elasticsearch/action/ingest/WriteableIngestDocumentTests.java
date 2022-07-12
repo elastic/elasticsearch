@@ -148,7 +148,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
-        for (String fieldName : ingestDocument.getMetadata().getKeys()) {
+        for (String fieldName : ingestDocument.getMetadata().keySet()) {
             Object value = ingestDocument.getMetadata().get(fieldName);
             if (value == null) {
                 assertThat(toXContentDoc.containsKey(fieldName), is(false));
@@ -159,7 +159,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
 
         Map<String, Object> sourceAndMetadata = Maps.newMapWithExpectedSize(toXContentSource.size() + ingestDocument.getMetadata().size());
         sourceAndMetadata.putAll(toXContentSource);
-        ingestDocument.getMetadata().getKeys().forEach(k -> sourceAndMetadata.put(k, ingestDocument.getMetadata().get(k)));
+        ingestDocument.getMetadata().keySet().forEach(k -> sourceAndMetadata.put(k, ingestDocument.getMetadata().get(k)));
         IngestDocument serializedIngestDocument = new IngestDocument(sourceAndMetadata, toXContentIngestMetadata);
         // TODO(stu): is this test correct? Comparing against ingestDocument fails due to incorrectly failed byte array comparisons
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));

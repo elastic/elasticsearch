@@ -105,7 +105,7 @@ class IngestCtxMap extends CtxMap {
             VERSION,
             new FieldProperty<>(Number.class, false, true, FieldProperty.LONGABLE_NUMBER),
             TYPE,
-            new FieldProperty<>(String.class, true, false, null),
+            new FieldProperty<>(String.class, false, false, null),
             IF_SEQ_NO,
             new FieldProperty<>(Number.class, true, true, FieldProperty.LONGABLE_NUMBER),
             IF_PRIMARY_TERM,

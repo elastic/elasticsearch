@@ -122,6 +122,14 @@ public class Metadata {
         throw new UnsupportedOperationException("unimplemented");
     }
 
+    public String getOp() {
+        throw new UnsupportedOperationException("unimplemented");
+    }
+
+    public void setOp(String op) {
+        throw new UnsupportedOperationException("unimplemented");
+    }
+
     // These are not available to scripts
     public Number getIfSeqNo() {
         return getNumber(IF_SEQ_NO);

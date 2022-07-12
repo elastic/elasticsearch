@@ -52,7 +52,6 @@ The following parameters can be specified in the body of a PUT request:
 This parameter is optional.
 When specified, the new role descriptors replace those currently assigned to this API key.
 When it is not specified, the API key keeps the role descriptors assigned previously.
-
 If the assigned role descriptors are empty (either because empty role descriptors were supplied, or because they were empty and no new descriptors were supplied), the resulting permissions of the API key are the _point in time snapshot of permissions of the authenticated user_.
 If the assigned role descriptors are not empty, then the resultant permissions would be an intersection of the API key's permissions and authenticated user's permissions thereby limiting the access scope for API keys.
 The structure of role descriptor is the same as the request for create role API.
@@ -62,5 +61,4 @@ For more details, see <<security-api-put-role, create or update roles API>>.
 (Optional, object) Arbitrary metadata that you want to associate with the API key.
 It supports nested data structure.
 Within the `metadata` object, keys beginning with `_` are reserved for system usage.
-When specified, metadata previously associated with the API key is replaced (not merged).
-
+When specified, this fully replaces metadata previously associated with the API key.

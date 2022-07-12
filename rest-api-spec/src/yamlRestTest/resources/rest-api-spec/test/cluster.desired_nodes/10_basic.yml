@@ -1154,3 +1154,69 @@ teardown:
             - { settings: { "node.name": "instance-000187" }, processors: 1.0, processors_range: {min: 1.0, max: 2.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
+
+---
+"Test dry run doesn't update empty desired nodes":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        dry_run: true
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      catch: missing
+      _internal.get_desired_nodes: {}
+  - match: { status: 404 }
+
+---
+"Test dry run doesn't update existing desired nodes":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 2
+        dry_run: "true"
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000188" }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }

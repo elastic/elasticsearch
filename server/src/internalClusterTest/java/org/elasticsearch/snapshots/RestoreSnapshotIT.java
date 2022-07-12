@@ -179,29 +179,23 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             mockLogAppender.start();
             Loggers.addAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
 
-            mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
-                String startMessageSnapshot;
-                Object startMessageIndicesList;
-                String completionMessageSnapshot;
+            mockLogAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen start of snapshot restore",
+                    "org.elasticsearch.snapshots.RestoreService",
+                    Level.INFO,
+                    "started restore of snapshot \\[.*" + snapshotName + ".*\\] for indices \\[.*" + indexName + ".*\\]"
+                )
+            );
 
-                @Override
-                public void match(LogEvent event) {
-                    final String message = event.getMessage().getFormattedMessage();
-                    if (message.startsWith("started restore of snapshot")) {
-                        startMessageSnapshot = event.getMessage().getParameters()[0].toString();
-                        startMessageIndicesList = event.getMessage().getParameters()[1];
-                    } else if (message.startsWith("completed restore of snapshot")) {
-                        completionMessageSnapshot = event.getMessage().getParameters()[0].toString();
-                    }
-                }
-
-                @Override
-                public void assertMatched() {
-                    assertThat(startMessageSnapshot, startsWith(snapshotName));
-                    assertEquals(Arrays.asList(indexName), startMessageIndicesList);
-                    assertThat(completionMessageSnapshot, startsWith(snapshotName));
-                }
-            });
+            mockLogAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen completion of snapshot restore",
+                    "org.elasticsearch.snapshots.RestoreService",
+                    Level.INFO,
+                    "completed restore of snapshot \\[.*" + snapshotName + ".*\\]"
+                )
+            );
 
             Client client = client();
             // Write a document

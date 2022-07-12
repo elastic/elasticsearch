@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -134,7 +135,8 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public PercolatorFieldMapper build(MapperBuilderContext context) {
-            PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(name), meta.getValue());
+            String fullName = context.buildFullName(name);
+            PercolatorFieldType fieldType = new PercolatorFieldType(meta.getValue());
             // TODO should percolator even allow multifields?
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             context = context.createChildContext(name);
@@ -143,26 +145,26 @@ public class PercolatorFieldMapper extends FieldMapper {
                 context,
                 indexCreatedVersion
             );
-            fieldType.queryTermsField = extractedTermsField.fieldType();
+            fieldType.queryTermsField = extractedTermsField.field();
             KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(
                 EXTRACTION_RESULT_FIELD_NAME,
                 context,
                 indexCreatedVersion
             );
-            fieldType.extractionResultField = extractionResultField.fieldType();
+            fieldType.extractionResultField = extractionResultField.field();
             BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
-            fieldType.queryBuilderField = queryBuilderField.fieldType();
+            fieldType.queryBuilderField = queryBuilderField.field();
             // Range field is of type ip, because that matches closest with BinaryRange field. Otherwise we would
             // have to introduce a new field type...
             RangeFieldMapper rangeFieldMapper = createExtractedRangeFieldBuilder(RANGE_FIELD_NAME, RangeType.IP, context);
-            fieldType.rangeField = rangeFieldMapper.fieldType();
+            fieldType.rangeField = rangeFieldMapper.field();
             NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(context, indexCreatedVersion);
-            fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.fieldType();
+            fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.field();
             fieldType.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
 
             return new PercolatorFieldMapper(
                 name(),
-                fieldType,
+                new MappedField(fullName, fieldType),
                 multiFields,
                 copyTo.build(),
                 searchExecutionContext,
@@ -224,12 +226,12 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     static class PercolatorFieldType extends MappedFieldType {
 
-        MappedFieldType queryTermsField;
-        MappedFieldType extractionResultField;
-        MappedFieldType queryBuilderField;
-        MappedFieldType minimumShouldMatchField;
+        MappedField queryTermsField;
+        MappedField extractionResultField;
+        MappedField queryBuilderField;
+        MappedField minimumShouldMatchField;
 
-        RangeFieldMapper.RangeFieldType rangeField;
+        MappedField rangeField;
         boolean mapUnmappedFieldsAsText;
 
         private PercolatorFieldType(Map<String, String> meta) {
@@ -364,7 +366,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     PercolatorFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Supplier<SearchExecutionContext> searchExecutionContext,
@@ -376,7 +378,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         boolean mapUnmappedFieldsAsText,
         Version indexCreatedVersion
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.searchExecutionContext = searchExecutionContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;
@@ -472,7 +474,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, INDEXED_KEYWORD));
         }
 
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(name());
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 

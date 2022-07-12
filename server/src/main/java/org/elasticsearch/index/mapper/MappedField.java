@@ -336,7 +336,7 @@ public class MappedField {
         DateMathParser dateMathParser,
         QueryRewriteContext context
     ) throws IOException {
-        return type.isFieldWithinQuery(name, reader, from, to, includeLower, includeLower, timeZone, dateMathParser, context);
+        return type.isFieldWithinQuery(name, reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
     }
 
     /**

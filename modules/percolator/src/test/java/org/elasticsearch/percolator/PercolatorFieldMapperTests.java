@@ -200,7 +200,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
         );
         mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
-        fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.mappedField(fieldName);
+        fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.mappedField(fieldName).type();
     }
 
     public void testExtractTerms() throws Exception {

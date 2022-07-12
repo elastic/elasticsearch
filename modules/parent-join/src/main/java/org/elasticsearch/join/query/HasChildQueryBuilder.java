@@ -26,7 +26,7 @@ import org.elasticsearch.common.lucene.search.NoRewriteMatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -343,8 +343,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         Query parentFilter = joiner.parentFilter(type);
         Query childFilter = joiner.filter(type);
         Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
-        MappedFieldType ft = context.getMappedField(parentJoinField);
-        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
+        MappedField mappedField = context.getMappedField(parentJoinField);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(mappedField);
         return new LateParsingQuery(
             parentFilter,
             filteredQuery,

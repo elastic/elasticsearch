@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -180,14 +180,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Query parentFilter = joiner.filter(parentType);
         Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
         Query childFilter = joiner.childrenFilter(parentType);
-        MappedFieldType fieldType = context.getMappedField(joiner.childJoinField(parentType));
-        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+        MappedField mappedField = context.getMappedField(joiner.childJoinField(parentType));
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(mappedField);
         return new HasChildQueryBuilder.LateParsingQuery(
             childFilter,
             innerQuery,
             HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
             HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
-            fieldType.name(),
+            mappedField.name(),
             score ? ScoreMode.Max : ScoreMode.None,
             fieldData,
             context.getSearchSimilarity()

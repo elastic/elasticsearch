@@ -50,7 +50,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedField;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -531,7 +530,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         String queryName = this.name != null ? this.name : mappedField.name();
         SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
-        ;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
@@ -571,12 +569,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType, SearchExecutionContext context) {
+    static PercolateQuery.QueryStore createStore(MappedField queryBuilderField, SearchExecutionContext context) {
         Version indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
             LeafReader leafReader = ctx.reader();
-            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(queryBuilderFieldType.name());
+            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(queryBuilderField.name());
             if (binaryDocValues == null) {
                 return docId -> null;
             }

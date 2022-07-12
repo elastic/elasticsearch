@@ -27,7 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
@@ -113,7 +113,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     }
 
     public void testParentChildAsSubAgg() throws IOException {
-        MappedFieldType kwd = new KeywordFieldMapper.KeywordFieldType("kwd", randomBoolean(), true, Collections.emptyMap());
+        MappedField kwd = new MappedField("kwd",
+            new KeywordFieldMapper.KeywordFieldType(randomBoolean(), true, Collections.emptyMap()));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 
@@ -220,8 +221,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
+        MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(mappedField));
         verify.accept(result);
     }
 

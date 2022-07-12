@@ -16,6 +16,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -36,7 +37,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         static final DataTierFieldType INSTANCE = new DataTierFieldType();
 
         private DataTierFieldType() {
-            super(NAME, Collections.emptyMap());
+            super(Collections.emptyMap());
         }
 
         @Override
@@ -63,7 +64,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             String tierPreference = getTierPreference(context);
             if (tierPreference == null) {
                 return new MatchNoDocsQuery();
@@ -72,9 +73,9 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
             String tierPreference = getTierPreference(context);
@@ -100,7 +101,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
     }
 
     public DataTierFieldMapper() {
-        super(DataTierFieldType.INSTANCE);
+        super(new MappedField(NAME, DataTierFieldType.INSTANCE));
     }
 
     @Override

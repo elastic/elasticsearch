@@ -9,7 +9,7 @@
 package org.elasticsearch.join.mapper;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 
 import java.io.IOException;
@@ -19,15 +19,16 @@ import java.util.Map;
 public class JoinFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new ParentJoinFieldMapper.Builder("field").build(MapperBuilderContext.ROOT).fieldType();
+        MappedField mappedField = new ParentJoinFieldMapper.Builder("field").build(MapperBuilderContext.ROOT).field();
 
         Map<String, String> parentValue = Map.of("relation", "parent");
-        assertEquals(List.of(parentValue), fetchSourceValue(fieldType, parentValue));
+        assertEquals(List.of(parentValue), fetchSourceValue(mappedField, parentValue));
 
         Map<String, String> childValue = Map.of("relation", "child", "parent", "1");
-        assertEquals(List.of(childValue), fetchSourceValue(fieldType, childValue));
+        assertEquals(List.of(childValue), fetchSourceValue(mappedField, childValue));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(fieldType, parentValue, "format"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> fetchSourceValue(mappedField, parentValue, "format"));
         assertEquals("Field [field] of type [join] doesn't support formats.", e.getMessage());
     }
 }

@@ -34,7 +34,7 @@ import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -294,7 +294,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
         }
 
-        private void setupPrefixTrees(GeoShapeFieldType ft) {
+        private void setupPrefixTrees(GeoShapeFieldType ft, MapperBuilderContext context) {
             SpatialPrefixTree prefixTree;
             if (ft.tree().equals(PrefixTrees.GEOHASH)) {
                 prefixTree = new GeohashPrefixTree(
@@ -317,13 +317,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
             // setup prefix trees regardless of strategy (this is used for the QueryBuilder)
             // recursive:
-            RecursivePrefixTreeStrategy rpts = new RecursivePrefixTreeStrategy(prefixTree, ft.name());
+            RecursivePrefixTreeStrategy rpts = new RecursivePrefixTreeStrategy(prefixTree, context.buildFullName(name));
             rpts.setDistErrPct(ft.distanceErrorPct());
             rpts.setPruneLeafyBranches(false);
             ft.recursiveStrategy = rpts;
 
             // term:
-            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, ft.name());
+            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, context.buildFullName(name));
             termStrategy.setDistErrPct(ft.distanceErrorPct());
             ft.termStrategy = termStrategy;
 
@@ -334,14 +334,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, MapperBuilderContext context) {
             GeoShapeFieldType ft = new GeoShapeFieldType(
-                context.buildFullName(name),
                 indexed.get(),
                 orientation.get().value(),
                 parser,
                 meta.get()
             );
             setupFieldTypeDeprecatedParameters(ft);
-            setupPrefixTrees(ft);
+            setupPrefixTrees(ft, context);
             return ft;
         }
 
@@ -367,7 +366,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);
-            return new LegacyGeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new LegacyGeoShapeFieldMapper(name, new MappedField(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
         }
     }
 
@@ -432,27 +432,28 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         private final LegacyGeoShapeQueryProcessor queryProcessor;
 
         private GeoShapeFieldType(
-            String name,
             boolean indexed,
             Orientation orientation,
             LegacyGeoShapeParser parser,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, false, parser, orientation, meta);
+            super(indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 
-        public GeoShapeFieldType(String name) {
-            this(name, true, Orientation.RIGHT, null, Collections.emptyMap());
+        public GeoShapeFieldType() {
+            this(true, Orientation.RIGHT, null, Collections.emptyMap());
         }
 
         @Override
-        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
+        public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
+                                   LatLonGeometry... geometries) {
             throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 
         @Override
         public Query geoShapeQuery(
+            String name,
             SearchExecutionContext context,
             String fieldName,
             SpatialStrategy spatialStrategy,
@@ -551,7 +552,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public LegacyGeoShapeFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         LegacyGeoShapeParser parser,
@@ -559,7 +560,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     ) {
         super(
             simpleName,
-            mappedFieldType,
+            mappedField,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
@@ -605,7 +606,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             } else if (shape instanceof Point == false) {
                 throw new MapperParsingException(
                     "[{"
-                        + fieldType().name()
+                        + name()
                         + "}] is configured for points only but a "
                         + ((shape instanceof JtsGeometry) ? ((JtsGeometry) shape).getGeom().getGeometryType() : shape.getClass())
                         + " was found"
@@ -613,7 +614,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
         }
         context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(name());
     }
 
     @Override

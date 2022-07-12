@@ -25,7 +25,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -267,8 +267,8 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
+        MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(mappedField));
         verify.accept(result);
     }
 
@@ -277,8 +277,8 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
+        MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(mappedField));
         verify.accept(result);
     }
 
@@ -291,9 +291,9 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
                 )
             );
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
-        LongTerms result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType, subFieldType));
+        MappedField field = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField subField = new MappedField("subNumber", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        LongTerms result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(field, subField));
         verify.accept(result);
     }
 
@@ -302,15 +302,15 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new ParentJoinPlugin());
     }
 
-    static MappedFieldType[] withJoinFields(MappedFieldType... fieldTypes) {
-        MappedFieldType[] result = new MappedFieldType[fieldTypes.length + 2];
-        System.arraycopy(fieldTypes, 0, result, 0, fieldTypes.length);
+    static MappedField[] withJoinFields(MappedField... mappedFields) {
+        MappedField[] result = new MappedField[mappedFields.length + 2];
+        System.arraycopy(mappedFields, 0, result, 0, mappedFields.length);
 
-        int i = fieldTypes.length;
+        int i = mappedFields.length;
         result[i++] = new ParentJoinFieldMapper.Builder("join_field").addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
             .build(MapperBuilderContext.ROOT)
-            .fieldType();
-        result[i++] = new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false);
+            .field();
+        result[i++] = new MappedField("join_field#" + PARENT_TYPE, new ParentIdFieldMapper.ParentIdFieldType(false));
         assert i == result.length;
         return result;
     }

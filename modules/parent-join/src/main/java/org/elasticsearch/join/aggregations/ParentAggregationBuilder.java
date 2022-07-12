@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -106,8 +106,8 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
         if (joiner != null && joiner.childTypeExists(childType)) {
             parentFilter = joiner.parentFilter(childType);
             childFilter = joiner.filter(childType);
-            MappedFieldType fieldType = context.getMappedField(joiner.parentJoinField(childType));
-            config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
+            MappedField mappedField = context.getMappedField(joiner.parentJoinField(childType));
+            config = ValuesSourceConfig.resolveFieldOnly(mappedField, context);
         } else {
             // unmapped case
             config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);

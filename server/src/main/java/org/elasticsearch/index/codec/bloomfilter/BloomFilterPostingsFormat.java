@@ -126,7 +126,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
 
         FieldsWriter(PostingsFormat postingsFormat, SegmentWriteState state) throws IOException {
             this.state = state;
-            final List<Closeable> toCloses = new ArrayList<>(1);
+            final List<Closeable> toCloses = new ArrayList<>(2);
             try {
                 termsWriter = postingsFormat.fieldsConsumer(state);
                 toCloses.add(termsWriter);
@@ -205,7 +205,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
         private final IndexInput indexIn;
 
         FieldsReader(SegmentReadState state) throws IOException {
-            final List<Closeable> toCloses = new ArrayList<>(1);
+            final List<Closeable> toCloses = new ArrayList<>(2);
             try (
                 ChecksumIndexInput metaIn = state.directory.openChecksumInput(
                     metaField(state.segmentInfo, state.segmentSuffix),

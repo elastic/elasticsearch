@@ -1141,7 +1141,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 && corruptDocPage == 0
                 && corruptDocIsLastPage;
             if (isOnlyPageForIndex == false // don't remove the only doc for an index, this just loses the index and doesn't corrupt
-                && isOnlyPageForMapping == false // asdflkjasdflkjasdlkj
+                && isOnlyPageForMapping == false // similarly, don't remove the only doc for a mapping, this causes an AssertionError
                 && rarely()) {
                 documents.remove(corruptIndex);
             } else {

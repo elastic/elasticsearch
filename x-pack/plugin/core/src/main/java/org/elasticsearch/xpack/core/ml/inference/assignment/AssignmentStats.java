@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -435,6 +436,23 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     public AssignmentStats setReason(String reason) {
         this.reason = reason;
         return this;
+    }
+
+    /**
+     * @return The overall inference stats for the model assignment
+     */
+    public InferenceStats getOverallInferenceStats() {
+        return new InferenceStats(
+            0L,
+            nodeStats.stream().filter(n -> n.getInferenceCount().isPresent()).mapToLong(n -> n.getInferenceCount().get()).sum(),
+            // This is for ALL failures, so sum the error counts, timeouts, and rejections
+            nodeStats.stream().mapToLong(n -> n.getErrorCount() + n.getTimeoutCount() + n.getRejectedExecutionCount()).sum(),
+            // TODO Update when we actually have cache miss/hit values
+            0L,
+            modelId,
+            null,
+            Instant.now()
+        );
     }
 
     @Override

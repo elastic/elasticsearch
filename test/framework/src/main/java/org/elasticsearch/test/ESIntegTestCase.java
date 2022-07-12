@@ -1475,6 +1475,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return admin().cluster();
     }
 
+    public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(index).setSource("field", "value");
+        }
+        indexRandom(forceRefresh, Arrays.asList(builders));
+    }
+
     /**
      * Convenience method that forwards to {@link #indexRandom(boolean, List)}.
      */

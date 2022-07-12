@@ -23,7 +23,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -548,7 +548,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String superfastRegexes[] = { ".*", "(foo|bar|.*)", "@" };
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
-            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
+            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof FieldExistsQuery);
         }
         String matchNoDocsRegexes[] = { "" };
         for (String regex : matchNoDocsRegexes) {
@@ -627,7 +627,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             assertTrue(
                 pattern + " was not a pure match all query " + formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof DocValuesFieldExistsQuery
+                wildcardFieldQuery instanceof FieldExistsQuery
             );
         }
 

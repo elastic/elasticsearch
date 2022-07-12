@@ -1,4 +1,5 @@
-import org.elasticsearch.xpack.ilm.ILMImmutableStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider;
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -19,5 +20,5 @@ module org.elasticsearch.ilm {
     exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
 
-    provides org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider with ILMImmutableStateHandlerProvider;
+    provides ReservedClusterStateHandlerProvider with ReservedLifecycleStateHandlerProvider;
 }

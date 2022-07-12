@@ -33,6 +33,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -146,15 +147,15 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     }
 
     /**
-     * Override this method if the master node action also has an {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler}
+     * Override this method if the master node action also has an {@link ReservedClusterStateHandler}
      * interaction.
      * <p>
      * We need to check if certain settings or entities are allowed to be modified by the master node
-     * action, depending on if they are set as immutable in 'operator' mode (file based settings, modules, plugins).
+     * action, depending on if they are set as reserved in 'operator' mode (file based settings, modules, plugins).
      *
-     * @return an Optional of the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} name
+     * @return an Optional of the {@link ReservedClusterStateHandler} name
      */
-    protected Optional<String> immutableStateHandlerName() {
+    protected Optional<String> reservedStateHandlerName() {
         return Optional.empty();
     }
 
@@ -162,8 +163,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
      * Override this method to return the keys of the cluster state or cluster entities that are modified by
      * the Request object.
      * <p>
-     * This method is used by the immutable state handler logic (see {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler})
-     * to verify if the keys don't conflict with an existing key set as immutable.
+     * This method is used by the reserved state handler logic (see {@link ReservedClusterStateHandler})
+     * to verify if the keys don't conflict with an existing key set as reserved.
      *
      * @param request the TransportMasterNode request
      * @return set of String keys intended to be modified/set/deleted by this request

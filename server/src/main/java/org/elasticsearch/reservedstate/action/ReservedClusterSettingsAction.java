@@ -6,15 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.immutablestate.action;
+package org.elasticsearch.reservedstate.action;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
-import org.elasticsearch.immutablestate.TransformState;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.TransformState;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,18 +25,18 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.util.Maps.asMap;
 
 /**
- * This Action is the immutable state save version of RestClusterUpdateSettingsAction
+ * This Action is the reserved state save version of RestClusterUpdateSettingsAction
  * <p>
- * It is used by the ImmutableClusterStateController to update the persistent cluster settings.
+ * It is used by the ReservedClusterStateController to update the persistent cluster settings.
  * Since transient cluster settings are deprecated, this action doesn't support updating transient cluster settings.
  */
-public class ImmutableClusterSettingsAction implements ImmutableClusterStateHandler<ClusterUpdateSettingsRequest> {
+public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<ClusterUpdateSettingsRequest> {
 
     public static final String NAME = "cluster_settings";
 
     private final ClusterSettings clusterSettings;
 
-    public ImmutableClusterSettingsAction(ClusterSettings clusterSettings) {
+    public ReservedClusterSettingsAction(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
     }
 

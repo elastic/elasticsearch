@@ -49,7 +49,7 @@ public final class IngestDocument {
 
     static final String TIMESTAMP = "timestamp";
 
-    private final IngestSourceAndMetadata sourceAndMetadata;
+    private final IngestCtxMap sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
@@ -58,17 +58,9 @@ public final class IngestDocument {
     private boolean doNoSelfReferencesCheck = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
-        this.sourceAndMetadata = new IngestSourceAndMetadata(
-            index,
-            id,
-            version,
-            routing,
-            versionType,
-            ZonedDateTime.now(ZoneOffset.UTC),
-            source
-        );
+        this.sourceAndMetadata = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getTimestamp());
+        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getMetadata().getTimestamp());
     }
 
     /**
@@ -76,12 +68,7 @@ public final class IngestDocument {
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestSourceAndMetadata(
-                deepCopyMap(other.sourceAndMetadata.getSource()),
-                deepCopyMap(other.sourceAndMetadata.getMetadata()),
-                other.getIngestSourceAndMetadata().timestamp,
-                other.getIngestSourceAndMetadata().validators
-            ),
+            new IngestCtxMap(deepCopyMap(other.sourceAndMetadata.getSource()), other.sourceAndMetadata.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
     }
@@ -90,17 +77,18 @@ public final class IngestDocument {
      * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
-        this.sourceAndMetadata = new IngestSourceAndMetadata(
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestCtxMap.splitSourceAndMetadata(
+            sourceAndMetadata,
+            Arrays.stream(IngestDocument.Metadata.values()).map(IngestDocument.Metadata::getFieldName).collect(Collectors.toSet())
+        );
+        this.sourceAndMetadata = new IngestCtxMap(
             sm.v1(),
-            sm.v2(),
-            IngestSourceAndMetadata.getTimestamp(ingestMetadata),
-            IngestSourceAndMetadata.VALIDATORS
+            new IngestCtxMap.IngestMetadata(sm.v2(), IngestCtxMap.getTimestamp(ingestMetadata))
         );
         this.ingestMetadata = new HashMap<>(ingestMetadata);
         this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
             if (v instanceof String) {
-                return this.sourceAndMetadata.getTimestamp();
+                return this.sourceAndMetadata.getMetadata().getTimestamp();
             }
             return v;
         });
@@ -109,7 +97,7 @@ public final class IngestDocument {
     /**
      * Constructor to create an IngestDocument from its constituent maps
      */
-    IngestDocument(IngestSourceAndMetadata sourceAndMetadata, Map<String, Object> ingestMetadata) {
+    IngestDocument(IngestCtxMap sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
     }
@@ -731,24 +719,17 @@ public final class IngestDocument {
     }
 
     /**
-     * Get source and metadata map as {@link IngestSourceAndMetadata}
+     * Get source and metadata map as {@link IngestCtxMap}
      */
-    public IngestSourceAndMetadata getIngestSourceAndMetadata() {
+    public IngestCtxMap getIngestSourceAndMetadata() {
         return sourceAndMetadata;
-    }
-
-    /**
-     * Get all Metadata values in a Map
-     */
-    public Map<String, Object> getMetadataMap() {
-        return sourceAndMetadata.getMetadata();
     }
 
     /**
      * Get the strongly typed metadata
      */
     public org.elasticsearch.script.Metadata getMetadata() {
-        return sourceAndMetadata;
+        return sourceAndMetadata.getMetadata();
     }
 
     /**
@@ -777,7 +758,7 @@ public final class IngestDocument {
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
-            // TODO(stu): should this check for IngestSourceAndMetadata in addition to Map?
+            // TODO(stu): should this check for IngestCtxMap in addition to Map?
             return copy;
         } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());

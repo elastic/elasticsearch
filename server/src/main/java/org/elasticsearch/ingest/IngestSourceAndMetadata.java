@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Metadata;
@@ -20,7 +21,6 @@ import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,7 +68,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     IngestSourceAndMetadata(Map<String, Object> source, Metadata metadata) {
         this.source = source != null ? source : new HashMap<>();
         this.metadata = metadata;
-        Set<String> badKeys = metadata.metadataKeys(this.source.keySet());
+        Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
         if (badKeys.size() > 0) {
             throw new IllegalArgumentException(
                 "unexpected metadata ["
@@ -132,7 +132,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
-        return new EntrySet(source.entrySet(), metadata.getKeys());
+        return new EntrySet(source.entrySet(), metadata.keySet());
     }
 
     /**
@@ -141,7 +141,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     @Override
     public Object put(String key, Object value) {
-        if (metadata.isMetadata(key)) {
+        if (metadata.isAvailable(key)) {
             return metadata.put(key, value);
         }
         return source.put(key, value);
@@ -155,7 +155,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     public Object remove(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String str) {
-            if (metadata.isMetadata(str)) {
+            if (metadata.isAvailable(str)) {
                 return metadata.remove(str);
             }
         }
@@ -169,7 +169,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     @Override
     public void clear() {
         // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped maps clear
-        for (String key : metadata.getKeys()) {
+        for (String key : metadata.keySet()) {
             metadata.remove(key);
         }
         source.clear();
@@ -200,7 +200,7 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     public Object get(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String str) {
-            if (metadata.isMetadata(str)) {
+            if (metadata.isAvailable(str)) {
                 return metadata.get(str);
             }
         }
@@ -217,9 +217,9 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     class EntrySet extends AbstractSet<Map.Entry<String, Object>> {
         Set<Map.Entry<String, Object>> sourceSet;
-        List<String> metadataKeys;
+        Set<String> metadataKeys;
 
-        EntrySet(Set<Map.Entry<String, Object>> sourceSet, List<String> metadataKeys) {
+        EntrySet(Set<Map.Entry<String, Object>> sourceSet, Set<String> metadataKeys) {
             this.sourceSet = sourceSet;
             this.metadataKeys = metadataKeys;
         }

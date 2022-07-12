@@ -108,7 +108,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.fromString(executionHint);
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
+            if (valuesSource.hasOrdinals() == false) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {

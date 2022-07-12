@@ -8,12 +8,10 @@
 
 package org.elasticsearch.index.get;
 
-import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -25,14 +23,12 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -225,8 +221,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult getFromSearcher(Engine.Searcher searcher, String id, DocIdAndVersion docIdAndVersion, long lookupTimes)
-        throws IOException {
+    public GetResult getFromSearcher(
+        Engine.Searcher searcher,
+        String id,
+        DocIdAndVersion docIdAndVersion,
+        long lookupTimes,
+        boolean forceSyntheticSource
+    ) throws IOException {
         currentMetric.inc();
         try {
             if (docIdAndVersion == null) {
@@ -235,7 +236,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
             final long startTimes = System.nanoTime();
             final Engine.GetResult get = new Engine.GetResult(searcher, docIdAndVersion);
-            GetResult getResult = innerGetLoadFromStoredFields(id, null, FetchSourceContext.FETCH_SOURCE, get);
+            GetResult getResult = innerGetFetch(id, null, FetchSourceContext.FETCH_SOURCE, get, forceSyntheticSource);
             existsMetric.inc(System.nanoTime() - startTimes + lookupTimes);
             return getResult;
         } finally {

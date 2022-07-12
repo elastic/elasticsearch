@@ -111,7 +111,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
         MultiGetShardResponse response = new MultiGetShardResponse();
-        if (request.items.isEmpty()){
+        if (request.items.isEmpty()) {
             return response;
         }
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -127,8 +127,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             for (int i = 0; i < request.locations.size(); i++) {
                 final MultiGetRequest.Item item = request.items.get(i);
                 final long startTime = System.nanoTime();
-                final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion =
-                    VersionsAndSeqNoResolver.lookupId(searcher.getDirectoryReader(), new Term(IdFieldMapper.NAME, Uid.encodeId(item.id())));
+                final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.lookupId(
+                    searcher.getDirectoryReader(),
+                    new Term(IdFieldMapper.NAME, Uid.encodeId(item.id()))
+                );
                 getAndPositions[i] = new GetResultAndPosition(docIdAndVersion, i, System.nanoTime() - startTime);
             }
             long sortTimes = System.nanoTime();
@@ -137,7 +139,13 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             for (GetResultAndPosition get : getAndPositions) {
                 int i = get.location;
                 final MultiGetRequest.Item item = request.items.get(i);
-                GetResult getResult = getService.getFromSearcher(searcher, item.id(), get.get, get.lookupTimes + sortTimes);
+                GetResult getResult = getService.getFromSearcher(
+                    searcher,
+                    item.id(),
+                    get.get,
+                    get.lookupTimes + sortTimes,
+                    request.isForceSyntheticSource()
+                );
                 response.add(request.locations.get(i), new GetResponse(getResult));
             }
         } catch (IOException e) {
@@ -146,7 +154,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         return response;
     }
 
-    private record GetResultAndPosition( VersionsAndSeqNoResolver.DocIdAndVersion get, int location, long lookupTimes) implements Comparable<GetResultAndPosition> {
+    private record GetResultAndPosition(VersionsAndSeqNoResolver.DocIdAndVersion get, int location, long lookupTimes)
+        implements
+            Comparable<GetResultAndPosition> {
         int docId() {
             if (get == null) {
                 return Integer.MAX_VALUE;
@@ -154,6 +164,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 return get.docBase + get.docId;
             }
         }
+
         @Override
         public int compareTo(GetResultAndPosition o) {
             return Integer.compare(this.docId(), o.docId());

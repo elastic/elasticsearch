@@ -125,7 +125,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo = UNASSIGNED_SEQ_NO;
-            final long term =UNASSIGNED_PRIMARY_TERM;
+            final long term = UNASSIGNED_PRIMARY_TERM;
             final long version = 1L;
             return new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
         } else {

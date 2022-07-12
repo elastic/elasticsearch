@@ -919,10 +919,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        Decision decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            firstRouting,
+            firstRoutingNode,
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
-            ((Decision.Single) decision).getExplanation(),
+            decision.getExplanation(),
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting "
                     + "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node, "
@@ -951,7 +956,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            firstRouting,
+            firstRoutingNode,
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertEquals(
             "there is enough disk on this node for the shard to remain, free: [60b]",
@@ -1109,7 +1119,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        Decision decision = diskThresholdDecider.canRemain(startedShard, clusterState.getRoutingNodes().node("data"), routingAllocation);
+        Decision decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(startedShard.index()),
+            startedShard,
+            clusterState.getRoutingNodes().node("data"),
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),

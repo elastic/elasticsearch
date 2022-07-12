@@ -1736,74 +1736,67 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var request = new UpdateApiKeyRequest(randomAlphaOfLength(10), newKeyRoles, newMetadata);
         final var service = createApiKeyService();
 
-        final ApiKeyService.ApiKeyDocBuilderWithNoopFlag builderWithNoopFlag = service.buildUpdatedDocument(
-            oldApiKeyDoc,
-            newVersion,
-            newAuthentication,
-            request,
-            newUserRoles
-        );
+        final XContentBuilder builder = service.buildUpdatedDocument(oldApiKeyDoc, newVersion, newAuthentication, request, newUserRoles);
 
-        final ApiKeyDoc updatedApiKeyDoc = ApiKeyDoc.fromXContent(
-            XContentHelper.createParser(
-                XContentParserConfiguration.EMPTY,
-                BytesReference.bytes(builderWithNoopFlag.builder()),
-                XContentType.JSON
-            )
-        );
         final boolean noop = (changeCreator || changeMetadata || changeKeyRoles || changeUserRoles || changeVersion) == false;
-        assertEquals(noop, builderWithNoopFlag.noop());
-        assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
-        assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
-        assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
-        assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
-        assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
-        assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
-        assertEquals(newVersion.id, updatedApiKeyDoc.version);
-        final var actualUserRoles = service.parseRoleDescriptorsBytes(
-            "",
-            updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.LIMITED_BY
-        );
-        assertEquals(newUserRoles.size(), actualUserRoles.size());
-        assertEquals(new HashSet<>(newUserRoles), new HashSet<>(actualUserRoles));
-        final var actualKeyRoles = service.parseRoleDescriptorsBytes(
-            "",
-            updatedApiKeyDoc.roleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.ASSIGNED
-        );
-        if (changeKeyRoles == false) {
-            assertEquals(
-                service.parseRoleDescriptorsBytes("", oldApiKeyDoc.roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
-                actualKeyRoles
+        if (noop) {
+            assertNull(builder);
+        } else {
+            final ApiKeyDoc updatedApiKeyDoc = ApiKeyDoc.fromXContent(
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder), XContentType.JSON)
             );
-        } else {
-            assertEquals(newKeyRoles.size(), actualKeyRoles.size());
-            assertEquals(new HashSet<>(newKeyRoles), new HashSet<>(actualKeyRoles));
-        }
-        if (changeMetadata == false) {
-            assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
-        } else {
-            assertEquals(newMetadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
-        }
-        assertEquals(newAuthentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.get("principal"));
-        assertEquals(newAuthentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.get("full_name"));
-        assertEquals(newAuthentication.getEffectiveSubject().getUser().email(), updatedApiKeyDoc.creator.get("email"));
-        assertEquals(newAuthentication.getEffectiveSubject().getUser().metadata(), updatedApiKeyDoc.creator.get("metadata"));
-        final RealmRef realm = newAuthentication.getEffectiveSubject().getRealm();
-        assertEquals(realm.getName(), updatedApiKeyDoc.creator.get("realm"));
-        assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
-        if (realm.getDomain() != null) {
-            @SuppressWarnings("unchecked")
-            final var actualRealmDomain = RealmDomain.fromXContent(
-                XContentHelper.mapToXContentParser(
-                    XContentParserConfiguration.EMPTY,
-                    (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain")
-                )
+            assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
+            assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
+            assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
+            assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
+            assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
+            assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
+            assertEquals(newVersion.id, updatedApiKeyDoc.version);
+            final var actualUserRoles = service.parseRoleDescriptorsBytes(
+                "",
+                updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
+                RoleReference.ApiKeyRoleType.LIMITED_BY
             );
-            assertEquals(realm.getDomain(), actualRealmDomain);
-        } else {
-            assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
+            assertEquals(newUserRoles.size(), actualUserRoles.size());
+            assertEquals(new HashSet<>(newUserRoles), new HashSet<>(actualUserRoles));
+            final var actualKeyRoles = service.parseRoleDescriptorsBytes(
+                "",
+                updatedApiKeyDoc.roleDescriptorsBytes,
+                RoleReference.ApiKeyRoleType.ASSIGNED
+            );
+            if (changeKeyRoles == false) {
+                assertEquals(
+                    service.parseRoleDescriptorsBytes("", oldApiKeyDoc.roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
+                    actualKeyRoles
+                );
+            } else {
+                assertEquals(newKeyRoles.size(), actualKeyRoles.size());
+                assertEquals(new HashSet<>(newKeyRoles), new HashSet<>(actualKeyRoles));
+            }
+            if (changeMetadata == false) {
+                assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
+            } else {
+                assertEquals(newMetadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
+            }
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.get("principal"));
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.get("full_name"));
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().email(), updatedApiKeyDoc.creator.get("email"));
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().metadata(), updatedApiKeyDoc.creator.get("metadata"));
+            final RealmRef realm = newAuthentication.getEffectiveSubject().getRealm();
+            assertEquals(realm.getName(), updatedApiKeyDoc.creator.get("realm"));
+            assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
+            if (realm.getDomain() != null) {
+                @SuppressWarnings("unchecked")
+                final var actualRealmDomain = RealmDomain.fromXContent(
+                    XContentHelper.mapToXContentParser(
+                        XContentParserConfiguration.EMPTY,
+                        (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain")
+                    )
+                );
+                assertEquals(realm.getDomain(), actualRealmDomain);
+            } else {
+                assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
+            }
         }
     }
 

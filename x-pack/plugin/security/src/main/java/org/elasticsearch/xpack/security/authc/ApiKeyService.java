@@ -416,10 +416,10 @@ public class ApiKeyService {
         char[] apiKeyHashChars,
         String name,
         Authentication authentication,
-        Set<RoleDescriptor> userRoles,
+        Set<RoleDescriptor> userRoleDescriptors,
         Instant created,
         Instant expiration,
-        List<RoleDescriptor> keyRoles,
+        List<RoleDescriptor> keyRoleDescriptors,
         Version version,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
@@ -431,8 +431,8 @@ public class ApiKeyService {
             .field("api_key_invalidated", false);
 
         addApiKeyHash(builder, apiKeyHashChars);
-        addRoleDescriptors(builder, keyRoles);
-        addLimitedByRoleDescriptors(builder, userRoles);
+        addRoleDescriptors(builder, keyRoleDescriptors);
+        addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
         builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
         addCreator(builder, authentication);
@@ -441,15 +441,18 @@ public class ApiKeyService {
     }
 
     // package private for testing
-    record ApiKeyDocBuilderWithNoopFlag(XContentBuilder builder, boolean noop) {}
-
-    ApiKeyDocBuilderWithNoopFlag buildUpdatedDocument(
+    // @returns `null` if the update is a noop, i.e., if no changes result from it
+    XContentBuilder buildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,
         final Version targetDocVersion,
         final Authentication authentication,
         final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles
+        final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
+        if (isNoop(currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
+            return null;
+        }
+
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
@@ -468,7 +471,7 @@ public class ApiKeyService {
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
-        addLimitedByRoleDescriptors(builder, userRoles);
+        addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
         builder.field("name", currentApiKeyDoc.name).field("version", targetDocVersion.id);
 
@@ -492,10 +495,7 @@ public class ApiKeyService {
 
         addCreator(builder, authentication);
 
-        return new ApiKeyDocBuilderWithNoopFlag(
-            builder.endObject(),
-            isNoop(currentApiKeyDoc, targetDocVersion, authentication, request, userRoles)
-        );
+        return builder.endObject();
     }
 
     private boolean isNoop(
@@ -503,7 +503,7 @@ public class ApiKeyService {
         final Version targetDocVersion,
         final Authentication authentication,
         final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles
+        final Set<RoleDescriptor> userRoleDescriptors
     ) {
         if (apiKeyDoc.version != targetDocVersion.id) {
             return false;
@@ -560,19 +560,19 @@ public class ApiKeyService {
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
             if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
-                && new HashSet<>(newRoleDescriptors).equals(new HashSet<>(currentRoleDescriptors)))) {
+                && Set.copyOf(newRoleDescriptors).containsAll(new HashSet<>(currentRoleDescriptors)))) {
                 return false;
             }
         }
 
-        assert userRoles != null;
-        final List<RoleDescriptor> currentLimitedByRoleDescriptorRoles = parseRoleDescriptorsBytes(
+        assert userRoleDescriptors != null;
+        final List<RoleDescriptor> currentLimitedByRoleDescriptors = parseRoleDescriptorsBytes(
             request.getId(),
             apiKeyDoc.limitedByRoleDescriptorsBytes,
             RoleReference.ApiKeyRoleType.LIMITED_BY
         );
-        return (userRoles.size() == currentLimitedByRoleDescriptorRoles.size()
-            && userRoles.equals(new HashSet<>(currentLimitedByRoleDescriptorRoles)));
+        return (userRoleDescriptors.size() == currentLimitedByRoleDescriptors.size()
+            && userRoleDescriptors.containsAll(currentLimitedByRoleDescriptors));
     }
 
     void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
@@ -1078,26 +1078,26 @@ public class ApiKeyService {
             );
         }
 
-        final ApiKeyDocBuilderWithNoopFlag builderWithNoopFlag = buildUpdatedDocument(
+        final XContentBuilder builder = buildUpdatedDocument(
             currentVersionedDoc.doc(),
             targetDocVersion,
             authentication,
             request,
             userRoles
         );
-        if (builderWithNoopFlag.noop()) {
+        if (builder == null) {
             logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
             listener.onResponse(new UpdateApiKeyResponse(false));
             return;
         }
+
         final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
             .setId(request.getId())
-            .setSource(builderWithNoopFlag.builder())
+            .setSource(builder)
             .setIfSeqNo(currentVersionedDoc.seqNo())
             .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
             .setOpType(DocWriteRequest.OpType.INDEX)
             .request();
-
         logger.trace("Executing index request to update API key [{}]", request.getId());
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,

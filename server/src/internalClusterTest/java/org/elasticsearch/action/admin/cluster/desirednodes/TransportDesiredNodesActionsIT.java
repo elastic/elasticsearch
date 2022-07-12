@@ -59,6 +59,22 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
     }
 
+    public void testDryRunUpdateDoesNotUpdateEmptyDesiredNodes() {
+        updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+
+        expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
+    }
+
+    public void testDryRunUpdateDoesNotUpdateExistingDesiredNodes() {
+        updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+
+        DesiredNodes desiredNodes = getLatestDesiredNodes();
+
+        updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+
+        assertEquals(getLatestDesiredNodes(), desiredNodes);
+    }
+
     public void testUpdateDesiredNodesIsIdempotent() {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
         updateDesiredNodes(updateDesiredNodesRequest);
@@ -378,6 +394,15 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
             randomList(2, 10, () -> randomDesiredNode(version, settings))
+        );
+    }
+
+    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Version version, Settings settings) {
+        return new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(2, 20),
+            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            true
         );
     }
 

@@ -56,7 +56,7 @@ public class MetadataTests extends ESTestCase {
         md = new TestMetadata(metadata, allowAllValidators("a", "b", "c", "d"));
         assertEquals(Long.MAX_VALUE, md.getNumber("a"));
         assertEquals(Double.MAX_VALUE, md.getNumber("b"));
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> md.getNumber("c"));
+        IllegalStateException err = expectThrows(IllegalStateException.class, () -> md.getNumber("c"));
         assertEquals("unexpected type for [c] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
         assertNull(md.getNumber("d"));
         assertNull(md.getNumber("no key"));

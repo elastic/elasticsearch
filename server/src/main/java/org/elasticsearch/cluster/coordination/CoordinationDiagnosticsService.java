@@ -82,7 +82,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     /*
      * This is a list of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
      * diagnosis.
-     * This field is only ever accessed on the cluster change event thread, so there no need to protect it for thread safety.
+     * The field is accessed (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change
+     * event thread.
      */
     private volatile List<Scheduler.Cancellable> clusterFormationInfoTasks = null;
     /*
@@ -471,10 +472,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     /**
-     * This method returns a Cancellable quickly, but in the background schedules to query the remote node's cluster formation state
-     * in 10 seconds, and repeats doing that until cancel() is called on the returned Cancellable.
-     *
-     * @return
+     * This method returns quickly, but in the background schedules to query the remote node's cluster formation state in 10 seconds, and
+     * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables.
+     * @param node The node to poll for cluster formation information
+     * @param nodeToClusterFormationStateMap The map to put results into
+     * @param cancellables The list to insert all Cancellables into. Since this method continues to schedule tasks approximately every 10
+     *                    seconds, there will potentially be many Cancellables generated.
      */
     void fetchClusterFormationInfo(
         DiscoveryNode node,
@@ -494,6 +497,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 new ClusterFormationInfoAction.Request(),
                 TransportRequestOptions.timeout(transportTimeout),
                 new ActionListenerResponseHandler<>(
+                    /*
+                     * This part (runAfter/runBefore looks a little strange but it is needed. The runBefore makes sure that we close the
+                     * connection to the server before we run the actions in the fetchClusterInfoListener, whether on success or failure.
+                     * The runAfter makes sure that we call fetchClusterFormationInfo after we run the actions in the
+                     * fetchClusterInfoListener, whether on success or failure.
+                     */
                     ActionListener.runAfter(
                         ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
                         () -> fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, cancellables)

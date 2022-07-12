@@ -569,6 +569,13 @@ public class ApiKeyService {
         }
 
         assert userRoleDescriptors != null;
+        // There is an edge case here when we update an 7.x API key that has a `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` role descriptor:
+        // `parseRoleDescriptorsBytes` automatically transforms it to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`. As such, when we
+        // perform the noop check on `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR` we will treat it as a noop even though the actual
+        // role descriptor bytes on the API key are different, and correspond to `LEGACY_SUPERUSER_ROLE_DESCRIPTOR`.
+        //
+        // This does *not* present a functional issue, since whenever a `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` is loaded at authentication time,
+        // it is likewise automatically transformed to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`.
         final List<RoleDescriptor> currentLimitedByRoleDescriptors = parseRoleDescriptorsBytes(
             request.getId(),
             apiKeyDoc.limitedByRoleDescriptorsBytes,

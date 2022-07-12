@@ -35,7 +35,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
           commandLine 'ls', '-lh'
-          spoolOutput = $spooling
+          getSpoolOutput().set($spooling)
         }
         """
         when:
@@ -54,7 +54,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
           commandLine 'ls', 'wtf'
-          spoolOutput = $spooling
+          getSpoolOutput().set($spooling)        
         }
         """
         when:
@@ -97,7 +97,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         tasks.register('loggedExec', LoggedExec) {
           commandLine 'echo', 'HELLO'
           getCaptureOutput().set(true)
-          spoolOutput = true
+          getSpoolOutput().set(true)
         }
         """
         when:

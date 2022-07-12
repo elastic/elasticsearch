@@ -1805,7 +1805,33 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(response.isUpdated());
 
         // Update with different creator info is not a noop
+        // First, ensure that the user role descriptors alone do *not* cause an update, so we can test that we correctly perform the noop
+        // check when we update creator info
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
+        PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML, i.e., should not result in update
+        final Set<RoleDescriptor> oldUserRoleDescriptors = Set.of(
+            new RoleDescriptor(
+                TEST_ROLE,
+                new String[] { "ALL" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").allowRestrictedIndices(true).privileges("ALL").build() },
+                null
+            )
+        );
+        serviceWithNodeName.service()
+            .updateApiKey(
+                Authentication.newRealmAuthentication(
+                    new User(TEST_USER_NAME, TEST_ROLE),
+                    new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
+                ),
+                UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+                oldUserRoleDescriptors,
+                listener
+            );
+        response = listener.get();
+        assertNotNull(response);
+        assertFalse(response.isUpdated());
         final User updatedUser = AuthenticationTestHelper.userWithRandomMetadataAndDetails(TEST_USER_NAME, TEST_ROLE);
         final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
         final boolean noUserChanges = updatedUser.equals(new User(TEST_USER_NAME, TEST_ROLE));
@@ -1834,28 +1860,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Authentication::isApiKey,
             () -> AuthenticationTestHelper.builder().user(updatedUser).realmRef(realmRef).build()
         );
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        listener = new PlainActionFuture<>();
         serviceWithNodeName.service()
-            .updateApiKey(
-                authentication,
-                UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
-                // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML to ensure that these stay the same and
-                // don't cause an update
-                Set.of(
-                    new RoleDescriptor(
-                        TEST_ROLE,
-                        new String[] { "ALL" },
-                        new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder()
-                                .indices("*")
-                                .allowRestrictedIndices(true)
-                                .privileges("ALL")
-                                .build() },
-                        null
-                    )
-                ),
-                listener
-            );
+            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), oldUserRoleDescriptors, listener);
         response = listener.get();
         assertNotNull(response);
         assertTrue(response.isUpdated());

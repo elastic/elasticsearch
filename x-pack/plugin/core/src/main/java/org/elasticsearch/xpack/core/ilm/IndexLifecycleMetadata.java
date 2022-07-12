@@ -83,6 +83,10 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         return policyMetadatas;
     }
 
+    /**
+     * @deprecated use {@link LifecycleOperationMetadata#getILMOperationMode()} instead. This may be incorrect.
+     */
+    @Deprecated(since = "8.4.0")
     public OperationMode getOperationMode() {
         return operationMode;
     }

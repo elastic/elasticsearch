@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.health.Diagnosis;
@@ -33,6 +34,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING;
+import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * This indicator reports health for snapshot lifecycle management component.
@@ -97,17 +100,29 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
-        var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+    public String component() {
+        return SNAPSHOT;
+    }
+
+    @Override
+    public String helpURL() {
+        return HELP_URL;
+    }
+
+    @Override
+    public HealthIndicatorResult calculate(boolean explain) {
+        final ClusterState currentState = clusterService.state();
+        var slmMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        final OperationMode currentMode = currentSLMMode(currentState);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No Snapshot Lifecycle Management policies configured",
-                createDetails(explain, Collections.emptyList(), slmMetadata),
+                createDetails(explain, Collections.emptyList(), slmMetadata, currentMode),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
-        } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
+        } else if (currentMode != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     NAME,
@@ -120,7 +135,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 YELLOW,
                 "Snapshot Lifecycle Management is not running",
-                createDetails(explain, Collections.emptyList(), slmMetadata),
+                createDetails(explain, Collections.emptyList(), slmMetadata, currentMode),
                 impacts,
                 List.of(SLM_NOT_RUNNING)
             );
@@ -183,7 +198,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 GREEN,
                 "Snapshot Lifecycle Management is running",
-                createDetails(explain, Collections.emptyList(), slmMetadata),
+                createDetails(explain, Collections.emptyList(), slmMetadata, currentMode),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -210,11 +225,12 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     private static HealthIndicatorDetails createDetails(
         boolean explain,
         Collection<SnapshotLifecyclePolicyMetadata> unhealthyPolicies,
-        SnapshotLifecycleMetadata metadata
+        SnapshotLifecycleMetadata metadata,
+        OperationMode mode
     ) {
         if (explain) {
             Map<String, Object> details = new LinkedHashMap<>();
-            details.put("slm_status", metadata.getOperationMode());
+            details.put("slm_status", mode);
             details.put("policies", metadata.getSnapshotConfigurations().size());
             if (unhealthyPolicies.size() > 0) {
                 details.put(

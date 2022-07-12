@@ -34,6 +34,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
+
 public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeAction<
     DeleteSnapshotLifecycleAction.Request,
     DeleteSnapshotLifecycleAction.Response> {

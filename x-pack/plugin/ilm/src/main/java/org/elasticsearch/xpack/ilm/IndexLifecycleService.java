@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
@@ -167,7 +168,7 @@ public class IndexLifecycleService
 
         final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
-            OperationMode currentMode = currentMetadata.getOperationMode();
+            OperationMode currentMode = currentILMMode(clusterState);
             if (OperationMode.STOPPED.equals(currentMode)) {
                 return;
             }
@@ -374,7 +375,7 @@ public class IndexLifecycleService
             return;
         }
 
-        OperationMode currentMode = currentMetadata.getOperationMode();
+        OperationMode currentMode = currentILMMode(clusterState);
 
         if (OperationMode.STOPPED.equals(currentMode)) {
             return;

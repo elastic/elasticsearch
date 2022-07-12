@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * {@link UpdateSnapshotLifecycleStatsTask} is a cluster state update task that retrieves the
@@ -45,7 +46,7 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
         SnapshotLifecycleStats newMetrics = currentSlmMeta.getStats().merge(runStats);
         SnapshotLifecycleMetadata newSlmMeta = new SnapshotLifecycleMetadata(
             currentSlmMeta.getSnapshotConfigurations(),
-            currentSlmMeta.getOperationMode(),
+            currentSLMMode(currentState),
             newMetrics
         );
 

@@ -272,6 +272,24 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Creates a new Setting instance
      * @param key the settings key for this setting.
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param validator a {@link Validator} for validating this setting
+     * @param properties properties for this setting like scope, filtering...
+     */
+    public Setting(
+        String key,
+        Function<Settings, String> defaultValue,
+        Function<String, T> parser,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        this(new SimpleKey(key), defaultValue, parser, validator, properties);
+    }
+
+    /**
+     * Creates a new Setting instance
+     * @param key the settings key for this setting.
      * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param validator a {@link Validator} for validating this setting

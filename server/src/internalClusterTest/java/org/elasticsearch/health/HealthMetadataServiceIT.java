@@ -39,12 +39,14 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
         try (InternalTestCluster internalCluster = internalCluster()) {
             int numberOfNodes = 3;
             Map<String, String> watermarkByNode = new HashMap<>();
+            Map<String, ByteSizeValue> maxHeadroomByNode = new HashMap<>();
             for (int i = 0; i < numberOfNodes; i++) {
-                String customWatermark = percentageMode
-                    ? randomIntBetween(86, 94) + "%"
-                    : new ByteSizeValue(randomIntBetween(6, 19)).toString();
-                String nodeName = startNode(internalCluster, customWatermark);
+                ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
+                String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
+                ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+                String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString());
                 watermarkByNode.put(nodeName, customWatermark);
+                maxHeadroomByNode.put(nodeName, customMaxHeadroom);
             }
             ensureStableCluster(numberOfNodes);
 
@@ -53,6 +55,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(watermarkByNode.get(electedMaster)));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(maxHeadroomByNode.get(electedMaster)));
             }
 
             // Stop the master to ensure another node will become master with a different watermark
@@ -63,6 +66,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(watermarkByNode.get(electedMaster)));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(maxHeadroomByNode.get(electedMaster)));
             }
         }
     }
@@ -70,28 +74,29 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
     public void testWatermarkSettingUpdate() throws Exception {
         try (InternalTestCluster internalCluster = internalCluster()) {
             int numberOfNodes = 3;
-            String initialWatermark = percentageMode
-                ? randomIntBetween(86, 94) + "%"
-                : new ByteSizeValue(randomIntBetween(6, 19)).toString();
+            ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
+            String initialWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
+            ByteSizeValue initialMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
             for (int i = 0; i < numberOfNodes; i++) {
-                startNode(internalCluster, initialWatermark);
+                startNode(internalCluster, initialWatermark, initialMaxHeadroom.toString());
             }
 
-            String updatedLowWatermark = percentageMode
-                ? randomIntBetween(40, 59) + "%"
-                : new ByteSizeValue(randomIntBetween(101, 200)).toString();
-            String updatedHighWatermark = percentageMode
-                ? randomIntBetween(60, 90) + "%"
-                : new ByteSizeValue(randomIntBetween(50, 100)).toString();
-            String updatedFloodStageWatermark = percentageMode
-                ? randomIntBetween(91, 95) + "%"
-                : new ByteSizeValue(randomIntBetween(5, 10)).toString();
+            randomBytes = new ByteSizeValue(randomLongBetween(101, 200));
+            String updatedLowWatermark = percentageMode ? randomIntBetween(40, 59) + "%" : randomBytes.toString();
+            ByteSizeValue updatedLowMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+            randomBytes = new ByteSizeValue(randomLongBetween(50, 100));
+            String updatedHighWatermark = percentageMode ? randomIntBetween(60, 90) + "%" : randomBytes.toString();
+            ByteSizeValue updatedHighMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+            randomBytes = new ByteSizeValue(randomLongBetween(5, 10));
+            String updatedFloodStageWatermark = percentageMode ? randomIntBetween(91, 95) + "%" : randomBytes.toString();
+            ByteSizeValue updatedFloodStageMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
 
             ensureStableCluster(numberOfNodes);
             {
                 HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(initialWatermark));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(initialMaxHeadroom));
             }
             internalCluster.client()
                 .admin()
@@ -101,12 +106,24 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                         Settings.builder()
                             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), updatedLowWatermark)
                             .put(
+                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
+                                updatedLowMaxHeadroom
+                            )
+                            .put(
                                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                                 updatedHighWatermark
                             )
                             .put(
+                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                                updatedHighMaxHeadroom
+                            )
+                            .put(
                                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
                                 updatedFloodStageWatermark
+                            )
+                            .put(
+                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(),
+                                updatedFloodStageMaxHeadroom
                             )
                     )
                 )
@@ -115,30 +132,38 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 HealthMetadata.Disk diskMetadata = HealthMetadata.getHealthCustomMetadata(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(updatedHighWatermark));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(updatedHighMaxHeadroom));
                 assertThat(diskMetadata.describeFloodStageWatermark(), equalTo(updatedFloodStageWatermark));
+                assertThat(diskMetadata.floodStageMaxHeadroom(), equalTo(updatedFloodStageMaxHeadroom));
             });
         }
     }
 
-    private String startNode(InternalTestCluster internalCluster, String customWatermark) {
+    private String startNode(InternalTestCluster internalCluster, String customWatermark, String customMaxHeadroom) {
         return internalCluster.startNode(
             Settings.builder()
                 .put(onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)))
-                .put(createWatermarkSettings(customWatermark))
+                .put(createWatermarkSettings(customWatermark, customMaxHeadroom))
                 .build()
         );
     }
 
-    private Settings createWatermarkSettings(String highWatermark) {
+    private Settings createWatermarkSettings(String highWatermark, String highMaxHeadroom) {
         // We define both thresholds to avoid inconsistencies over the type of the thresholds
         return Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), percentageMode ? "85%" : "20b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "20b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), highWatermark)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), highMaxHeadroom)
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
                 percentageMode ? "95%" : "1b"
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.getKey(), percentageMode ? "95%" : "5b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "1b")
+            .put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(),
+                percentageMode ? "95%" : "5b"
+            )
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "5b")
             .build();
     }

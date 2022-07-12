@@ -37,7 +37,8 @@ block and makes resources available almost immediately.
 +
 IMPORTANT: {es} adds and removes the read-only index block automatically when
 the disk utilization falls below the high watermark, controlled by
-<<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
+<<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage>>
+and <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage.max_headroom>>.
 
 `index.blocks.read`::
 

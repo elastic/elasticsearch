@@ -218,18 +218,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
     }
 
-    static long nodeSizeForDataBelowLowWatermark(long bytes, DiskThresholdSettings thresholdSettings) {
-        ByteSizeValue bytesThreshold = thresholdSettings.getFreeBytesThresholdLow();
-        if (bytesThreshold.getBytes() != 0) {
-            return bytesThreshold.getBytes() + bytes;
-        } else {
-            double percentThreshold = thresholdSettings.getFreeDiskThresholdLow();
-            if (percentThreshold >= 0.0 && percentThreshold < 100.0) {
-                return (long) (100 * bytes / (100 - percentThreshold));
-            } else {
-                return bytes;
-            }
-        }
+    static long nodeSizeForDataBelowLowWatermark(long neededBytes, DiskThresholdSettings thresholdSettings) {
+        return thresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(neededBytes)).getBytes();
     }
 
     // todo: move this to top level class.
@@ -547,20 +537,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return 0;
             }
 
-            long threshold = Math.max(
-                diskThresholdSettings.getFreeBytesThresholdHigh().getBytes(),
-                thresholdFromPercentage(diskThresholdSettings.getFreeDiskThresholdHigh(), diskUsage)
-            );
+            long threshold = diskThresholdSettings.getFreeBytesThresholdHighStage(ByteSizeValue.ofBytes(diskUsage.getTotalBytes()))
+                .getBytes();
             long missing = threshold - diskUsage.getFreeBytes();
             return Math.max(missing, shards.stream().mapToLong(this::sizeOf).min().orElseThrow());
-        }
-
-        private long thresholdFromPercentage(Double percentage, DiskUsage diskUsage) {
-            if (percentage == null) {
-                return 0L;
-            }
-
-            return (long) Math.ceil(diskUsage.getTotalBytes() * percentage / 100);
         }
 
         Stream<RoutingNode> nodesInTier(RoutingNodes routingNodes) {

@@ -182,13 +182,7 @@ class RollupShardIndexer {
                             )
                         );
                     numFailed.addAndGet(failures.size());
-                    logger.info(
-                        "Shard [{}] failed to populate rollup index, failures summery: failed count: [{}], failed sample: [{}]",
-                        indexShard.shardId(),
-                        failures.size(),
-                        failures.values().iterator().next()
-                    );
-                    logger.trace("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
+                    logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
                 }
             }
 
@@ -197,7 +191,7 @@ class RollupShardIndexer {
                 if (failure != null) {
                     long items = request.numberOfActions();
                     numFailed.addAndGet(items);
-                    logger.info(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
+                    logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
                 }
             }
         };

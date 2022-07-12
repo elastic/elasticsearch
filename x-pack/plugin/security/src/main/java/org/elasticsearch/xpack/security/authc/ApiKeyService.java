@@ -280,27 +280,27 @@ public class ApiKeyService {
      * Asynchronously creates a new API key based off of the request and authentication
      * @param authentication the authentication that this api key should be based off of
      * @param request the request to create the api key included any permission restrictions
-     * @param userRoles the user's actual roles that we always enforce
+     * @param userRoleDescriptors the user's actual roles that we always enforce
      * @param listener the listener that will be used to notify of completion
      */
     public void createApiKey(
         Authentication authentication,
         CreateApiKeyRequest request,
-        Set<RoleDescriptor> userRoles,
+        Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            createApiKeyAndIndexIt(authentication, request, userRoles, listener);
+            createApiKeyAndIndexIt(authentication, request, userRoleDescriptors, listener);
         }
     }
 
     private void createApiKeyAndIndexIt(
         Authentication authentication,
         CreateApiKeyRequest request,
-        Set<RoleDescriptor> roleDescriptorSet,
+        Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
         final Instant created = clock.instant();
@@ -314,7 +314,7 @@ public class ApiKeyService {
                     apiKeyHashChars,
                     request.getName(),
                     authentication,
-                    roleDescriptorSet,
+                    userRoleDescriptors,
                     created,
                     expiration,
                     request.getRoleDescriptors(),
@@ -359,7 +359,7 @@ public class ApiKeyService {
     public void updateApiKey(
         final Authentication authentication,
         final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles,
+        final Set<RoleDescriptor> userRoleDescriptors,
         final ActionListener<UpdateApiKeyResponse> listener
     ) {
         ensureEnabled();
@@ -387,7 +387,7 @@ public class ApiKeyService {
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
-            doUpdateApiKey(authentication, request, userRoles, versionedDoc, listener);
+            doUpdateApiKey(authentication, request, userRoleDescriptors, versionedDoc, listener);
         }, listener::onFailure));
     }
 
@@ -1056,7 +1056,7 @@ public class ApiKeyService {
     private void doUpdateApiKey(
         final Authentication authentication,
         final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles,
+        final Set<RoleDescriptor> userRoleDescriptors,
         final VersionedApiKeyDoc currentVersionedDoc,
         final ActionListener<UpdateApiKeyResponse> listener
     ) throws IOException {
@@ -1083,7 +1083,7 @@ public class ApiKeyService {
             targetDocVersion,
             authentication,
             request,
-            userRoles
+            userRoleDescriptors
         );
         if (builder == null) {
             logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
@@ -1378,10 +1378,11 @@ public class ApiKeyService {
         return elements.iterator().next();
     }
 
-    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> userRoles) throws IOException {
-        assert userRoles != null;
+    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> limitedByRoleDescriptors)
+        throws IOException {
+        assert limitedByRoleDescriptors != null;
         builder.startObject("limited_by_role_descriptors");
-        for (RoleDescriptor descriptor : userRoles) {
+        for (RoleDescriptor descriptor : limitedByRoleDescriptors) {
             builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
         }
         builder.endObject();

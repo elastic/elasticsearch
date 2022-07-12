@@ -62,3 +62,9 @@ For more details, see <<security-api-put-role, create or update roles API>>.
 It supports nested data structure.
 Within the `metadata` object, keys beginning with `_` are reserved for system usage.
 When specified, this fully replaces metadata previously associated with the API key.
+
+[[security-api-update-api-key-response-body]]
+==== {api-response-body-title}
+
+`updated`::
+(boolean) `true` if the API key was updated, `false` if the API key did not change.

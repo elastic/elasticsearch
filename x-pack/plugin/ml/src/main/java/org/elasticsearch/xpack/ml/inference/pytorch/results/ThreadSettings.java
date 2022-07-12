@@ -13,8 +13,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
+import java.util.Optional;
 
-public record ThreadSettings(int numThreadsPerAllocation, int numAllocations, String requestId) implements ToXContentObject {
+public class ThreadSettings implements ToXContentObject {
 
     private static final ParseField NUM_ALLOCATIONS = new ParseField("num_allocations");
     private static final ParseField NUM_THREADS_PER_ALLOCATION = new ParseField("num_threads_per_allocation");
@@ -30,6 +32,34 @@ public record ThreadSettings(int numThreadsPerAllocation, int numAllocations, St
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PyTorchResult.REQUEST_ID);
     }
 
+    private final int numThreadsPerAllocation;
+    private final int numAllocations;
+    private final String requestId;
+
+    ThreadSettings(int numThreadsPerAllocation, int numAllocations, String requestId) {
+        this.numThreadsPerAllocation = numThreadsPerAllocation;
+        this.numAllocations = numAllocations;
+        this.requestId = requestId;
+    }
+
+    public ThreadSettings(int numThreadsPerAllocation, int numAllocations) {
+        this.numThreadsPerAllocation = numThreadsPerAllocation;
+        this.numAllocations = numAllocations;
+        this.requestId = null;
+    }
+
+    public int numThreadsPerAllocation() {
+        return numThreadsPerAllocation;
+    }
+
+    public int numAllocations() {
+        return numAllocations;
+    }
+
+    Optional<String> requestId() {
+        return Optional.ofNullable(requestId);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -40,5 +70,20 @@ public record ThreadSettings(int numThreadsPerAllocation, int numAllocations, St
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ThreadSettings that = (ThreadSettings) o;
+        return numThreadsPerAllocation == that.numThreadsPerAllocation
+            && numAllocations == that.numAllocations
+            && Objects.equals(requestId, that.requestId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(numThreadsPerAllocation, numAllocations, requestId);
     }
 }

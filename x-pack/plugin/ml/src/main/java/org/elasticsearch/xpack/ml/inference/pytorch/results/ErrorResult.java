@@ -13,8 +13,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
+import java.util.Optional;
 
-public record ErrorResult(String requestId, String error) implements ToXContentObject {
+public class ErrorResult implements ToXContentObject {
 
     public static final ParseField ERROR = new ParseField("error");
 
@@ -28,6 +30,27 @@ public record ErrorResult(String requestId, String error) implements ToXContentO
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ERROR);
     }
 
+    private final String requestId;
+    private final String error;
+
+    ErrorResult(String requestId, String error) {
+        this.requestId = requestId;
+        this.error = error;
+    }
+
+    public ErrorResult(String error) {
+        this.requestId = null;
+        this.error = error;
+    }
+
+    public String error() {
+        return error;
+    }
+
+    Optional<String> requestId() {
+        return Optional.ofNullable(requestId);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -37,5 +60,18 @@ public record ErrorResult(String requestId, String error) implements ToXContentO
         builder.field(ERROR.getPreferredName(), error);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ErrorResult that = (ErrorResult) o;
+        return Objects.equals(requestId, that.requestId) && Objects.equals(error, that.error);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(requestId, error);
     }
 }

@@ -37,7 +37,7 @@ public class PyTorchInferenceResult implements ToXContentObject {
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PyTorchResult.REQUEST_ID);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PyTorchResult.REQUEST_ID);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> MlParserUtils.parse3DArrayOfDoubles(INFERENCE.getPreferredName(), p),
@@ -57,14 +57,26 @@ public class PyTorchInferenceResult implements ToXContentObject {
     private final Long timeMs;
     private final boolean cacheHit;
 
-    public PyTorchInferenceResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs, @Nullable Boolean cacheHit) {
-        this.requestId = Objects.requireNonNull(requestId);
+    PyTorchInferenceResult(
+        @Nullable String requestId,
+        @Nullable double[][][] inference,
+        @Nullable Long timeMs,
+        @Nullable Boolean cacheHit
+    ) {
+        this.requestId = requestId;
         this.inference = inference;
         this.timeMs = timeMs;
         this.cacheHit = cacheHit != null && cacheHit;
     }
 
-    public String getRequestId() {
+    public PyTorchInferenceResult(@Nullable double[][][] inference, @Nullable Long timeMs, @Nullable Boolean cacheHit) {
+        this.requestId = null;
+        this.inference = inference;
+        this.timeMs = timeMs;
+        this.cacheHit = cacheHit != null && cacheHit;
+    }
+
+    String getRequestId() {
         return requestId;
     }
 
@@ -83,7 +95,9 @@ public class PyTorchInferenceResult implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(PyTorchResult.REQUEST_ID.getPreferredName(), requestId);
+        if (requestId != null) {
+            builder.field(PyTorchResult.REQUEST_ID.getPreferredName(), requestId);
+        }
         if (inference != null) {
             builder.startArray(INFERENCE.getPreferredName());
             for (double[][] doubles : inference) {

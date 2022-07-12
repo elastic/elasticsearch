@@ -43,6 +43,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.AttributeSource;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -417,55 +418,61 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     static int hashTerm(BytesRef br) {
-        return hashTerm(br.bytes, 0x9747b28c, br.offset, br.length);
+        final int hash = murmurhash3_x86_32(br.bytes, br.offset, br.length, 0x9747b28c);
+        return hash < 0 ? -hash : hash;
     }
 
     /**
-     * This is a very fast, non-cryptographic hash suitable for general hash-based lookup.
-     * <p>
-     * The C version of MurmurHash 2.0 found at that site was ported to Java by Andrzej Bialecki (ab at getopt org).
-     * <p>
-     * The code from getopt.org was adapted by Mark Harwood in the form here as one of a pluggable
-     * choice of hashing functions as the core function had to be adapted to work with BytesRefs with
-     * offsets and lengths rather than raw byte arrays.
+     * Forked from Lucene's StringHelper#murmurhash3_x86_32
      */
-    private static int hashTerm(byte[] data, int seed, int offset, int len) {
-        final int m = 0x5bd1e995;
-        final int r = 24;
-        int h = seed ^ len;
-        final int len_4 = len >> 2;
-        for (int i = 0; i < len_4; i++) {
-            int i_4 = offset + (i << 2);
-            int k = data[i_4 + 3];
-            k = k << 8;
-            k = k | (data[i_4 + 2] & 0xff);
-            k = k << 8;
-            k = k | (data[i_4 + 1] & 0xff);
-            k = k << 8;
-            k = k | (data[i_4 + 0] & 0xff);
-            k *= m;
-            k ^= k >>> r;
-            k *= m;
-            h *= m;
-            h ^= k;
+    @SuppressWarnings("fallthrough")
+    private static int murmurhash3_x86_32(byte[] data, int offset, int len, int seed) {
+        final int c1 = 0xcc9e2d51;
+        final int c2 = 0x1b873593;
+
+        int h1 = seed;
+        int roundedEnd = offset + (len & 0xfffffffc); // round down to 4 byte block
+
+        for (int i = offset; i < roundedEnd; i += 4) {
+            // little endian load order
+            int k1 = (int) BitUtil.VH_LE_INT.get(data, i);
+            k1 *= c1;
+            k1 = Integer.rotateLeft(k1, 15);
+            k1 *= c2;
+
+            h1 ^= k1;
+            h1 = Integer.rotateLeft(h1, 13);
+            h1 = h1 * 5 + 0xe6546b64;
         }
-        final int len_m = len_4 << 2;
-        final int left = len - len_m;
-        if (left != 0) {
-            if (left >= 3) {
-                h ^= data[offset + len - 3] << 16;
-            }
-            if (left >= 2) {
-                h ^= data[offset + len - 2] << 8;
-            }
-            if (left >= 1) {
-                h ^= data[offset + len - 1];
-            }
-            h *= m;
+
+        // tail
+        int k1 = 0;
+
+        switch (len & 0x03) {
+            case 3:
+                k1 = (data[roundedEnd + 2] & 0xff) << 16;
+                // fallthrough
+            case 2:
+                k1 |= (data[roundedEnd + 1] & 0xff) << 8;
+                // fallthrough
+            case 1:
+                k1 |= (data[roundedEnd] & 0xff);
+                k1 *= c1;
+                k1 = Integer.rotateLeft(k1, 15);
+                k1 *= c2;
+                h1 ^= k1;
         }
-        h ^= h >>> 13;
-        h *= m;
-        h ^= h >>> 15;
-        return h < 0 ? -h : h;
+
+        // finalization
+        h1 ^= len;
+
+        // fmix(h1);
+        h1 ^= h1 >>> 16;
+        h1 *= 0x85ebca6b;
+        h1 ^= h1 >>> 13;
+        h1 *= 0xc2b2ae35;
+        h1 ^= h1 >>> 16;
+
+        return h1;
     }
 }

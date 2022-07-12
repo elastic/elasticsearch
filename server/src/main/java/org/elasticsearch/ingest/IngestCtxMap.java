@@ -141,5 +141,10 @@ class IngestCtxMap extends CtxMap {
             }
             return metadata;
         }
+
+        @Override
+        public ZonedDateTime getTimestamp() {
+            return timestamp;
+        }
     }
 }

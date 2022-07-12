@@ -13,4 +13,4 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-org.elasticsearch.index.codec.bloomfilter.BloomFilterPostingsFormat
+org.elasticsearch.index.codec.bloomfilter.ES84BloomFilterPostingsFormat

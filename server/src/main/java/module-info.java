@@ -360,7 +360,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
-    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.BloomFilterPostingsFormat;
+    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES84BloomFilterPostingsFormat;
 
     uses org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
 }

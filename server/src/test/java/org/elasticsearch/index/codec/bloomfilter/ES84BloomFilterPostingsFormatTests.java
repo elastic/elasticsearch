@@ -22,7 +22,7 @@ import org.elasticsearch.test.GraalVMThreadsFilter;
 import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
-public class BloomFilterPostingsFormatTests extends BasePostingsFormatTestCase {
+public class ES84BloomFilterPostingsFormatTests extends BasePostingsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
@@ -30,14 +30,14 @@ public class BloomFilterPostingsFormatTests extends BasePostingsFormatTestCase {
         if (postingsFormat instanceof PerFieldPostingsFormat) {
             postingsFormat = TestUtil.getDefaultPostingsFormat();
         }
-        return TestUtil.alwaysPostingsFormat(new BloomFilterPostingsFormat(postingsFormat, BigArrays.NON_RECYCLING_INSTANCE));
+        return TestUtil.alwaysPostingsFormat(new ES84BloomFilterPostingsFormat(postingsFormat, BigArrays.NON_RECYCLING_INSTANCE));
     }
 
     public void testBloomFilterSize() {
-        assertThat(BloomFilterPostingsFormat.bloomFilterSize(1000), equalTo(10_000));
-        assertThat(BloomFilterPostingsFormat.bloomFilterSize(IndexWriter.MAX_DOCS - random().nextInt(10)), equalTo(Integer.MAX_VALUE));
-        assertThat(BloomFilterPostingsFormat.numBytesForBloomFilter(16384), equalTo(2048));
-        assertThat(BloomFilterPostingsFormat.numBytesForBloomFilter(16383), equalTo(2048));
-        assertThat(BloomFilterPostingsFormat.numBytesForBloomFilter(Integer.MAX_VALUE), equalTo(1 << 28));
+        assertThat(ES84BloomFilterPostingsFormat.bloomFilterSize(1000), equalTo(10_000));
+        assertThat(ES84BloomFilterPostingsFormat.bloomFilterSize(IndexWriter.MAX_DOCS - random().nextInt(10)), equalTo(Integer.MAX_VALUE));
+        assertThat(ES84BloomFilterPostingsFormat.numBytesForBloomFilter(16384), equalTo(2048));
+        assertThat(ES84BloomFilterPostingsFormat.numBytesForBloomFilter(16383), equalTo(2048));
+        assertThat(ES84BloomFilterPostingsFormat.numBytesForBloomFilter(Integer.MAX_VALUE), equalTo(1 << 28));
     }
 }

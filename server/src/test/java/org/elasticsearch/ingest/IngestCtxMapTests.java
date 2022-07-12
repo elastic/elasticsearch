@@ -20,8 +20,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestCtxMapTests extends ESTestCase {
 
@@ -312,13 +310,6 @@ public class IngestCtxMapTests extends ESTestCase {
 
         md.setVersionType(null);
         assertNull(md.getVersionType());
-    }
-
-    public void testDefaultFieldPropertiesForAllMetadata() {
-        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
-            assertThat(IngestCtxMap.IngestMetadata.PROPERTIES, hasEntry(equalTo(m.getFieldName()), notNullValue()));
-        }
-        assertEquals(IngestDocument.Metadata.values().length, IngestCtxMap.IngestMetadata.PROPERTIES.size());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

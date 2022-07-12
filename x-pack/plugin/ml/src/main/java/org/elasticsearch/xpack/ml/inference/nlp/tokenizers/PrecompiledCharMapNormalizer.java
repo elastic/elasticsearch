@@ -160,16 +160,19 @@ public class PrecompiledCharMapNormalizer {
         int[] strCp = str.codePoints().toArray();
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
-        int start = b.first();
+        // We iterate the whole string, so b.first() is always `0`
+        int startIter = b.first();
+        int codePointPos = 0;
         BytesRefBuilder strBuilder = new BytesRefBuilder();
         strBuilder.grow(strBytes.length);
         int bytePos = 0;
-        for (int end = b.next(); end != BreakIterator.DONE; start = end, end = b.next()) {
+        for (int end = b.next(); end != BreakIterator.DONE; startIter = end, end = b.next()) {
             int byteLen = 0;
-            int numCp = str.codePointCount(start, end);
-            for (int i = start; i < numCp + start; i++) {
+            int numCp = str.codePointCount(startIter, end);
+            for (int i = codePointPos; i < numCp + codePointPos; i++) {
                 byteLen += numUtf8Bytes(strCp[i]);
             }
+            codePointPos += numCp;
             // The trie only go up to a depth of 5 bytes.
             // So even looking at it for graphemes (with combining, surrogate, etc.) that are 6+ bytes in length is useless.
             if (byteLen < 6) {
@@ -181,15 +184,16 @@ public class PrecompiledCharMapNormalizer {
                 }
             }
             int charByteIndex = 0;
-            for (int i = start; i < end; i++) {
-                Optional<BytesRef> subStr = normalizePart(strBytes, charByteIndex + bytePos, numUtf8Bytes(strChars[i]));
+            for (int i = startIter; i < end; i++) {
+                int utf8CharBytes = numUtf8Bytes(strChars[i]);
+                Optional<BytesRef> subStr = normalizePart(strBytes, charByteIndex + bytePos, utf8CharBytes);
                 if (subStr.isPresent()) {
                     strBuilder.append(subStr.get());
                 } else {
                     int numBytes = UnicodeUtil.UTF16toUTF8(strChars, i, 1, reusableCharByteBuffer);
                     strBuilder.append(reusableCharByteBuffer, 0, numBytes);
                 }
-                charByteIndex += numUtf8Bytes(strChars[i]);
+                charByteIndex += utf8CharBytes;
             }
             bytePos += byteLen;
         }

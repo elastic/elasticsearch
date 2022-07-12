@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2021 Elasticsearch B.V.
+ * Modifications copyright (C) 2022 Elasticsearch B.V.
  */
 package org.elasticsearch.index.codec.bloomfilter;
 

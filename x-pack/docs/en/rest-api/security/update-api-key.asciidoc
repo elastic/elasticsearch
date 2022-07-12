@@ -1,5 +1,29 @@
 [role="xpack"]
 [[security-api-update-api-key]]
-=== Update API key information API
+=== Update API key API
+
+++++
+<titleabbrev>Update API key</titleabbrev>
+++++
+
+[[security-api-update-api-key-request]]
+==== {api-request-title}
+
+`PUT /_security/api_key/<id>`
+
+[[security-api-invalidate-api-key-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_own_api_key` cluster privilege.
+
+IMPORTANT: Only the user who created an API key can update it.
+Other users, including `superuser`, cannot.
+It's not possible to use an API key as the authentication credential for this API.
+Doing so will result in an error.
+
+[[security-api-invalidate-api-key-desc]]
+==== {api-description-title}
+
+The API keys created by <<security-api-create-api-key,create API Key>> can be updated using this API.
 
 coming::[8.4.0]

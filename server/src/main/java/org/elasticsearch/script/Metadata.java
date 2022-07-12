@@ -10,10 +10,10 @@ package org.elasticsearch.script;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -29,9 +29,9 @@ import java.util.stream.Collectors;
  *  - {@link #remove(String)}
  *  - {@link #containsKey(String)}
  *  - {@link #containsValue(Object)}
- *  - {@link #getKeys()} for iteration
+ *  - {@link #keySet()} for iteration
  *  - {@link #size()}
- *  - {@link #isMetadata(String)} for determining if a key is a metadata key
+ *  - {@link #isAvailable(String)} for determining if a key is a metadata key
  *
  * Provides getters and setters for script usage.
  *
@@ -141,7 +141,7 @@ public class Metadata {
     /**
      * Get the String version of the value associated with {@code key}, or null
      */
-    public String getString(String key) {
+    protected String getString(String key) {
         return Objects.toString(get(key), null);
     }
 
@@ -149,7 +149,7 @@ public class Metadata {
      * Get the {@link Number} associated with key, or null
      * @throws IllegalArgumentException if the value is not a {@link Number}
      */
-    public Number getNumber(String key) {
+    protected Number getNumber(String key) {
         Object value = get(key);
         if (value == null) {
             return null;
@@ -157,7 +157,7 @@ public class Metadata {
         if (value instanceof Number number) {
             return number;
         }
-        throw new IllegalArgumentException(
+        throw new IllegalStateException(
             "unexpected type for [" + key + "] with value [" + value + "], expected Number, got [" + value.getClass().getName() + "]"
         );
     }
@@ -166,13 +166,13 @@ public class Metadata {
      * Is this key a Metadata key?  A {@link #remove}d key would return false for {@link #containsKey(String)} but true for
      * this call.
      */
-    public boolean isMetadata(String key) {
+    public boolean isAvailable(String key) {
         return properties.containsKey(key);
     }
 
     /**
      * Create the mapping from key to value.
-     * @throws IllegalArgumentException if {@link #isMetadata(String)} is false or the key cannot be updated to the value.
+     * @throws IllegalArgumentException if {@link #isAvailable(String)} is false or the key cannot be updated to the value.
      */
     public Object put(String key, Object value) {
         properties.getOrDefault(key, Metadata.BAD_KEY).check(MapOperation.UPDATE, key, value);
@@ -202,7 +202,7 @@ public class Metadata {
 
     /**
      * Remove the mapping associated with {@param key}
-     * @throws IllegalArgumentException if {@link #isMetadata(String)} is false or the key cannot be removed.
+     * @throws IllegalArgumentException if {@link #isAvailable(String)} is false or the key cannot be removed.
      */
     public Object remove(String key) {
         properties.getOrDefault(key, Metadata.BAD_KEY).check(MapOperation.REMOVE, key, null);
@@ -212,8 +212,8 @@ public class Metadata {
     /**
      * Return the list of keys with mappings
      */
-    public List<String> getKeys() {
-        return new ArrayList<>(map.keySet());
+    public Set<String> keySet() {
+        return Collections.unmodifiableSet(map.keySet());
     }
 
     /**
@@ -233,22 +233,6 @@ public class Metadata {
      */
     public Map<String, Object> getMap() {
         return map;
-    }
-
-    /**
-     * Get the metadata keys inside the {@param other} set
-     */
-    public Set<String> metadataKeys(Set<String> other) {
-        Set<String> keys = null;
-        for (String key : properties.keySet()) {
-            if (other.contains(key)) {
-                if (keys == null) {
-                    keys = new HashSet<>();
-                }
-                keys.add(key);
-            }
-        }
-        return keys != null ? keys : Collections.emptySet();
     }
 
     /**

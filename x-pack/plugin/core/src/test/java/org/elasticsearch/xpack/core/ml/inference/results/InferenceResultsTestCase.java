@@ -56,14 +56,14 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 org.elasticsearch.script.Metadata metadata = document.getMetadata();
-                for (String key : metadata.getKeys()) {
+                for (String key : metadata.keySet()) {
                     Object value = metadata.get(key);
                     if (value != null) {
                         builder.field(key, value.toString());
                     }
                 }
                 Map<String, Object> source = IngestDocument.deepCopyMap(document.getSourceAndMetadata());
-                metadata.getKeys().forEach(source::remove);
+                metadata.keySet().forEach(source::remove);
                 builder.field("_source", source);
                 builder.field("_ingest", document.getIngestMetadata());
                 builder.endObject();

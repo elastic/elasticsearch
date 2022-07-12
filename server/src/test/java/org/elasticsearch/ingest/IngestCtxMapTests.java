@@ -20,8 +20,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestCtxMapTests extends ESTestCase {
 
@@ -64,42 +62,6 @@ public class IngestCtxMapTests extends ESTestCase {
 
         assertEquals(500, md.getIfSeqNo());
         assertEquals(10000, md.getIfPrimaryTerm());
-    }
-
-    public void testGetString() {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("a", "A");
-        metadata.put("b", new Object() {
-            @Override
-            public String toString() {
-                return "myToString()";
-            }
-        });
-        metadata.put("c", null);
-        metadata.put("d", 1234);
-        map = new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
-        md = map.getMetadata();
-        assertNull(md.getString("c"));
-        assertNull(md.getString("no key"));
-        assertEquals("myToString()", md.getString("b"));
-        assertEquals("A", md.getString("a"));
-        assertEquals("1234", md.getString("d"));
-    }
-
-    public void testGetNumber() {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("a", Long.MAX_VALUE);
-        metadata.put("b", Double.MAX_VALUE);
-        metadata.put("c", "NaN");
-        metadata.put("d", null);
-        map = new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, allowAllValidators("a", "b", "c", "d")));
-        md = map.getMetadata();
-        assertEquals(Long.MAX_VALUE, md.getNumber("a"));
-        assertEquals(Double.MAX_VALUE, md.getNumber("b"));
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> md.getNumber("c"));
-        assertEquals("unexpected type for [c] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
-        assertNull(md.getNumber("d"));
-        assertNull(md.getNumber("no key"));
     }
 
     public void testInvalidMetadata() {
@@ -370,20 +332,5 @@ public class IngestCtxMapTests extends ESTestCase {
         public Object setValue(Object value) {
             throw new UnsupportedOperationException();
         }
-    }
-
-    private static Map<String, Metadata.FieldProperty<?>> allowAllValidators(String... keys) {
-        Map<String, Metadata.FieldProperty<?>> validators = new HashMap<>();
-        for (String key : keys) {
-            validators.put(key, Metadata.FieldProperty.ALLOW_ALL);
-        }
-        return validators;
-    }
-
-    public void testDefaultFieldPropertiesForAllMetadata() {
-        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
-            assertThat(IngestCtxMap.IngestMetadata.PROPERTIES, hasEntry(equalTo(m.getFieldName()), notNullValue()));
-        }
-        assertEquals(IngestDocument.Metadata.values().length, IngestCtxMap.IngestMetadata.PROPERTIES.size());
     }
 }

@@ -1083,7 +1083,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                         assert decision.type() == Type.THROTTLE;
                         minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
-                        return false;
+                        return true;
                     }
                 }
             }

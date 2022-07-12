@@ -16,7 +16,7 @@ import org.junit.ClassRule
 import spock.lang.Shared
 
 /**
- * This just tests basic plugin configuration, wiring anc compatibility and not checkstyle itself
+ * This just tests basic plugin configuration, wiring and compatibility and not checkstyle itself
  * */
 class CheckstylePrecommitPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     Class<? extends PrecommitPlugin> pluginClassUnderTest = CheckstylePrecommitPlugin.class

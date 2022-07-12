@@ -75,6 +75,19 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertEquals(getLatestDesiredNodes(), desiredNodes);
     }
 
+    public void testSettingsAreValidatedWithDryRun() {
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> updateDesiredNodes(
+                randomDryRunUpdateDesiredNodesRequest(
+                    Version.CURRENT,
+                    Settings.builder().put(SETTING_HTTP_TCP_KEEP_IDLE.getKey(), Integer.MIN_VALUE).build()
+                )
+            )
+        );
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+    }
+
     public void testUpdateDesiredNodesIsIdempotent() {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
         updateDesiredNodes(updateDesiredNodesRequest);

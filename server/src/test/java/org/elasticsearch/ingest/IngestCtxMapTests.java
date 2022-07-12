@@ -20,6 +20,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestCtxMapTests extends ESTestCase {
 
@@ -36,7 +38,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("_if_primary_term", 10000);
         metadata.put("_version_type", "internal");
         metadata.put("_dynamic_templates", Map.of("foo", "bar"));
-        map = new IngestCtxMap(new HashMap<>(), new Metadata(metadata, null));
+        map = new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(metadata, null));
         md = map.getMetadata();
         assertEquals("myIndex", md.getIndex());
         md.setIndex("myIndex2");
@@ -69,7 +71,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("_version", Double.MAX_VALUE);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(new HashMap<>(), new Metadata(metadata, null))
+            () -> new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(metadata, null))
         );
         assertThat(err.getMessage(), containsString("_version may only be set to an int or a long but was ["));
         assertThat(err.getMessage(), containsString("] with type [java.lang.Double]"));
@@ -80,7 +82,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("_version", 25);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(source, new Metadata(source, null))
+            () -> new IngestCtxMap(source, new IngestCtxMap.IngestMetadata(source, null))
         );
         assertEquals("unexpected metadata [_version:25] in source", err.getMessage());
     }
@@ -92,7 +94,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("routing", "myRouting");
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(new HashMap<>(), new Metadata(metadata, null))
+            () -> new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(metadata, null))
         );
         assertEquals("Unexpected metadata keys [routing:myRouting, version:567]", err.getMessage());
     }
@@ -101,7 +103,7 @@ public class IngestCtxMapTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("_version", 123);
         Map<String, Object> source = new HashMap<>();
-        map = new IngestCtxMap(source, new Metadata(metadata, null));
+        map = new IngestCtxMap(source, new IngestCtxMap.IngestMetadata(metadata, null));
     }
 
     public void testRemove() {
@@ -121,15 +123,15 @@ public class IngestCtxMapTests extends ESTestCase {
                 )
             )
         );
-        String msg = "cannotRemove cannot be null or removed";
+        String msg = "cannotRemove cannot be removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put(cannotRemove, null));
-        assertEquals(msg, err.getMessage());
+        assertEquals("cannotRemove cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.entrySet().iterator().next().setValue(null));
-        assertEquals(msg, err.getMessage());
+        assertEquals("cannotRemove cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> {
             Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator();
@@ -221,7 +223,7 @@ public class IngestCtxMapTests extends ESTestCase {
     }
 
     public void testContainsValue() {
-        map = new IngestCtxMap(Map.of("myField", "fieldValue"), new Metadata(Map.of("_version", 5678), null));
+        map = new IngestCtxMap(Map.of("myField", "fieldValue"), new IngestCtxMap.IngestMetadata(Map.of("_version", 5678), null));
         assertTrue(map.containsValue(5678));
         assertFalse(map.containsValue(5679));
         assertTrue(map.containsValue("fieldValue"));
@@ -232,24 +234,24 @@ public class IngestCtxMapTests extends ESTestCase {
         map = new IngestCtxMap("myIndex", "myId", 1234, "myRouting", VersionType.EXTERNAL, null, new HashMap<>());
         md = map.getMetadata();
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.put("_index", 555));
-        assertEquals("_index must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
+        assertEquals("_index [555] is wrong type, expected assignable to [java.lang.String], not [java.lang.Integer]", err.getMessage());
         assertEquals("myIndex", md.getIndex());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_id", 555));
-        assertEquals("_id must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
+        assertEquals("_id [555] is wrong type, expected assignable to [java.lang.String], not [java.lang.Integer]", err.getMessage());
         assertEquals("myId", md.getId());
         map.put("_id", "myId2");
         assertEquals("myId2", md.getId());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_routing", 555));
-        assertEquals("_routing must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
+        assertEquals("_routing [555] is wrong type, expected assignable to [java.lang.String], not [java.lang.Integer]", err.getMessage());
         assertEquals("myRouting", md.getRouting());
         map.put("_routing", "myRouting2");
         assertEquals("myRouting2", md.getRouting());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version", "five-five-five"));
         assertEquals(
-            "_version may only be set to an int or a long but was [five-five-five] with type [java.lang.String]",
+            "_version [five-five-five] is wrong type, expected assignable to [java.lang.Number], not [java.lang.String]",
             err.getMessage()
         );
         assertEquals(1234, md.getVersion());
@@ -271,7 +273,7 @@ public class IngestCtxMapTests extends ESTestCase {
         );
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", VersionType.EXTERNAL));
         assertEquals(
-            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type"
+            "_version_type [EXTERNAL] is wrong type, expected assignable to [java.lang.String], not"
                 + " [org.elasticsearch.index.VersionType$2]",
             err.getMessage()
         );
@@ -283,7 +285,10 @@ public class IngestCtxMapTests extends ESTestCase {
         );
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_dynamic_templates", "5"));
-        assertEquals("_dynamic_templates must be a null or a Map but was [5] with type [java.lang.String]", err.getMessage());
+        assertEquals(
+            "_dynamic_templates [5] is wrong type, expected assignable to [java.util.Map], not [java.lang.String]",
+            err.getMessage()
+        );
         Map<String, String> dt = Map.of("a", "b");
         map.put("_dynamic_templates", dt);
         assertThat(dt, equalTo(md.getDynamicTemplates()));
@@ -292,7 +297,7 @@ public class IngestCtxMapTests extends ESTestCase {
     public void testHandlesAllVersionTypes() {
         Map<String, Object> mdRawMap = new HashMap<>();
         mdRawMap.put("_version", 1234);
-        map = new IngestCtxMap(new HashMap<>(), new Metadata(mdRawMap, null));
+        map = new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(mdRawMap, null));
         md = map.getMetadata();
         assertNull(md.getVersionType());
         for (VersionType vt : VersionType.values()) {
@@ -307,6 +312,13 @@ public class IngestCtxMapTests extends ESTestCase {
 
         md.setVersionType(null);
         assertNull(md.getVersionType());
+    }
+
+    public void testDefaultFieldPropertiesForAllMetadata() {
+        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
+            assertThat(IngestCtxMap.IngestMetadata.PROPERTIES, hasEntry(equalTo(m.getFieldName()), notNullValue()));
+        }
+        assertEquals(IngestDocument.Metadata.values().length, IngestCtxMap.IngestMetadata.PROPERTIES.size());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

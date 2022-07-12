@@ -8,25 +8,13 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.notNullValue;
-
 public class MetadataTests extends ESTestCase {
     Metadata md;
-
-    public void testDefaultFieldPropertiesForAllMetadata() {
-        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
-            assertThat(IngestCtxMap.IngestMetadata.PROPERTIES, hasEntry(equalTo(m.getFieldName()), notNullValue()));
-        }
-        assertEquals(IngestDocument.Metadata.values().length, IngestCtxMap.IngestMetadata.PROPERTIES.size());
-    }
 
     public void testGetString() {
         Map<String, Object> metadata = new HashMap<>();
@@ -39,7 +27,7 @@ public class MetadataTests extends ESTestCase {
         });
         metadata.put("c", null);
         metadata.put("d", 1234);
-        md = new TestMetadata(metadata, allowAllValidators("a", "b", "c", "d"));
+        md = new Metadata(metadata, allowAllValidators("a", "b", "c", "d"));
         assertNull(md.getString("c"));
         assertNull(md.getString("no key"));
         assertEquals("myToString()", md.getString("b"));
@@ -53,10 +41,10 @@ public class MetadataTests extends ESTestCase {
         metadata.put("b", Double.MAX_VALUE);
         metadata.put("c", "NaN");
         metadata.put("d", null);
-        md = new TestMetadata(metadata, allowAllValidators("a", "b", "c", "d"));
+        md = new Metadata(metadata, allowAllValidators("a", "b", "c", "d"));
         assertEquals(Long.MAX_VALUE, md.getNumber("a"));
         assertEquals(Double.MAX_VALUE, md.getNumber("b"));
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> md.getNumber("c"));
+        IllegalStateException err = expectThrows(IllegalStateException.class, () -> md.getNumber("c"));
         assertEquals("unexpected type for [c] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
         assertNull(md.getNumber("d"));
         assertNull(md.getNumber("no key"));

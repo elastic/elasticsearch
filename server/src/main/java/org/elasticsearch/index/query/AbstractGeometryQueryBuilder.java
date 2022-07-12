@@ -314,7 +314,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** builds the appropriate lucene shape query */
-    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedField fieldType);
+    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedField mappedField);
 
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;

@@ -61,7 +61,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
 
     public void testBasicLookup() {
         FieldLookup fieldLookup = fieldsLookup.get("field");
-        assertEquals("field", fieldLookup.fieldType().name());
+        assertEquals("field", fieldLookup.mappedField().name());
 
         List<Object> values = fieldLookup.getValues();
         assertNotNull(values);
@@ -71,7 +71,7 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
 
     public void testLookupWithFieldAlias() {
         FieldLookup fieldLookup = fieldsLookup.get("alias");
-        assertEquals("field", fieldLookup.fieldType().name());
+        assertEquals("field", fieldLookup.mappedField().name());
 
         List<Object> values = fieldLookup.getValues();
         assertNotNull(values);

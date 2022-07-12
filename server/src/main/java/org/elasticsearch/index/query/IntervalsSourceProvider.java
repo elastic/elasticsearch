@@ -404,14 +404,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext ctx, MappedField fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext ctx, MappedField mappedField) throws IOException {
             List<IntervalsSource> ss = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
-                ss.add(provider.getSource(ctx, fieldType));
+                ss.add(provider.getSource(ctx, mappedField));
             }
             IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered);
             if (filter != null) {
-                return filter.filter(source, ctx, fieldType);
+                return filter.filter(source, ctx, mappedField);
             }
             return source;
         }

@@ -256,8 +256,8 @@ public class MatchQueryParser {
         return query == null ? zeroTermsQuery.asQuery() : query;
     }
 
-    protected Analyzer getAnalyzer(MappedField fieldType, boolean quoted) {
-        TextSearchInfo tsi = fieldType.getTextSearchInfo();
+    protected Analyzer getAnalyzer(MappedField mappedField, boolean quoted) {
+        TextSearchInfo tsi = mappedField.getTextSearchInfo();
         assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
             return quoted ? tsi.searchQuoteAnalyzer() : tsi.searchAnalyzer();

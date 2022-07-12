@@ -78,11 +78,11 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         boolean indexed,
         AggregationContext context
     ) {
-        MappedField ft = new MappedField(
+        MappedField mappedField = new MappedField(
             fieldName,
             new NumberFieldMapper.NumberFieldType(numType, indexed, false, true, false, null, Collections.emptyMap(), null, false, null)
         );
-        return ValuesSourceConfig.resolveFieldOnly(ft, context);
+        return ValuesSourceConfig.resolveFieldOnly(mappedField, context);
     }
 
     private ValuesSourceConfig getVSConfig(
@@ -91,7 +91,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         boolean indexed,
         AggregationContext context
     ) {
-        MappedField ft = new MappedField(
+        MappedField mappedField = new MappedField(
             fieldName,
             new DateFieldMapper.DateFieldType(
                 indexed,
@@ -104,7 +104,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
                 Collections.emptyMap()
             )
         );
-        return ValuesSourceConfig.resolveFieldOnly(ft, context);
+        return ValuesSourceConfig.resolveFieldOnly(mappedField, context);
     }
 
     public void testShortcutIsApplicable() throws IOException {

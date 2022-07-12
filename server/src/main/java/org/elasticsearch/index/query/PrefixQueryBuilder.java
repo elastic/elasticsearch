@@ -189,14 +189,14 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            MappedField fieldType = context.getMappedField(this.fieldName);
-            if (fieldType == null) {
+            MappedField mappedField = context.getMappedField(this.fieldName);
+            if (mappedField == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType.type() instanceof ConstantFieldType) {
+            } else if (mappedField.type() instanceof ConstantFieldType) {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                Query query = fieldType.prefixQuery(value, null, caseInsensitive, context); // the rewrite method doesn't matter
+                Query query = mappedField.prefixQuery(value, null, caseInsensitive, context); // the rewrite method doesn't matter
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
@@ -214,11 +214,11 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        MappedField fieldType = context.getMappedField(fieldName);
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        return fieldType.prefixQuery(value, method, caseInsensitive, context);
+        return mappedField.prefixQuery(value, method, caseInsensitive, context);
     }
 
     @Override

@@ -217,8 +217,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedField fieldType = context.getMappedField(fieldName);
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
@@ -226,10 +226,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             }
         }
 
-        if ((fieldType.type() instanceof GeoShapeQueryable) == false) {
+        if ((mappedField.type() instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(
                 context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                "Field [" + fieldName + "] is of unsupported type [" + mappedField.typeName() + "] for [" + NAME + "] query"
             );
         }
 
@@ -242,12 +242,12 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             GeoUtils.normalizePoint(center, true, true);
         }
 
-        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType.type();
+        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) mappedField.type();
         final Circle circle = new Circle(center.lon(), center.lat(), this.distance);
         return geoShapeQueryable.geoShapeQuery(
-            fieldType.name(),
+            mappedField.name(),
             context,
-            fieldType.name(),
+            mappedField.name(),
             SpatialStrategy.RECURSIVE,
             ShapeRelation.INTERSECTS,
             circle

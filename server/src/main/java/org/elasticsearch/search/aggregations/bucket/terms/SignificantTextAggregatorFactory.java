@@ -426,12 +426,12 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private ProfilingSignificantTextCollectorSource(
             SourceLookup sourceLookup,
             BigArrays bigArrays,
-            MappedField fieldType,
+            MappedField mappedField,
             Analyzer analyzer,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
-            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, filterDuplicateText);
+            super(sourceLookup, bigArrays, mappedField, analyzer, sourceFieldNames, filterDuplicateText);
         }
 
         @Override

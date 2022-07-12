@@ -603,8 +603,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     private IndexGeoPointFieldData fieldData(SearchExecutionContext context) {
-        MappedField fieldType = context.getMappedField(fieldName);
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new LatLonPointIndexFieldData(
                     fieldName,
@@ -616,7 +616,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
             }
         }
-        return context.getForField(fieldType);
+        return context.getForField(mappedField);
     }
 
     private Nested nested(SearchExecutionContext context) throws IOException {

@@ -14,7 +14,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper.JoinFieldType;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -50,8 +50,9 @@ public final class Joiner {
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    static Joiner getJoiner(Stream<MappedFieldType> fieldTypes) {
-        Optional<JoinFieldType> joinType = fieldTypes.filter(ft -> ft instanceof JoinFieldType).map(ft -> (JoinFieldType) ft).findFirst();
+    static Joiner getJoiner(Stream<MappedField> mappedFields) {
+        Optional<JoinFieldType> joinType = mappedFields.filter(ft -> ft.type() instanceof JoinFieldType)
+            .map(ft -> (JoinFieldType) ft.type()).findFirst();
         return joinType.map(JoinFieldType::getJoiner).orElse(null);
     }
 

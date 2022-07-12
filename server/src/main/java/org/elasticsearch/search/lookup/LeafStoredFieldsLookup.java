@@ -127,13 +127,13 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
         }
         if (data.fields() == null) {
             List<Object> values = new ArrayList<>(2);
-            SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
+            SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.mappedField(), values);
             try {
                 reader.accept(docId, visitor);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }
-            data.fields(singletonMap(data.fieldType().name(), values));
+            data.fields(singletonMap(data.mappedField().name(), values));
         }
         return data;
     }

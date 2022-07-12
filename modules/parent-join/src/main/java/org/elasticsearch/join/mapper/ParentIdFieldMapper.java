@@ -21,6 +21,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -56,8 +57,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
         private final boolean eagerGlobalOrdinals;
 
-        public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        public ParentIdFieldType(boolean eagerGlobalOrdinals) {
+            super(true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
 
@@ -72,10 +73,10 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -85,7 +86,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             // Although this is an internal field, we return it in the list of all field types. So we
             // provide an empty value fetcher here instead of throwing an error.
             return (lookup, ignoredValues) -> List.of();
@@ -102,7 +103,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
-        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), MultiFields.empty(), CopyTo.empty(), false, null);
+        super(name, new MappedField(name, new ParentIdFieldType(eagerGlobalOrdinals)), MultiFields.empty(), CopyTo.empty(), false, null);
     }
 
     @Override
@@ -117,9 +118,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
     public void indexValue(DocumentParserContext context, String refId) {
         BytesRef binaryValue = new BytesRef(refId);
-        Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
+        Field field = new Field(name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);
-        context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+        context.doc().add(new SortedDocValuesField(name(), binaryValue));
     }
 
     @Override

@@ -577,19 +577,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * produces the same value as fetching using doc values.
      */
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
-        MappedField ft = mapperService.mappedField(field);
-        SourceToParse source = source(b -> b.field(ft.name(), value));
+        MappedField mappedField = mapperService.mappedField(field);
+        SourceToParse source = source(b -> b.field(mappedField.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
-            ft.docValueFormat(format, null),
-            ft.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            mappedField.docValueFormat(format, null),
+            mappedField.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
-        when(searchExecutionContext.getForField(ft)).thenAnswer(
-            inv -> fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); })
+        when(searchExecutionContext.getForField(mappedField)).thenAnswer(
+            inv -> fieldDataLookup().apply(mappedField, () -> { throw new UnsupportedOperationException(); })
         );
-        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ValueFetcher nativeFetcher = mappedField.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
             SourceLookup sourceLookup = new SourceLookup();

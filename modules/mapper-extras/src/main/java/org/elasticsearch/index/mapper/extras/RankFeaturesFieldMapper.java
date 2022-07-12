@@ -117,7 +117,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     private RankFeaturesFieldMapper(
         String simpleName,
-        MappedField<RankFeaturesFieldType> mappedField,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         boolean positiveScoreImpact

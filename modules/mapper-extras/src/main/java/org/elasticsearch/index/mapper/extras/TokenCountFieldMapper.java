@@ -15,6 +15,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -81,21 +82,20 @@ public class TokenCountFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                context.buildFullName(name),
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(name, new MappedField(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
     static class TokenCountFieldType extends NumberFieldMapper.NumberFieldType {
 
         TokenCountFieldType(
-            String name,
             boolean isSearchable,
             boolean isStored,
             boolean hasDocValues,
@@ -103,7 +103,6 @@ public class TokenCountFieldMapper extends FieldMapper {
             Map<String, String> meta
         ) {
             super(
-                name,
                 NumberFieldMapper.NumberType.INTEGER,
                 isSearchable,
                 isStored,
@@ -118,11 +117,11 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
                 return (lookup, ignoredValues) -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(name, format, null), context.getForField(new MappedField(name, this)));
         }
     }
 
@@ -137,12 +136,12 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     protected TokenCountFieldMapper(
         String simpleName,
-        MappedFieldType defaultFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, defaultFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();
@@ -166,7 +165,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), name(), tokenCount, index, hasDocValues, store);
     }
 
     /**

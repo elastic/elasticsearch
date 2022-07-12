@@ -449,8 +449,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            protected IndexFieldData<?> buildFieldData(MappedField ft) {
-                return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+            protected IndexFieldData<?> buildFieldData(MappedField mappedField) {
+                return mappedField.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
             @Override

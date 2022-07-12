@@ -274,8 +274,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomRegexpQuery);
     }
 
-    private Query randomRegexpQuery(MappedField ft, SearchExecutionContext ctx) {
-        return ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFF), 0, Integer.MAX_VALUE, null, ctx);
+    private Query randomRegexpQuery(MappedField mappedField, SearchExecutionContext ctx) {
+        return mappedField.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFF), 0, Integer.MAX_VALUE, null, ctx);
     }
 
     @Override

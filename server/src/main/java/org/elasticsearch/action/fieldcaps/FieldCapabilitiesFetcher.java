@@ -112,17 +112,17 @@ class FieldCapabilitiesFetcher {
         Predicate<MappedField> filter = buildFilter(indexFieldfilter, filters, types, context);
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
-            MappedField ft = context.getMappedField(field);
-            if (filter.test(ft)) {
+            MappedField mappedField = context.getMappedField(field);
+            if (filter.test(mappedField)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
-                    ft.familyTypeName(),
+                    mappedField.familyTypeName(),
                     context.isMetadataField(field),
-                    ft.isSearchable(),
-                    ft.isAggregatable(),
-                    ft.isDimension(),
-                    ft.getMetricType(),
-                    ft.meta()
+                    mappedField.isSearchable(),
+                    mappedField.isAggregatable(),
+                    mappedField.isDimension(),
+                    mappedField.getMetricType(),
+                    mappedField.meta()
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -132,10 +132,10 @@ class FieldCapabilitiesFetcher {
             // Check the ancestor of the field to find nested and object fields.
             // Runtime fields are excluded since they can override any path.
             // TODO find a way to do this that does not require an instanceof check
-            if (ft instanceof RuntimeField == false && includeParentObjects) {
-                int dotIndex = ft.name().lastIndexOf('.');
+            if (mappedField instanceof RuntimeField == false && includeParentObjects) {
+                int dotIndex = mappedField.name().lastIndexOf('.');
                 while (dotIndex > -1) {
-                    String parentField = ft.name().substring(0, dotIndex);
+                    String parentField = mappedField.name().substring(0, dotIndex);
                     if (responseMap.containsKey(parentField)) {
                         // we added this path on another field already
                         break;
@@ -194,7 +194,7 @@ class FieldCapabilitiesFetcher {
         SearchExecutionContext context
     ) {
         // security filters don't exclude metadata fields
-        Predicate<MappedField> fcf = ft -> fieldFilter.test(ft.name()) || context.isMetadataField(ft.name());
+        Predicate<MappedField> fcf = mappedField -> fieldFilter.test(mappedField.name()) || context.isMetadataField(mappedField.name());
         if (fieldTypes.length > 0) {
             Set<String> acceptedTypes = Set.of(fieldTypes);
             fcf = fcf.and(ft -> acceptedTypes.contains(ft.familyTypeName()));
@@ -204,10 +204,10 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             Predicate<MappedField> next = switch (filter) {
-                case "+metadata" -> ft -> context.isMetadataField(ft.name());
-                case "-metadata" -> ft -> context.isMetadataField(ft.name()) == false;
-                case "-nested" -> ft -> context.nestedLookup().getNestedParent(ft.name()) == null;
-                case "-multifield" -> ft -> context.isMultiField(ft.name()) == false;
+                case "+metadata" -> mappedField -> context.isMetadataField(mappedField.name());
+                case "-metadata" -> mappedField -> context.isMetadataField(mappedField.name()) == false;
+                case "-nested" -> mappedField -> context.nestedLookup().getNestedParent(mappedField.name()) == null;
+                case "-multifield" -> mappedField -> context.isMultiField(mappedField.name()) == false;
                 default -> throw new IllegalArgumentException("Unknown field caps filter [" + filter + "]");
             };
             fcf = fcf.and(next);

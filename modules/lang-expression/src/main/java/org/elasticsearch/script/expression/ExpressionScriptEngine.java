@@ -454,7 +454,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         }
 
         String fieldname = parts[1].text;
-        MappedFieldType fieldType = lookup.fieldType(fieldname);
+        MappedFieldType fieldType = lookup.mappedField(fieldname);
 
         if (fieldType == null) {
             throw new ParseException("Field [" + fieldname + "] does not exist in mappings", 5);

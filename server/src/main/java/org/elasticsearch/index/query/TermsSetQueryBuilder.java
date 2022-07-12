@@ -246,11 +246,11 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
      * Visible only for testing purposes.
      */
     List<Query> createTermQueries(SearchExecutionContext context) {
-        final MappedField fieldType = context.getMappedField(fieldName);
+        final MappedField mappedField = context.getMappedField(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
-            if (fieldType != null) {
-                queries.add(fieldType.termQuery(value, context));
+            if (mappedField != null) {
+                queries.add(mappedField.termQuery(value, context));
             } else {
                 queries.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
             }

@@ -22,7 +22,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -135,7 +135,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(
                 name,
-                new JoinFieldType(context.buildFullName(name), joiner, meta.get()),
+                new MappedField(context.buildFullName(name), new JoinFieldType(joiner, meta.get())),
                 Collections.unmodifiableMap(parentIdFields),
                 eagerGlobalOrdinals.get(),
                 relations.get()
@@ -152,8 +152,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         private final Joiner joiner;
 
-        private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        private JoinFieldType(Joiner joiner, Map<String, String> meta) {
+            super(true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.joiner = joiner;
         }
 
@@ -167,9 +167,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -179,11 +179,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return SourceValueFetcher.identity(name(), context, format);
+            return SourceValueFetcher.identity(name, context, format);
         }
 
         @Override
@@ -208,12 +208,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     protected ParentJoinFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         Map<String, ParentIdFieldMapper> parentIdFields,
         boolean eagerGlobalOrdinals,
         List<Relations> relations
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(simpleName, mappedField, MultiFields.empty(), CopyTo.empty(), false, null);
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;
@@ -304,9 +304,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
+        Field field = new Field(name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);
-        context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+        context.doc().add(new SortedDocValuesField(name(), binaryValue));
         context.path().remove();
     }
 
@@ -335,8 +335,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         List<String> joinFields = mappingLookup.getMatchingFieldNames("*")
             .stream()
             .map(mappingLookup::getMappedField)
-            .filter(ft -> ft instanceof JoinFieldType)
-            .map(MappedFieldType::name)
+            .filter(Objects::nonNull)
+            .filter(mappedField -> mappedField.type() instanceof JoinFieldType)
+            .map(MappedField::name)
             .collect(Collectors.toList());
         if (joinFields.size() > 1) {
             throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);

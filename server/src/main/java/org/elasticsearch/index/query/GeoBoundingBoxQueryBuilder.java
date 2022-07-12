@@ -255,18 +255,18 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     public Query doToQuery(SearchExecutionContext context) {
-        MappedField fieldType = context.getMappedField(fieldName);
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
-        if ((fieldType.type() instanceof GeoShapeQueryable) == false) {
+        if ((mappedField.type() instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(
                 context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                "Field [" + fieldName + "] is of unsupported type [" + mappedField.typeName() + "] for [" + NAME + "] query"
             );
         }
 
@@ -292,7 +292,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType.type();
+        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) mappedField.type();
         final Rectangle rectangle = new Rectangle(
             luceneTopLeft.getLon(),
             luceneBottomRight.getLon(),
@@ -300,9 +300,9 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             luceneBottomRight.getLat()
         );
         return geoShapeQueryable.geoShapeQuery(
-            fieldType.name(),
+            mappedField.name(),
             context,
-            fieldType.name(),
+            mappedField.name(),
             SpatialStrategy.RECURSIVE,
             ShapeRelation.INTERSECTS,
             rectangle

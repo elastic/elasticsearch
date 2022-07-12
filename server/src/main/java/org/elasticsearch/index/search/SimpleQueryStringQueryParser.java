@@ -75,11 +75,11 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         }
     }
 
-    private Analyzer getAnalyzer(MappedField ft) {
+    private Analyzer getAnalyzer(MappedField mappedField) {
         if (getAnalyzer() != null) {
             return analyzer;
         }
-        return ft.getTextSearchInfo().searchAnalyzer();
+        return mappedField.getTextSearchInfo().searchAnalyzer();
     }
 
     /**
@@ -100,11 +100,11 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     @Override
     protected Query newTermQuery(Term term, float boost) {
-        MappedField ft = context.getMappedField(term.field());
-        if (ft == null) {
+        MappedField mappedField = context.getMappedField(term.field());
+        if (mappedField == null) {
             return newUnmappedFieldQuery(term.field());
         }
-        return ft.termQuery(term.bytes(), context);
+        return mappedField.termQuery(term.bytes(), context);
     }
 
     @Override
@@ -121,14 +121,14 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedField ft = context.getMappedField(fieldName);
-            if (ft == null) {
+            final MappedField mappedField = context.getMappedField(fieldName);
+            if (mappedField == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;
             }
             try {
-                final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
-                Query query = ft.fuzzyQuery(
+                final BytesRef term = getAnalyzer(mappedField).normalize(fieldName, text);
+                Query query = mappedField.fuzzyQuery(
                     term,
                     Fuzziness.fromEdits(fuzziness),
                     settings.fuzzyPrefixLength,
@@ -170,20 +170,20 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedField ft = context.getMappedField(fieldName);
-            if (ft == null) {
+            final MappedField mappedField = context.getMappedField(fieldName);
+            if (mappedField == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;
             }
             try {
                 if (settings.analyzeWildcard()) {
-                    Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text, getAnalyzer(ft));
+                    Query analyzedQuery = newPossiblyAnalyzedQuery(fieldName, text, getAnalyzer(mappedField));
                     if (analyzedQuery != null) {
                         disjuncts.add(wrapWithBoost(analyzedQuery, entry.getValue()));
                     }
                 } else {
-                    BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
-                    Query query = ft.prefixQuery(term.utf8ToString(), null, context);
+                    BytesRef term = getAnalyzer(mappedField).normalize(fieldName, text);
+                    Query query = mappedField.prefixQuery(term.utf8ToString(), null, context);
                     disjuncts.add(wrapWithBoost(query, entry.getValue()));
                 }
             } catch (RuntimeException e) {

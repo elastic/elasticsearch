@@ -101,7 +101,7 @@ public class SearchLookup {
         );
     }
 
-    public MappedField fieldType(String fieldName) {
+    public MappedField mappedField(String fieldName) {
         return mappedFieldLookup.apply(fieldName);
     }
 

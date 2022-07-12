@@ -22,17 +22,17 @@ public class CompletionFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
 
-        MappedField fieldType = new MappedField(
+        MappedField mappedField = new MappedField(
             "value",
             new CompletionFieldMapper.CompletionFieldType(defaultAnalyzer, Collections.emptyMap())
         );
 
-        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(List.of("value"), fetchSourceValue(mappedField, "value"));
 
         List<String> list = List.of("first", "second");
-        assertEquals(list, fetchSourceValue(fieldType, list));
+        assertEquals(list, fetchSourceValue(mappedField, list));
 
         Map<String, Object> object = Map.of("input", List.of("first", "second"), "weight", "2.718");
-        assertEquals(List.of(object), fetchSourceValue(fieldType, object));
+        assertEquals(List.of(object), fetchSourceValue(mappedField, object));
     }
 }

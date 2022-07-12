@@ -187,8 +187,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {
-        MappedField ft = context.mappingLookup().getMappedField(field);
-        return ft == null || ft.hasDocValues() == false;
+        MappedField mappedField = context.mappingLookup().getMappedField(field);
+        return mappedField == null || mappedField.hasDocValues() == false;
     }
 
     @Override

@@ -94,12 +94,12 @@ public abstract class AggregationContext implements Releasable {
      * Lookup the context for a field.
      */
     public final FieldContext buildFieldContext(String field) {
-        MappedField ft = getMappedField(field);
-        if (ft == null) {
+        MappedField mappedField = getMappedField(field);
+        if (mappedField == null) {
             // The field is unmapped
             return null;
         }
-        return new FieldContext(field, buildFieldData(ft), ft);
+        return new FieldContext(field, buildFieldData(mappedField), mappedField);
     }
 
     /**
@@ -434,8 +434,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        protected IndexFieldData<?> buildFieldData(MappedField ft) {
-            return context.getForField(ft);
+        protected IndexFieldData<?> buildFieldData(MappedField mappedField) {
+            return context.getForField(mappedField);
         }
 
         @Override

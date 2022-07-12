@@ -63,11 +63,11 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         GlobalAggregationBuilder aggregationBuilder = new GlobalAggregationBuilder("_name");
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_global").field("number"));
-        MappedField fieldType = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         testCase(aggregationBuilder, topLevelQuery, buildIndex, (InternalGlobal result) -> {
             Min min = result.getAggregations().get("in_global");
             verify.accept(result, min);
-        }, fieldType);
+        }, mappedField);
     }
 }

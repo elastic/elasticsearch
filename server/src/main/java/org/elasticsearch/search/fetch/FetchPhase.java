@@ -266,8 +266,8 @@ public class FetchPhase {
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
                 Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
-                    MappedField fieldType = searchExecutionContext.getMappedField(fieldName);
-                    String storedField = fieldType.name();
+                    MappedField mappedField = searchExecutionContext.getMappedField(fieldName);
+                    String storedField = mappedField.name();
                     Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(storedField, key -> new HashSet<>());
                     requestedFields.add(fieldName);
                 }

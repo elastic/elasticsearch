@@ -353,8 +353,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Build a {@link FieldMapper} to create the {@link MappingLookup} used for the aggs.
      * {@code protected} so subclasses can have it.
      */
-    protected FieldMapper buildMockFieldMapper(MappedField ft) {
-        return new MockFieldMapper(ft);
+    protected FieldMapper buildMockFieldMapper(MappedField mappedField) {
+        return new MockFieldMapper(mappedField);
     }
 
     /**

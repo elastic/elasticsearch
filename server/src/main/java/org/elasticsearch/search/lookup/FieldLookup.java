@@ -33,7 +33,7 @@ public class FieldLookup {
         this.mappedField = mappedField;
     }
 
-    MappedField fieldType() {
+    MappedField mappedField() {
         return mappedField;
     }
 

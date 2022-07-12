@@ -70,7 +70,7 @@ public class FieldFetcher {
             }
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
-                MappedField ft = context.getMappedField(field);
+                MappedField mappedField = context.getMappedField(field);
                 // we want to skip metadata fields if we have a wildcard pattern
                 if (context.isMetadataField(field) && isWildcardPattern) {
                     continue;
@@ -95,7 +95,7 @@ public class FieldFetcher {
                 if (nestedParentPath == null) {
                     ValueFetcher valueFetcher;
                     try {
-                        valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                        valueFetcher = mappedField.valueFetcher(context, fieldAndFormat.format);
                     } catch (IllegalArgumentException e) {
                         StringBuilder error = new StringBuilder("error fetching [").append(field).append(']');
                         if (isWildcardPattern) {

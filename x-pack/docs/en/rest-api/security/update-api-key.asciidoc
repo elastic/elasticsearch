@@ -41,7 +41,7 @@ It's not possible to update expired API keys, or API keys that have been invalid
 
 // TODO being overly verbose on purpose
 IMPORTANT: An API key's permissions are always limited by the permissions of the authenticated user creating or updating the API key.
-Any call to the update API, **regardless** of whether any parameters are specified or not, will automatically update the _point in time snapshot of permissions of the authenticated user_ associated with the API key.
+Any call to the update API, **regardless** of whether any parameters are supplied or not, will automatically update the _point in time snapshot of permissions of the authenticated user_ associated with the API key.
 This may result in a change in the API key's permissions, even when <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> is not specified in the update request.
 
 The following parameters can be specified in the body of a PUT request:
@@ -68,3 +68,89 @@ When specified, this fully replaces metadata previously associated with the API 
 
 `updated`::
 (boolean) `true` if the API key was updated, `false` if the API key did not change.
+
+[[security-api-create-api-key-example]]
+==== {api-examples-title}
+
+If you create an API key as follows:
+
+[source,console]
+------------------------------------------------------------
+POST /_security/api_key
+{
+  "name": "my-api-key",
+  "role_descriptors": {
+    "role-a": {
+      "cluster": ["all"],
+      "index": [
+        {
+          "names": ["index-a*"],
+          "privileges": ["read"]
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "application": "my-application",
+    "environment": {
+       "level": 1,
+       "trusted": true,
+       "tags": ["dev", "staging"]
+    }
+  }
+}
+------------------------------------------------------------
+
+A successful call returns a JSON structure that provides API key information.
+For example:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id": "VuaCfGcBCdbkQm-e5aOx",
+  "name": "my-api-key",
+  "api_key": "ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
+}
+--------------------------------------------------
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
+
+The following example updates the API key, assigning it new role descriptors and metadata:
+
+[source,console]
+----
+PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
+{
+  "role_descriptors": { <1>
+    "role-a": {
+      "index": [
+        {
+          "names": ["*"],
+          "privileges": ["write"]
+        }
+      ]
+    }
+  },
+  "metadata": { <2>
+    "environment": {
+       "level": 2,
+       "trusted": true,
+       "tags": ["production"]
+    }
+  }
+}
+----
+
+<1> New role descriptors for the API key to replace existing ones.
+<2> New metadata for the API key.
+
+A successful call returns a JSON structure indicating that the API key was updated:
+
+[source,console-result]
+----
+{
+  "updated": true
+}
+----

@@ -455,18 +455,17 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     private void beginPollingClusterFormationInfo() {
         cancelPollingClusterFormationInfo();
+        clusterFormationResponses = new ConcurrentHashMap<>();
         clusterFormationInfoTasks = getMasterEligibleNodes().stream()
             .map(masterNode -> beginPollingClusterFormationInfo(masterNode, clusterFormationResponses))
             .collect(Collectors.toList());
     }
 
     private void cancelPollingClusterFormationInfo() {
-        clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
-        /*
-         * Recreates the map so that we don't read old information, or worse get stuck with information about a node that has been
-         * removed from the cluster.
-         */
-        clusterFormationResponses = new ConcurrentHashMap<>();
+        if (clusterFormationResponses != null) {
+            clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
+            clusterFormationResponses = null;
+        }
     }
 
     Scheduler.Cancellable beginPollingClusterFormationInfo(
@@ -474,150 +473,116 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         DiscoveryNode node,
         final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
     ) {
-        return new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap).pollUntilCancelled();
+        return fetchClusterFormationInfo(node, nodeToClusterFormationStateMap);
     }
 
     /*
      * This inner class wraps the logic of polling a master-eligible node for its cluster formation information (which is needed in the
      * event that the cluster cannot elect a master node).
      */
-    // Non-private for testing
-    class PollClusterFormationStateTask {
-        /**
-         * The node that is being polled
-         */
-        private final DiscoveryNode node;
-        /**
-         * This is a reference to the global nodeToClusterFormationStateMap that was current at the time this object was constructed. The
-         * global map is recreated whenever the task is cancelled. Having this reference prevents accidental writes to that map after
-         * cancellation.
-         */
-        private final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap;
-        /**
-         * This is a wrapper Cancellable. After polling begins, every time a new remote request is scheduled (about once every 10
-         * seconds) we get a new Cancellable. This wraps all of them so that we only have to cancel the single Cancellable that is
-         * initially returned from pollUntilCancelled() in order to cancel them all.
-         */
-        private final MultipleCancellablesWrapper multipleCancellablesWrapper;
+    private Scheduler.Cancellable fetchClusterFormationInfo(
+        DiscoveryNode node,
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
+    ) {
+        return fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, new MultipleCancellablesWrapper());
+    }
 
-        /**
-         * This constructor is used to create the root task. It initializes the MultipleCancellablesWrapper that is shared between all
-         * the related tasks.
-         *
-         * @param node The node to poll for cluster formation information
-         * @param nodeToClusterFormationStateMap A reference to the global nodeToClusterFormationStateMap
-         */
-        PollClusterFormationStateTask(
-            DiscoveryNode node,
-            final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
-        ) {
-            this(node, nodeToClusterFormationStateMap, new MultipleCancellablesWrapper());
-        }
-
-        private PollClusterFormationStateTask(
-            DiscoveryNode node,
-            final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
-            MultipleCancellablesWrapper multipleCancellablesWrapper
-        ) {
-            this.node = node;
-            this.nodeToClusterFormationStateMap = nodeToClusterFormationStateMap;
-            this.multipleCancellablesWrapper = multipleCancellablesWrapper;
-        }
-
-        /**
-         * This method returns a Cancellable quickly, but in the background schedules to query the remote node's cluster formation state
-         * in 10 seconds, and repeats doing that until cancel() is called on the returned Cancellable.
-         *
-         * @return
-         */
-        public Scheduler.Cancellable pollUntilCancelled() {
-            StepListener<Releasable> connectionListener = new StepListener<>();
-            StepListener<ClusterFormationInfoAction.Response> clusterFormationInfoResponseListener = new StepListener<>();
-            long startTime = System.nanoTime();
-            connectionListener.whenComplete(releasable -> {
-                logger.trace("Opened connection to {}, making cluster coordination info request", node);
-                // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
-                final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
-                transportService.sendRequest(
-                    node,
-                    ClusterFormationInfoAction.NAME,
-                    new ClusterFormationInfoAction.Request(),
-                    TransportRequestOptions.timeout(transportTimeout),
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.runAfter(
-                            ActionListener.runBefore(clusterFormationInfoResponseListener, () -> Releasables.close(releasable)),
-                            () -> new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper)
-                                .pollUntilCancelled()
-                        ),
-                        ClusterFormationInfoAction.Response::new
-                    )
-                );
-            }, e -> {
-                logger.warn("Exception connecting to master node", e);
-                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                /*
-                 * Note: We can't call pollUntilCancelled() in a runAfter() in this case because when the corresponding
-                 * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
-                 */
-                new PollClusterFormationStateTask(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper).pollUntilCancelled();
-            });
-
-            clusterFormationInfoResponseListener.whenComplete(response -> {
-                long endTime = System.nanoTime();
-                logger.trace("Received cluster coordination info from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(response.getClusterFormationState()));
-            }, e -> {
-                logger.warn("Exception in cluster coordination info request to master node", e);
-                nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-            });
-
-            Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
-                Version minSupportedVersion = Version.V_8_4_0;
-                if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
-                    logger.trace(
-                        "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                        node,
-                        node.getVersion(),
-                        minSupportedVersion
-                    );
-                } else {
-                    transportService.connectToNode(
-                        // Note: This connection must be explicitly closed in the connectionListener
-                        node,
-                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                        connectionListener
-                    );
-                }
-            }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-            multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
-            return multipleCancellablesWrapper;
-        }
-
-        /**
-         * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel()
-         * is called on this method, then cancel() is called on all child Cancellables.
-         */
-        static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
+    /**
+     * This method returns a Cancellable quickly, but in the background schedules to query the remote node's cluster formation state
+     * in 10 seconds, and repeats doing that until cancel() is called on the returned Cancellable.
+     *
+     * @return
+     */
+    private Scheduler.Cancellable fetchClusterFormationInfo(
+        DiscoveryNode node,
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
+        MultipleCancellablesWrapper multipleCancellablesWrapper
+    ) {
+        StepListener<Releasable> connectionListener = new StepListener<>();
+        StepListener<ClusterFormationInfoAction.Response> fetchClusterInfoListener = new StepListener<>();
+        long startTime = System.nanoTime();
+        connectionListener.whenComplete(releasable -> {
+            logger.trace("Opened connection to {}, making cluster coordination info request", node);
+            // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+            final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+            transportService.sendRequest(
+                node,
+                ClusterFormationInfoAction.NAME,
+                new ClusterFormationInfoAction.Request(),
+                TransportRequestOptions.timeout(transportTimeout),
+                new ActionListenerResponseHandler<>(
+                    ActionListener.runAfter(
+                        ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
+                        () -> fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper)
+                    ),
+                    ClusterFormationInfoAction.Response::new
+                )
+            );
+        }, e -> {
+            logger.warn("Exception connecting to master node", e);
+            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
             /*
-             * This field will be read from and written to on multiple threads. CopyOnWriteArrayList is used here to avoid explicitly
-             * synchronizing access and to avoid ConcurrentModificationExceptions when iterating through the delegates.
+             * Note: We can't call fetchClusterFormationInfo() in a runAfter() in this case because when the corresponding
+             * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
              */
-            private final List<Scheduler.Cancellable> delegates = new CopyOnWriteArrayList<>();
+            fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper);
+        });
 
-            @Override
-            public boolean cancel() {
-                delegates.forEach(Scheduler.Cancellable::cancel);
-                return true;
-            }
+        fetchClusterInfoListener.whenComplete(response -> {
+            long endTime = System.nanoTime();
+            logger.trace("Received cluster coordination info from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(response.getClusterFormationState()));
+        }, e -> {
+            logger.warn("Exception in cluster coordination info request to master node", e);
+            nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+        });
 
-            @Override
-            public boolean isCancelled() {
-                return delegates.stream().anyMatch(Scheduler.Cancellable::isCancelled);
+        Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
+            Version minSupportedVersion = Version.V_8_4_0;
+            if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                logger.trace(
+                    "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                    node,
+                    node.getVersion(),
+                    minSupportedVersion
+                );
+            } else {
+                transportService.connectToNode(
+                    // Note: This connection must be explicitly closed in the connectionListener
+                    node,
+                    ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                    connectionListener
+                );
             }
+        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+        multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
+        return multipleCancellablesWrapper;
+    }
 
-            public void addNewCancellable(Scheduler.Cancellable cancellable) {
-                delegates.add(cancellable);
-            }
+    /**
+     * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel()
+     * is called on this method, then cancel() is called on all child Cancellables.
+     */
+    static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
+        /*
+         * This field will be read from and written to on multiple threads. CopyOnWriteArrayList is used here to avoid explicitly
+         * synchronizing access and to avoid ConcurrentModificationExceptions when iterating through the delegates.
+         */
+        private final List<Scheduler.Cancellable> delegates = new CopyOnWriteArrayList<>();
+
+        @Override
+        public boolean cancel() {
+            delegates.forEach(Scheduler.Cancellable::cancel);
+            return true;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return delegates.stream().anyMatch(Scheduler.Cancellable::isCancelled);
+        }
+
+        public void addNewCancellable(Scheduler.Cancellable cancellable) {
+            delegates.add(cancellable);
         }
     }
 

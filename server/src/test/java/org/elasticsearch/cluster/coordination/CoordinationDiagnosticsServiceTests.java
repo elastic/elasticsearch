@@ -593,8 +593,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testMultipleCancellablesWrapper() {
-        CoordinationDiagnosticsService.PollClusterFormationStateTask.MultipleCancellablesWrapper multipleCancellablesWrapper =
-            new CoordinationDiagnosticsService.PollClusterFormationStateTask.MultipleCancellablesWrapper();
+        CoordinationDiagnosticsService.MultipleCancellablesWrapper multipleCancellablesWrapper =
+            new CoordinationDiagnosticsService.MultipleCancellablesWrapper();
         List<Scheduler.Cancellable> cancellables = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(5, 20); i++) {
             Scheduler.Cancellable cancellable = createNewCancellable();

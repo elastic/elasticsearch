@@ -117,7 +117,7 @@ Alternatively, you can use a Gradle init script with the -I flag to configure th
 
 For example:
 
-To enable HTTPS for use with ./gradlew run a extraConfigFile is needed to be added to the cluster configuration.
+To enable HTTPS for use with ./gradlew run, an extraConfigFile is needed to be added to the cluster configuration.
 Create a file (for example ~/custom-run.gradle) with the following contents:
 -------------------------------------
 rootProject {
@@ -137,7 +137,7 @@ Now tell Gradle to use this init script:
 -Dtests.es.xpack.security.http.ssl.keystore.path=http.p12
 -------------------------------------
 
-Now when the http.p12 file will be placed in the config directory of the running cluster and available for use for use.
+Now the http.p12 file will be placed in the config directory of the running cluster and available for use.
 Assuming you have the http.ssl.keystore setup correctly, you can now use HTTPS with ./gradlew run without the risk
 of accidentally committing your local configurations.
 

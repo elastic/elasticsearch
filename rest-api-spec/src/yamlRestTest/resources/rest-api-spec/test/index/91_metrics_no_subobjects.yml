@@ -125,8 +125,8 @@
 "Metrics object indexing with synthetic source":
   - skip:
       features: allowed_warnings_regex
-      version: " - 8.2.99"
-      reason: added in 8.3.0
+      version: " - 8.3.99"
+      reason: added in 8.4.0
 
   - do:
       indices.put_template:

@@ -309,7 +309,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<T> result = new ArrayList<>();
 
         for (LoadedPlugin pluginTuple : plugins()) {
-            result.addAll(createExtensions(service, pluginTuple.instance));
+            // Only load SPI providers if they are loaded by different class loader
+            if (pluginTuple.loader().equals(this.getClass().getClassLoader()) == false) {
+                result.addAll(createExtensions(service, pluginTuple.instance()));
+            }
         }
 
         return Collections.unmodifiableList(result);

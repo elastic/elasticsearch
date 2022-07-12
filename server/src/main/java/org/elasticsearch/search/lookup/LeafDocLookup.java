@@ -10,8 +10,8 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.KeywordValueFetcherIndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -29,17 +29,17 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-    private final Function<MappedFieldType, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataLookup;
+    private final Function<MappedFieldType, IndexFieldData<?>> scriptFieldDataLookup;
     private final LeafReaderContext reader;
 
     private int docId = -1;
 
-    private final Map<Tuple<String, Boolean>, DocValuesScriptFieldFactory> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
+    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-        Function<MappedFieldType, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataLookup,
+        Function<MappedFieldType, IndexFieldData<?>> scriptFieldDataLookup,
         LeafReaderContext reader
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
@@ -52,50 +52,13 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    public Field<?> getScriptField(String fieldName) {
-        DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(new Tuple<>(fieldName, false));
+    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, Function<MappedFieldType, IndexFieldData<?>> lookup) {
+        DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
 
-        if (factory == null) {
-            factory = localCacheScriptFieldData.get(new Tuple<>(fieldName, true));
+        // do not use cached source fallback fields for old style doc access
+        if (lookup == fieldDataLookup && factory instanceof KeywordValueFetcherIndexFieldData.ValueFetcherDocValues) {
+            factory = null;
         }
-
-        if (factory == null) {
-            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
-
-            if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
-            }
-
-            // Load the field data on behalf of the script. Otherwise, it would require
-            // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            Tuple<Boolean, DocValuesScriptFieldFactory> fdt = AccessController.doPrivileged(
-                new PrivilegedAction<Tuple<Boolean, DocValuesScriptFieldFactory>>() {
-                    @Override
-                    public Tuple<Boolean, DocValuesScriptFieldFactory> run() {
-                        Tuple<Boolean, IndexFieldData<?>> fdt = scriptFieldDataLookup.apply(fieldType);
-                        DocValuesScriptFieldFactory dvf = fdt.v2().load(reader).getScriptFieldFactory(fieldName);
-                        return new Tuple<>(fdt.v1(), dvf);
-                    }
-                }
-            );
-
-            factory = fdt.v2();
-            localCacheScriptFieldData.put(new Tuple<>(fieldName, fdt.v1()), factory);
-        }
-
-        try {
-            factory.setNextDocId(docId);
-        } catch (IOException ioe) {
-            throw ExceptionsHelper.convertToElastic(ioe);
-        }
-
-        return factory.toScriptField();
-    }
-
-    @Override
-    public ScriptDocValues<?> get(Object key) {
-        String fieldName = key.toString();
-        DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(new Tuple<>(fieldName, true));
 
         if (factory == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
@@ -109,11 +72,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             factory = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
                 @Override
                 public DocValuesScriptFieldFactory run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptFieldFactory(fieldName);
+                    return lookup.apply(fieldType).load(reader).getScriptFieldFactory(fieldName);
                 }
             });
 
-            localCacheScriptFieldData.put(new Tuple<>(fieldName, true), factory);
+            localCacheScriptFieldData.put(fieldName, factory);
         }
 
         try {
@@ -122,15 +85,22 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             throw ExceptionsHelper.convertToElastic(ioe);
         }
 
-        return factory.toScriptDocValues();
+        return factory;
+    }
+
+    public Field<?> getScriptField(String fieldName) {
+        return getScriptFieldFactory(fieldName, scriptFieldDataLookup).toScriptField();
+    }
+
+    @Override
+    public ScriptDocValues<?> get(Object key) {
+        return getScriptFieldFactory(key.toString(), fieldDataLookup).toScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
         String fieldName = key.toString();
-        return localCacheScriptFieldData.get(new Tuple<>(fieldName, true)) != null
-            || localCacheScriptFieldData.get(new Tuple<>(fieldName, false)) != null
-            || fieldTypeLookup.apply(fieldName) != null;
+        return localCacheScriptFieldData.get(fieldName) != null || fieldTypeLookup.apply(fieldName) != null;
     }
 
     @Override

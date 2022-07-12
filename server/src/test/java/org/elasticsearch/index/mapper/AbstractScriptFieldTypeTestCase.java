@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
@@ -204,7 +203,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
-            (mft, lookupSupplier) -> new Tuple<>(true, mft.fielddataBuilder("test", lookupSupplier).build(null, null)),
+            (mft, lookupSupplier) -> mft.scriptFielddataBuilder("test", lookupSupplier).build(null, null),
             context::sourcePath
         );
         when(context.lookup()).thenReturn(lookup);

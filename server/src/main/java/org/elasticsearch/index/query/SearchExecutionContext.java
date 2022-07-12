@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -93,11 +92,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup;
-    private final TriFunction<
-        MappedFieldType,
-        String,
-        Supplier<SearchLookup>,
-        Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup;
+    private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptIndexFieldDataLookup;
     private SearchLookup lookup = null;
 
     private final int shardId;
@@ -128,7 +123,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptIndexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -204,7 +199,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptIndexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,

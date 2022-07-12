@@ -12,7 +12,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -115,19 +114,15 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      * while also making a {@link SearchLookup} supplier available that is required for runtime fields.
      */
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> Tuple<Boolean, IFD> getForScriptField(
+    public <IFD extends IndexFieldData<?>> IFD getForScriptField(
         MappedFieldType fieldType,
         String fullyQualifiedIndexName,
         Supplier<SearchLookup> searchLookup
     ) {
         final String fieldName = fieldType.name();
-        Tuple<Boolean, IndexFieldData.Builder> scriptFielddataBuilder = fieldType.scriptFielddataBuilder(
-            fullyQualifiedIndexName,
-            searchLookup
-        );
-        IndexFieldData.Builder builder = scriptFielddataBuilder.v2();
+        IndexFieldData.Builder builder = fieldType.scriptFielddataBuilder(fullyQualifiedIndexName, searchLookup);
         IndexFieldDataCache cache = getFieldDataCache(fieldName);
-        return new Tuple<>(scriptFielddataBuilder.v1(), (IFD) builder.build(cache, circuitBreakerService));
+        return (IFD) builder.build(cache, circuitBreakerService);
     }
 
     private synchronized IndexFieldDataCache getFieldDataCache(String fieldName) {

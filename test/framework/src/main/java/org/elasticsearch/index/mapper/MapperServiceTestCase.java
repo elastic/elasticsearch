@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -627,10 +626,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         }),
             (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ft, idxName, lookup) -> {
-                Tuple<Boolean, IndexFieldData.Builder> sfd = ft.scriptFielddataBuilder(idxName, lookup);
-                return new Tuple<>(sfd.v1(), sfd.v2().build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()));
-            },
+            (ft, idxName, lookup) -> ft.scriptFielddataBuilder(idxName, lookup)
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -653,11 +650,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
-    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataLookup() {
-        return (mft, lookupSource) -> new Tuple<>(
-            true,
-            mft.fielddataBuilder("test", lookupSource).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-        );
+    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> scriptFieldDataLookup() {
+        return (mft, lookupSource) -> mft.scriptFielddataBuilder("test", lookupSource)
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {

@@ -59,7 +59,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -298,13 +297,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             s,
             searchLookup) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup)
                 .build(new IndexFieldDataCache.None(), breakerService);
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataBuilder = (
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptFieldDataBuilder = (
             fieldType,
             s,
-            searchLookup) -> {
-            Tuple<Boolean, IndexFieldData.Builder> sfd = fieldType.scriptFielddataBuilder(indexSettings.getIndex().getName(), searchLookup);
-            return new Tuple<>(sfd.v1(), sfd.v2().build(new IndexFieldDataCache.None(), breakerService));
-        };
+            searchLookup) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup)
+                .build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, Accountable accountable) {}

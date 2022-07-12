@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -429,10 +428,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             indexSettings,
             null,
             (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-            (mappedFieldType, idxName, searchLookup) -> {
-                Tuple<Boolean, IndexFieldData.Builder> sfd = mappedFieldType.scriptFielddataBuilder(idxName, searchLookup);
-                return new Tuple<>(sfd.v1(), sfd.v2().build(null, null));
-            },
+            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.scriptFielddataBuilder(idxName, searchLookup).build(null, null),
             mapperService,
             mappingLookup,
             null,

@@ -163,7 +163,7 @@ public class KeywordValueFetcherIndexFieldData
         }
     }
 
-    public static class KeywordValueFetcherBinaryDocValues extends SortedBinaryDocValues {
+    public static class KeywordValueFetcherBinaryDocValues extends SortedBinaryDocValues implements ValueFetcherDocValues {
 
         private final LeafReaderContext leafReaderContext;
 
@@ -202,5 +202,13 @@ public class KeywordValueFetcherIndexFieldData
             assert iterator.hasNext();
             return new BytesRef(iterator.next().toString());
         }
+    }
+
+    /**
+     * Marker interface to indicate these doc values are generated
+     * on-the-fly from a {@code ValueFetcher}.
+     */
+    public interface ValueFetcherDocValues {
+        // marker interface
     }
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -43,7 +42,7 @@ public class SearchLookup {
     private final SourceLookup sourceLookup;
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
-    private final BiFunction<MappedFieldType, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataLookup;
+    private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> scriptFieldDataLookup;
     private final Function<String, Set<String>> sourcePathsLookup;
 
     /**
@@ -53,7 +52,7 @@ public class SearchLookup {
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptFieldDataLookup,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> scriptFieldDataLookup,
         Function<String, Set<String>> sourcePathsLookup
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
@@ -118,7 +117,7 @@ public class SearchLookup {
         return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()));
     }
 
-    public Tuple<Boolean, IndexFieldData<?>> getForScriptField(MappedFieldType fieldType) {
+    public IndexFieldData<?> getForScriptField(MappedFieldType fieldType) {
         return scriptFieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()));
     }
 

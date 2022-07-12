@@ -48,7 +48,6 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -1083,12 +1082,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, Tuple<Boolean, IndexFieldData<?>>> scriptIndexFieldDataLookup = (
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptIndexFieldDataLookup = (
             fieldType,
             fieldIndexName,
             searchLookup) -> {
-            Tuple<Boolean, IndexFieldData.Builder> sfd = fieldType.scriptFielddataBuilder(fieldIndexName, searchLookup);
-            return new Tuple<>(sfd.v1(), sfd.v2().build(new IndexFieldDataCache.None(), null));
+            IndexFieldData.Builder builder = fieldType.scriptFielddataBuilder(fieldIndexName, searchLookup);
+            return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new SearchExecutionContext(
             0,

@@ -17,7 +17,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -123,7 +122,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
-                    (mft, lookupSupplier) -> new Tuple<>(true, mft.fielddataBuilder("test", lookupSupplier).build(null, null)),
+                    (mft, lookupSupplier) -> mft.scriptFielddataBuilder("test", lookupSupplier).build(null, null),
                     searchExecutionContext::sourcePath
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);

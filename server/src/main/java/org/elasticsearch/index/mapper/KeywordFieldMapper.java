@@ -43,7 +43,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -693,32 +692,26 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Tuple<Boolean, IndexFieldData.Builder> scriptFielddataBuilder(
-            String fullyQualifiedIndexName,
-            Supplier<SearchLookup> searchLookup
-        ) {
+        public IndexFieldData.Builder scriptFielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             if (hasDocValues()) {
-                return new Tuple<>(true, fielddataBuilder(fullyQualifiedIndexName, searchLookup));
+                return fielddataBuilder(fullyQualifiedIndexName, searchLookup);
             }
 
-            return new Tuple<>(
-                false,
-                new KeywordValueFetcherIndexFieldData.Builder(
-                    name(),
-                    new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
-                        @Override
-                        protected String parseSourceValue(Object value) {
-                            String keywordValue = value.toString();
-                            if (keywordValue.length() > ignoreAbove) {
-                                return null;
-                            }
-
-                            return normalizeValue(normalizer(), name(), keywordValue);
+            return new KeywordValueFetcherIndexFieldData.Builder(
+                name(),
+                new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
+                    @Override
+                    protected String parseSourceValue(Object value) {
+                        String keywordValue = value.toString();
+                        if (keywordValue.length() > ignoreAbove) {
+                            return null;
                         }
-                    },
-                    searchLookup.get().source(),
-                    KeywordDocValuesField::new
-                )
+
+                        return normalizeValue(normalizer(), name(), keywordValue);
+                    }
+                },
+                searchLookup.get().source(),
+                KeywordDocValuesField::new
             );
         }
 

@@ -12,11 +12,12 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Metadata;
-import org.elasticsearch.script.TestMetadata;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Construct ingest documents for testing purposes
@@ -37,8 +38,11 @@ public class TestIngestDocument {
      * _versions.  Normally null _version is not allowed, but many tests don't care about that invariant.
      */
     public static IngestDocument ofIngestWithNullableVersion(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
-        return new IngestDocument(new IngestSourceAndMetadata(sm.v1(), TestMetadata.withNullableVersion(sm.v2())), ingestMetadata);
+        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestCtxMap.splitSourceAndMetadata(
+            sourceAndMetadata,
+            Arrays.stream(IngestDocument.Metadata.values()).map(IngestDocument.Metadata::getFieldName).collect(Collectors.toSet())
+        );
+        return new IngestDocument(new IngestCtxMap(sm.v1(), TestIngestCtxMetadata.withNullableVersion(sm.v2())), ingestMetadata);
     }
 
     /**
@@ -56,8 +60,8 @@ public class TestIngestDocument {
      * Create an IngestDocument with a metadata map and validators.  The metadata map is passed by reference, not copied, so callers
      * can observe changes to the map directly.
      */
-    public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, Metadata.Validator> validators) {
-        return new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), new TestMetadata(metadata, validators)), new HashMap<>());
+    public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, Metadata.FieldProperty<?>> properties) {
+        return new IngestDocument(new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, properties)), new HashMap<>());
     }
 
     /**

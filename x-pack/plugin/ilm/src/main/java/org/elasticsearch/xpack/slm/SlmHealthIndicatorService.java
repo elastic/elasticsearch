@@ -33,9 +33,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING;
 
 /**
  * This indicator reports health for snapshot lifecycle management component.
@@ -100,17 +99,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public String component() {
-        return SNAPSHOT;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
-    }
-
-    @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         final ClusterState currentState = clusterService.state();
         var slmMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         final OperationMode currentMode = currentSLMMode(currentState);
@@ -184,7 +173,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 return createIndicator(
                     YELLOW,
                     "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
-                    createDetails(explain, unhealthyPolicies, slmMetadata),
+                    createDetails(explain, unhealthyPolicies, slmMetadata, currentMode),
                     impacts,
                     List.of(
                         new Diagnosis(

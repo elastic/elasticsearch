@@ -42,8 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
-
 public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeAction<
     PutSnapshotLifecycleAction.Request,
     PutSnapshotLifecycleAction.Response> {

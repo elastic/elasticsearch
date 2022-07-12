@@ -245,6 +245,7 @@ public class ES84BloomFilterPostingsFormat extends PostingsFormat {
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
+                CodecUtil.retrieveChecksum(indexIn);
                 toCloses.clear();
             } finally {
                 IOUtils.closeWhileHandlingException(toCloses);

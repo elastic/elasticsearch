@@ -64,6 +64,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                         "cluster_uuid": "%s",
                         "version": {
                             "number": "%s",
+                            "build_flavor": "default",
                             "build_type": "%s",
                             "build_hash": "%s",
                             "build_date": "%s",

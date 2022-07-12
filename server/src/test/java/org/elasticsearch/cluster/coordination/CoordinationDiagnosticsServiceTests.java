@@ -627,7 +627,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     node.coordinationDiagnosticsService.fetchClusterFormationInfo(
                         masterNode,
                         response -> nodeToClusterFormationStateMap.put(masterNode, response),
-                        new ArrayList<>()
+                        cancellable -> {}
                     );
                 });
 
@@ -686,7 +686,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     node.coordinationDiagnosticsService.fetchClusterFormationInfo(
                         masterNode,
                         response -> nodeToClusterFormationStateMap.put(masterNode, response),
-                        cancellables
+                        cancellables::add
                     );
                 });
                 cancellables.forEach(Scheduler.Cancellable::cancel); // This is what will most often happen in practice

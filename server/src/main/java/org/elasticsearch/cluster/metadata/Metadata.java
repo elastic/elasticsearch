@@ -1725,11 +1725,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         /**
          * Adds a map of namespace to {@link ReservedStateMetadata} into the metadata builder
-         * @param ReservedStateMetadata a map of namespace to {@link ReservedStateMetadata}
+         * @param reservedStateMetadata a map of namespace to {@link ReservedStateMetadata}
          * @return {@link Builder}
          */
-        public Builder put(Map<String, ReservedStateMetadata> ReservedStateMetadata) {
-            this.reservedStateMetadata.putAll(ReservedStateMetadata);
+        public Builder put(Map<String, ReservedStateMetadata> reservedStateMetadata) {
+            this.reservedStateMetadata.putAll(reservedStateMetadata);
             return this;
         }
 

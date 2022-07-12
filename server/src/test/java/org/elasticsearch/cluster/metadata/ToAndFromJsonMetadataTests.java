@@ -61,7 +61,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .putHandler(hmTwo)
             .build();
 
-        ReservedStateMetadata ReservedStateMetadata1 = ReservedStateMetadata.builder("namespace_two").putHandler(hmTwo).build();
+        ReservedStateMetadata reservedStateMetadata1 = ReservedStateMetadata.builder("namespace_two").putHandler(hmTwo).build();
 
         Metadata metadata = Metadata.builder()
             .put(
@@ -127,7 +127,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
             .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
             .put(reservedStateMetadata)
-            .put(ReservedStateMetadata1)
+            .put(reservedStateMetadata1)
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -204,7 +204,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         // reserved 'operator' metadata
         assertEquals(reservedStateMetadata, parsedMetadata.reservedStateMetadata().get(reservedStateMetadata.namespace()));
-        assertEquals(ReservedStateMetadata1, parsedMetadata.reservedStateMetadata().get(ReservedStateMetadata1.namespace()));
+        assertEquals(reservedStateMetadata1, parsedMetadata.reservedStateMetadata().get(reservedStateMetadata1.namespace()));
     }
 
     private static final String MAPPING_SOURCE1 = """

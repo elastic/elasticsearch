@@ -42,29 +42,25 @@ It's not possible to update expired API keys, or API keys that have been invalid
 // TODO being overly verbose on purpose
 IMPORTANT: An API key's permissions are always limited by the permissions of the authenticated user creating or updating the API key.
 Any call to the update API, **regardless** of whether any parameters are specified or not, will automatically update the _point in time snapshot of permissions of the authenticated user_ associated with the API key.
-This may result in a change to the API key's permissions, even when <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> is not specified in the update request.
+This may result in a change in the API key's permissions, even when <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> is not specified in the update request.
 
 The following parameters can be specified in the body of a PUT request:
 
 [[security-api-update-api-key-api-key-role-descriptors]]
 `role_descriptors`::
 (Optional, array-of-role-descriptor) An array of new role descriptors for this API key.
-
 This parameter is optional.
-
 When specified, the new role descriptors replace those currently assigned to this API key.
-
 When it is not specified, the API key keeps the role descriptors assigned previously.
 
-If the assigned role descriptors are empty (either because empty role descriptors were supplied,
-or because they were empty and no new descriptors were supplied),
-the resulting permissions of the API key are the _point in time snapshot of permissions of the authenticated user_.
-
-If the assigned role descriptors are not empty, then the resultant permissions would be an intersection
-of API keys permissions and authenticated user's permissions thereby limiting the access scope for API keys.
-
+If the assigned role descriptors are empty (either because empty role descriptors were supplied, or because they were empty and no new descriptors were supplied), the resulting permissions of the API key are the _point in time snapshot of permissions of the authenticated user_.
+If the assigned role descriptors are not empty, then the resultant permissions would be an intersection of the API key's permissions and authenticated user's permissions thereby limiting the access scope for API keys.
 The structure of role descriptor is the same as the request for create role API.
 For more details, see <<security-api-put-role, create or update roles API>>.
-+
 
-coming::[8.4.0]
+`metadata`::
+(Optional, object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, keys beginning with `_` are reserved for system usage.
+When specified, metadata previously associated with the API key is replaced (not merged).
+

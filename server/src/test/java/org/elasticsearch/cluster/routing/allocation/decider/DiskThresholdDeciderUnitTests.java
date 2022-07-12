@@ -107,7 +107,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             Map.of("[test][0][p]", 10L), // 10 bytes,
-            null,
+            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -185,7 +185,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             Map.of("[test][0][p]", shardSize),
-            null,
+            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -307,7 +307,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             shardSizes,
-            null,
+            Map.of(),
             shardRoutingMap,
             Map.of()
         );
@@ -745,7 +745,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             allFullUsages,
             allFullUsages,
             Map.of("[test][0][p]", 10L),
-            null,
+            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -815,7 +815,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         // bigger than available space
         final long shardSize = randomIntBetween(1, 10);
         shardSizes.put("[test][0][p]", shardSize);
-        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, null, Map.of(), Map.of());
+        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of(), Map.of());
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,

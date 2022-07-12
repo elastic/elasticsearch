@@ -640,7 +640,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         private final Scheduler.Cancellable delegate;
         private final AtomicBoolean isCancelled;
 
-        public CancellableWrapper(AtomicBoolean isCancelled, Scheduler.Cancellable delegate) {
+        CancellableWrapper(AtomicBoolean isCancelled, Scheduler.Cancellable delegate) {
             this.isCancelled = isCancelled;
             this.delegate = delegate;
         }
@@ -663,7 +663,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         private final AtomicBoolean isCancelled;
         private final ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener;
 
-        public PollClusterFormationStateRunnable(
+        PollClusterFormationStateRunnable(
             AtomicBoolean isCancelled,
             DiscoveryNode node,
             final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,

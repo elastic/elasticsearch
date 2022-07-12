@@ -38,6 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.ClusterFormationStateOrException;
@@ -752,6 +753,53 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         );
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
         assertThat(result.summary(), containsString(" some master eligible nodes are unable to discover other master eligible nodes"));
+    }
+
+    public void testAnyNodeInClusterReportsDiscoveryProblems() {
+        Collection<DiscoveryNode> masterEligibleNodes = List.of(node1, node2, node3);
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeClusterFormationStateMap = clusterFormationResponses
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
+        assertFalse(
+            CoordinationDiagnosticsService.anyNodeInClusterReportsDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)
+        );
+
+        clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(false, true)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        nodeClusterFormationStateMap = clusterFormationResponses.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
+        assertTrue(
+            CoordinationDiagnosticsService.anyNodeInClusterReportsDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)
+        );
+    }
+
+    public void testAnyNodeInClusterReportsQuorumProblems() {
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeClusterFormationStateMap = clusterFormationResponses
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
+        assertFalse(CoordinationDiagnosticsService.anyNodeInClusterReportsQuorumProblems(nodeClusterFormationStateMap));
+
+        clusterFormationResponses = new ConcurrentHashMap<>();
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, false)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        nodeClusterFormationStateMap = clusterFormationResponses.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
+        assertTrue(CoordinationDiagnosticsService.anyNodeInClusterReportsQuorumProblems(nodeClusterFormationStateMap));
     }
 
     private ClusterFormationFailureHelper.ClusterFormationState getClusterFormationState(

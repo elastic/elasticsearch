@@ -84,13 +84,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * diagnosis.
      * This field is only ever accessed on the cluster change event thread, so there no need to protect it for thread safety.
      */
-    private List<Scheduler.Cancellable> clusterFormationInfoTasks = List.of();
+    private volatile List<Scheduler.Cancellable> clusterFormationInfoTasks = null;
     /*
      * This field holds the results of the tasks in the clusterFormationInfoTasks field above. The field is accessed (reads/writes) from
      * multiple threads, but the reference itself is only ever changed on the cluster change event thread.
      */
     // Non-private for testing
-    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
+    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = null;
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -456,35 +456,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private void beginPollingClusterFormationInfo() {
         cancelPollingClusterFormationInfo();
         clusterFormationResponses = new ConcurrentHashMap<>();
-        clusterFormationInfoTasks = getMasterEligibleNodes().stream()
-            .map(masterNode -> beginPollingClusterFormationInfo(masterNode, clusterFormationResponses))
-            .collect(Collectors.toList());
+        clusterFormationInfoTasks = new CopyOnWriteArrayList<>();
+        getMasterEligibleNodes().forEach(
+            masterNode -> fetchClusterFormationInfo(masterNode, clusterFormationResponses, clusterFormationInfoTasks)
+        );
     }
 
     private void cancelPollingClusterFormationInfo() {
         if (clusterFormationResponses != null) {
             clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
             clusterFormationResponses = null;
+            clusterFormationInfoTasks = null;
         }
-    }
-
-    Scheduler.Cancellable beginPollingClusterFormationInfo(
-        // Non-private for testing
-        DiscoveryNode node,
-        final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
-    ) {
-        return fetchClusterFormationInfo(node, nodeToClusterFormationStateMap);
-    }
-
-    /*
-     * This inner class wraps the logic of polling a master-eligible node for its cluster formation information (which is needed in the
-     * event that the cluster cannot elect a master node).
-     */
-    private Scheduler.Cancellable fetchClusterFormationInfo(
-        DiscoveryNode node,
-        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
-    ) {
-        return fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, new MultipleCancellablesWrapper());
     }
 
     /**
@@ -493,10 +476,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      *
      * @return
      */
-    private Scheduler.Cancellable fetchClusterFormationInfo(
+    void fetchClusterFormationInfo(
         DiscoveryNode node,
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
-        MultipleCancellablesWrapper multipleCancellablesWrapper
+        List<Scheduler.Cancellable> cancellables
     ) {
         StepListener<Releasable> connectionListener = new StepListener<>();
         StepListener<ClusterFormationInfoAction.Response> fetchClusterInfoListener = new StepListener<>();
@@ -513,7 +496,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 new ActionListenerResponseHandler<>(
                     ActionListener.runAfter(
                         ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
-                        () -> fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper)
+                        () -> fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, cancellables)
                     ),
                     ClusterFormationInfoAction.Response::new
                 )
@@ -525,7 +508,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
              * Note: We can't call fetchClusterFormationInfo() in a runAfter() in this case because when the corresponding
              * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
              */
-            fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, multipleCancellablesWrapper);
+            fetchClusterFormationInfo(node, nodeToClusterFormationStateMap, cancellables);
         });
 
         fetchClusterInfoListener.whenComplete(response -> {
@@ -555,35 +538,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 );
             }
         }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-        multipleCancellablesWrapper.addNewCancellable(scheduledCancellable);
-        return multipleCancellablesWrapper;
-    }
-
-    /**
-     * This class represents a collection of related Cancellables. If one is cancelled, they are all considered cancelled. If cancel()
-     * is called on this method, then cancel() is called on all child Cancellables.
-     */
-    static class MultipleCancellablesWrapper implements Scheduler.Cancellable {
-        /*
-         * This field will be read from and written to on multiple threads. CopyOnWriteArrayList is used here to avoid explicitly
-         * synchronizing access and to avoid ConcurrentModificationExceptions when iterating through the delegates.
-         */
-        private final List<Scheduler.Cancellable> delegates = new CopyOnWriteArrayList<>();
-
-        @Override
-        public boolean cancel() {
-            delegates.forEach(Scheduler.Cancellable::cancel);
-            return true;
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return delegates.stream().anyMatch(Scheduler.Cancellable::isCancelled);
-        }
-
-        public void addNewCancellable(Scheduler.Cancellable cancellable) {
-            delegates.add(cancellable);
-        }
+        cancellables.add(scheduledCancellable);
     }
 
     // Non-private for testing

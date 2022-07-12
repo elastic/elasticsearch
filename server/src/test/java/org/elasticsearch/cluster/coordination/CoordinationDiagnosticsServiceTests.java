@@ -592,24 +592,6 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    public void testMultipleCancellablesWrapper() {
-        CoordinationDiagnosticsService.MultipleCancellablesWrapper multipleCancellablesWrapper =
-            new CoordinationDiagnosticsService.MultipleCancellablesWrapper();
-        List<Scheduler.Cancellable> cancellables = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(5, 20); i++) {
-            Scheduler.Cancellable cancellable = createNewCancellable();
-            cancellables.add(cancellable);
-            assertFalse(cancellable.isCancelled());
-            multipleCancellablesWrapper.addNewCancellable(cancellable);
-        }
-        assertFalse(multipleCancellablesWrapper.isCancelled());
-        multipleCancellablesWrapper.cancel();
-        assertTrue(multipleCancellablesWrapper.isCancelled());
-        for (Scheduler.Cancellable cancellable : cancellables) {
-            assertTrue(cancellable.isCancelled());
-        }
-    }
-
     private Scheduler.Cancellable createNewCancellable() {
         return new Scheduler.Cancellable() {
             private boolean cancelled = false;
@@ -627,7 +609,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         };
     }
 
-    public void testPollClusterFormationInfo() {
+    public void testFetchClusterFormationInfo() {
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
@@ -645,9 +627,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
                     .forEach(
                         masterNode -> {
-                            node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
+                            node.coordinationDiagnosticsService.fetchClusterFormationInfo(
                                 masterNode,
-                                nodeToClusterFormationStateMap
+                                nodeToClusterFormationStateMap,
+                                new ArrayList<>()
                             );
                         }
                     );
@@ -688,7 +671,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    public void testPollClusterFormationInfoCancel() {
+    public void testFetchClusterFormationInfoCancel() {
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
@@ -707,11 +690,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
                     .forEach(
                         masterNode -> {
-                            cancellables.add(
-                                node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
-                                    masterNode,
-                                    nodeToClusterFormationStateMap
-                                )
+                            node.coordinationDiagnosticsService.fetchClusterFormationInfo(
+                                masterNode,
+                                nodeToClusterFormationStateMap,
+                                cancellables
                             );
                         }
                     );

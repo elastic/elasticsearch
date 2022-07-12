@@ -719,13 +719,6 @@ public final class IngestDocument {
     }
 
     /**
-     * Get source and metadata map as {@link IngestCtxMap}
-     */
-    public IngestCtxMap getIngestSourceAndMetadata() {
-        return sourceAndMetadata;
-    }
-
-    /**
      * Get the strongly typed metadata
      */
     public org.elasticsearch.script.Metadata getMetadata() {

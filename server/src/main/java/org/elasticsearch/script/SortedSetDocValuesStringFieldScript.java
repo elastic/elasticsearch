@@ -6,13 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script.field;
+package org.elasticsearch.script;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

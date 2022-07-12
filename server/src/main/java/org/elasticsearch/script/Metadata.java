@@ -52,7 +52,7 @@ public class Metadata {
 
     public Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
-        this.properties = properties;
+        this.properties = Collections.unmodifiableMap(properties);
         validateMetadata();
     }
 
@@ -231,7 +231,8 @@ public class Metadata {
 
     @Override
     public Metadata clone() {
-        return new Metadata(new HashMap<>(map), new HashMap<>(properties));
+        // properties is an UnmodifiableMap, no need to create a copy
+        return new Metadata(new HashMap<>(map), properties);
     }
 
     /**

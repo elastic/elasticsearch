@@ -52,7 +52,8 @@ public final class Joiner {
      */
     static Joiner getJoiner(Stream<MappedField> mappedFields) {
         Optional<JoinFieldType> joinType = mappedFields.filter(ft -> ft.type() instanceof JoinFieldType)
-            .map(ft -> (JoinFieldType) ft.type()).findFirst();
+            .map(ft -> (JoinFieldType) ft.type())
+            .findFirst();
         return joinType.map(JoinFieldType::getJoiner).orElse(null);
     }
 

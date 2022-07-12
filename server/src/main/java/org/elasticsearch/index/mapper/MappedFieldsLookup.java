@@ -20,9 +20,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * An immutable container for looking up {@link MappedFieldType}s by their name.
+ * An immutable container for looking up {@link MappedField}s by their name.
  */
-final class FieldTypeLookup {
+final class MappedFieldsLookup {
     private final Map<String, MappedField> fullNameToMappedField;
     private final Map<String, DynamicMappedField> dynamicFields;
 
@@ -37,7 +37,7 @@ final class FieldTypeLookup {
 
     private final int maxParentPathDots;
 
-    FieldTypeLookup(
+    MappedFieldsLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
         Collection<RuntimeField> runtimeFields

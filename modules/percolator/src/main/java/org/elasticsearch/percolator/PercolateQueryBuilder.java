@@ -49,6 +49,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -487,15 +488,15 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new IllegalStateException("no document to percolate");
         }
 
-        MappedFieldType fieldType = context.getMappedField(field);
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(field);
+        if (mappedField == null) {
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }
 
-        if ((fieldType instanceof PercolatorFieldMapper.PercolatorFieldType) == false) {
+        if ((mappedField.type() instanceof PercolatorFieldMapper.PercolatorFieldType) == false) {
             throw new QueryShardException(
                 context,
-                "expected field [" + field + "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]"
+                "expected field [" + field + "] to be of type [percolator], but is of type [" + mappedField.typeName() + "]"
             );
         }
 
@@ -526,8 +527,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             excludeNestedDocuments = false;
         }
 
-        PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
-        String queryName = this.name != null ? this.name : pft.name();
+        PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) mappedField.type();
+        String queryName = this.name != null ? this.name : mappedField.name();
         SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
         ;
@@ -640,8 +641,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             @Override
             @SuppressWarnings("unchecked")
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(delegate.getFullyQualifiedIndex().getName(), delegate::lookup);
+            public <IFD extends IndexFieldData<?>> IFD getForField(MappedField mappedField) {
+                IndexFieldData.Builder builder = mappedField.fielddataBuilder(
+                    delegate.getFullyQualifiedIndex().getName(),
+                    delegate::lookup
+                );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);

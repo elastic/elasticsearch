@@ -88,32 +88,20 @@ public class TokenCountFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, new MappedField(context.buildFullName(name), ft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(
+                name,
+                new MappedField(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
     static class TokenCountFieldType extends NumberFieldMapper.NumberFieldType {
 
-        TokenCountFieldType(
-            boolean isSearchable,
-            boolean isStored,
-            boolean hasDocValues,
-            Number nullValue,
-            Map<String, String> meta
-        ) {
-            super(
-                NumberFieldMapper.NumberType.INTEGER,
-                isSearchable,
-                isStored,
-                hasDocValues,
-                false,
-                nullValue,
-                meta,
-                null,
-                false,
-                null
-            );
+        TokenCountFieldType(boolean isSearchable, boolean isStored, boolean hasDocValues, Number nullValue, Map<String, String> meta) {
+            super(NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta, null, false, null);
         }
 
         @Override
@@ -134,13 +122,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
 
-    protected TokenCountFieldMapper(
-        String simpleName,
-        MappedField mappedField,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    protected TokenCountFieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedField, multiFields, copyTo);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();

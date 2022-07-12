@@ -395,7 +395,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testConfigureSimilarity() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean")));
-        MappedField mappedField = mapperService.documentMapper().mappers().fieldTypesLookup().get("field");
+        MappedField mappedField = mapperService.documentMapper().mappers().mappedFieldsLookup().get("field");
         assertEquals("boolean", mappedField.getTextSearchInfo().similarity().name());
 
         IllegalArgumentException e = expectThrows(

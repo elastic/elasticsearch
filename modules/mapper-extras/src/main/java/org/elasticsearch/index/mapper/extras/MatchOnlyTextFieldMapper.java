@@ -34,6 +34,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -112,7 +113,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
-            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(context.buildFullName(name), tsi, indexAnalyzer, meta.getValue());
+            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(tsi, indexAnalyzer, meta.getValue());
             return ft;
         }
 
@@ -120,7 +121,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, multiFields, copyTo.build(), this);
+            return new MatchOnlyTextFieldMapper(
+                name,
+                Defaults.FIELD_TYPE,
+                new MappedField(context.buildFullName(name), tft),
+                multiFields,
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -131,15 +139,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
 
-        public MatchOnlyTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
-            super(name, true, false, false, tsi, meta);
+        public MatchOnlyTextFieldType(TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
+            super(true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
-            this.textFieldType = new TextFieldType(name);
+            this.textFieldType = new TextFieldType();
         }
 
         public MatchOnlyTextFieldType(String name) {
             this(
-                name,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 Lucene.STANDARD_ANALYZER,
                 Collections.emptyMap()
@@ -157,20 +164,21 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name, context, format);
         }
 
         private Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
+            String name,
             SearchExecutionContext searchExecutionContext
         ) {
             if (searchExecutionContext.isSourceEnabled() == false) {
                 throw new IllegalArgumentException(
-                    "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
+                    "Field [" + name + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
                 );
             }
             SourceLookup sourceLookup = searchExecutionContext.lookup().source();
-            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+            ValueFetcher valueFetcher = valueFetcher(name, searchExecutionContext, null);
             return context -> {
                 valueFetcher.setNextReader(context);
                 return docID -> {
@@ -184,28 +192,30 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             };
         }
 
-        private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
+        private Query toQuery(String name, Query query, SearchExecutionContext searchExecutionContext) {
             return new ConstantScoreQuery(
-                new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer)
+                new SourceConfirmedTextQuery(query, getValueFetcherProvider(name, searchExecutionContext), indexAnalyzer)
             );
         }
 
         private IntervalsSource toIntervalsSource(
+            String name,
             IntervalsSource source,
             Query approximation,
             SearchExecutionContext searchExecutionContext
         ) {
-            return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
+            return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(name, searchExecutionContext), indexAnalyzer);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             // Disable scoring
-            return new ConstantScoreQuery(super.termQuery(value, context));
+            return new ConstantScoreQuery(super.termQuery(name, value, context));
         }
 
         @Override
         public Query fuzzyQuery(
+            String name,
             Object value,
             Fuzziness fuzziness,
             int prefixLength,
@@ -214,36 +224,38 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             // Disable scoring
-            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
+            return new ConstantScoreQuery(super.fuzzyQuery(name, value, fuzziness, prefixLength, maxExpansions, transpositions, context));
         }
 
         @Override
-        public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
+        public IntervalsSource termIntervals(String name, BytesRef term, SearchExecutionContext context) {
+            return toIntervalsSource(name, Intervals.term(term), new TermQuery(new Term(name, term)), context);
         }
 
         @Override
-        public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
-            return toIntervalsSource(Intervals.prefix(term), new PrefixQuery(new Term(name(), term)), context);
+        public IntervalsSource prefixIntervals(String name, BytesRef term, SearchExecutionContext context) {
+            return toIntervalsSource(name, Intervals.prefix(term), new PrefixQuery(new Term(name, term)), context);
         }
 
         @Override
         public IntervalsSource fuzzyIntervals(
+            String name,
             String term,
             int maxDistance,
             int prefixLength,
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term), maxDistance, prefixLength, 128, transpositions);
+            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name, term), maxDistance, prefixLength, 128, transpositions);
             fuzzyQuery.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
             IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), term);
-            return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);
+            return toIntervalsSource(name, fuzzyIntervals, fuzzyQuery, context);
         }
 
         @Override
-        public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+        public IntervalsSource wildcardIntervals(String name, BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
+                name,
                 Intervals.wildcard(pattern),
                 new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
                 context
@@ -251,32 +263,43 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
-            throws IOException {
-            final Query query = textFieldType.phraseQuery(stream, slop, enablePosIncrements, queryShardContext);
-            return toQuery(query, queryShardContext);
+        public Query phraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePosIncrements,
+            SearchExecutionContext queryShardContext
+        ) throws IOException {
+            final Query query = textFieldType.phraseQuery(name, stream, slop, enablePosIncrements, queryShardContext);
+            return toQuery(name, query, queryShardContext);
         }
 
         @Override
         public Query multiPhraseQuery(
+            String name,
             TokenStream stream,
             int slop,
             boolean enablePositionIncrements,
             SearchExecutionContext queryShardContext
         ) throws IOException {
-            final Query query = textFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext);
-            return toQuery(query, queryShardContext);
+            final Query query = textFieldType.multiPhraseQuery(name, stream, slop, enablePositionIncrements, queryShardContext);
+            return toQuery(name, query, queryShardContext);
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
-            throws IOException {
-            final Query query = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
-            return toQuery(query, queryShardContext);
+        public Query phrasePrefixQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            int maxExpansions,
+            SearchExecutionContext queryShardContext
+        ) throws IOException {
+            final Query query = textFieldType.phrasePrefixQuery(name, stream, slop, maxExpansions, queryShardContext);
+            return toQuery(name, query, queryShardContext);
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
 
@@ -291,14 +314,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private MatchOnlyTextFieldMapper(
         String simpleName,
         FieldType fieldType,
-        MatchOnlyTextFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
-        assert mappedFieldType.getTextSearchInfo().isTokenized();
-        assert mappedFieldType.hasDocValues() == false;
+        super(simpleName, mappedField, multiFields, copyTo, false, null);
+        assert mappedField.getTextSearchInfo().isTokenized();
+        assert mappedField.hasDocValues() == false;
         this.fieldType = fieldType;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
@@ -324,9 +347,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return;
         }
 
-        Field field = new Field(fieldType().name(), value, fieldType);
+        Field field = new Field(name(), value, fieldType);
         context.doc().add(field);
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(name());
     }
 
     @Override

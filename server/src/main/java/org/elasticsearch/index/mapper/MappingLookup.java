@@ -48,8 +48,8 @@ public final class MappingLookup {
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
     private final NestedLookup nestedLookup;
-    private final FieldTypeLookup fieldTypeLookup;
-    private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
+    private final MappedFieldsLookup mappedFieldsLookup;
+    private final MappedFieldsLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzersMap;
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
@@ -170,12 +170,12 @@ public final class MappingLookup {
         }
 
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFields);
+        this.mappedFieldsLookup = new MappedFieldsLookup(mappers, aliasMappers, runtimeFields);
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
-            this.indexTimeLookup = fieldTypeLookup;
+            this.indexTimeLookup = mappedFieldsLookup;
         } else {
-            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+            this.indexTimeLookup = new MappedFieldsLookup(mappers, aliasMappers, Collections.emptyList());
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
@@ -213,11 +213,11 @@ public final class MappingLookup {
         return fieldMappers.get(field);
     }
 
-    FieldTypeLookup fieldTypesLookup() {
-        return fieldTypeLookup;
+    MappedFieldsLookup mappedFieldsLookup() {
+        return mappedFieldsLookup;
     }
 
-    FieldTypeLookup indexTimeLookup() {
+    MappedFieldsLookup indexTimeLookup() {
         return indexTimeLookup;
     }
 
@@ -338,7 +338,7 @@ public final class MappingLookup {
             return false;
         }
         // Is it a runtime field?
-        if (indexTimeLookup.get(field) != fieldTypeLookup.get(field)) {
+        if (indexTimeLookup.get(field) != mappedFieldsLookup.get(field)) {
             return false;
         }
         String sourceParent = parentObject(field);
@@ -365,14 +365,14 @@ public final class MappingLookup {
      * @param pattern the pattern to match field names against
      */
     public Set<String> getMatchingFieldNames(String pattern) {
-        return fieldTypeLookup.getMatchingFieldNames(pattern);
+        return mappedFieldsLookup.getMatchingFieldNames(pattern);
     }
 
     /**
      * Returns the mapped field type for the given field name.
      */
     public MappedField getMappedField(String field) {
-        return fieldTypesLookup().get(field);
+        return mappedFieldsLookup().get(field);
     }
 
     /**
@@ -388,7 +388,7 @@ public final class MappingLookup {
      * @return A set of paths in the _source that contain the field's values.
      */
     public Set<String> sourcePaths(String field) {
-        return fieldTypesLookup().sourcePaths(field);
+        return mappedFieldsLookup().sourcePaths(field);
     }
 
     /**
@@ -428,7 +428,7 @@ public final class MappingLookup {
      * @return {@code true} if contains a timestamp field of type date that is indexed and has doc values, {@code false} otherwise.
      */
     public boolean hasTimestampField() {
-        final MappedField mappedField = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedField mappedField = mappedFieldsLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         if (mappedField != null && mappedField.type() instanceof DateFieldMapper.DateFieldType) {
             return mappedField.isIndexed() && mappedField.hasDocValues();
         } else {

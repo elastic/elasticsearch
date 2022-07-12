@@ -436,7 +436,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedField mappedField(String fullName) {
-        return mappingLookup().fieldTypesLookup().get(fullName);
+        return mappingLookup().mappedFieldsLookup().get(fullName);
     }
 
     /**

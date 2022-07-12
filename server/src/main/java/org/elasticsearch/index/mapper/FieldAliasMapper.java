@@ -81,7 +81,7 @@ public final class FieldAliasMapper extends Mapper {
                 "Invalid [path] value [" + path + "] for field alias [" + name() + "]: an alias cannot refer to itself."
             );
         }
-        if (mappers.fieldTypesLookup().get(path) == null) {
+        if (mappers.mappedFieldsLookup().get(path) == null) {
             throw new MapperParsingException(
                 "Invalid [path] value ["
                     + path

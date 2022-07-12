@@ -67,7 +67,7 @@ import java.util.Objects;
  * offers "fast-fail" for reads in segments known to have no record of the key.
  */
 public class BloomFilterPostingsFormat extends PostingsFormat {
-    static final String BLOOM_CODEC_NAME = "ESBloomFilter";
+    static final String BLOOM_CODEC_NAME = "ES84BloomFilter";
     static final int VERSION_START = 1;
     static final int VERSION_CURRENT = VERSION_START;
     static final String BLOOM_FILTER_META_FILE = "bfm";

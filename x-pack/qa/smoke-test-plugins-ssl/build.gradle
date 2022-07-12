@@ -94,5 +94,6 @@ tasks.named("processYamlRestTestResources").configure {
 
 tasks.named('yamlRestTestTestingConventions').configure {
   baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESIntegTestCase'
   baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
 }

@@ -21,7 +21,10 @@ testClusters.matching { it.name == "javaRestTest"}.configureEach {
   }
 }
 
-
 tasks.matching { it.name.equals('javaRestTest')}.configureEach {integTestTask ->
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.javaRestTest.singleNode().getConfigDir()}"
+}
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.xpack.security.MigrateToolTestCase'
 }

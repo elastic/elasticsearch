@@ -505,7 +505,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         String restContent = "{\"size\" : " + boundedRandomSize + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
-            assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
+            assertThat(ex.getMessage(), containsString(Integer.toString(boundedRandomSize)));
         }
 
         restContent = "{\"size\" : -1}";

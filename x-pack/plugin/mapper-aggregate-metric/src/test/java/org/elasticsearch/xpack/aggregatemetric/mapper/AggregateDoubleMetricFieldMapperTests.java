@@ -10,6 +10,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -526,10 +527,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
      * Since all queries for aggregate_metric_double fields are delegated to their default_metric numeric
      *  sub-field, we override this method so that testExistsQueryMinimalMapping() passes successfully.
      */
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+    protected void assertExistsQuery(MappedField mappedField, Query query, LuceneDocument fields) {
         assertThat(query, Matchers.instanceOf(FieldExistsQuery.class));
         FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
-        String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) fieldType).getDefaultMetric().name();
+        String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) mappedField.type())
+            .getDefaultMetric().name();
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
         assertNoFieldNamesField(fields);
     }

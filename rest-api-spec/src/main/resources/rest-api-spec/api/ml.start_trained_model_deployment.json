@@ -28,6 +28,12 @@
       ]
     },
     "params":{
+      "cache_size": {
+        "type": "string",
+        "description": "A byte-size value (e.g. 20mb) for configuring the inference cache size",
+        "required": false,
+        "default": "20mb"
+      },
       "number_of_allocations":{
         "type":"int",
         "description": "The number of model allocations on each node where the model is deployed.",

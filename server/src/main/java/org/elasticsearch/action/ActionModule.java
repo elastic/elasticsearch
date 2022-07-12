@@ -264,8 +264,6 @@ import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
 import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
-import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
 import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -278,7 +276,6 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -468,7 +465,8 @@ public class ActionModule extends AbstractModule {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         SystemIndices systemIndices,
-        ClusterService clusterService
+        ClusterService clusterService,
+        List<ImmutableClusterStateHandler<?>> reservedStateHandlers
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -519,7 +517,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService);
-        immutableStateController = new ImmutableClusterStateController(clusterService);
+        immutableStateController = new ImmutableClusterStateController(clusterService, reservedStateHandlers);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -895,24 +893,6 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-    }
-
-    /**
-     * Initializes the immutable cluster state handlers for Elasticsearch and it's modules/plugins
-     *
-     * @param pluginsService needed to load all modules/plugins immutable state handlers through SPI
-     */
-    public void initImmutableClusterStateHandlers(PluginsService pluginsService) {
-        List<ImmutableClusterStateHandler<?>> handlers = new ArrayList<>();
-
-        List<? extends ImmutableClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
-            ImmutableClusterStateHandlerProvider.class
-        );
-
-        handlers.add(new ImmutableClusterSettingsAction(clusterSettings));
-        pluginHandlers.forEach(h -> handlers.addAll(h.handlers()));
-
-        immutableStateController.initHandlers(handlers);
     }
 
     @Override

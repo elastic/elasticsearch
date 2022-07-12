@@ -63,8 +63,10 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
-        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
+        ImmutableClusterStateController controller = new ImmutableClusterStateController(
+            clusterService,
+            List.of(new ImmutableClusterSettingsAction(clusterSettings))
+        );
 
         String testJSON = """
             {
@@ -418,9 +420,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         };
 
         ClusterService clusterService = mock(ClusterService.class);
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
-
-        controller.initHandlers(List.of(oh1, oh2, oh3));
+        final var controller = new ImmutableClusterStateController(clusterService, List.of(oh1, oh2, oh3));
         Collection<String> ordered = controller.orderedStateHandlers(Set.of("one", "two", "three"));
         assertThat(ordered, contains("two", "three", "one"));
 
@@ -460,9 +460,10 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             }
         };
 
-        controller.initHandlers(List.of(oh1, oh2));
+        final var controller1 = new ImmutableClusterStateController(clusterService, List.of(oh1, oh2));
+
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(IllegalStateException.class, () -> controller1.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
             anyOf(
                 is("Cycle found in settings dependencies: one -> two -> one"),
                 is("Cycle found in settings dependencies: two -> one -> two")
@@ -478,12 +479,13 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
-
         assertTrue(
             expectThrows(
                 IllegalStateException.class,
-                () -> controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings), new TestHandler()))
+                () -> new ImmutableClusterStateController(
+                    clusterService,
+                    List.of(new ImmutableClusterSettingsAction(clusterSettings), new TestHandler())
+                )
             ).getMessage().startsWith("Duplicate key cluster_settings")
         );
     }

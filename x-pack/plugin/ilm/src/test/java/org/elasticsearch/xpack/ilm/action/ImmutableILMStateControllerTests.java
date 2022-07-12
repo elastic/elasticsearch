@@ -280,8 +280,10 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
-        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
+        ImmutableClusterStateController controller = new ImmutableClusterStateController(
+            clusterService,
+            List.of(new ImmutableClusterSettingsAction(clusterSettings))
+        );
 
         String testJSON = """
             {
@@ -350,7 +352,8 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        controller.initHandlers(
+        controller = new ImmutableClusterStateController(
+            clusterService,
             List.of(
                 new ImmutableClusterSettingsAction(clusterSettings),
                 new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
@@ -376,8 +379,10 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
-        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
+        ImmutableClusterStateController controller = new ImmutableClusterStateController(
+            clusterService,
+            List.of(new ImmutableClusterSettingsAction(clusterSettings))
+        );
 
         AtomicReference<Exception> x = new AtomicReference<>();
 
@@ -411,7 +416,8 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        controller.initHandlers(
+        controller = new ImmutableClusterStateController(
+            clusterService,
             List.of(
                 new ImmutableClusterSettingsAction(clusterSettings),
                 new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)

@@ -50,7 +50,7 @@ public class ImmutableClusterStateController {
     public static final ParseField STATE_FIELD = new ParseField("state");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
-    Map<String, ImmutableClusterStateHandler<?>> handlers = null;
+    final Map<String, ImmutableClusterStateHandler<?>> handlers;
     final ClusterService clusterService;
     private final ImmutableUpdateStateTaskExecutor updateStateTaskExecutor;
     private final ImmutableUpdateErrorTaskExecutor errorStateTaskExecutor;
@@ -70,10 +70,11 @@ public class ImmutableClusterStateController {
      * Controller class for saving immutable ClusterState.
      * @param clusterService for fetching and saving the modified state
      */
-    public ImmutableClusterStateController(ClusterService clusterService) {
+    public ImmutableClusterStateController(ClusterService clusterService, List<ImmutableClusterStateHandler<?>> handlerList) {
         this.clusterService = clusterService;
         this.updateStateTaskExecutor = new ImmutableUpdateStateTaskExecutor(clusterService.getRerouteService());
         this.errorStateTaskExecutor = new ImmutableUpdateErrorTaskExecutor();
+        this.handlers = handlerList.stream().collect(Collectors.toMap(ImmutableClusterStateHandler::name, Function.identity()));
         packageParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
             if (handlers.containsKey(name) == false) {
                 throw new IllegalStateException("Missing handler definition for content key [" + name + "]");
@@ -82,15 +83,6 @@ public class ImmutableClusterStateController {
             return new Tuple<>(name, handlers.get(name).fromXContent(p));
         }, STATE_FIELD);
         packageParser.declareObject(ConstructingObjectParser.constructorArg(), PackageVersion::parse, METADATA_FIELD);
-    }
-
-    /**
-     * Initializes the controller with the currently implemented state handlers
-     *
-     * @param handlerList the list of supported immutable cluster state handlers
-     */
-    public void initHandlers(List<ImmutableClusterStateHandler<?>> handlerList) {
-        handlers = handlerList.stream().collect(Collectors.toMap(ImmutableClusterStateHandler::name, Function.identity()));
     }
 
     /**

@@ -41,6 +41,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -119,7 +120,8 @@ public class ActionModuleTests extends ESTestCase {
             null,
             usageService,
             null,
-            mock(ClusterService.class)
+            mock(ClusterService.class),
+            Collections.emptyList()
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -176,7 +178,8 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                mock(ClusterService.class)
+                mock(ClusterService.class),
+                Collections.emptyList()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
@@ -226,7 +229,8 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                mock(ClusterService.class)
+                mock(ClusterService.class),
+                Collections.emptyList()
             );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -271,7 +275,8 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     usageService,
                     null,
-                    mock(ClusterService.class)
+                    mock(ClusterService.class),
+                    Collections.emptyList()
                 )
             );
             assertThat(

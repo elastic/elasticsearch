@@ -779,7 +779,8 @@ public class SecurityTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                mock(ClusterService.class)
+                mock(ClusterService.class),
+                Collections.emptyList()
             );
             actionModule.initRestHandlers(null);
 

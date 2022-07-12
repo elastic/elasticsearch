@@ -105,6 +105,9 @@ import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
+import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
@@ -705,6 +708,17 @@ public class Node implements Closeable {
                 )
             ).toList();
 
+            List<ImmutableClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
+
+            // add all reserved state handlers from server
+            reservedStateHandlers.add(new ImmutableClusterSettingsAction(settingsModule.getClusterSettings()));
+
+            // add all reserved state handlers from plugins
+            List<? extends ImmutableClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
+                ImmutableClusterStateHandlerProvider.class
+            );
+            pluginHandlers.forEach(h -> reservedStateHandlers.addAll(h.handlers()));
+
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -717,7 +731,8 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 usageService,
                 systemIndices,
-                clusterService
+                clusterService,
+                reservedStateHandlers
             );
             modules.add(actionModule);
 
@@ -1056,8 +1071,6 @@ public class Node implements Closeable {
 
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
-            logger.debug("initializing operator handlers ...");
-            actionModule.initImmutableClusterStateHandlers(pluginsService);
             logger.info("initialized");
 
             success = true;

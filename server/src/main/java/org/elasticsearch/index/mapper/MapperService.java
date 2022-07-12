@@ -344,25 +344,51 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
             var docMapper = merge(mappingMetadata.type(), mappingMetadata.source(), reason);
-            var mappingSource = upgradeFormats(mappingMetadata, docMapper.mappingSource());
-            if (mappingMetadata.source().equals(mappingSource) == false) {
-                return IndexMetadata.builder(indexMetadata).putMapping(new MappingMetadata(mappingSource)).build();
+            var mappingSource = upgradeFormats(mappingMetadata.type(), mappingMetadata.source(), docMapper.mappingSource());
+            Map<String, Object> origMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
+
+            if (origMap.equals(mappingSource) == false) {
+                return IndexMetadata.builder(indexMetadata).putMapping(new MappingMetadata(mappingMetadata.type(), mappingSource)).build();
             }
         }
         return indexMetadata;
     }
 
     @SuppressWarnings("unchecked")
-    CompressedXContent upgradeFormats(MappingMetadata mappingMetadata, CompressedXContent newMappingSource) {
-        Map<String, Object> sourceMap = mappingMetadata.getSourceAsMap();
-        Map<String, Object> newMap = XContentHelper.convertToMap(newMappingSource.compressedReference(), true).v2();
-
-        Map<String, Object> properties = (Map<String, Object>)sourceMap.get("properties");
-        if (properties != null) {
-            System.out.println(properties);
+    private Map<String, Object> getProperties(Map<String, Object> sourceMap, String type) {
+        Map<String, Object> typeMap = (Map<String, Object>) sourceMap.get(type);
+        if (typeMap == null) {
+            return null;
         }
 
-        return mappingMetadata.source();
+        return (Map<String, Object>) typeMap.get("properties");
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    Map<String, Object> upgradeFormats(String type, CompressedXContent mappingSource, CompressedXContent newMappingSource) {
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(mappingSource.compressedReference(), true).v2();
+        Map<String, Object> newMap = XContentHelper.convertToMap(newMappingSource.compressedReference(), true).v2();
+        
+        Map<String, Object> properties = getProperties(sourceMap, type);
+        Map<String, Object> parsedProperties = getProperties(newMap, type);
+        if (properties != null && parsedProperties != null) {
+            for (var property : properties.entrySet()) {
+                if (property.getValue() instanceof Map map) {
+                    Object format = map.get("format");
+                    if (format != null) {
+                        var newProperty = parsedProperties.get(property.getKey());
+                        if (newProperty instanceof Map parsedMap) {
+                            Object parsedFormat = parsedMap.get("format");
+                            if (parsedFormat != null && parsedFormat.equals(format) == false) {
+                                map.put("format", parsedFormat);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return sourceMap;
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {

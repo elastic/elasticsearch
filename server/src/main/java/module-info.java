@@ -6,8 +6,6 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
-
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
     requires java.logging;
@@ -361,5 +359,5 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
-    uses ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 }

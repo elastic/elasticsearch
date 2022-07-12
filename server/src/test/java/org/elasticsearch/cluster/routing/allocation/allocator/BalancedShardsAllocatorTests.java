@@ -35,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -84,6 +85,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertNotNull(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE",
+        reason = "https://github.com/elastic/elasticsearch/issues/88384"
+    )
     public void testRebalance() {
         var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int node = 0; node < 3; node++) {

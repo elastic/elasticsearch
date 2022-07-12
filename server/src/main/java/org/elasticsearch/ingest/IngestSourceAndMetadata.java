@@ -20,6 +20,7 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -132,7 +133,8 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
      */
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
-        return new EntrySet(source.entrySet(), metadata.keySet());
+        // Make a copy of the Metadata.keySet() to avoid a ConcurrentModificationException when removing a value from the iterator
+        return new EntrySet(source.entrySet(), new HashSet<>(metadata.keySet()));
     }
 
     /**

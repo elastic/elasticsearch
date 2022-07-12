@@ -519,14 +519,10 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeOptionalVInt(queueCapacity);
         out.writeInstant(startTime);
         out.writeList(nodeStats);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            out.writeOptionalEnum(state);
+        if (AssignmentState.FAILED.equals(state) && out.getVersion().before(Version.V_8_4_0)) {
+            out.writeOptionalEnum(AssignmentState.STARTING);
         } else {
-            if (AssignmentState.FAILED.equals(state)) {
-                out.writeOptionalEnum(AssignmentState.STARTING);
-            } else {
-                out.writeOptionalEnum(state);
-            }
+            out.writeOptionalEnum(state);
         }
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(allocationStatus);

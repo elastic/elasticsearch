@@ -443,7 +443,7 @@ public class ApiKeyService {
     // package private for testing
 
     /**
-     * @return `null` if the update is a noop, i.e., if the doc built is identical to `currentApiKeyDoc`
+     * @return `null` if the update is a noop, i.e., if no changes to `currentApiKeyDoc` are required
      */
     XContentBuilder buildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,

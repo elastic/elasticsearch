@@ -1095,7 +1095,8 @@ public class ApiKeyService {
             request,
             userRoleDescriptors
         );
-        if (builder == null) {
+        final boolean isNoop = builder == null;
+        if (isNoop) {
             logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
             listener.onResponse(new UpdateApiKeyResponse(false));
             return;

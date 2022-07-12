@@ -35,7 +35,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -85,11 +84,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertNotNull(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE",
-        reason = "https://github.com/elastic/elasticsearch/issues/88384"
-    )
-    public void testRebalance() {
+    /**
+     * {@see https://github.com/elastic/elasticsearch/issues/88384}
+     */
+    public void testRebalanceImprovesTheBalanceOfTheShards() {
         var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int node = 0; node < 3; node++) {
             discoveryNodesBuilder.add(createNode("node-" + node));
@@ -98,13 +96,13 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
 
-        addIndex(metadataBuilder, routingTableBuilder, "index-0", 10, Map.of("node-0", 4, "node-1", 4, "node-2", 2));
-        addIndex(metadataBuilder, routingTableBuilder, "index-1", 10, Map.of("node-0", 4, "node-1", 4, "node-2", 2));
-        addIndex(metadataBuilder, routingTableBuilder, "index-2", 10, Map.of("node-0", 3, "node-1", 3, "node-2", 4));
-        addIndex(metadataBuilder, routingTableBuilder, "index-3", 10, Map.of("node-0", 3, "node-1", 3, "node-2", 4));
-        addIndex(metadataBuilder, routingTableBuilder, "index-4", 10, Map.of("node-0", 4, "node-1", 3, "node-2", 3));
-        addIndex(metadataBuilder, routingTableBuilder, "index-5", 10, Map.of("node-0", 3, "node-1", 4, "node-2", 3));
-        addIndex(metadataBuilder, routingTableBuilder, "index-6", 10, Map.of("node-0", 3, "node-1", 3, "node-2", 4));
+        addIndex(metadataBuilder, routingTableBuilder, "index-0", Map.of("node-0", 4, "node-1", 4, "node-2", 2));
+        addIndex(metadataBuilder, routingTableBuilder, "index-1", Map.of("node-0", 4, "node-1", 4, "node-2", 2));
+        addIndex(metadataBuilder, routingTableBuilder, "index-2", Map.of("node-0", 3, "node-1", 3, "node-2", 4));
+        addIndex(metadataBuilder, routingTableBuilder, "index-3", Map.of("node-0", 3, "node-1", 3, "node-2", 4));
+        addIndex(metadataBuilder, routingTableBuilder, "index-4", Map.of("node-0", 4, "node-1", 3, "node-2", 3));
+        addIndex(metadataBuilder, routingTableBuilder, "index-5", Map.of("node-0", 3, "node-1", 4, "node-2", 3));
+        addIndex(metadataBuilder, routingTableBuilder, "index-6", Map.of("node-0", 3, "node-1", 3, "node-2", 4));
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)
@@ -158,9 +156,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         Metadata.Builder metadataBuilder,
         RoutingTable.Builder routingTableBuilder,
         String name,
-        int numberOfShards,
         Map<String, Integer> assignments
     ) {
+        var numberOfShards = assignments.entrySet().stream().mapToInt(Map.Entry::getValue).sum();
         var inSyncIds = randomList(numberOfShards, numberOfShards, () -> UUIDs.randomBase64UUID(random()));
         var indexMetadataBuilder = IndexMetadata.builder(name)
             .settings(
@@ -195,7 +193,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 shardId++;
             }
         }
-        assertThat(shardId, equalTo(numberOfShards));
         routingTableBuilder.add(indexRoutingTableBuilder);
     }
 }

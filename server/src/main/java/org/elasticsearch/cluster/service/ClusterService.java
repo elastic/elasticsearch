@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class ClusterService extends AbstractLifecycleComponent {
@@ -55,11 +56,11 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private RerouteService rerouteService;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this(
             settings,
             clusterSettings,
-            new MasterService(settings, clusterSettings, threadPool),
+            new MasterService(settings, clusterSettings, threadPool, taskManager),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -194,10 +195,10 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     public static boolean assertClusterOrMasterStateThread() {
-        assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-            || Thread.currentThread().getName().contains(MasterService.MASTER_UPDATE_THREAD_NAME)
-            : "not called from the master/cluster state update thread";
-        return true;
+        return ThreadPool.assertCurrentThreadPool(
+            ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME,
+            MasterService.MASTER_UPDATE_THREAD_NAME
+        );
     }
 
     public ClusterName getClusterName() {
@@ -262,5 +263,4 @@ public class ClusterService extends AbstractLifecycleComponent {
     ) {
         masterService.submitStateUpdateTask(source, task, config, executor);
     }
-
 }

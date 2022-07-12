@@ -211,7 +211,7 @@ public class ExecutionManager {
             }
         }
 
-        return new SampleIterator(new PITAwareQueryClient(session), criteria, cfg.fetchSize(), limit);
+        return new SampleIterator(new PITAwareQueryClient(session), criteria, cfg.fetchSize(), limit, session.circuitBreaker());
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -102,10 +101,9 @@ public class ClusterStateTests extends ESTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT);
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, ClusterState.Custom> mapBuilder = ImmutableOpenMap.builder();
-        mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, ClusterState.Custom> map = mapBuilder.build();
-        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        final Map<String, ClusterState.Custom> customs = new HashMap<>();
+        customs.put(key, null);
+        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(customs)).getMessage(), containsString(key));
     }
 
     public void testCopyAndUpdate() throws IOException {

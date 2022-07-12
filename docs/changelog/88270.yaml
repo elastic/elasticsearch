@@ -1,0 +1,5 @@
+pr: 88270
+summary: Updatable API keys - REST API spec and tests
+area: Security
+type: enhancement
+issues: []

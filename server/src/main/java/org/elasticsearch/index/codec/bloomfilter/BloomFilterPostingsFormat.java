@@ -110,11 +110,11 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
         return "ESBloomFilterPostingsFormat(" + postingsFormat.getName() + ")";
     }
 
-    private static String metaField(SegmentInfo si, String segmentSuffix) {
+    private static String metaFile(SegmentInfo si, String segmentSuffix) {
         return IndexFileNames.segmentFileName(si.name, segmentSuffix, BLOOM_FILTER_META_FILE);
     }
 
-    private static String indexField(SegmentInfo si, String segmentSuffix) {
+    private static String indexFile(SegmentInfo si, String segmentSuffix) {
         return IndexFileNames.segmentFileName(si.name, segmentSuffix, BLOOM_FILTER_INDEX_FILE);
     }
 
@@ -131,7 +131,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
             try {
                 termsWriter = postingsFormat.fieldsConsumer(state);
                 toCloses.add(termsWriter);
-                indexOut = state.directory.createOutput(indexField(state.segmentInfo, state.segmentSuffix), state.context);
+                indexOut = state.directory.createOutput(indexFile(state.segmentInfo, state.segmentSuffix), state.context);
                 toCloses.add(indexOut);
                 CodecUtil.writeIndexHeader(indexOut, BLOOM_CODEC_NAME, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
                 toCloses.clear();
@@ -181,7 +181,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
             } finally {
                 IOUtils.close(termsWriter, indexOut);
             }
-            try (IndexOutput metaOut = state.directory.createOutput(metaField(state.segmentInfo, state.segmentSuffix), state.context)) {
+            try (IndexOutput metaOut = state.directory.createOutput(metaFile(state.segmentInfo, state.segmentSuffix), state.context)) {
                 CodecUtil.writeIndexHeader(metaOut, BLOOM_CODEC_NAME, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
                 metaOut.writeString(postingsFormat.getName());
                 metaOut.writeVInt(bloomFilters.size());
@@ -208,7 +208,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
             final List<Closeable> toCloses = new ArrayList<>(2);
             try (
                 ChecksumIndexInput metaIn = state.directory.openChecksumInput(
-                    metaField(state.segmentInfo, state.segmentSuffix),
+                    metaFile(state.segmentInfo, state.segmentSuffix),
                     IOContext.READONCE
                 )
             ) {
@@ -235,7 +235,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                 CodecUtil.checkFooter(metaIn);
                 termsReader = postingsFormat.fieldsProducer(state);
                 toCloses.add(this.termsReader);
-                indexIn = state.directory.openInput(indexField(state.segmentInfo, state.segmentSuffix), state.context);
+                indexIn = state.directory.openInput(indexFile(state.segmentInfo, state.segmentSuffix), state.context);
                 toCloses.add(indexIn);
                 CodecUtil.checkIndexHeader(
                     indexIn,

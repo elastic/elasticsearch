@@ -121,7 +121,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(mappedField.isSearchable(), indexed);
     }
 
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+    @Override
+    protected void assertExistsQuery(MappedField field, Query query, LuceneDocument fields) {
         assertThat(query, instanceOf(FieldExistsQuery.class));
         FieldExistsQuery existsQuery = (FieldExistsQuery) query;
         assertEquals("field", existsQuery.getField());

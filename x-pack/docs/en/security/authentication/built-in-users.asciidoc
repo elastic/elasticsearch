@@ -77,24 +77,23 @@ password.
 
 You must set the passwords for all built-in users.
 
-The +elasticsearch-setup-passwords+ tool is the simplest method to set the
+The `elasticsearch-reset-passwords` tool is the simplest method to set the
 built-in users' passwords for the first time. It uses the `elastic` user's
 bootstrap password to run user management API requests. For example, you can run
-the command in an "interactive" mode, which prompts you to enter new passwords
+the command in an interactive mode, which prompts you to enter new passwords
 for the `elastic`, `kibana_system`, `logstash_system`, `beats_system`, `apm_system`,
 and `remote_monitoring_user` users:
 
 [source,shell]
 --------------------------------------------------
-bin/elasticsearch-setup-passwords interactive
+bin/elasticsearch-reset-passwords interactive
 --------------------------------------------------
 
 For more information about the command options, see
-<<setup-passwords,elasticsearch-setup-passwords>>.
+<<reset-password,`elasticsearch-reset-password`>>.
 
 IMPORTANT: After you set a password for the `elastic` user, the bootstrap
-password is no longer valid; you cannot run the `elasticsearch-setup-passwords`
-command a second time.
+password is no longer valid.
 
 Alternatively, you can set the initial passwords for the built-in users by using
 the *Management > Users* page in {kib} or the

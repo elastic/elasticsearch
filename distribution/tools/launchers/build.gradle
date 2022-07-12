@@ -23,15 +23,10 @@ tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles 'jdk-signatures', 'snakeyaml-signatures'
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
-    }
-  }
-}
-
 ["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
   tasks.named(tsk).configure { enabled = false }
+}
+
+tasks.named('testTestingConventions').configure {
+  baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
 }

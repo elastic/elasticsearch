@@ -16,6 +16,11 @@ esplugin {
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 }
 
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.ingest.geoip.AbstractGeoIpIT'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
 dependencies {
   api('com.maxmind.geoip2:geoip2:2.13.1')
   // geoip2 dependencies:

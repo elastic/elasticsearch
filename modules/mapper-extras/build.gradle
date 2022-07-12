@@ -35,3 +35,8 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper',
     'org.elasticsearch.index.mapper.TokenCountFieldMapper'
 }
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.index.mapper.MapperTestCase'
+  baseClass 'org.elasticsearch.test.ESIntegTestCase'
+}

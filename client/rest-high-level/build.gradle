@@ -159,3 +159,13 @@ tasks.named('checkstyleJavaRestTest').configure {
 tasks.named('testingConventions').configure {
   enabled = false
 }
+
+tasks.named('javaRestTestTestingConventions').configure {
+  enabled = false
+}
+
+tasks.named('testTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.ESTestCase'
+  suffix 'IT'
+  suffix 'Tests'
+}

@@ -10,3 +10,7 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.xpack.ESXPackSmokeClientTestCase'
+}

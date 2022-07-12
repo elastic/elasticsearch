@@ -230,6 +230,20 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             super.writeTo(out);
             request.writeTo(out);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new RollupShardTask(
+                id,
+                type,
+                action,
+                parentTaskId,
+                request.rollupRequest.getRollupIndex(),
+                request.rollupRequest.getRollupConfig(),
+                headers,
+                shardId()
+            );
+        }
     }
 
     public static class ShardRollupResponse extends BroadcastShardResponse {

@@ -42,8 +42,11 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -85,11 +88,15 @@ class RollupShardIndexer {
     private final String[] metricFields;
     private final List<FieldValueFetcher> metricFieldFetchers;
 
+    private final AtomicLong numReceived = new AtomicLong();
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
     private final AtomicLong numFailed = new AtomicLong();
 
+    private final RollupShardStatus status;
+
     RollupShardIndexer(
+        RollupShardStatus status,
         Client client,
         IndexService indexService,
         ShardId shardId,
@@ -98,6 +105,7 @@ class RollupShardIndexer {
         String[] dimensionFields,
         String[] metricFields
     ) {
+        this.status = status;
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
         this.config = config;
@@ -105,6 +113,7 @@ class RollupShardIndexer {
         this.dimensionFields = dimensionFields;
         this.metricFields = metricFields;
 
+        this.status.init(numReceived, numSent, numIndexed, numFailed);
         this.searcher = indexShard.acquireSearcher("rollup");
         Closeable toClose = searcher;
         try {
@@ -129,8 +138,18 @@ class RollupShardIndexer {
     public RollupIndexerAction.ShardRollupResponse execute() throws IOException {
         BulkProcessor bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
-            // TODO: add cancellations
-            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
+            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
+                logger.warn(
+                    "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
+                    indexShard.shardId(),
+                    numSent.get(),
+                    numIndexed.get(),
+                    numFailed.get()
+                );
+                if (status.getStatus() == Status.ABORT) {
+                    throw new TaskCancelledException(format("Shard [{}] rollup abort", indexShard.shardId()));
+                }
+            }));
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(new MatchAllDocsQuery(), bucketCollector);
@@ -138,8 +157,9 @@ class RollupShardIndexer {
         }
 
         logger.info(
-            "Shard {} successfully sent [{}], indexed [{}], failed [{}]",
+            "Shard {} successfully sent [{}], received source doc [{}], indexed rollup doc [{}], failed [{}]",
             indexShard.shardId(),
+            numReceived.get(),
             numSent.get(),
             numIndexed.get(),
             numFailed.get()
@@ -229,6 +249,7 @@ class RollupShardIndexer {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
+                    numReceived.incrementAndGet();
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final long timestamp = aggCtx.getTimestamp();
@@ -247,18 +268,16 @@ class RollupShardIndexer {
                      * - _tsid must be sorted in ascending order
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
-                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
-                        : "_tsid is not sorted in ascending order: ["
-                            + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
-                            + "] -> ["
-                            + DocValueFormat.TIME_SERIES_ID.format(tsid)
-                            + "]";
-                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
-                        : "@timestamp is not sorted in descending order: ["
-                            + timestampFormat.format(lastTimestamp)
-                            + "] -> ["
-                            + timestampFormat.format(timestamp)
-                            + "]";
+                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0 : "_tsid is not sorted in ascending order: ["
+                        + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
+                        + "] -> ["
+                        + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                        + "]";
+                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp : "@timestamp is not sorted in descending order: ["
+                        + timestampFormat.format(lastTimestamp)
+                        + "] -> ["
+                        + timestampFormat.format(timestamp)
+                        + "]";
                     lastTsid = BytesRef.deepCopyOf(tsid);
                     lastTimestamp = timestamp;
 

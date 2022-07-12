@@ -32,15 +32,19 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -62,6 +66,10 @@ import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
@@ -70,6 +78,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -333,6 +342,38 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(indices.stream().filter(i -> i.getName().equals(rollupIndex)).toList().isEmpty());
         // Assert that the source index is still a member of the data stream
         assertFalse(indices.stream().filter(i -> i.getName().equals(sourceIndex)).toList().isEmpty());
+    }
+
+    public void testCancelRollupIndexer() throws IOException {
+        // create rollup config and index documents into source index
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", randomDateForInterval(config.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(index);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        IndexShard shard = indexService.getShard(0);
+
+        // re-use source index as temp index for test
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            new RollupShardStatus(shard.shardId()),
+            client(),
+            indexService,
+            shard.shardId(),
+            config,
+            rollupIndex
+        );
+        indexer.status.setStatus(Status.ABORT);
+        {
+            ExecutionCancelledException exception = expectThrows(ExecutionCancelledException.class, () -> indexer.execute());
+            assertThat(exception.getMessage(), containsString("rollup cancelled"));
+        }
     }
 
     private DateHistogramInterval randomInterval() {

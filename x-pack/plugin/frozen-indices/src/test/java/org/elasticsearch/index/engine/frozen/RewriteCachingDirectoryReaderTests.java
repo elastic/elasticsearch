@@ -97,9 +97,10 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                 writer.addDocument(doc);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
-                    DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType("test");
+                    DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType();
                     QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> 0);
                     MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(
+                        "test",
                         cachingDirectoryReader,
                         0,
                         10,
@@ -111,10 +112,12 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                     );
                     assertEquals(relation, MappedFieldType.Relation.WITHIN);
 
-                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 3, 11, true, true, ZoneOffset.UTC, null, context);
+                    relation = dateFieldType.isFieldWithinQuery("test", cachingDirectoryReader, 3, 11, true, true, ZoneOffset.UTC,
+                        null, context);
                     assertEquals(relation, MappedFieldType.Relation.INTERSECTS);
 
-                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 10, 11, false, true, ZoneOffset.UTC, null, context);
+                    relation = dateFieldType.isFieldWithinQuery("test", cachingDirectoryReader, 10, 11, false, true, ZoneOffset.UTC,
+                        null, context);
                     assertEquals(relation, MappedFieldType.Relation.DISJOINT);
                 }
             }

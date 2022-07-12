@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -26,7 +26,7 @@ import java.util.Map;
 
 public class CategorizeTextAggregatorFactory extends AggregatorFactory {
 
-    private final MappedFieldType fieldType;
+    private final MappedField mappedField;
     private final int similarityThreshold;
     private final CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -43,7 +43,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
-        this.fieldType = context.getMappedField(fieldName);
+        this.mappedField = context.getMappedField(fieldName);
         this.similarityThreshold = similarityThreshold;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -68,7 +68,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        if (fieldType == null) {
+        if (mappedField == null) {
             return createUnmapped(parent, metadata);
         }
         // Most of the text and keyword family of fields use a bespoke TextSearchInfo that doesn't match any
@@ -78,16 +78,16 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         // a new field type via a plugin that also creates a bespoke TextSearchInfo member - it will just get
         // converted to a string and then likely the analyzer won't create any tokens, so the categorizer
         // will see an empty token list.)
-        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE
-            || (fieldType.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS
-                && fieldType instanceof KeywordScriptFieldType == false)) {
+        if (mappedField.getTextSearchInfo() == TextSearchInfo.NONE
+            || (mappedField.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS
+                && mappedField.type() instanceof KeywordScriptFieldType == false)) {
             throw new IllegalArgumentException(
                 "categorize_text agg ["
                     + name
                     + "] only works on text and keyword fields. Cannot aggregate field type ["
-                    + fieldType.name()
+                    + mappedField.name()
                     + "] via ["
-                    + fieldType.getClass().getSimpleName()
+                    + mappedField.getClass().getSimpleName()
                     + "]"
             );
         }
@@ -106,8 +106,8 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             factories,
             context,
             parent,
-            fieldType.name(),
-            fieldType,
+            mappedField.name(),
+            mappedField,
             bucketCountThresholds,
             similarityThreshold,
             categorizationAnalyzerConfig,

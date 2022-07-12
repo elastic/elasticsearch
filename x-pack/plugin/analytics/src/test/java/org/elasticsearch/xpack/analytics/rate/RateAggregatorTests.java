@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -157,8 +157,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesMonthToMonthValueCount() throws IOException {
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField mappedField = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .field("val")
             .rateMode("value_count");
@@ -177,7 +177,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
-        }, dateType, numType);
+        }, dateType, mappedField);
     }
 
     public void testDocValuesMonthToMonthDefaultRate() throws IOException {
@@ -280,8 +280,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoWrapping() {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField mappedField = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("day");
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -289,7 +289,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
                 iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
                 iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-            }, h -> { fail("Shouldn't be here"); }, dateType, numType)
+            }, h -> { fail("Shouldn't be here"); }, dateType, mappedField)
         );
         assertEquals(
             "The rate aggregation can only be used inside a date histogram aggregation or "
@@ -299,8 +299,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testCompositeAggregationWithNoDateHistogramValueSources() {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField mappedField = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("day");
         List<CompositeValuesSourceBuilder<?>> valuesSourceBuilders = randomBoolean()
             ? Collections.singletonList(new HistogramValuesSourceBuilder("histo").field("val"))
@@ -318,7 +318,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
                 iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
                 iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-            }, h -> fail("Shouldn't be here"), dateType, numType)
+            }, h -> fail("Shouldn't be here"), dateType, mappedField)
         );
         assertEquals(
             ex.getMessage(),
@@ -328,8 +328,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDoubleWrapping() throws IOException {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField mappedField = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
             rateAggregationBuilder.rateMode("sum");
@@ -357,13 +357,13 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(dh2.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(2.0, 0.000001));
             assertThat(((InternalRate) dh2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(7.0, 0.000001));
-        }, dateType, numType);
+        }, dateType, mappedField);
     }
 
     public void testKeywordSandwich() throws IOException {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField keywordType = new MappedField("term", new KeywordFieldMapper.KeywordFieldType());
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
             rateAggregationBuilder.rateMode("sum");
@@ -421,9 +421,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWithComposite() throws IOException {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField keywordType = new MappedField("term", new KeywordFieldMapper.KeywordFieldType());
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
             rateAggregationBuilder.rateMode("sum");
@@ -501,9 +501,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
             histogram = randomFrom("second", "minute", "day", "week");
         }
 
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField keywordType = new MappedField("term", new KeywordFieldMapper.KeywordFieldType());
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit(rate).field("val");
         if (randomBoolean()) {
             rateAggregationBuilder.rateMode("sum");
@@ -573,9 +573,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testKeywordSandwichWithSorting() throws IOException {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField keywordType = new MappedField("term", new KeywordFieldMapper.KeywordFieldType());
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("week").field("val");
         boolean useSum = randomBoolean();
         if (useSum) {
@@ -667,9 +667,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFilter() throws IOException {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField keywordType = new MappedField("term", new KeywordFieldMapper.KeywordFieldType());
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
             rateAggregationBuilder.rateMode("sum");
@@ -692,8 +692,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFormatter() throws IOException {
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .field("val")
             .format("00.0/M");
@@ -719,8 +719,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonth() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField histType = new MappedField("val", new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
             rateAggregationBuilder.rateMode("sum");
@@ -742,8 +742,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYear() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField histType = new MappedField("val", new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
             rateAggregationBuilder.rateMode("sum");
@@ -762,8 +762,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonthValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField histType = new MappedField("val", new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
             .field("val");
@@ -784,8 +784,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYearValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedField histType = new MappedField("val", new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+        MappedField dateType = dateField(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
             .field("val");
@@ -805,9 +805,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFilterWithHistogramField() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        MappedField histType = new MappedField("val", new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField keywordType = new MappedField("term", new KeywordFieldMapper.KeywordFieldType());
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
 
         AbstractAggregationBuilder<?> dateHistogramAggregationBuilder = randomValidMultiBucketAggBuilder(
@@ -837,8 +837,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testModeWithoutField() {
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").rateMode("sum");
 
         AbstractAggregationBuilder<?> dateHistogramAggregationBuilder = randomValidMultiBucketAggBuilder(
@@ -894,8 +894,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalDateHistogram> verify
     ) throws IOException {
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        MappedField dateType = dateField(DATE_FIELD);
+        MappedField numType = new MappedField("val", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate");
         if (unit != null) {
             rateAggregationBuilder.rateUnit(unit);
@@ -923,9 +923,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new AnalyticsPlugin());
     }
 
-    private DateFieldMapper.DateFieldType dateFieldType(String name) {
-        return new DateFieldMapper.DateFieldType(
-            name,
+    private MappedField dateField(String name) {
+        return new MappedField(name, new DateFieldMapper.DateFieldType(
             true,
             false,
             true,
@@ -934,12 +933,12 @@ public class RateAggregatorTests extends AggregatorTestCase {
             null,
             null,
             Collections.emptyMap()
-        );
+        ));
     }
 
     private Iterable<IndexableField> doc(String date, IndexableField... fields) {
         List<IndexableField> indexableFields = new ArrayList<>();
-        long instant = dateFieldType(DATE_FIELD).parse(date);
+        long instant = ((DateFieldMapper.DateFieldType) dateField(DATE_FIELD).type()).parse(date);
         indexableFields.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
         indexableFields.add(new LongPoint(DATE_FIELD, instant));
         indexableFields.addAll(Arrays.asList(fields));

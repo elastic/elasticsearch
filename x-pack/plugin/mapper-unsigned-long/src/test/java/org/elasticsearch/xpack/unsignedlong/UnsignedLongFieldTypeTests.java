@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType;
 
@@ -26,36 +26,36 @@ import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.Unsig
 public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
-        UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long");
+        UnsignedLongFieldType ft = new UnsignedLongFieldType();
 
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", -9223372036854775808L), ft.termQuery(0, null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("9223372036854775808", null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L), ft.termQuery("18446744073709551615", null));
+        assertEquals(LongPoint.newExactQuery("my_unsigned_long", -9223372036854775808L), ft.termQuery("my_unsigned_long", 0, null));
+        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("my_unsigned_long","9223372036854775808", null));
+        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L),
+            ft.termQuery("my_unsigned_long", "18446744073709551615", null));
 
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery(-1L, null));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery(10.5, null));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("18446744073709551616", null));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("my_unsigned_long", -1L, null));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("my_unsigned_long", 10.5, null));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("my_unsigned_long", "18446744073709551616", null));
 
-        expectThrows(NumberFormatException.class, () -> ft.termQuery("18incorrectnumber", null));
+        expectThrows(NumberFormatException.class, () -> ft.termQuery("my_unsigned_long", "18incorrectnumber", null));
     }
 
     public void testTermsQuery() {
-        UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long");
+        UnsignedLongFieldType ft = new UnsignedLongFieldType();
 
         assertEquals(
             LongPoint.newSetQuery("my_unsigned_long", -9223372036854775808L, 0L, 9223372036854775807L),
-            ft.termsQuery(List.of("0", "9223372036854775808", "18446744073709551615"), null)
+            ft.termsQuery("my_unsigned_long", List.of("0", "9223372036854775808", "18446744073709551615"), null)
         );
 
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of(-9223372036854775808L, -1L), null));
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of("-0.5", "3.14", "18446744073709551616"), null));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery("my_unsigned_long", List.of(-9223372036854775808L, -1L), null));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery("my_unsigned_long", List.of("-0.5", "3.14", "18446744073709551616"), null));
 
-        expectThrows(NumberFormatException.class, () -> ft.termsQuery(List.of("18incorrectnumber"), null));
+        expectThrows(NumberFormatException.class, () -> ft.termsQuery("my_unsigned_long", List.of("18incorrectnumber"), null));
     }
 
     public void testRangeQuery() {
         UnsignedLongFieldType ft = new UnsignedLongFieldType(
-            "my_unsigned_long",
             true,
             false,
             false,
@@ -67,33 +67,40 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
-            ft.rangeQuery(-1L, 0L, true, true, null)
+            ft.rangeQuery("my_unsigned_long", -1L, 0L, true, true, null)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
-            ft.rangeQuery(0.0, 0.5, true, true, null)
+            ft.rangeQuery("my_unsigned_long", 0.0, 0.5, true, true, null)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", 0, 0),
-            ft.rangeQuery("9223372036854775807", "9223372036854775808", false, true, null)
+            ft.rangeQuery("my_unsigned_long", "9223372036854775807", "9223372036854775808", false, true, null)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, 9223372036854775806L),
-            ft.rangeQuery(null, "18446744073709551614.5", true, true, null)
+            ft.rangeQuery("my_unsigned_long", null, "18446744073709551614.5", true, true, null)
         );
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775807L),
-            ft.rangeQuery("18446744073709551615", "18446744073709551616", true, true, null)
+            ft.rangeQuery("my_unsigned_long", "18446744073709551615", "18446744073709551616", true, true, null)
         );
 
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(-1f, -0.5f, true, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(-1L, 0L, true, false, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("18446744073709551616", "18446744073709551616", true, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("18446744073709551615", "18446744073709551616", false, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
+        assertEquals(new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", -1f, -0.5f, true, true, null));
+        assertEquals(new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", -1L, 0L, true, false, null));
+        assertEquals(new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775806L, true, true, null));
+        assertEquals(new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", "18446744073709551616", "18446744073709551616", true, true, null));
+        assertEquals(new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", "18446744073709551615", "18446744073709551616", false, true, null));
+        assertEquals(new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775806L, true, true, null));
 
-        expectThrows(NumberFormatException.class, () -> ft.rangeQuery("18incorrectnumber", "18incorrectnumber", true, true, null));
+        expectThrows(NumberFormatException.class,
+            () -> ft.rangeQuery("my_unsigned_long", "18incorrectnumber", "18incorrectnumber", true, true, null));
     }
 
     public void testParseTermForTermQuery() {
@@ -166,15 +173,15 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new UnsignedLongFieldMapper.Builder("field", false).build(MapperBuilderContext.ROOT).fieldType();
+        MappedField mapper = new UnsignedLongFieldMapper.Builder("field", false).build(MapperBuilderContext.ROOT).field();
         assertEquals(List.of(0L), fetchSourceValue(mapper, 0L));
         assertEquals(List.of(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
         assertEquals(List.of(), fetchSourceValue(mapper, ""));
 
-        MappedFieldType nullValueMapper = new UnsignedLongFieldMapper.Builder("field", false).nullValue("18446744073709551615")
+        MappedField nullValueMapper = new UnsignedLongFieldMapper.Builder("field", false).nullValue("18446744073709551615")
             .build(MapperBuilderContext.ROOT)
-            .fieldType();
+            .field();
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
     }
 }

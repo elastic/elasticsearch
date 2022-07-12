@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -69,8 +69,8 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
     protected void doAssertLuceneQuery(GeoShapeQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(true, equalTo(query instanceof ConstantScoreQuery));
         Query geoShapeQuery = ((ConstantScoreQuery) query).getQuery();
-        MappedFieldType fieldType = context.getMappedField("test");
-        boolean IndexOrDocValuesQuery = fieldType.hasDocValues();
+        MappedField mappedField = context.getMappedField("test");
+        boolean IndexOrDocValuesQuery = mappedField.hasDocValues();
         assertThat(IndexOrDocValuesQuery, equalTo(geoShapeQuery instanceof IndexOrDocValuesQuery));
     }
 

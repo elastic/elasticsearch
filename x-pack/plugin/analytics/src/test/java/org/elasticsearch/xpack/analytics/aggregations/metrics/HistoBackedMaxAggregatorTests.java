@@ -14,7 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -110,7 +110,7 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Max> verify) throws IOException {
-        testCase(max("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
+        testCase(max("_name").field(FIELD_NAME), query, indexer, verify, defaultField());
     }
 
     @Override
@@ -130,11 +130,12 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new MaxAggregationBuilder("_name").field(fieldName);
     }
 
-    private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType(HistoBackedMaxAggregatorTests.FIELD_NAME, Collections.emptyMap(), null);
+    private MappedField defaultField() {
+        return new MappedField(HistoBackedMaxAggregatorTests.FIELD_NAME,
+            new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
     }
 }

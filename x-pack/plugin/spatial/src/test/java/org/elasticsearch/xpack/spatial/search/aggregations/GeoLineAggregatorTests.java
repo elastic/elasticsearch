@@ -26,7 +26,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -373,17 +373,18 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         try {
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("value_field");
-            MappedFieldType groupFieldType = new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap());
-            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", fieldNumberType);
+            MappedField field = new MappedField("value_field", new GeoPointFieldMapper.GeoPointFieldType());
+            MappedField groupField = new MappedField("group_id",
+                new KeywordFieldMapper.KeywordFieldType(false, true, Collections.emptyMap()));
+            MappedField field2 = new MappedField("sort_field", new NumberFieldMapper.NumberFieldType(fieldNumberType));
 
             Terms terms = searchAndReduce(
                 indexSearcher,
                 new MatchAllDocsQuery(),
                 aggregationBuilder,
-                fieldType,
-                fieldType2,
-                groupFieldType
+                field,
+                field2,
+                groupField
             );
             verify.accept(terms);
         } finally {

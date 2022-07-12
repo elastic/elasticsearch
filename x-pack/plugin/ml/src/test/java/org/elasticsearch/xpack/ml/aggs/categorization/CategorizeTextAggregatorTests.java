@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -72,7 +73,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                     equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
                 );
             },
-            new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME),
+            new MappedField(TEXT_FIELD_NAME, new TextFieldMapper.TextFieldType()),
             longField(NUMERIC_FIELD_NAME)
         );
     }
@@ -104,7 +105,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 assertThat(((Min) result.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(0.0));
                 assertThat(((Avg) result.getBuckets().get(1).getAggregations().get("avg")).getValue(), equalTo(2.0));
             },
-            new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME),
+            new MappedField(TEXT_FIELD_NAME, new TextFieldMapper.TextFieldType()),
             longField(NUMERIC_FIELD_NAME)
         );
     }
@@ -153,7 +154,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 assertThat(((Avg) histo.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(0.0));
                 assertThat(((Avg) histo.getBuckets().get(2).getAggregations().get("avg")).getValue(), equalTo(4.0));
             },
-            new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME),
+            new MappedField(TEXT_FIELD_NAME, new TextFieldMapper.TextFieldType()),
             longField(NUMERIC_FIELD_NAME)
         );
     }
@@ -218,7 +219,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(((Max) categorizationAggregation.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(4.0));
             assertThat(((Min) categorizationAggregation.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(4.0));
             assertThat(((Avg) categorizationAggregation.getBuckets().get(1).getAggregations().get("avg")).getValue(), equalTo(4.0));
-        }, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME));
+        }, new MappedField(TEXT_FIELD_NAME, new TextFieldMapper.TextFieldType()), longField(NUMERIC_FIELD_NAME));
     }
 
     public void testCategorizationWithSubAggsManyDocs() throws Exception {
@@ -265,7 +266,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 assertThat(((Avg) histo.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(0.0));
                 assertThat(((Avg) histo.getBuckets().get(2).getAggregations().get("avg")).getValue(), equalTo(4.0));
             },
-            new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME),
+            new MappedField(TEXT_FIELD_NAME, new TextFieldMapper.TextFieldType()),
             longField(NUMERIC_FIELD_NAME)
         );
     }

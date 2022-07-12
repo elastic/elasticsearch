@@ -627,7 +627,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
             () -> geoShapeFieldMapper.fieldType()
-                .geoShapeQuery(searchExecutionContext, "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, new Point(-10, 10))
+                .geoShapeQuery("field", searchExecutionContext, "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS,
+                    new Point(-10, 10))
         );
         assertEquals(
             "[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " + "'search.allow_expensive_queries' is set to false.",

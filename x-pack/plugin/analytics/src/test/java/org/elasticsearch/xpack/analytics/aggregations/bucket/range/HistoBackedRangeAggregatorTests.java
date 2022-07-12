@@ -14,7 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -71,13 +71,13 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                         searcher,
                         new MatchAllDocsQuery(),
                         rawPercentiles,
-                        defaultFieldType(RAW_FIELD_NAME)
+                        defaultField(RAW_FIELD_NAME)
                     );
                     Percentiles aggregatedPercentileResults = searchAndReduce(
                         searcher,
                         new MatchAllDocsQuery(),
                         aggregatedPercentiles,
-                        defaultFieldType(HISTO_FIELD_NAME)
+                        defaultField(HISTO_FIELD_NAME)
                     );
                     aggBuilder.addUnboundedTo(aggregatedPercentileResults.percentile(steps[0]));
                     rawFieldAgg.addUnboundedTo(rawPercentileResults.percentile(steps[0]));
@@ -96,13 +96,13 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                         searcher,
                         new MatchAllDocsQuery(),
                         aggBuilder,
-                        defaultFieldType(HISTO_FIELD_NAME)
+                        defaultField(HISTO_FIELD_NAME)
                     );
                     InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> rawRange = searchAndReduce(
                         searcher,
                         new MatchAllDocsQuery(),
                         rawFieldAgg,
-                        defaultFieldType(RAW_FIELD_NAME)
+                        defaultField(RAW_FIELD_NAME)
                     );
                     for (int j = 0; j < rawRange.getBuckets().size(); j++) {
                         absError += Math.abs(range.getBuckets().get(j).getDocCount() - rawRange.getBuckets().get(j).getDocCount());
@@ -188,13 +188,13 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                         searcher,
                         new MatchAllDocsQuery(),
                         aggBuilder,
-                        defaultFieldType(HISTO_FIELD_NAME)
+                        defaultField(HISTO_FIELD_NAME)
                     );
                     InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> rawRange = searchAndReduce(
                         searcher,
                         new MatchAllDocsQuery(),
                         rawFieldAgg,
-                        defaultFieldType(RAW_FIELD_NAME)
+                        defaultField(RAW_FIELD_NAME)
                     );
                     for (int j = 0; j < rawRange.getBuckets().size(); j++) {
                         absError += Math.abs(range.getBuckets().get(j).getDocCount() - rawRange.getBuckets().get(j).getDocCount());
@@ -241,7 +241,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                     searcher,
                     new MatchAllDocsQuery(),
                     aggBuilder,
-                    defaultFieldType(HISTO_FIELD_NAME)
+                    defaultField(HISTO_FIELD_NAME)
                 );
                 assertTrue(AggregationInspectionHelper.hasValue(range));
                 assertEquals(7, range.getBuckets().size());
@@ -303,7 +303,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                     searcher,
                     new MatchAllDocsQuery(),
                     aggBuilder,
-                    defaultFieldType(HISTO_FIELD_NAME)
+                    defaultField(HISTO_FIELD_NAME)
                 );
                 assertTrue(AggregationInspectionHelper.hasValue(range));
                 assertEquals(4, range.getBuckets().size());
@@ -336,7 +336,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(HISTO_FIELD_NAME))
+                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultField(HISTO_FIELD_NAME))
                 );
                 assertEquals("Range aggregation on histogram fields does not support sub-aggregations", e.getMessage());
             }
@@ -367,15 +367,15 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new RangeAggregationBuilder("_name").field(fieldName);
     }
 
-    private MappedFieldType defaultFieldType(String fieldName) {
+    private MappedField defaultField(String fieldName) {
         if (fieldName.equals(HISTO_FIELD_NAME)) {
-            return new HistogramFieldMapper.HistogramFieldType(fieldName, Collections.emptyMap(), null);
+            return new MappedField(fieldName, new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
         } else {
-            return new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.DOUBLE);
+            return new MappedField(fieldName, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
         }
     }
 }

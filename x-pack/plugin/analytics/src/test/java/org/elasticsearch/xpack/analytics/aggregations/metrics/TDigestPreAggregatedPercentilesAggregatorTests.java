@@ -15,7 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -47,7 +47,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new PercentilesAggregationBuilder("tdigest_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
     }
 
@@ -130,8 +130,9 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
                 PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number")
                     .method(PercentilesMethod.TDIGEST);
 
-                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
-                Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
+                MappedField mappedField = new MappedField("number",
+                    new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+                Aggregator aggregator = createAggregator(builder, indexSearcher, mappedField);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();

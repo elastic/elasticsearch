@@ -19,6 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.Defaults;
@@ -51,32 +52,31 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
     private static SearchAsYouTypeFieldType createFieldType() {
         final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(
-            NAME,
             SEARCHABLE,
             null,
             Lucene.STANDARD_ANALYZER,
             Lucene.STANDARD_ANALYZER,
             Collections.emptyMap()
         );
-        fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
-        fieldType.setShingleFields(new ShingleFieldType[] { new ShingleFieldType(fieldType.name(), 2, TextSearchInfo.SIMPLE_MATCH_ONLY) });
+        fieldType.setPrefixField(PrefixFieldType.newMappedField(NAME,
+            new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM)));
+        fieldType.setShingleFields(new MappedField[] { new MappedField(NAME, new ShingleFieldType(2, TextSearchInfo.SIMPLE_MATCH_ONLY)) });
         return fieldType;
     }
 
     public void testTermQuery() {
         final MappedFieldType fieldType = createFieldType();
 
-        assertThat(fieldType.termQuery("foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
+        assertThat(fieldType.termQuery(NAME,"foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
 
         SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(
-            NAME,
             UNSEARCHABLE,
             null,
             Lucene.STANDARD_ANALYZER,
             Lucene.STANDARD_ANALYZER,
             Collections.emptyMap()
         );
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("foo", null));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(NAME,"foo", null));
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
 
@@ -84,12 +84,11 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType fieldType = createFieldType();
 
         assertThat(
-            fieldType.termsQuery(asList("foo", "bar"), null),
+            fieldType.termsQuery(NAME, asList("foo", "bar"), null),
             equalTo(new TermInSetQuery(NAME, asList(new BytesRef("foo"), new BytesRef("bar"))))
         );
 
         SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(
-            NAME,
             UNSEARCHABLE,
             null,
             Lucene.STANDARD_ANALYZER,
@@ -98,7 +97,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(asList("foo", "bar"), null)
+            () -> unsearchable.termsQuery(NAME, asList("foo", "bar"), null)
         );
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
@@ -109,7 +108,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
         assertThat(
-            fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
+            fieldType.prefixQuery(NAME, withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
             equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm))))
         );
 
@@ -118,13 +117,13 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         // this term should be too long to be rewriteable to a term query on the prefix field
         final String longTerm = "toolongforourprefixfieldthistermis";
         assertThat(
-            fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
+            fieldType.prefixQuery(NAME, longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
             equalTo(new PrefixQuery(new Term(NAME, longTerm)))
         );
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> fieldType.prefixQuery(NAME, longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "
@@ -134,27 +133,26 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        SearchAsYouTypeFieldType fieldType = createFieldType();
+        MappedField mappedField = new MappedField(NAME, createFieldType());
 
-        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(mappedField, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mappedField, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mappedField, true));
 
-        SearchAsYouTypeFieldMapper.PrefixFieldType prefixFieldType = new SearchAsYouTypeFieldMapper.PrefixFieldType(
-            fieldType.name(),
-            fieldType.getTextSearchInfo(),
+        MappedField prefixField = PrefixFieldType.newMappedField(mappedField.name(), new SearchAsYouTypeFieldMapper.PrefixFieldType(
+            mappedField.name(),
+            mappedField.getTextSearchInfo(),
             2,
             10
-        );
-        assertEquals(List.of("value"), fetchSourceValue(prefixFieldType, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(prefixFieldType, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(prefixFieldType, true));
+        ));
+        assertEquals(List.of("value"), fetchSourceValue(prefixField, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(prefixField, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(prefixField, true));
 
-        SearchAsYouTypeFieldMapper.ShingleFieldType shingleFieldType = new SearchAsYouTypeFieldMapper.ShingleFieldType(
-            fieldType.name(),
+        MappedField shingleFieldType = new MappedField(mappedField.name(), new SearchAsYouTypeFieldMapper.ShingleFieldType(
             5,
-            fieldType.getTextSearchInfo()
-        );
+            mappedField.getTextSearchInfo()
+        ));
         assertEquals(List.of("value"), fetchSourceValue(shingleFieldType, "value"));
         assertEquals(List.of("42"), fetchSourceValue(shingleFieldType, 42L));
         assertEquals(List.of("true"), fetchSourceValue(shingleFieldType, true));

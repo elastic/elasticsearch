@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -294,8 +295,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.mappedField("field");
-        assertNull(ft.getMetricType());
+        MappedField mappedField = mapperService.mappedField("field");
+        assertNull(mappedField.getMetricType());
 
         assertMetricType("gauge", ScaledFloatFieldMapper.ScaledFloatFieldType::getMetricType);
         assertMetricType("counter", ScaledFloatFieldMapper.ScaledFloatFieldType::getMetricType);

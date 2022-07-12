@@ -25,6 +25,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.IngestDocument;
@@ -217,7 +218,6 @@ public class CircleProcessorTests extends ESTestCase {
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
         GeoShapeWithDocValuesFieldType shapeType = new GeoShapeWithDocValuesFieldType(
-            fieldName,
             true,
             false,
             Orientation.RIGHT,
@@ -225,11 +225,13 @@ public class CircleProcessorTests extends ESTestCase {
             null,
             Collections.emptyMap()
         );
+        MappedField mappedField = new MappedField(fieldName, shapeType);
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
-        when(mockedContext.getMappedField(any())).thenReturn(shapeType);
-        Query sameShapeQuery = shapeType.geoShapeQuery(mockedContext, fieldName, ShapeRelation.INTERSECTS, geometry);
+        when(mockedContext.getMappedField(any())).thenReturn(mappedField);
+        Query sameShapeQuery = shapeType.geoShapeQuery(fieldName, mockedContext, fieldName, ShapeRelation.INTERSECTS, geometry);
         Query pointOnDatelineQuery = shapeType.geoShapeQuery(
+            fieldName,
             mockedContext,
             fieldName,
             ShapeRelation.INTERSECTS,
@@ -258,11 +260,12 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, Orientation.RIGHT, null, Collections.emptyMap());
+        MappedFieldType shapeType = new ShapeFieldType(true, Orientation.RIGHT, null, Collections.emptyMap());
+        MappedField mappedField = new MappedField(fieldName, shapeType);
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
-        when(mockedContext.getMappedField(any())).thenReturn(shapeType);
+        when(mockedContext.getMappedField(any())).thenReturn(mappedField);
         Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
         Query centerPointQuery = processor.shapeQuery(
             new Point(circle.getLon(), circle.getLat()),

@@ -38,7 +38,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -349,9 +349,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     null,
                     Collections.emptyMap()
                 );
-                final MappedFieldType mappedFieldType = indexShard.mapperService().mappedField(request.field());
-                if (mappedFieldType != null) {
-                    TermsEnum terms = mappedFieldType.getTerms(
+                final MappedField mappedField = indexShard.mapperService().mappedField(request.field());
+                if (mappedField != null) {
+                    TermsEnum terms = mappedField.getTerms(
                         request.caseInsensitive(),
                         request.string() == null ? "" : request.string(),
                         queryShardContext,

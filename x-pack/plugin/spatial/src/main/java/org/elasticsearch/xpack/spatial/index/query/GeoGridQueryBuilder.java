@@ -22,7 +22,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -51,13 +51,14 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
             private static final String name = "geohash";
 
             @Override
-            protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
-                if (fieldType instanceof GeoShapeQueryable geoShapeQueryable) {
-                    return geoShapeQueryable.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, getQueryHash(id));
+            protected Query toQuery(SearchExecutionContext context, String fieldName, MappedField mappedField, String id) {
+                if (mappedField.type() instanceof GeoShapeQueryable geoShapeQueryable) {
+                    return geoShapeQueryable.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS,
+                        getQueryHash(id));
                 }
                 throw new QueryShardException(
                     context,
-                    "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                    "Field [" + fieldName + "] is of unsupported type [" + mappedField.typeName() + "] for [" + NAME + "] query"
                 );
             }
 
@@ -76,13 +77,14 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
             private static final String name = "geotile";
 
             @Override
-            protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
-                if (fieldType instanceof GeoShapeQueryable geoShapeQueryable) {
-                    return geoShapeQueryable.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, getQueryTile(id));
+            protected Query toQuery(SearchExecutionContext context, String fieldName, MappedField mappedField, String id) {
+                if (mappedField.type() instanceof GeoShapeQueryable geoShapeQueryable) {
+                    return geoShapeQueryable.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS,
+                        getQueryTile(id));
                 }
                 throw new QueryShardException(
                     context,
-                    "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                    "Field [" + fieldName + "] is of unsupported type [" + mappedField.typeName() + "] for [" + NAME + "] query"
                 );
             }
 
@@ -101,16 +103,16 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
             private static final String name = "geohex";
 
             @Override
-            protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
+            protected Query toQuery(SearchExecutionContext context, String fieldName, MappedField mappedField, String id) {
                 H3LatLonGeometry geometry = new H3LatLonGeometry(id);
-                if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
-                    return pointFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
-                } else if (fieldType instanceof GeoPointScriptFieldType scriptType) {
-                    return scriptType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                if (mappedField.type() instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
+                    return pointFieldType.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS, geometry);
+                } else if (mappedField.type() instanceof GeoPointScriptFieldType scriptType) {
+                    return scriptType.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS, geometry);
                 }
                 throw new QueryShardException(
                     context,
-                    "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                    "Field [" + fieldName + "] is of unsupported type [" + mappedField.typeName() + "] for [" + NAME + "] query"
                 );
             }
 
@@ -133,7 +135,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
             }
         };
 
-        protected abstract Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id);
+        protected abstract Query toQuery(SearchExecutionContext context, String fieldName, MappedField mappedField, String id);
 
         protected abstract String getName();
 
@@ -263,15 +265,15 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
     @Override
     public Query doToQuery(SearchExecutionContext context) {
-        MappedFieldType fieldType = context.getMappedField(fieldName);
-        if (fieldType == null) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
-        return grid.toQuery(context, fieldName, fieldType, gridId);
+        return grid.toQuery(context, fieldName, mappedField, gridId);
     }
 
     @Override

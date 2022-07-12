@@ -27,7 +27,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -77,8 +77,8 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public static final String KEYWORD_FIELD = "kVal";
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        logger.info(fieldType);
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
+        logger.info(mappedField);
         return new MultiTermsAggregationBuilder("my_terms").terms(
             List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName).build(),
@@ -614,10 +614,10 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalMultiTerms> verify
     ) throws IOException {
-        MappedFieldType dateType = dateFieldType(DATE_FIELD);
-        MappedFieldType intType = new NumberFieldMapper.NumberFieldType(INT_FIELD, NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType floatType = new NumberFieldMapper.NumberFieldType(FLOAT_FIELD, NumberFieldMapper.NumberType.FLOAT);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD);
+        MappedField dateType = dateFieldType(DATE_FIELD);
+        MappedField intType = new MappedField(INT_FIELD, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField floatType = new MappedField(FLOAT_FIELD, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.FLOAT));
+        MappedField keywordType = new MappedField(KEYWORD_FIELD, new KeywordFieldMapper.KeywordFieldType());
         MultiTermsAggregationBuilder builder = new MultiTermsAggregationBuilder("my_terms");
         builder.terms(terms);
         if (builderSetup != null) {
@@ -642,9 +642,8 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new AnalyticsPlugin());
     }
 
-    private DateFieldMapper.DateFieldType dateFieldType(String name) {
-        return new DateFieldMapper.DateFieldType(
-            name,
+    private MappedField dateFieldType(String name) {
+        return new MappedField(name, new DateFieldMapper.DateFieldType(
             true,
             false,
             true,
@@ -653,12 +652,12 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             null,
             null,
             Collections.emptyMap()
-        );
+        ));
     }
 
     private Iterable<IndexableField> docWithDate(String date, IndexableField... fields) {
         List<IndexableField> indexableFields = new ArrayList<>();
-        long instant = dateFieldType(DATE_FIELD).parse(date);
+        long instant = ((DateFieldMapper.DateFieldType) dateFieldType(DATE_FIELD).type()).parse(date);
         indexableFields.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
         indexableFields.add(new LongPoint(DATE_FIELD, instant));
         indexableFields.addAll(Arrays.asList(fields));

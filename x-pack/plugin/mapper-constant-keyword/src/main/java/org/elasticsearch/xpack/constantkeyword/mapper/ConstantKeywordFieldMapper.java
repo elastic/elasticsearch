@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -95,7 +95,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
             return new ConstantKeywordFieldMapper(
                 name,
-                new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
+                new MappedField(context.buildFullName(name), new ConstantKeywordFieldType(value.getValue(), meta.getValue()))
             );
         }
     }
@@ -106,13 +106,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         private final String value;
 
-        public ConstantKeywordFieldType(String name, String value, Map<String, String> meta) {
-            super(name, meta);
+        public ConstantKeywordFieldType(String value, Map<String, String> meta) {
+            super(meta);
             this.value = value;
         }
 
-        public ConstantKeywordFieldType(String name, String value) {
-            this(name, value, Collections.emptyMap());
+        public ConstantKeywordFieldType(String value) {
+            this(value, Collections.emptyMap());
         }
 
         /** Return the value that this field wraps. This may be {@code null} if the field is not configured yet. */
@@ -131,26 +131,27 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new ConstantIndexFieldData.Builder(
                 value,
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new ConstantKeywordDocValuesField(FieldData.toString(dv), n)
             );
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
             return value == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(value);
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
+        public TermsEnum getTerms(String name, boolean caseInsensitive, String string, SearchExecutionContext queryShardContext,
+                                  String searchAfter) {
             if (value == null) {
                 return TermsEnum.EMPTY;
             }
@@ -178,12 +179,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
+        public Query existsQuery(String name, SearchExecutionContext context) {
             return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
@@ -209,6 +211,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(
+            String name,
             Object term,
             Fuzziness fuzziness,
             int prefixLength,
@@ -245,6 +248,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(
+            String name,
             String regexp,
             int syntaxFlags,
             int matchFlags,
@@ -267,8 +271,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    ConstantKeywordFieldMapper(String simpleName, MappedField mappedField) {
+        super(simpleName, mappedField, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -286,8 +290,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
+            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(value, fieldType().meta());
+            Mapper update = new ConstantKeywordFieldMapper(simpleName(), new MappedField(name(), newFieldType));
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(

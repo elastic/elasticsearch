@@ -318,7 +318,8 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        HistogramFieldMapper.HistogramFieldType ft = (HistogramFieldMapper.HistogramFieldType) mapperService.mappedField("field");
+        HistogramFieldMapper.HistogramFieldType ft = (HistogramFieldMapper.HistogramFieldType) mapperService.mappedField("field")
+            .type();
         assertNull(ft.getMetricType());
         assertMetricType("histogram", HistogramFieldMapper.HistogramFieldType::getMetricType);
 

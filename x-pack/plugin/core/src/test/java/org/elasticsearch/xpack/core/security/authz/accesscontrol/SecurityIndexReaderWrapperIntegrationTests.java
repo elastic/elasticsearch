@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
@@ -72,7 +72,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MappingLookup mappingLookup = createMappingLookup(List.of(new KeywordFieldType("field")));
+        MappingLookup mappingLookup = createMappingLookup(List.of(new MappedField("field", new KeywordFieldType())));
         ScriptService scriptService = mock(ScriptService.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -207,7 +207,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MappingLookup mappingLookup = createMappingLookup(
-            List.of(new KeywordFieldType("field"), new KeywordFieldType("f1"), new KeywordFieldType("f2"))
+            List.of(new MappedField("field", new KeywordFieldType()),
+                new MappedField("f1", new KeywordFieldType()),
+                new MappedField("f2", new KeywordFieldType()))
         );
         ScriptService scriptService = mock(ScriptService.class);
 
@@ -342,7 +344,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         directory.close();
     }
 
-    private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
+    private static MappingLookup createMappingLookup(List<MappedField> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
     }

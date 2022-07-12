@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -78,13 +78,14 @@ public class ScriptScoreBenchmark {
     );
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class));
 
-    private final Map<String, MappedFieldType> fieldTypes = Map.ofEntries(
-        Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null))
+    private final Map<String, MappedField> mappedFields = Map.ofEntries(
+        Map.entry("n", new MappedField("n",
+            new NumberFieldType(NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null)))
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
     private SearchLookup lookup = new SearchLookup(
-        fieldTypes::get,
+        mappedFields::get,
         (mft, lookup) -> mft.fielddataBuilder("test", lookup).build(fieldDataCache, breakerService)
     );
 
@@ -150,8 +151,8 @@ public class ScriptScoreBenchmark {
 
     private ScoreScript.Factory bareMetalScript() {
         return (params, lookup) -> {
-            MappedFieldType type = fieldTypes.get("n");
-            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type);
+            MappedField mappedField = mappedFields.get("n");
+            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(mappedField);
             return new ScoreScript.LeafFactory() {
                 @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {

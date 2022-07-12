@@ -36,7 +36,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -450,48 +450,48 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             .build();
     }
 
-    private MappedFieldType[] doubleFields() {
-        return new MappedFieldType[] { numberFieldType(NumberType.DOUBLE, "s"), numberFieldType(NumberType.DOUBLE, "m") };
+    private MappedField[] doubleFields() {
+        return new MappedField[] { numberFieldType(NumberType.DOUBLE, "s"), numberFieldType(NumberType.DOUBLE, "m") };
     }
 
-    private MappedFieldType[] longFields() {
-        return new MappedFieldType[] { numberFieldType(NumberType.LONG, "s"), numberFieldType(NumberType.LONG, "m") };
+    private MappedField[] longFields() {
+        return new MappedField[] { numberFieldType(NumberType.LONG, "s"), numberFieldType(NumberType.LONG, "m") };
     }
 
-    private MappedFieldType[] manyMetricsFields() {
-        return new MappedFieldType[] {
+    private MappedField[] manyMetricsFields() {
+        return new MappedField[] {
             numberFieldType(NumberType.DOUBLE, "s"),
             numberFieldType(NumberType.DOUBLE, "m1"),
             numberFieldType(NumberType.LONG, "m2"),
             numberFieldType(NumberType.DOUBLE, "m3"), };
     }
 
-    private MappedFieldType[] floatAndDoubleField() {
-        return new MappedFieldType[] { numberFieldType(NumberType.FLOAT, "s"), numberFieldType(NumberType.DOUBLE, "m") };
+    private MappedField[] floatAndDoubleField() {
+        return new MappedField[] { numberFieldType(NumberType.FLOAT, "s"), numberFieldType(NumberType.DOUBLE, "m") };
     }
 
-    private MappedFieldType[] longAndDoubleField() {
-        return new MappedFieldType[] { numberFieldType(NumberType.LONG, "s"), numberFieldType(NumberType.DOUBLE, "m") };
+    private MappedField[] longAndDoubleField() {
+        return new MappedField[] { numberFieldType(NumberType.LONG, "s"), numberFieldType(NumberType.DOUBLE, "m") };
     }
 
-    private MappedFieldType[] textAndDoubleField() {
-        return new MappedFieldType[] { textFieldType("s"), numberFieldType(NumberType.DOUBLE, "m") };
+    private MappedField[] textAndDoubleField() {
+        return new MappedField[] { textFieldType("s"), numberFieldType(NumberType.DOUBLE, "m") };
     }
 
-    private MappedFieldType[] geoPointAndDoubleField() {
-        return new MappedFieldType[] { geoPointFieldType("s"), numberFieldType(NumberType.DOUBLE, "m") };
+    private MappedField[] geoPointAndDoubleField() {
+        return new MappedField[] { geoPointFieldType("s"), numberFieldType(NumberType.DOUBLE, "m") };
     }
 
-    private MappedFieldType numberFieldType(NumberType numberType, String name) {
-        return new NumberFieldMapper.NumberFieldType(name, numberType);
+    private MappedField numberFieldType(NumberType numberType, String name) {
+        return new MappedField(name, new NumberFieldMapper.NumberFieldType(numberType));
     }
 
-    private MappedFieldType textFieldType(String name) {
-        return new TextFieldMapper.TextFieldType(name);
+    private MappedField textFieldType(String name) {
+        return new MappedField(name, new TextFieldMapper.TextFieldType());
     }
 
-    private MappedFieldType geoPointFieldType(String name) {
-        return new GeoPointFieldMapper.GeoPointFieldType(name);
+    private MappedField geoPointFieldType(String name) {
+        return new MappedField(name, new GeoPointFieldMapper.GeoPointFieldType());
     }
 
     private IndexableField doubleField(String name, double value) {
@@ -518,7 +518,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         TopMetricsAggregationBuilder builder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        MappedFieldType... fields
+        MappedField... fields
     ) throws IOException {
         InternalTopMetrics result = (InternalTopMetrics) collect((AggregationBuilder) builder, query, buildIndex, fields);
         List<String> expectedFieldNames = builder.getMetricFields()
@@ -533,7 +533,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        MappedFieldType... fields
+        MappedField... fields
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {

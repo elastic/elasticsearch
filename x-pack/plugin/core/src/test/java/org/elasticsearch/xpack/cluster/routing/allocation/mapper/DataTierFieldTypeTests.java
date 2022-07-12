@@ -36,52 +36,52 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testPrefixQuery() throws IOException {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("data_w", null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("noSuchRole", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("_tier", "data_w", null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("_tier", "noSuchRole", null, createContext()));
     }
 
     public void testWildcardQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_w*", null, createContext()));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_warm", null, createContext()));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("Data_Warm", null, true, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Data_Warm", null, false, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("noSuchRole", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("_tier", "data_w*", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("_tier", "data_warm", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("_tier", "Data_Warm", null, true, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("_tier", "Data_Warm", null, false, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("_tier", "noSuchRole", null, createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("data_*", null, createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("*", null, createContextWithoutSetting()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("_tier", "data_*", null, createContextWithoutSetting()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("_tier", "*", null, createContextWithoutSetting()));
     }
 
     public void testTermQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.termQuery("data_warm", createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("data_hot", createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("noSuchRole", createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.termQuery("_tier", "data_warm", createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("_tier", "data_hot", createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("_tier", "noSuchRole", createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("data_warm", createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("", createContextWithoutSetting()));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("_tier", "data_warm", createContextWithoutSetting()));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("_tier", "", createContextWithoutSetting()));
     }
 
     public void testTermsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("data_warm"), createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("data_cold", "data_frozen"), createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.termsQuery("_tier", Arrays.asList("data_warm"), createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery("_tier", Arrays.asList("data_cold", "data_frozen"), createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("data_warm"), createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList(""), createContextWithoutSetting()));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery("_tier", Arrays.asList("data_warm"), createContextWithoutSetting()));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery("_tier", Arrays.asList(""), createContextWithoutSetting()));
     }
 
     public void testExistsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.existsQuery(createContextWithoutSetting()));
+        assertEquals(new MatchAllDocsQuery(), ft.existsQuery("_tier", createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.existsQuery("_tier", createContextWithoutSetting()));
     }
 
     public void testRegexpQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         QueryShardException e = expectThrows(
             QueryShardException.class,
-            () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
+            () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("_tier", "ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
@@ -91,10 +91,10 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         SourceLookup lookup = new SourceLookup();
 
         List<Object> ignoredValues = new ArrayList<>();
-        ValueFetcher valueFetcher = ft.valueFetcher(createContext(), null);
+        ValueFetcher valueFetcher = ft.valueFetcher("_tier", createContext(), null);
         assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup, ignoredValues));
 
-        ValueFetcher emptyValueFetcher = ft.valueFetcher(createContextWithoutSetting(), null);
+        ValueFetcher emptyValueFetcher = ft.valueFetcher("_tier", createContextWithoutSetting(), null);
         assertTrue(emptyValueFetcher.fetchValues(lookup, ignoredValues).isEmpty());
     }
 

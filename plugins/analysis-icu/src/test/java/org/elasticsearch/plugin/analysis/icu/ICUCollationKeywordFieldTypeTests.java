@@ -19,17 +19,17 @@ public class ICUCollationKeywordFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
 
         ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(MapperBuilderContext.ROOT);
-        assertEquals(List.of("42"), fetchSourceValue(mapper.fieldType(), 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper.fieldType(), true));
+        assertEquals(List.of("42"), fetchSourceValue(mapper.field(), 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mapper.field(), true));
 
         ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field").ignoreAbove(4)
             .build(MapperBuilderContext.ROOT);
-        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper.fieldType(), "value"));
-        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper.fieldType(), 42L));
-        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper.fieldType(), true));
+        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper.field(), "value"));
+        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper.field(), 42L));
+        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper.field(), true));
 
         ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field").nullValue("NULL")
             .build(MapperBuilderContext.ROOT);
-        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper.fieldType(), null));
+        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper.field(), null));
     }
 }

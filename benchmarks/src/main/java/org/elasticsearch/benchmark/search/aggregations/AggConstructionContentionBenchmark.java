@@ -27,7 +27,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -207,16 +207,16 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
+        protected IndexFieldData<?> buildFieldData(MappedField mappedField) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
-            }, index, ft.name());
-            return ft.fielddataBuilder("test", this::lookup).build(indexFieldDataCache, breakerService);
+            }, index, mappedField.name());
+            return mappedField.fielddataBuilder("test", this::lookup).build(indexFieldDataCache, breakerService);
         }
 
         @Override
-        public MappedFieldType getMappedField(String path) {
+        public MappedField getMappedField(String path) {
             if (path.startsWith("int")) {
-                return new NumberFieldMapper.NumberFieldType(path, NumberType.INTEGER);
+                return new MappedField(path, new NumberFieldMapper.NumberFieldType(NumberType.INTEGER));
             }
             throw new UnsupportedOperationException();
         }

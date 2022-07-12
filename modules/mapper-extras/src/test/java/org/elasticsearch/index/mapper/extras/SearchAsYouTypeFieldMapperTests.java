@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -178,14 +179,14 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             rootMapper.indexAnalyzers(),
             2,
             "default",
-            prefixFieldMapper.fieldType()
+            prefixFieldMapper.field()
         );
         assertShingleFieldType(
             getShingleFieldMapper(defaultMapper, "field._3gram"),
             rootMapper.indexAnalyzers(),
             3,
             "default",
-            prefixFieldMapper.fieldType()
+            prefixFieldMapper.field()
         );
     }
 
@@ -209,21 +210,21 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             rootMapper.indexAnalyzers(),
             2,
             analyzerName,
-            prefixFieldMapper.fieldType()
+            prefixFieldMapper.field()
         );
         assertShingleFieldType(
             getShingleFieldMapper(defaultMapper, "field._3gram"),
             rootMapper.indexAnalyzers(),
             3,
             analyzerName,
-            prefixFieldMapper.fieldType()
+            prefixFieldMapper.field()
         );
         assertShingleFieldType(
             getShingleFieldMapper(defaultMapper, "field._4gram"),
             rootMapper.indexAnalyzers(),
             4,
             analyzerName,
-            prefixFieldMapper.fieldType()
+            prefixFieldMapper.field()
         );
     }
 
@@ -280,22 +281,23 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         List<String> fields = new ArrayList<>();
         fields.add(suggestPath);
         fields.add(textPath);
-        MappedFieldType fieldType = mapperService.mappedField(suggestPath + "._index_prefix");
-        assertThat(fieldType, instanceOf(PrefixFieldType.class));
-        PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;
+        MappedField mappedField = mapperService.mappedField(suggestPath + "._index_prefix");
+        assertThat(mappedField.type(), instanceOf(PrefixFieldType.class));
+        MappedField prefixField = mappedField;
+        PrefixFieldType prefixFieldType = (PrefixFieldType) mappedField.type();
         assertEquals(suggestPath, prefixFieldType.parentField);
         for (int i = 2; i < shingleSize; i++) {
             String name = suggestPath + "._" + i + "gram";
             fields.add(name);
-            fieldType = mapperService.mappedField(name);
-            assertThat(fieldType, instanceOf(ShingleFieldType.class));
-            ShingleFieldType ft = (ShingleFieldType) fieldType;
+            mappedField = mapperService.mappedField(name);
+            assertThat(mappedField.type(), instanceOf(ShingleFieldType.class));
+            ShingleFieldType ft = (ShingleFieldType) mappedField.type();
             assertEquals(i, ft.shingleSize);
-            assertSame(prefixFieldType, ft.prefixFieldType);
+            assertSame(prefixField, ft.prefixField);
         }
 
-        MappedFieldType textFieldType = mapperService.mappedField(textPath);
-        assertThat(textFieldType, instanceOf(TextFieldMapper.TextFieldType.class));
+        MappedField textField = mapperService.mappedField(textPath);
+        assertThat(textField.type(), instanceOf(TextFieldMapper.TextFieldType.class));
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "new york city")));
         for (String field : fields) {
@@ -681,7 +683,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         assertThat(mapper.maxShingleSize(), equalTo(maxShingleSize));
         assertThat(mapper.fieldType(), notNullValue());
-        assertSearchAsYouTypeFieldType(mapper, mapper.fieldType(), maxShingleSize, analyzerName, mapper.prefixField().fieldType());
+        assertSearchAsYouTypeFieldType(mapper, mapper.field(), maxShingleSize, analyzerName, mapper.prefixField().field());
 
         assertThat(mapper.prefixField(), notNullValue());
         assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.name()));
@@ -695,7 +697,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 mapper.indexAnalyzers(),
                 shingleSize,
                 analyzerName,
-                mapper.prefixField().fieldType()
+                mapper.prefixField().field()
             );
         }
 
@@ -705,23 +707,23 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     private static void assertSearchAsYouTypeFieldType(
         SearchAsYouTypeFieldMapper mapper,
-        SearchAsYouTypeFieldType fieldType,
+        MappedField mappedField,
         int maxShingleSize,
         String analyzerName,
-        PrefixFieldType prefixFieldType
+        MappedField prefixField
     ) {
-
+        SearchAsYouTypeFieldType fieldType = (SearchAsYouTypeFieldType) mappedField.type();
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
-        NamedAnalyzer indexAnalyzer = mapper.indexAnalyzers().get(fieldType.name());
-        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().searchAnalyzer())) {
+        NamedAnalyzer indexAnalyzer = mapper.indexAnalyzers().get(mappedField.name());
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, mappedField.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
         int shingleSize = 2;
         for (ShingleFieldMapper shingleField : mapper.shingleFields()) {
-            assertShingleFieldType(shingleField, mapper.indexAnalyzers(), shingleSize++, analyzerName, prefixFieldType);
+            assertShingleFieldType(shingleField, mapper.indexAnalyzers(), shingleSize++, analyzerName, prefixField);
         }
 
-        assertThat(fieldType.prefixField, equalTo(prefixFieldType));
+        assertThat(fieldType.prefixField, equalTo(prefixField));
     }
 
     private static void assertShingleFieldType(
@@ -729,13 +731,14 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         Map<String, NamedAnalyzer> indexAnalyzers,
         int shingleSize,
         String analyzerName,
-        PrefixFieldType prefixFieldType
+        MappedField prefixField
     ) {
 
-        ShingleFieldType fieldType = mapper.fieldType();
+        MappedField mappedField = mapper.field();
+        ShingleFieldType fieldType = (ShingleFieldType) mappedField.type();
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        for (NamedAnalyzer analyzer : asList(indexAnalyzers.get(fieldType.name()), fieldType.getTextSearchInfo().searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(indexAnalyzers.get(mappedField.name()), mappedField.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
             if (shingleSize > 1) {
                 final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
@@ -744,7 +747,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             }
         }
 
-        assertThat(fieldType.prefixFieldType, equalTo(prefixFieldType));
+        assertThat(fieldType.prefixField, equalTo(prefixField));
 
     }
 
@@ -754,14 +757,14 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         int shingleSize,
         String analyzerName
     ) {
-        PrefixFieldType fieldType = mapper.fieldType();
-        NamedAnalyzer indexAnalyzer = indexAnalyzers.get(fieldType.name());
-        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().searchAnalyzer())) {
+        MappedField mappedField = mapper.field();
+        NamedAnalyzer indexAnalyzer = indexAnalyzers.get(mappedField.name());
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, mappedField.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
 
         final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) indexAnalyzer.analyzer();
-        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo()
+        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) mappedField.getTextSearchInfo()
             .searchAnalyzer()
             .analyzer();
         for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {

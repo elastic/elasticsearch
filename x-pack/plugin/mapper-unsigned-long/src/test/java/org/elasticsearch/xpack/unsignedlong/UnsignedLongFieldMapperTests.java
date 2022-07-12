@@ -11,6 +11,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -249,10 +250,10 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.mappedField(
+        MappedField mappedField = mapperService.mappedField(
             "field"
         );
-        assertFalse(ft.isDimension());
+        assertFalse(mappedField.isDimension());
 
         assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
         assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
@@ -307,10 +308,10 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.mappedField(
+        MappedField mappedField = mapperService.mappedField(
             "field"
         );
-        assertNull(ft.getMetricType());
+        assertNull(mappedField.getMetricType());
 
         assertMetricType("gauge", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);
         assertMetricType("counter", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);

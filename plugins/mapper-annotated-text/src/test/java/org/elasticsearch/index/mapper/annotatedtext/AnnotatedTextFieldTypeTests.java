@@ -13,6 +13,7 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 
@@ -24,17 +25,17 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntervals() throws IOException {
         MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
-        IntervalsSource source = ft.termIntervals(new BytesRef("donald"), null);
+        IntervalsSource source = ft.termIntervals("field", new BytesRef("donald"), null);
         assertEquals(Intervals.term("donald"), source);
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", Version.CURRENT, createDefaultIndexAnalyzers()).build(
+        MappedField mappedField = new AnnotatedTextFieldMapper.Builder("field", Version.CURRENT, createDefaultIndexAnalyzers()).build(
             MapperBuilderContext.ROOT
-        ).fieldType();
+        ).field();
 
-        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(mappedField, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(mappedField, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(mappedField, true));
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -270,13 +270,13 @@ abstract class MetricFieldProducer {
     static Map<String, MetricFieldProducer> buildMetricFieldProducers(SearchExecutionContext context, String[] metricFields) {
         final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
         for (String field : metricFields) {
-            MappedFieldType fieldType = context.getMappedField(field);
-            assert fieldType.getMetricType() != null;
+            MappedField mappedField = context.getMappedField(field);
+            assert mappedField.getMetricType() != null;
 
-            MetricFieldProducer producer = switch (fieldType.getMetricType()) {
+            MetricFieldProducer producer = switch (mappedField.getMetricType()) {
                 case gauge -> new GaugeMetricFieldProducer(field);
                 case counter -> new CounterMetricFieldProducer(field);
-                default -> throw new IllegalArgumentException("Unsupported metric type [" + fieldType.getMetricType() + "]");
+                default -> throw new IllegalArgumentException("Unsupported metric type [" + mappedField.getMetricType() + "]");
             };
 
             fields.put(field, producer);

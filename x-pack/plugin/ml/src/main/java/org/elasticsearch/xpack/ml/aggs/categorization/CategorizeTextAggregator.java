@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -41,7 +42,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SourceLookup sourceLookup;
-    private final MappedFieldType fieldType;
+    private final MappedField mappedField;
     private final CategorizationAnalyzer analyzer;
     private final String sourceFieldName;
     private ObjectArray<TokenListCategorizer> categorizers;
@@ -56,7 +57,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         AggregationContext context,
         Aggregator parent,
         String sourceFieldName,
-        MappedFieldType fieldType,
+        MappedField mappedField,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         int similarityThreshold,
         CategorizationAnalyzerConfig categorizationAnalyzerConfig,
@@ -65,7 +66,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         super(name, factories, context, parent, metadata);
         this.sourceLookup = context.lookup().source();
         this.sourceFieldName = sourceFieldName;
-        this.fieldType = fieldType;
+        this.mappedField = mappedField;
         CategorizationAnalyzerConfig analyzerConfig = Optional.ofNullable(categorizationAnalyzerConfig)
             .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(List.of()));
         final String analyzerName = analyzerConfig.getAnalyzer();
@@ -159,13 +160,13 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 sourceLookup.setSegmentAndDocument(aggCtx.getLeafReaderContext(), doc);
                 Iterator<String> itr = sourceLookup.extractRawValuesWithoutCaching(sourceFieldName).stream().map(obj -> {
                     if (obj instanceof BytesRef) {
-                        return fieldType.valueForDisplay(obj).toString();
+                        return mappedField.valueForDisplay(obj).toString();
                     }
                     return (obj == null) ? null : obj.toString();
                 }).iterator();
                 while (itr.hasNext()) {
                     String string = itr.next();
-                    try (TokenStream ts = analyzer.tokenStream(fieldType.name(), string)) {
+                    try (TokenStream ts = analyzer.tokenStream(mappedField.name(), string)) {
                         processTokenStream(owningBucketOrd, ts, string.length(), doc, categorizer);
                     }
                 }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -166,7 +167,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(
-                context.buildFullName(name),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -175,7 +175,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 metric.getValue()
             );
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new ScaledFloatFieldMapper(name, new MappedField(context.buildFullName(name), type),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -188,7 +189,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final TimeSeriesParams.MetricType metricType;
 
         public ScaledFloatFieldType(
-            String name,
             boolean indexed,
             boolean stored,
             boolean hasDocValues,
@@ -197,18 +197,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             Double nullValue,
             TimeSeriesParams.MetricType metricType
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
             this.metricType = metricType;
         }
 
-        public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, scalingFactor, true);
+        public ScaledFloatFieldType(double scalingFactor) {
+            this(scalingFactor, true);
         }
 
-        public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
-            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null);
+        public ScaledFloatFieldType(double scalingFactor, boolean indexed) {
+            this(indexed, false, true, Collections.emptyMap(), scalingFactor, null, null);
         }
 
         public double getScalingFactor() {
@@ -221,41 +221,42 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(name());
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.termQuery(name, scaledValue, isIndexed());
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexedNorDocValuesFallback(context);
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(name, context);
             if (isIndexed()) {
                 List<Long> scaledValues = new ArrayList<>(values.size());
                 for (Object value : values) {
                     long scaledValue = Math.round(scale(value));
                     scaledValues.add(scaledValue);
                 }
-                return NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
+                return NumberFieldMapper.NumberType.LONG.termsQuery(name, Collections.unmodifiableList(scaledValues));
             } else {
-                return super.termsQuery(values, context);
+                return super.termsQuery(name, values, context);
             }
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexedNorDocValuesFallback(context);
+            failIfNotIndexedNorDocValuesFallback(name, context);
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);
@@ -272,15 +273,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(name, lo, hi, true, true, hasDocValues(), context, isIndexed());
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
             return (cache, breakerService) -> {
                 final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
-                    name(),
+                    name,
                     IndexNumericFieldData.NumericType.LONG,
                     (dv, n) -> { throw new UnsupportedOperationException(); }
                 ).build(cache, breakerService);
@@ -289,11 +290,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(name, context) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;
@@ -321,8 +322,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            checkNoTimeZone(timeZone);
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
+            checkNoTimeZone(name, timeZone);
             if (format == null) {
                 return DocValueFormat.RAW;
             }
@@ -379,12 +380,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     private ScaledFloatFieldMapper(
         String simpleName,
-        ScaledFloatFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
@@ -465,10 +466,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = encode(doubleValue, scalingFactor);
 
-        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
+        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), name(), scaledValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (indexed || stored)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

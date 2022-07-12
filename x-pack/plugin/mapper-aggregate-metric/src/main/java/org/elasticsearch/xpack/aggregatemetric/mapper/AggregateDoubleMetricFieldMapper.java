@@ -26,7 +26,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -238,26 +238,26 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 metricMappers.put(m, fieldMapper);
             }
 
-            EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = metricMappers.entrySet()
+            EnumMap<Metric, MappedField> metricFields = metricMappers.entrySet()
                 .stream()
                 .collect(
                     Collectors.toMap(
                         Map.Entry::getKey,
-                        e -> e.getValue().fieldType(),
+                        e -> e.getValue().field(),
                         (l, r) -> { throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + "."); },
                         () -> new EnumMap<>(Metric.class)
                     )
                 );
 
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
-                context.buildFullName(name),
                 meta.getValue(),
                 timeSeriesMetric.getValue()
             );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(name, metricFieldType, metricMappers, this);
+            return new AggregateDoubleMetricFieldMapper(name, new MappedField(context.buildFullName(name), metricFieldType),
+                metricMappers, this);
         }
     }
 
@@ -268,18 +268,18 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     public static final class AggregateDoubleMetricFieldType extends SimpleMappedFieldType {
 
-        private EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
+        private EnumMap<Metric, MappedField> metricFields;
 
         private Metric defaultMetric;
 
         private final MetricType metricType;
 
-        public AggregateDoubleMetricFieldType(String name) {
-            this(name, Collections.emptyMap(), null);
+        public AggregateDoubleMetricFieldType() {
+            this(Collections.emptyMap(), null);
         }
 
-        public AggregateDoubleMetricFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        public AggregateDoubleMetricFieldType(Map<String, String> meta, MetricType metricType) {
+            super(true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.metricType = metricType;
         }
 
@@ -287,7 +287,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
          * Return a delegate field type for a given metric sub-field
          * @return a field type
          */
-        private NumberFieldMapper.NumberFieldType delegateFieldType(Metric metric) {
+        private MappedField delegateField(Metric metric) {
             return metricFields.get(metric);
         }
 
@@ -295,8 +295,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
          * Return a delegate field type for the default metric sub-field
          * @return a field type
          */
-        private NumberFieldMapper.NumberFieldType delegateFieldType() {
-            return delegateFieldType(defaultMetric);
+        private MappedField delegateField() {
+            return delegateField(defaultMetric);
         }
 
         @Override
@@ -309,16 +309,16 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
+        private void setMetricFields(EnumMap<Metric, MappedField> metricFields) {
             this.metricFields = metricFields;
         }
 
-        public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {
+        public void addMetricField(String name, Metric m, MappedField subfield) {
             if (metricFields == null) {
                 metricFields = new EnumMap<>(AggregateDoubleMetricFieldMapper.Metric.class);
             }
 
-            if (name() == null) {
+            if (name == null) {
                 throw new IllegalArgumentException("Field of type [" + typeName() + "] must have a name before adding a subfield");
             }
             metricFields.put(m, subfield);
@@ -333,51 +333,54 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return delegateFieldType().mayExistInIndex(context);    // TODO how does searching actually work here?
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+            return delegateField().mayExistInIndex(context);    // TODO how does searching actually work here?
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return delegateFieldType().existsQuery(context);
+        public Query existsQuery(String name, SearchExecutionContext context) {
+            return delegateField().existsQuery(context);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             if (value == null) {
                 throw new IllegalArgumentException("Cannot search for null.");
             }
-            return delegateFieldType().termQuery(value, context);
+            return delegateField().termQuery(value, context);
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            return delegateFieldType().termsQuery(values, context);
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            return delegateField().termsQuery(values, context);
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            return delegateFieldType().rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            return ((NumberFieldMapper.NumberFieldType) delegateField().type())
+                .rangeQuery(delegateField().name(), lowerTerm, upperTerm, includeLower, includeUpper, context);
         }
 
         @Override
         public Object valueForDisplay(Object value) {
-            return delegateFieldType().valueForDisplay(value);
+            return delegateField().valueForDisplay(value);
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            return delegateFieldType().docValueFormat(format, timeZone);
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
+            return delegateField().docValueFormat(format, timeZone);
         }
 
         @Override
         public Relation isFieldWithinQuery(
+            String name,
             IndexReader reader,
             Object from,
             Object to,
@@ -387,13 +390,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             DateMathParser dateMathParser,
             QueryRewriteContext context
         ) throws IOException {
-            return delegateFieldType().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
+            return delegateField().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser,
+                context);
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return (cache, breakerService) -> new IndexAggregateDoubleMetricFieldData(
-                name(),
+                name,
                 AggregateMetricsValuesSourceType.AGGREGATE_METRIC
             ) {
                 @Override
@@ -473,7 +477,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    return new SortedNumericSortField(delegateFieldType().name(), SortField.Type.DOUBLE, reverse);
+                    return new SortedNumericSortField(delegateField().name(), SortField.Type.DOUBLE, reverse);
                 }
 
                 @Override
@@ -493,12 +497,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(name, context) {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
@@ -536,11 +540,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private AggregateDoubleMetricFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         EnumMap<Metric, NumberFieldMapper> metricFieldMappers,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedField, MultiFields.empty(), CopyTo.empty());
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.metrics = builder.metrics.getValue();
@@ -607,7 +611,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
                 // We don't accept arrays of metrics
-                if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {
+                if (context.doc().getField(delegateFieldMapper.field().name()) != null) {
                     throw new IllegalArgumentException(
                         "Field ["
                             + name()
@@ -649,8 +653,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 // If ignoreMalformed == true, clear all parsed fields
                 Set<String> ignoreFieldNames = Sets.newHashSetWithExpectedSize(metricFieldMappers.size());
                 for (NumberFieldMapper m : metricFieldMappers.values()) {
-                    context.addIgnoredField(m.fieldType().name());
-                    ignoreFieldNames.add(m.fieldType().name());
+                    context.addIgnoredField(m.field().name());
+                    ignoreFieldNames.add(m.field().name());
                 }
                 // Parsing a metric sub-field is delegated to the delegate field mapper by calling method
                 // delegateFieldMapper.parse(context). Unfortunately, this method adds the parsed sub-field

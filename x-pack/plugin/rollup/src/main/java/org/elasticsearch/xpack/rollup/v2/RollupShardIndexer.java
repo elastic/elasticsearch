@@ -31,7 +31,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -77,7 +77,7 @@ class RollupShardIndexer {
 
     private final Engine.Searcher searcher;
     private final SearchExecutionContext searchExecutionContext;
-    private final MappedFieldType timestampField;
+    private final MappedField timestampField;
     private final DocValueFormat timestampFormat;
     private final Rounding.Prepared rounding;
 

@@ -14,7 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -111,7 +111,7 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalValueCount> verify)
         throws IOException {
-        testCase(count("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
+        testCase(count("_name").field(FIELD_NAME), query, indexer, verify, defaultField());
     }
 
     @Override
@@ -135,11 +135,11 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new ValueCountAggregationBuilder("_name").field(fieldName);
     }
 
-    private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap(), null);
+    private MappedField defaultField() {
+        return new MappedField("field", new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
     }
 }

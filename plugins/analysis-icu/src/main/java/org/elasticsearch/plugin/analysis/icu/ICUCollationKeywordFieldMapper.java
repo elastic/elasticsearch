@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -61,7 +61,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         private final int ignoreAbove;
 
         public CollationFieldType(
-            String name,
             boolean isSearchable,
             boolean isStored,
             boolean hasDocValues,
@@ -70,18 +69,18 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             int ignoreAbove,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.collator = collator;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
         }
 
-        public CollationFieldType(String name, boolean searchable, Collator collator) {
-            this(name, searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+        public CollationFieldType(boolean searchable, Collator collator) {
+            this(searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
-        public CollationFieldType(String name, Collator collator) {
-            this(name, true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+        public CollationFieldType(Collator collator) {
+            this(true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         @Override
@@ -90,12 +89,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(name, context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -108,10 +107,10 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
             return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
+                name,
                 CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
@@ -121,7 +120,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected BytesRef indexedValueForSearch(Object value) {
+        protected BytesRef indexedValueForSearch(String name, Object value) {
             if (value == null) {
                 return null;
             }
@@ -139,6 +138,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(
+            String name,
             Object value,
             Fuzziness fuzziness,
             int prefixLength,
@@ -151,6 +151,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query prefixQuery(
+            String name,
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
@@ -161,6 +162,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(
+            String name,
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
@@ -171,6 +173,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(
+            String name,
             String value,
             int syntaxFlags,
             int matchFlags,
@@ -209,7 +212,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         };
 
         @Override
-        public DocValueFormat docValueFormat(final String format, final ZoneId timeZone) {
+        public DocValueFormat docValueFormat(String name, final String format, final ZoneId timeZone) {
             return COLLATE_FORMAT;
         }
     }
@@ -327,7 +330,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             CollationFieldType ft = new CollationFieldType(
-                context.buildFullName(name),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -339,7 +341,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             return new ICUCollationKeywordFieldMapper(
                 name,
                 buildFieldType(),
-                ft,
+                new MappedField(context.buildFullName(name), ft),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 collator,
@@ -473,13 +475,13 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Collator collator,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedField, multiFields, copyTo, false, null);
         assert collator.isFrozen();
         this.fieldType = fieldType;
         this.params = builder.collatorParams();
@@ -539,9 +541,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (hasDocValues) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            context.doc().add(new SortedSetDocValuesField(name(), binaryValue));
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

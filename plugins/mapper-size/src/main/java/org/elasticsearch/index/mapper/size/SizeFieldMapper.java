@@ -12,7 +12,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -43,33 +43,33 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SizeFieldMapper build() {
-            return new SizeFieldMapper(enabled.getValue(), new SizeFieldType());
+            return new SizeFieldMapper(enabled.getValue(), new MappedField(NAME, new SizeFieldType()));
         }
     }
 
     private static class SizeFieldType extends NumberFieldType {
         SizeFieldType() {
-            super(NAME, NumberType.INTEGER);
+            super(NumberType.INTEGER);
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
                 return (lookup, ignoredValues) -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(name, format, null), context.getForField(new MappedField(name, this)));
         }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new SizeFieldType()),
+        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new MappedField(NAME, new SizeFieldType())),
         c -> new Builder()
     );
 
     private final Explicit<Boolean> enabled;
 
-    private SizeFieldMapper(Explicit<Boolean> enabled, MappedFieldType mappedFieldType) {
-        super(mappedFieldType);
+    private SizeFieldMapper(Explicit<Boolean> enabled, MappedField mappedField) {
+        super(mappedField);
         this.enabled = enabled;
     }
 

@@ -20,7 +20,7 @@ import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
@@ -93,13 +93,13 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             );
             Parser<Geometry> parser = new ShapeParser(geometryParser);
             ShapeFieldType ft = new ShapeFieldType(
-                context.buildFullName(name),
                 indexed.get(),
                 orientation.get().value(),
                 parser,
                 meta.get()
             );
-            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new ShapeFieldMapper(name, new MappedField(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
         }
     }
 
@@ -111,8 +111,8 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         private final ShapeQueryProcessor queryProcessor;
 
-        public ShapeFieldType(String name, boolean indexed, Orientation orientation, Parser<Geometry> parser, Map<String, String> meta) {
-            super(name, indexed, false, false, parser, orientation, meta);
+        public ShapeFieldType(boolean indexed, Orientation orientation, Parser<Geometry> parser, Map<String, String> meta) {
+            super(indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new ShapeQueryProcessor();
         }
 
@@ -137,7 +137,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
     public ShapeFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<Geometry> parser,
@@ -145,7 +145,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     ) {
         super(
             simpleName,
-            mappedFieldType,
+            mappedField,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
@@ -155,7 +155,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             parser
         );
         this.builder = builder;
-        this.indexer = new ShapeIndexer(mappedFieldType.name());
+        this.indexer = new ShapeIndexer(mappedField.name());
     }
 
     @Override
@@ -164,7 +164,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             return;
         }
         context.doc().addAll(indexer.indexShape(geometry));
-        context.addToFieldNames(fieldType().name());
+        context.addToFieldNames(name());
     }
 
     @Override

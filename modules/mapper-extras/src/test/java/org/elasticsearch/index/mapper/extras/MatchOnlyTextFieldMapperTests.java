@@ -18,6 +18,7 @@ import org.apache.lucene.tests.analysis.Token;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -143,14 +144,14 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         mapping.endObject().endObject();
 
         MapperService mapperService = createMapperService(mapping);
-        MappedFieldType ft = mapperService.mappedField("foo");
+        MappedField mappedField = mapperService.mappedField("foo");
         SearchExecutionContext context = createSearchExecutionContext(mapperService);
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.phraseQuery(ts, 0, true, context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mappedField.phraseQuery(ts, 0, true, context));
         assertThat(e.getMessage(), Matchers.containsString("cannot run positional queries since [_source] is disabled"));
 
         // Term queries are ok
-        ft.termQuery("a", context); // no exception
+        mappedField.termQuery("a", context); // no exception
     }
 
     @Override

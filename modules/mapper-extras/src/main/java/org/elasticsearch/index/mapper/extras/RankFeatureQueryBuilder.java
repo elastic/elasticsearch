@@ -14,7 +14,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.extras.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.elasticsearch.index.mapper.extras.RankFeaturesFieldMapper.RankFeaturesFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -378,25 +378,25 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        final MappedFieldType ft = context.getMappedField(field);
+        final MappedField mappedField = context.getMappedField(field);
 
-        if (ft instanceof final RankFeatureFieldType fft) {
-            return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
-        } else if (ft == null) {
+        if (mappedField == null) {
             final int lastDotIndex = field.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
-                final MappedFieldType parentFt = context.getMappedField(parentField);
-                if (parentFt instanceof RankFeaturesFieldType) {
+                final MappedField parentMappedField = context.getMappedField(parentField);
+                if (parentMappedField != null && parentMappedField.type() instanceof RankFeaturesFieldType) {
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }
             }
             return new MatchNoDocsQuery(); // unmapped field
+        } else if (mappedField.type() instanceof final RankFeatureFieldType fft) {
+            return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else {
             throw new IllegalArgumentException(
                 "[rank_feature] query only works on [rank_feature] fields and "
                     + "features of [rank_features] fields, not ["
-                    + ft.typeName()
+                    + mappedField.typeName()
                     + "]"
             );
         }

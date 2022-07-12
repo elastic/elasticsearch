@@ -22,7 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -157,9 +157,11 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
             }
 
             // setup mapping
-            DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
-            MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
-            MappedFieldType termFieldType = new KeywordFieldMapper.KeywordFieldType(TERM_FIELD, false, true, Collections.emptyMap());
+            MappedField dateField = new MappedField(DATE_FIELD, new DateFieldMapper.DateFieldType());
+            MappedField valueField = new MappedField(VALUE_FIELD,
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+            MappedField termField = new MappedField(TERM_FIELD,
+                new KeywordFieldMapper.KeywordFieldType(false, true, Collections.emptyMap()));
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -167,9 +169,9 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
                     indexSearcher,
                     query,
                     aggBuilder,
-                    dateFieldType,
-                    valueFieldType,
-                    termFieldType
+                    dateField,
+                    valueField,
+                    termField
                 );
                 aggAssertion.accept(internalAggregation);
             }

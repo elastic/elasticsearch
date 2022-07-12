@@ -23,7 +23,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -172,7 +172,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                context.buildFullName(name),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -181,7 +180,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 dimension.getValue(),
                 metric.getValue()
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, new MappedField(context.buildFullName(name), fieldType),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -194,7 +194,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final MetricType metricType;
 
         public UnsignedLongFieldType(
-            String name,
             boolean indexed,
             boolean isStored,
             boolean hasDocValues,
@@ -203,14 +202,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             boolean isDimension,
             MetricType metricType
         ) {
-            super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValueFormatted = nullValueFormatted;
             this.isDimension = isDimension;
             this.metricType = metricType;
         }
 
-        public UnsignedLongFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap(), false, null);
+        public UnsignedLongFieldType() {
+            this(true, false, true, null, Collections.emptyMap(), false, null);
         }
 
         @Override
@@ -219,23 +218,23 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean mayExistInIndex(SearchExecutionContext context) {
-            return context.fieldExistsInIndex(name());
+        public boolean mayExistInIndex(String name, SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name);
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            failIfNotIndexed();
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
+            failIfNotIndexed(name);
             Long longValue = parseTerm(value);
             if (longValue == null) {
                 return new MatchNoDocsQuery();
             }
-            return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
+            return LongPoint.newExactQuery(name, unsignedToSortableSignedLong(longValue));
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
+        public Query termsQuery(String name, Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexed(name);
             long[] lvalues = new long[values.size()];
             int upTo = 0;
             for (Object value : values) {
@@ -250,18 +249,19 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
             }
-            return LongPoint.newSetQuery(name(), lvalues);
+            return LongPoint.newSetQuery(name, lvalues);
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexed(name);
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
@@ -276,23 +276,23 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             if (l > u) return new MatchNoDocsQuery();
 
-            Query query = LongPoint.newRangeQuery(name(), l, u);
+            Query query = LongPoint.newRangeQuery(name, l, u);
             if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name, l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
-                if (context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                if (context.indexSortedOnField(name)) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name, l, u, query);
                 }
             }
             return query;
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
             return (cache, breakerService) -> {
                 final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
-                    name(),
+                    name,
                     IndexNumericFieldData.NumericType.LONG,
                     (dv, n) -> { throw new UnsupportedOperationException(); }
                 ).build(cache, breakerService);
@@ -301,12 +301,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, nullValueFormatted) {
+            return new SourceValueFetcher(name, context, nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -331,8 +331,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            checkNoTimeZone(timeZone);
+        public DocValueFormat docValueFormat(String name, String format, ZoneId timeZone) {
+            checkNoTimeZone(name, timeZone);
             return DocValueFormat.UNSIGNED_LONG_SHIFTED;
         }
 
@@ -480,12 +480,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     private UnsignedLongFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
@@ -550,25 +550,25 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         if (dimension && numericValue != null) {
-            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue);
+            context.getDimensions().addUnsignedLong(name(), numericValue);
         }
 
         List<Field> fields = new ArrayList<>();
         if (indexed) {
-            fields.add(new LongPoint(fieldType().name(), numericValue));
+            fields.add(new LongPoint(name(), numericValue));
         }
         if (hasDocValues) {
-            fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+            fields.add(new SortedNumericDocValuesField(name(), numericValue));
         }
         if (stored) {
             // for stored field, keeping original unsigned_long value in the String form
             String storedValued = isNullValue ? nullValue : Long.toUnsignedString(unsignedToSortableSignedLong(numericValue));
-            fields.add(new StoredField(fieldType().name(), storedValued));
+            fields.add(new StoredField(name(), storedValued));
         }
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

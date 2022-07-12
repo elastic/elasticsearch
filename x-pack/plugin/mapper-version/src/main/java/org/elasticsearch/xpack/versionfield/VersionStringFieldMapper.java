@@ -36,7 +36,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -97,8 +97,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             super(name);
         }
 
-        private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
-            return new VersionStringFieldType(context.buildFullName(name), fieldtype, meta.getValue());
+        private VersionStringFieldType buildFieldType(FieldType fieldtype) {
+            return new VersionStringFieldType(fieldtype, meta.getValue());
         }
 
         @Override
@@ -107,7 +107,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             return new VersionStringFieldMapper(
                 name,
                 fieldtype,
-                buildFieldType(context, fieldtype),
+                new MappedField(context.buildFullName(name), buildFieldType(fieldtype)),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
@@ -123,8 +123,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
+        private VersionStringFieldType(FieldType fieldType, Map<String, String> meta) {
+            super(true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
         }
 
         @Override
@@ -133,23 +133,24 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name, context, format);
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new FieldExistsQuery(name());
+        public Query existsQuery(String name, SearchExecutionContext context) {
+            return new FieldExistsQuery(name);
         }
 
         @Override
         public Query prefixQuery(
+            String name,
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            return wildcardQuery(value + "*", method, caseInsensitive, context);
+            return wildcardQuery(name, value + "*", method, caseInsensitive, context);
         }
 
         /**
@@ -161,6 +162,7 @@ public class VersionStringFieldMapper extends FieldMapper {
          */
         @Override
         public Query regexpQuery(
+            String name,
             String value,
             int syntaxFlags,
             int matchFlags,
@@ -173,7 +175,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            RegexpQuery query = new RegexpQuery(new Term(name(), new BytesRef(value)), syntaxFlags, matchFlags, maxDeterminizedStates) {
+            RegexpQuery query = new RegexpQuery(new Term(name, new BytesRef(value)), syntaxFlags, matchFlags, maxDeterminizedStates) {
 
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
@@ -207,6 +209,7 @@ public class VersionStringFieldMapper extends FieldMapper {
          */
         @Override
         public Query fuzzyQuery(
+            String name,
             Object value,
             Fuzziness fuzziness,
             int prefixLength,
@@ -220,7 +223,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
             return new FuzzyQuery(
-                new Term(name(), (BytesRef) value),
+                new Term(name, (BytesRef) value),
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,
                 maxExpansions,
@@ -248,6 +251,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(
+            String name,
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
@@ -259,13 +263,13 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
 
-            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive);
+            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name, value), caseInsensitive);
             QueryParsers.setRewriteMethod(query, method);
             return query;
         }
 
         @Override
-        protected BytesRef indexedValueForSearch(Object value) {
+        protected BytesRef indexedValueForSearch(String name, Object value) {
             String valueAsString;
             if (value instanceof String) {
                 valueAsString = (String) value;
@@ -279,8 +283,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            return new SortedSetOrdinalsIndexFieldData.Builder(name, CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }
 
         @Override
@@ -292,23 +296,24 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            checkNoFormat(format);
-            checkNoTimeZone(timeZone);
+        public DocValueFormat docValueFormat(String name, @Nullable String format, ZoneId timeZone) {
+            checkNoFormat(name, format);
+            checkNoTimeZone(name, timeZone);
             return VERSION_DOCVALUE;
         }
 
         @Override
         public Query rangeQuery(
+            String name,
             Object lowerTerm,
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
-            BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
-            return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);
+            BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(name, lowerTerm);
+            BytesRef upper = upperTerm == null ? null : indexedValueForSearch(name, upperTerm);
+            return new TermRangeQuery(name, lower, upper, includeLower, includeUpper);
         }
     }
 
@@ -317,11 +322,11 @@ public class VersionStringFieldMapper extends FieldMapper {
     private VersionStringFieldMapper(
         String simpleName,
         FieldType fieldType,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.fieldType = fieldType;
     }
 
@@ -356,8 +361,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         EncodedVersion encoding = encodeVersion(versionString);
         BytesRef encodedVersion = encoding.bytesRef;
-        context.doc().add(new Field(fieldType().name(), encodedVersion, fieldType));
-        context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
+        context.doc().add(new Field(name(), encodedVersion, fieldType));
+        context.doc().add(new SortedSetDocValuesField(name(), encodedVersion));
     }
 
     @Override

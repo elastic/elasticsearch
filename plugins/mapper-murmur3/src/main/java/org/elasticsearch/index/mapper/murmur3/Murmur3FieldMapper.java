@@ -68,7 +68,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
                 name,
-                new MappedField<>(context.buildFullName(name), new Murmur3FieldType(stored.getValue(), meta.getValue())),
+                new MappedField(context.buildFullName(name), new Murmur3FieldType(stored.getValue(), meta.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
@@ -106,7 +106,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName, MappedField<Murmur3FieldType> mappedField, MultiFields multiFields, CopyTo copyTo) {
+    protected Murmur3FieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedField, multiFields, copyTo);
     }
 

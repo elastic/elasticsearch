@@ -19,7 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -51,7 +51,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new PercentilesAggregationBuilder("hdr_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.Hdr());
     }
 
@@ -149,8 +149,9 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number")
                     .method(PercentilesMethod.HDR);
 
-                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
-                Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
+                MappedField mappedField = new MappedField("number",
+                    new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+                Aggregator aggregator = createAggregator(builder, indexSearcher, mappedField);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();

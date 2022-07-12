@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
@@ -142,8 +143,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampField(indexMetadata.getIndex());
-        assertThat(timestampFieldType, nullValue());
+        MappedField timestampField = indicesService.getTimestampField(indexMetadata.getIndex());
+        assertThat(timestampField, nullValue());
 
         final boolean includeIndexCoveringSearchRangeInSearchRequest = randomBoolean();
         List<String> indicesToSearch = new ArrayList<>();
@@ -182,9 +183,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
-        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampField(updatedIndexMetadata.getIndex());
-        assertThat(dateFieldType, notNullValue());
-        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
+        final MappedField dateField = indicesService.getTimestampField(updatedIndexMetadata.getIndex());
+        assertThat(dateField, notNullValue());
+        final DateFieldMapper.Resolution resolution = ((DateFieldMapper.DateFieldType) dateField.type()).resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
         if (indexDataWithTimestamp) {
             assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
@@ -277,8 +278,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampField(indexMetadata.getIndex());
-        assertThat(timestampFieldType, nullValue());
+        MappedField timestampField = indicesService.getTimestampField(indexMetadata.getIndex());
+        assertThat(timestampField, nullValue());
 
         SearchRequest request = new SearchRequest().indices(indexOutsideSearchRange, searchableSnapshotIndexOutsideSearchRange)
             .source(
@@ -307,9 +308,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
-        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampField(updatedIndexMetadata.getIndex());
-        assertThat(dateFieldType, notNullValue());
-        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
+        final MappedField dateField = indicesService.getTimestampField(updatedIndexMetadata.getIndex());
+        assertThat(dateField, notNullValue());
+        final DateFieldMapper.Resolution resolution = ((DateFieldMapper.DateFieldType) dateField.type()).resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
         assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
@@ -388,8 +389,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampField(indexMetadata.getIndex());
-        assertThat(timestampFieldType, nullValue());
+        MappedField timestampField = indicesService.getTimestampField(indexMetadata.getIndex());
+        assertThat(timestampField, nullValue());
 
         SearchRequest request = new SearchRequest().indices(searchableSnapshotIndexWithinSearchRange)
             .source(
@@ -411,9 +412,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
         final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
-        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampField(updatedIndexMetadata.getIndex());
-        assertThat(dateFieldType, notNullValue());
-        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
+        final MappedField dateField = indicesService.getTimestampField(updatedIndexMetadata.getIndex());
+        assertThat(dateField, notNullValue());
+        final DateFieldMapper.Resolution resolution = ((DateFieldMapper.DateFieldType) dateField.type()).resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
         assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-28T00:00:00Z"))));

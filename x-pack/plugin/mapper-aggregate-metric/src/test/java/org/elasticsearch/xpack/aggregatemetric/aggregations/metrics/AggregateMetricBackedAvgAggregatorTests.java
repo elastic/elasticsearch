@@ -15,7 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -116,26 +116,25 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
      * @param fieldName the name of the field
      * @return the created field type
      */
-    private AggregateDoubleMetricFieldType createDefaultFieldType(String fieldName) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(fieldName);
+    private MappedField createDefaultFieldType(String fieldName) {
+        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType();
 
         for (Metric m : List.of(Metric.value_count, Metric.sum)) {
             String subfieldName = subfieldName(fieldName, m);
-            NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(
-                subfieldName,
+            MappedField subfield = new MappedField(subfieldName, new NumberFieldMapper.NumberFieldType(
                 NumberFieldMapper.NumberType.DOUBLE
-            );
-            fieldType.addMetricField(m, subfield);
+            ));
+            fieldType.addMetricField(fieldName, m, subfield);
         }
         fieldType.setDefaultMetric(Metric.sum);
-        return fieldType;
+        return new MappedField(fieldName, fieldType);
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalAvg> verify)
         throws IOException {
-        MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
-        AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        MappedField mappedField = createDefaultFieldType(FIELD_NAME);
+        AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(mappedField, FIELD_NAME);
+        testCase(aggregationBuilder, query, buildIndex, verify, mappedField);
     }
 
     @Override
@@ -144,7 +143,7 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return new AvgAggregationBuilder("avg_agg").field(fieldName);
     }
 

@@ -34,15 +34,12 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     private static final int MAX_FIELD_LENGTH = 30;
 
     private WildcardFieldMapper wildcardFieldMapper;
-    private WildcardFieldMapper.WildcardFieldType wildcardFieldType;
 
     @Before
     public void setup() {
         WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldMapper = builder.build(MapperBuilderContext.ROOT);
-
-        wildcardFieldType = wildcardFieldMapper.fieldType();
     }
 
     private void addFields(LuceneDocument parseDoc, Document doc, String docContent) throws IOException {
@@ -92,7 +89,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(3L, result.getBuckets().get(1).getDocCount());
             assertEquals("c", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, wildcardFieldType);
+        }, wildcardFieldMapper.field());
     }
 
     public void testCompositeTermsAggregation() throws IOException {
@@ -118,7 +115,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, wildcardFieldType);
+        }, wildcardFieldMapper.field());
     }
 
     public void testCompositeTermsSearchAfter() throws IOException {
@@ -140,6 +137,6 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(0).getDocCount());
             assertEquals("{terms_key=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
-        }, wildcardFieldType);
+        }, wildcardFieldMapper.field());
     }
 }

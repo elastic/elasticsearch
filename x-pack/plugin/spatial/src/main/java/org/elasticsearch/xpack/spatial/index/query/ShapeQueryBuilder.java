@@ -13,6 +13,7 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -87,15 +88,15 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     @Override
     @SuppressWarnings({ "rawtypes" })
-    public Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
-        if ((fieldType instanceof ShapeQueryable) == false) {
+    public Query buildShapeQuery(SearchExecutionContext context, MappedField mappedField) {
+        if ((mappedField.type() instanceof ShapeQueryable) == false) {
             throw new QueryShardException(
                 context,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                "Field [" + fieldName + "] is of unsupported type [" + mappedField.typeName() + "] for [" + NAME + "] query"
             );
         }
-        final ShapeQueryable ft = (ShapeQueryable) fieldType;
-        return new ConstantScoreQuery(ft.shapeQuery(shape, fieldType.name(), relation, context));
+        final ShapeQueryable ft = (ShapeQueryable) mappedField.type();
+        return new ConstantScoreQuery(ft.shapeQuery(shape, mappedField.name(), relation, context));
     }
 
     @Override

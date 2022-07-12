@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -152,10 +152,9 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testBuildMetricProducers() {
-        final Map<String, MappedFieldType> provideMappedFieldType = Map.of(
+        final Map<String, MappedField> provideMappedFieldType = Map.of(
             "gauge_field",
-            new NumberFieldMapper.NumberFieldType(
-                "gauge_field",
+            new MappedField("gauge_field", new NumberFieldMapper.NumberFieldType(
                 NumberFieldMapper.NumberType.DOUBLE,
                 true,
                 true,
@@ -166,10 +165,9 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
                 null,
                 false,
                 TimeSeriesParams.MetricType.gauge
-            ),
+            )),
             "counter_field",
-            new NumberFieldMapper.NumberFieldType(
-                "counter_field",
+            new MappedField("counter_field", new NumberFieldMapper.NumberFieldType(
                 NumberFieldMapper.NumberType.DOUBLE,
                 true,
                 true,
@@ -180,7 +178,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
                 null,
                 false,
                 TimeSeriesParams.MetricType.counter
-            )
+            ))
         );
 
         IndexSettings settings = createIndexSettings();
@@ -206,7 +204,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
             emptyMap()
         ) {
             @Override
-            public MappedFieldType getMappedField(String name) {
+            public MappedField getMappedField(String name) {
                 return provideMappedFieldType.get(name);
             }
         };

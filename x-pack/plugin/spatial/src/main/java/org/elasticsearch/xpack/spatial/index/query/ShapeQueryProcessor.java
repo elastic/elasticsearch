@@ -24,7 +24,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
@@ -48,11 +48,12 @@ public class ShapeQueryProcessor {
     }
 
     private void validateIsShapeFieldType(String fieldName, SearchExecutionContext context) {
-        MappedFieldType fieldType = context.getMappedField(fieldName);
-        if (fieldType instanceof ShapeFieldMapper.ShapeFieldType == false) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null || mappedField.type() instanceof ShapeFieldMapper.ShapeFieldType == false) {
             throw new QueryShardException(
                 context,
-                "Expected " + ShapeFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " + fieldType.typeName()
+                "Expected " + ShapeFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " +
+                    mappedField == null ? "absent field" : mappedField.typeName()
             );
         }
     }

@@ -11,7 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -35,15 +35,15 @@ class FieldValueFetcher {
     );
 
     private final String name;
-    private final MappedFieldType fieldType;
+    private final MappedField mappedField;
     private final DocValueFormat format;
     private final IndexFieldData<?> fieldData;
     private final Function<Object, Object> valueFunc;
 
-    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData, Function<Object, Object> valueFunc) {
+    protected FieldValueFetcher(String name, MappedField mappedField, IndexFieldData<?> fieldData, Function<Object, Object> valueFunc) {
         this.name = name;
-        this.fieldType = fieldType;
-        this.format = fieldType.docValueFormat(null, null);
+        this.mappedField = mappedField;
+        this.format = mappedField.docValueFormat(null, null);
         this.fieldData = fieldData;
         this.valueFunc = valueFunc;
     }
@@ -52,8 +52,8 @@ class FieldValueFetcher {
         return name;
     }
 
-    public MappedFieldType fieldType() {
-        return fieldType;
+    public MappedField mappedField() {
+        return mappedField;
     }
 
     public DocValueFormat format() {
@@ -105,12 +105,12 @@ class FieldValueFetcher {
     static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
         List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
         for (String field : fields) {
-            MappedFieldType fieldType = context.getMappedField(field);
-            if (fieldType == null) {
+            MappedField mappedField = context.getMappedField(field);
+            if (mappedField == null) {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
             }
-            IndexFieldData<?> fieldData = context.getForField(fieldType);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
+            IndexFieldData<?> fieldData = context.getForField(mappedField);
+            fetchers.add(new FieldValueFetcher(field, mappedField, fieldData, getValidator(field)));
         }
         return Collections.unmodifiableList(fetchers);
     }

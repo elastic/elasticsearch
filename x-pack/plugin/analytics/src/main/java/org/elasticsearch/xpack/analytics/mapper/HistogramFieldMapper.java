@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -98,7 +99,7 @@ public class HistogramFieldMapper extends FieldMapper {
         public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
                 name,
-                new HistogramFieldType(context.buildFullName(name), meta.getValue(), metric.getValue()),
+                new MappedField(context.buildFullName(name), new HistogramFieldType(meta.getValue(), metric.getValue())),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -119,12 +120,12 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public HistogramFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.metricType = builder.metric.getValue();
@@ -153,8 +154,8 @@ public class HistogramFieldMapper extends FieldMapper {
 
         private final TimeSeriesParams.MetricType metricType;
 
-        public HistogramFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
+        public HistogramFieldType(Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
+            super(false, false, true, TextSearchInfo.NONE, meta);
             this.metricType = metricType;
         }
 
@@ -164,14 +165,14 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcher valueFetcher(String name, SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name, context, format);
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return (cache, breakerService) -> new IndexHistogramFieldData(name, AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {
@@ -254,9 +255,9 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
+        public Query termQuery(String name, Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(
-                "[" + CONTENT_TYPE + "] field do not support searching, " + "use dedicated aggregations instead: [" + name() + "]"
+                "[" + CONTENT_TYPE + "] field do not support searching, " + "use dedicated aggregations instead: [" + name + "]"
             );
         }
 
@@ -377,7 +378,7 @@ public class HistogramFieldMapper extends FieldMapper {
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
             Field field = new BinaryDocValuesField(name(), docValue);
-            if (context.doc().getByKey(fieldType().name()) != null) {
+            if (context.doc().getByKey(name()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["
                         + name()
@@ -386,18 +387,18 @@ public class HistogramFieldMapper extends FieldMapper {
                         + "] doesn't not support indexing multiple values for the same field in the same document"
                 );
             }
-            context.doc().addWithKey(fieldType().name(), field);
+            context.doc().addWithKey(name(), field);
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse field [{}] of type [{}]", ex, fieldType().name(), fieldType().typeName());
+                throw new MapperParsingException("failed to parse field [{}] of type [{}]", ex, name(), fieldType().typeName());
             }
 
             if (subParser != null) {
                 // close the subParser so we advance to the end of the object
                 subParser.close();
             }
-            context.addIgnoredField(fieldType().name());
+            context.addIgnoredField(name());
         }
         context.path().remove();
     }

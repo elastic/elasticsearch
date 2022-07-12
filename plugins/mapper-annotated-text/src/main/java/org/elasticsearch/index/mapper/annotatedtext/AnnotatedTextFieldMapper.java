@@ -27,6 +27,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
@@ -114,14 +115,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 meta };
         }
 
-        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
+        private AnnotatedTextFieldType buildFieldType(FieldType fieldType) {
             TextSearchInfo tsi = new TextSearchInfo(
                 fieldType,
                 similarity.get(),
                 wrapAnalyzer(analyzers.getSearchAnalyzer()),
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer())
             );
-            return new AnnotatedTextFieldType(context.buildFullName(name), store.getValue(), tsi, meta.getValue());
+            return new AnnotatedTextFieldType(store.getValue(), tsi, meta.getValue());
         }
 
         @Override
@@ -140,7 +141,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return new AnnotatedTextFieldMapper(
                 name,
                 fieldType,
-                buildFieldType(fieldType, context),
+                new MappedField(context.buildFullName(name), buildFieldType(fieldType)),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -467,12 +468,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        private AnnotatedTextFieldType(String name, boolean store, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, true, store, tsi, meta);
+        private AnnotatedTextFieldType(boolean store, TextSearchInfo tsi, Map<String, String> meta) {
+            super(true, store, tsi, meta);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
-            super(name, true, false, meta);
+            super(true, false, meta);
         }
 
         @Override
@@ -489,12 +490,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     protected AnnotatedTextFieldMapper(
         String simpleName,
         FieldType fieldType,
-        AnnotatedTextFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedField, multiFields, copyTo);
         assert fieldType.tokenized();
         this.fieldType = fieldType;
         this.builder = builder;
@@ -518,7 +519,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             Field field = new Field(mappedField.name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
-                context.addToFieldNames(fieldType().name());
+                context.addToFieldNames(name());
             }
         }
     }

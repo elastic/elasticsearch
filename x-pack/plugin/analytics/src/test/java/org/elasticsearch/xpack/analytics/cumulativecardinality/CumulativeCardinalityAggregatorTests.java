@@ -19,7 +19,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -153,8 +153,9 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(HISTO_FIELD);
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
+                MappedField fieldType = new MappedField(HISTO_FIELD, new DateFieldMapper.DateFieldType());
+                MappedField valueFieldType = new MappedField("value_field",
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
                 InternalAggregation histogram;
                 histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);

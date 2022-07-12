@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -37,7 +37,7 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertSearchable(MappedFieldType fieldType) {}
+    protected void assertSearchable(MappedField mappedField) {}
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {

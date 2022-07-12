@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 
@@ -19,12 +20,12 @@ import java.util.List;
 public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsNotAggregatable() {
-        MappedFieldType fieldType = new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), true);
-        assertFalse(fieldType.isAggregatable());
+        MappedFieldType fieldType = new RankFeatureFieldMapper.RankFeatureFieldType(Collections.emptyMap(), true);
+        assertFalse(fieldType.isAggregatable("field"));
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new RankFeatureFieldMapper.Builder("field").build(MapperBuilderContext.ROOT).fieldType();
+        MappedField mapper = new RankFeatureFieldMapper.Builder("field").build(MapperBuilderContext.ROOT).field();
 
         assertEquals(List.of(3.14f), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));

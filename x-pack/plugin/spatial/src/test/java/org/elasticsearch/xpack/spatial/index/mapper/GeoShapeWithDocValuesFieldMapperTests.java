@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -418,7 +419,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertSearchable(MappedFieldType fieldType) {
+    protected void assertSearchable(MappedField mappedField) {
 
     }
 

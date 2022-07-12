@@ -20,7 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -94,8 +94,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+        MappedField timestampFieldType = new MappedField(timestampField, new DateFieldMapper.DateFieldType());
+        MappedField valueFieldType = new MappedField(valueField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         // Setup the composite agg
         DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig.CalendarInterval(
@@ -154,8 +154,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+        MappedField timestampFieldType = new MappedField(timestampField, new DateFieldMapper.DateFieldType());
+        MappedField valueFieldType = new MappedField(valueField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         // Setup the composite agg
         // TODO swap this over to DateHistoConfig.Builder once DateInterval is in
@@ -213,7 +213,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+        MappedField valueFieldType = new MappedField(valueField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         // Setup the composite agg
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("the_terms." + TermsAggregationBuilder.NAME).field(valueField);
@@ -270,8 +270,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+        MappedField timestampFieldType = new MappedField(timestampField, new DateFieldMapper.DateFieldType());
+        MappedField valueFieldType = new MappedField(valueField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         // Setup the composite agg
         DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(
@@ -461,8 +461,9 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
-        MappedFieldType metricFieldType = new NumberFieldMapper.NumberFieldType(metricField, NumberFieldMapper.NumberType.LONG);
+        MappedField valueFieldType = new MappedField(valueField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField metricFieldType = new MappedField(metricField,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         // Setup the composite agg
         TermsGroupConfig termsGroupConfig = new TermsGroupConfig(valueField);
@@ -529,8 +530,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+        MappedField timestampFieldType = new MappedField(timestampField, new DateFieldMapper.DateFieldType());
+        MappedField valueFieldType = new MappedField(valueField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
         // Setup the composite agg
         DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(

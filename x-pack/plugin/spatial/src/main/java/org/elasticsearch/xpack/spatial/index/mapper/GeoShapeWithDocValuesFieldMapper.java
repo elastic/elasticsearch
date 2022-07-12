@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -142,7 +142,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                context.buildFullName(name),
                 indexed.get(),
                 hasDocValues.get(),
                 orientation.get().value(),
@@ -150,12 +149,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 geoFormatterFactory,
                 meta.get()
             );
+            String fullName = context.buildFullName(name);
             return new GeoShapeWithDocValuesFieldMapper(
                 name,
-                ft,
+                new MappedField(fullName, ft),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value(), ft.name()),
+                new GeoShapeIndexer(orientation.get().value(), fullName),
                 parser,
                 this
             );
@@ -168,7 +168,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
         public GeoShapeWithDocValuesFieldType(
-            String name,
             boolean indexed,
             boolean hasDocValues,
             Orientation orientation,
@@ -176,13 +175,14 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, hasDocValues, parser, orientation, meta);
+            super(indexed, false, hasDocValues, parser, orientation, meta);
             this.geoFormatterFactory = geoFormatterFactory;
         }
 
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance(), GeoShapeDocValuesField::new);
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String name, String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues(name);
+            return new AbstractLatLonShapeIndexFieldData.Builder(name, GeoShapeValuesSourceType.instance(), GeoShapeDocValuesField::new);
         }
 
         @Override
@@ -191,7 +191,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
+        public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
+                                   LatLonGeometry... geometries) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(
@@ -264,7 +265,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public GeoShapeWithDocValuesFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        MappedField mappedField,
         MultiFields multiFields,
         CopyTo copyTo,
         GeoShapeIndexer indexer,
@@ -273,7 +274,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     ) {
         super(
             simpleName,
-            mappedFieldType,
+            mappedField,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
@@ -296,7 +297,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
-            String name = fieldType().name();
+            String name = name();
             BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
                 docValuesField = new BinaryGeoShapeDocValuesField(name);
@@ -304,7 +305,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             docValuesField.add(fields, geometry);
         } else if (fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name());
         }
     }
 

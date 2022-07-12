@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
@@ -197,9 +198,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
             assertBusy(() -> {
-                final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampField(index);
-                assertNotNull(timestampFieldType);
-                timestampFieldTypeFuture.onResponse(timestampFieldType);
+                final MappedField timestampField = indicesService.getTimestampField(index);
+                assertNotNull(timestampField);
+                timestampFieldTypeFuture.onResponse((DateFieldMapper.DateFieldType) timestampField.type());
             });
             assertTrue(timestampFieldTypeFuture.isDone());
             assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().locale().toString(), equalTo(locale));

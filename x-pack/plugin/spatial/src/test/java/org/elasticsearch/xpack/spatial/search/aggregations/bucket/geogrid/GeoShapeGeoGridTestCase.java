@@ -25,6 +25,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -107,7 +108,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     }
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
         return createBuilder("foo").field(fieldName);
     }
 
@@ -276,7 +277,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         }
 
         MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
-            FIELD_NAME,
             true,
             true,
             Orientation.RIGHT,
@@ -285,7 +285,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             Collections.emptyMap()
         );
 
-        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, new MappedField(FIELD_NAME, fieldType));
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();

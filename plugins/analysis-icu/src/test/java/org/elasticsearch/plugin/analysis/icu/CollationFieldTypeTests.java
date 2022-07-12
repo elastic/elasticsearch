@@ -34,7 +34,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
     private static final Collator DEFAULT_COLLATOR = Collator.getInstance(ULocale.ROOT).freeze();
 
     private static CollationFieldType createFieldType() {
-        return new CollationFieldType("field", DEFAULT_COLLATOR);
+        return new CollationFieldType(DEFAULT_COLLATOR);
     }
 
     public void testIsFieldWithinQuery() throws IOException {
@@ -43,6 +43,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
             Relation.INTERSECTS,
             ft.isFieldWithinQuery(
+                "field",
                 null,
                 RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
                 RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
@@ -59,21 +60,21 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         Collator collator = Collator.getInstance(new ULocale("tr"));
         collator.setStrength(Collator.PRIMARY);
         collator.freeze();
-        MappedFieldType ft = new CollationFieldType("field", collator);
+        MappedFieldType ft = new CollationFieldType(collator);
 
         RawCollationKey key = collator.getRawCollationKey("ı will use turkish casıng", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
-        assertEquals(new TermQuery(new Term("field", expected)), ft.termQuery("I WİLL USE TURKİSH CASING", null));
+        assertEquals(new TermQuery(new Term("field", expected)), ft.termQuery("field", "I WİLL USE TURKİSH CASING", null));
 
-        MappedFieldType unsearchable = new CollationFieldType("field", false, collator);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
+        MappedFieldType unsearchable = new CollationFieldType(false, collator);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", "bar", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testTermsQuery() {
         Collator collator = DEFAULT_COLLATOR;
-        MappedFieldType ft = new CollationFieldType("field", collator);
+        MappedFieldType ft = new CollationFieldType(collator);
 
         RawCollationKey fooKey = collator.getRawCollationKey("foo", null);
         RawCollationKey barKey = collator.getRawCollationKey("bar", null);
@@ -82,12 +83,12 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         terms.add(new BytesRef(fooKey.bytes, 0, fooKey.size));
         terms.add(new BytesRef(barKey.bytes, 0, barKey.size));
 
-        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery("field", Arrays.asList("foo", "bar"), null));
 
-        MappedFieldType unsearchable = new CollationFieldType("field", false, collator);
+        MappedFieldType unsearchable = new CollationFieldType(false, collator);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null)
+            () -> unsearchable.termsQuery("field", Arrays.asList("foo", "bar"), null)
         );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
@@ -96,7 +97,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> ft.regexpQuery("foo.*", 0, 0, 10, null, randomMockContext())
+            () -> ft.regexpQuery("field", "foo.*", 0, 0, 10, null, randomMockContext())
         );
         assertEquals("[regexp] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
@@ -105,7 +106,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext())
+            () -> ft.fuzzyQuery("field", "foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext())
         );
         assertEquals("[fuzzy] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
@@ -114,7 +115,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> ft.prefixQuery("prefix", null, randomMockContext())
+            () -> ft.prefixQuery("field", "prefix", null, randomMockContext())
         );
         assertEquals("[prefix] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
@@ -123,7 +124,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> ft.wildcardQuery("foo*", null, randomMockContext())
+            () -> ft.wildcardQuery("field", "foo*", null, randomMockContext())
         );
         assertEquals("[wildcard] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }
@@ -141,21 +142,21 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        assertEquals(expected, ft.rangeQuery("a", "b", false, false, null, null, null, MOCK_CONTEXT));
+        assertEquals(expected, ft.rangeQuery("field", "a", "b", false, false, null, null, null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.rangeQuery("a", "b", true, true, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.rangeQuery("field", "a", "b", true, true, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
             ee.getMessage()
         );
 
-        MappedFieldType unsearchable = new CollationFieldType("field", false, DEFAULT_COLLATOR);
+        MappedFieldType unsearchable = new CollationFieldType(false, DEFAULT_COLLATOR);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.rangeQuery("a", "b", false, false, null, null, null, MOCK_CONTEXT)
+            () -> unsearchable.rangeQuery("field", "a", "b", false, false, null, null, null, MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }

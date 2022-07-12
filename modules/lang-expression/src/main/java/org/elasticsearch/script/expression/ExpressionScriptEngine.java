@@ -19,7 +19,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
@@ -454,22 +454,22 @@ public class ExpressionScriptEngine implements ScriptEngine {
         }
 
         String fieldname = parts[1].text;
-        MappedFieldType fieldType = lookup.mappedField(fieldname);
+        MappedField mappedField = lookup.mappedField(fieldname);
 
-        if (fieldType == null) {
+        if (mappedField == null) {
             throw new ParseException("Field [" + fieldname + "] does not exist in mappings", 5);
         }
 
-        IndexFieldData<?> fieldData = lookup.getForField(fieldType);
+        IndexFieldData<?> fieldData = lookup.getForField(mappedField);
         final DoubleValuesSource valueSource;
-        if (fieldType instanceof GeoPointFieldType) {
+        if (mappedField.type() instanceof GeoPointFieldType) {
             // geo
             if (methodname == null) {
                 valueSource = GeoField.getVariable(fieldData, fieldname, variablename);
             } else {
                 valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
             }
-        } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
+        } else if (mappedField.type() instanceof DateFieldMapper.DateFieldType) {
             if (dateAccessor) {
                 // date object
                 if (methodname == null) {

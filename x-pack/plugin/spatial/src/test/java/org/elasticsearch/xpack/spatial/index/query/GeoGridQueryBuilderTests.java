@@ -20,7 +20,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -114,10 +114,10 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
 
     @Override
     protected void doAssertLuceneQuery(GeoGridQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        final MappedFieldType fieldType = context.getMappedField(queryBuilder.fieldName());
-        if (fieldType == null) {
+        final MappedField mappedField = context.getMappedField(queryBuilder.fieldName());
+        if (mappedField == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
-        } else if (fieldType.hasDocValues()) {
+        } else if (mappedField.hasDocValues()) {
             assertEquals(IndexOrDocValuesQuery.class, query.getClass());
         }
     }

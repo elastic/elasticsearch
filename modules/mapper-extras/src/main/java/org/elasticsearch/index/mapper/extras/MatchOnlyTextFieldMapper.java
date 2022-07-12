@@ -145,7 +145,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.textFieldType = new TextFieldType();
         }
 
-        public MatchOnlyTextFieldType(String name) {
+        public MatchOnlyTextFieldType() {
             this(
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 Lucene.STANDARD_ANALYZER,

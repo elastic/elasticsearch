@@ -27,7 +27,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
@@ -46,11 +46,12 @@ public class ShapeQueryPointProcessor {
     }
 
     private void validateIsPointFieldType(String fieldName, SearchExecutionContext context) {
-        MappedFieldType fieldType = context.getMappedField(fieldName);
-        if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
+        MappedField mappedField = context.getMappedField(fieldName);
+        if (mappedField == null || mappedField.type() instanceof PointFieldMapper.PointFieldType == false) {
             throw new QueryShardException(
                 context,
-                "Expected " + PointFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " + fieldType.typeName()
+                "Expected " + PointFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " +
+                    mappedField == null ? " absent field" : mappedField.typeName()
             );
         }
     }
@@ -62,13 +63,13 @@ public class ShapeQueryPointProcessor {
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
         SearchExecutionContext context;
-        MappedFieldType fieldType;
+        MappedField mappedField;
         String fieldName;
         ShapeRelation relation;
 
         ShapeVisitor(SearchExecutionContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
-            this.fieldType = context.getMappedField(fieldName);
+            this.mappedField = context.getMappedField(fieldName);
             this.fieldName = fieldName;
             this.relation = relation;
         }
@@ -77,7 +78,7 @@ public class ShapeQueryPointProcessor {
         public Query visit(Circle circle) {
             XYCircle xyCircle = ShapeUtils.toLuceneXYCircle(circle);
             Query query = XYPointField.newDistanceQuery(fieldName, xyCircle.getX(), xyCircle.getY(), xyCircle.getRadius());
-            if (fieldType.hasDocValues()) {
+            if (mappedField.hasDocValues()) {
                 Query dvQuery = XYDocValuesField.newSlowDistanceQuery(fieldName, xyCircle.getX(), xyCircle.getY(), xyCircle.getRadius());
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
@@ -126,7 +127,7 @@ public class ShapeQueryPointProcessor {
                 lucenePolygons[i] = ShapeUtils.toLuceneXYPolygon(multiPolygon.get(i));
             }
             Query query = XYPointField.newPolygonQuery(fieldName, lucenePolygons);
-            if (fieldType.hasDocValues()) {
+            if (mappedField.hasDocValues()) {
                 Query dvQuery = XYDocValuesField.newSlowPolygonQuery(fieldName, lucenePolygons);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
@@ -143,7 +144,7 @@ public class ShapeQueryPointProcessor {
         public Query visit(Polygon polygon) {
             org.apache.lucene.geo.XYPolygon lucenePolygon = ShapeUtils.toLuceneXYPolygon(polygon);
             Query query = XYPointField.newPolygonQuery(fieldName, lucenePolygon);
-            if (fieldType.hasDocValues()) {
+            if (mappedField.hasDocValues()) {
                 Query dvQuery = XYDocValuesField.newSlowPolygonQuery(fieldName, lucenePolygon);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
@@ -154,7 +155,7 @@ public class ShapeQueryPointProcessor {
         public Query visit(Rectangle r) {
             XYRectangle xyRectangle = ShapeUtils.toLuceneXYRectangle(r);
             Query query = XYPointField.newBoxQuery(fieldName, xyRectangle.minX, xyRectangle.maxX, xyRectangle.minY, xyRectangle.maxY);
-            if (fieldType.hasDocValues()) {
+            if (mappedField.hasDocValues()) {
                 Query dvQuery = XYDocValuesField.newSlowBoxQuery(
                     fieldName,
                     xyRectangle.minX,

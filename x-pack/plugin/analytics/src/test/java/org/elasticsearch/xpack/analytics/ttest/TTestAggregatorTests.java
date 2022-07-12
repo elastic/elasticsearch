@@ -20,7 +20,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -65,8 +65,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
     public static final String TERM_FILTERING = "term_filtering";
 
     @Override
-    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedField mappedField, String fieldName) {
+        if (mappedField.type() instanceof NumberFieldMapper.NumberFieldType) {
             return new TTestAggregationBuilder("foo").a(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
                     .setFilter(QueryBuilders.rangeQuery(fieldName).lt(10))
@@ -77,8 +77,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                         .setFilter(QueryBuilders.rangeQuery(fieldName).gte(10))
                         .build()
                 );
-        } else if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
-            || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+        } else if (mappedField.typeName().equals(DateFieldMapper.CONTENT_TYPE)
+            || mappedField.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
 
                 return new TTestAggregationBuilder("foo").a(
                     new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
@@ -90,7 +90,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                             .setFilter(QueryBuilders.rangeQuery(fieldName).gte(DateUtils.toInstant(10)))
                             .build()
                     );
-            } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
+            } else if (mappedField.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
                 return new TTestAggregationBuilder("foo").a(
                     new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
                         .setFilter(QueryBuilders.rangeQuery(fieldName).lt("true"))
@@ -201,7 +201,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testSameFieldAndNoFilters() {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.INTEGER);
+        MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("field").setMissing(100).build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("field").setMissing(100).build()).testType(tTestType);
@@ -211,7 +211,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedNumericDocValuesField("field", 102)));
                 iw.addDocument(singleton(new SortedNumericDocValuesField("field", 99)));
-            }, tTest -> fail("Should have thrown exception"), fieldType)
+            }, tTest -> fail("Should have thrown exception"), mappedField)
         );
         assertEquals("The same field [field] is used for both population but no filters are specified.", ex.getMessage());
     }
@@ -267,8 +267,10 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         TTestType tTestType = randomFrom(TTestType.values());
         boolean missA = randomBoolean();
         boolean missB = missA == false || randomBoolean(); // at least one of the fields should be missing
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType(missA ? "not_a" : "a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(missB ? "not_b" : "b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField(missA ? "not_a" : "a",
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField(missB ? "not_b" : "b",
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setMissing(100).build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("b").setMissing(100).build()).testType(tTestType);
@@ -295,24 +297,24 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                     }
                 }
             }
-        }, fieldType1, fieldType2);
+        }, field1, field2);
     }
 
     public void testUnsupportedType() {
         TTestType tTestType = randomFrom(TTestType.values());
         boolean wrongA = randomBoolean();
         boolean wrongB = wrongA == false || randomBoolean(); // at least one of the fields should have unsupported type
-        MappedFieldType fieldType1;
+        MappedField field1;
         if (wrongA) {
-            fieldType1 = new KeywordFieldMapper.KeywordFieldType("a");
+            field1 = new MappedField("a", new KeywordFieldMapper.KeywordFieldType());
         } else {
-            fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
+            field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         }
-        MappedFieldType fieldType2;
+        MappedField field2;
         if (wrongB) {
-            fieldType2 = new KeywordFieldMapper.KeywordFieldType("b");
+            field2 = new MappedField("b", new KeywordFieldMapper.KeywordFieldType());
         } else {
-            fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+            field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         }
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").build()
@@ -329,7 +331,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                     )
                 );
                 iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 93)));
-            }, tTest -> fail("Should have thrown exception"), fieldType1, fieldType2)
+            }, tTest -> fail("Should have thrown exception"), field1, field2)
         );
         assertEquals("Expected numeric type on field [" + (wrongA ? "a" : "b") + "], but got [keyword]", ex.getMessage());
     }
@@ -338,12 +340,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         TTestType tTestType = randomFrom(TTestType.values());
         boolean missA = randomBoolean();
         boolean missB = missA == false || randomBoolean(); // at least one of the fields should be have bad missing
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         MultiValuesSourceFieldConfig.Builder a = new MultiValuesSourceFieldConfig.Builder().setFieldName("a");
         if (missA) {
             a.setMissing("bad_number");
         }
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         MultiValuesSourceFieldConfig.Builder b = new MultiValuesSourceFieldConfig.Builder().setFieldName("b");
         if (missB) {
             b.setMissing("bad_number");
@@ -355,7 +357,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(asList(new SortedNumericDocValuesField("a", 102), new SortedNumericDocValuesField("b", 89)));
                 iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 93)));
-            }, tTest -> fail("Should have thrown exception"), fieldType1, fieldType2)
+            }, tTest -> fail("Should have thrown exception"), field1, field2)
         );
         assertEquals("For input string: \"bad_number\"", ex.getMessage());
     }
@@ -364,14 +366,15 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         TTestType tTestType = randomFrom(TTestType.values());
         boolean missA = randomBoolean();
         boolean missB = missA == false || randomBoolean(); // at least one of the fields should be have bad missing
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         MultiValuesSourceFieldConfig.Builder a = new MultiValuesSourceFieldConfig.Builder();
         if (missA) {
             a.setFieldName("not_a").setMissing("bad_number");
         } else {
             a.setFieldName("a");
         }
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(missB ? "not_b" : "b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field2 = new MappedField(missB ? "not_b" : "b",
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
 
         MultiValuesSourceFieldConfig.Builder b = new MultiValuesSourceFieldConfig.Builder();
         if (missB) {
@@ -386,16 +389,16 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(asList(new SortedNumericDocValuesField("a", 102), new SortedNumericDocValuesField("b", 89)));
                 iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 93)));
-            }, tTest -> fail("Should have thrown exception"), fieldType1, fieldType2)
+            }, tTest -> fail("Should have thrown exception"), field1, field2)
         );
         assertEquals("For input string: \"bad_number\"", ex.getMessage());
     }
 
     public void testEmptyBucket() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldTypePart = new NumberFieldMapper.NumberFieldType("part", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField fieldPart = new MappedField("part", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         HistogramAggregationBuilder histogram = new HistogramAggregationBuilder("histo").field("part")
             .interval(10)
             .minDocCount(0)
@@ -446,14 +449,14 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 0.000001
             );
 
-        }, fieldType1, fieldType2, fieldTypePart);
+        }, field1, field2, fieldPart);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54365")
     public void testFormatter() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("b").build()).testType(tTestType).format("0.00%");
@@ -472,12 +475,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 tTestType == TTestType.PAIRED ? "19.40%" : tTestType == TTestType.HOMOSCEDASTIC ? "5.88%" : "7.53%",
                 tTest.getValueAsString()
             );
-        }, fieldType1, fieldType2);
+        }, field1, field2);
     }
 
     public void testGetProperty() throws IOException {
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
             new TTestAggregationBuilder("t_test").a(new MultiValuesSourceFieldConfig.Builder().setFieldName("a").build())
                 .b(new MultiValuesSourceFieldConfig.Builder().setFieldName("b").build())
@@ -495,14 +498,14 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             InternalTTest tTest = (InternalTTest) global.getAggregations().asMap().get("t_test");
             assertEquals(tTest, global.getProperty("t_test"));
             assertEquals(0.1939778614, (Double) global.getProperty("t_test.value"), 0.000001);
-        }, fieldType1, fieldType2);
+        }, field1, field2);
     }
 
     public void testScript() throws IOException {
         boolean fieldInA = randomBoolean();
         TTestType tTestType = randomFrom(TTestType.values());
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
 
         MultiValuesSourceFieldConfig a = new MultiValuesSourceFieldConfig.Builder().setFieldName("field").build();
         MultiValuesSourceFieldConfig b = new MultiValuesSourceFieldConfig.Builder().setScript(
@@ -520,13 +523,13 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             (Consumer<InternalTTest>) tTest -> {
                 assertEquals(tTestType == TTestType.PAIRED ? 0 : 0.5733922538, tTest.getValue(), 0.000001);
             },
-            fieldType
+            field
         );
     }
 
     public void testPaired() throws IOException {
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("b").build()).testType(TTestType.PAIRED);
@@ -541,12 +544,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 97), new NumericDocValuesField("b", 98)));
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
-        }, (Consumer<InternalTTest>) ttest -> { assertEquals(0.09571844217 * tails, ttest.getValue(), 0.00001); }, fieldType1, fieldType2);
+        }, (Consumer<InternalTTest>) ttest -> { assertEquals(0.09571844217 * tails, ttest.getValue(), 0.00001); }, field1, field2);
     }
 
     public void testHomoscedastic() throws IOException {
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("b").build()).testType(TTestType.HOMOSCEDASTIC);
@@ -561,12 +564,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 97), new NumericDocValuesField("b", 98)));
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
-        }, (Consumer<InternalTTest>) ttest -> { assertEquals(0.03928288693 * tails, ttest.getValue(), 0.00001); }, fieldType1, fieldType2);
+        }, (Consumer<InternalTTest>) ttest -> { assertEquals(0.03928288693 * tails, ttest.getValue(), 0.00001); }, field1, field2);
     }
 
     public void testHeteroscedastic() throws IOException {
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("b").build());
@@ -584,13 +587,13 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 97), new NumericDocValuesField("b", 98)));
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
-        }, (Consumer<InternalTTest>) ttest -> { assertEquals(0.04538666214 * tails, ttest.getValue(), 0.00001); }, fieldType1, fieldType2);
+        }, (Consumer<InternalTTest>) ttest -> { assertEquals(0.04538666214 * tails, ttest.getValue(), 0.00001); }, field1, field2);
     }
 
     public void testFiltered() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setFilter(QueryBuilders.termQuery("b", 1)).build()
         )
@@ -630,8 +633,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                     new MatchAllDocsQuery(),
                     buildIndex,
                     tTest -> fail("Should have thrown exception"),
-                    fieldType1,
-                    fieldType2
+                    field1,
+                    field2
                 )
             );
             assertEquals("Paired t-test doesn't support filters", ex.getMessage());
@@ -642,7 +645,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 } else {
                     assertEquals(0.04538666214 * tails, ttest.getValue(), 0.00001);
                 }
-            }, fieldType1, fieldType2);
+            }, field1, field2);
         }
     }
 
@@ -650,8 +653,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         boolean fieldInA = randomBoolean();
         TTestType tTestType = randomFrom(TTestType.HOMOSCEDASTIC, TTestType.HETEROSCEDASTIC);
 
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("term", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("term", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
 
         boolean filterTermOne = randomBoolean();
 
@@ -673,7 +676,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("field", 4), new IntPoint("term", 2), new NumericDocValuesField("term", 2)));
             iw.addDocument(asList(new NumericDocValuesField("field", 5), new IntPoint("term", 2), new NumericDocValuesField("term", 2)));
             iw.addDocument(asList(new NumericDocValuesField("field", 6), new IntPoint("term", 2), new NumericDocValuesField("term", 2)));
-        }, (Consumer<InternalTTest>) tTest -> { assertEquals(0.02131164113, tTest.getValue(), 0.000001); }, fieldType1, fieldType2);
+        }, (Consumer<InternalTTest>) tTest -> { assertEquals(0.02131164113, tTest.getValue(), 0.000001); }, field1, field2);
     }
 
     private void testCase(
@@ -682,8 +685,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalTTest> verify
     ) throws IOException {
-        MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
+        MappedField field1 = new MappedField("a", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField("b", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
 
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").build()
@@ -691,7 +694,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         if (type != TTestType.HETEROSCEDASTIC || randomBoolean()) {
             aggregationBuilder.testType(type);
         }
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType1, fieldType2);
+        testCase(aggregationBuilder, query, buildIndex, verify, field1, field2);
     }
 
     @Override

@@ -38,6 +38,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
@@ -631,9 +632,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         List<FieldMapper> types = new ArrayList<>();
         for (int i = 0; i < 11; i++) { // the tests use fields 1 to 10.
             // This field has a value.
-            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("field-" + i)));
+            types.add(new MockFieldMapper(new MappedField("field-" + i, new KeywordFieldMapper.KeywordFieldType())));
             // This field never has a value
-            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
+            types.add(new MockFieldMapper(new MappedField("dne-" + i, new KeywordFieldMapper.KeywordFieldType())));
         }
 
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList(), emptyList());

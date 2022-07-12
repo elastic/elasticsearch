@@ -55,9 +55,9 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertSearchable(MappedFieldType fieldType) {
+    protected void assertSearchable(MappedField mappedField) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isSearchable());
+        assertTrue(mappedField.isSearchable());
     }
 
     @Override

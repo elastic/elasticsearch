@@ -233,6 +233,19 @@ public class Metadata {
         return map;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if ((o instanceof Metadata) == false) return false;
+        Metadata metadata = (Metadata) o;
+        return map.equals(metadata.map);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(map);
+    }
+
     /**
      * The operation being performed on the value in the map.
      * INIT: Initial value - the metadata value as passed into this class

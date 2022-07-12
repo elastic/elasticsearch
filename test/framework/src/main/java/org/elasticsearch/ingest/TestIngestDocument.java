@@ -17,7 +17,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -61,9 +60,7 @@ public class TestIngestDocument {
      * Create an IngestDocument with a metadata map and validators.  The metadata map is passed by reference, not copied, so callers
      * can observe changes to the map directly.
      */
-    public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, BiConsumer<String, Object>> validators) {
-        Map<String, Metadata.FieldProperty<?>> properties = new HashMap<>();
-        validators.forEach((k, v) -> properties.put(k, new Metadata.FieldProperty<>(Object.class, true, true, v)));
+    public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, Metadata.FieldProperty<?>> properties) {
         return new IngestDocument(new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, properties)), new HashMap<>());
     }
 

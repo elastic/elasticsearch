@@ -68,7 +68,7 @@ import java.util.Objects;
  */
 public class BloomFilterPostingsFormat extends PostingsFormat {
     static final String BLOOM_CODEC_NAME = "ES84BloomFilter";
-    static final int VERSION_START = 1;
+    static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;
     static final String BLOOM_FILTER_META_FILE = "bfm";
     static final String BLOOM_FILTER_INDEX_FILE = "bfi";

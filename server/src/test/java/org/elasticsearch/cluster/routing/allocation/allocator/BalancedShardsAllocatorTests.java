@@ -33,9 +33,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -96,13 +98,19 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
 
-        addIndex(metadataBuilder, routingTableBuilder, "index-0", Map.of("node-0", 4, "node-1", 4, "node-2", 2));
-        addIndex(metadataBuilder, routingTableBuilder, "index-1", Map.of("node-0", 4, "node-1", 4, "node-2", 2));
-        addIndex(metadataBuilder, routingTableBuilder, "index-2", Map.of("node-0", 3, "node-1", 3, "node-2", 4));
-        addIndex(metadataBuilder, routingTableBuilder, "index-3", Map.of("node-0", 3, "node-1", 3, "node-2", 4));
-        addIndex(metadataBuilder, routingTableBuilder, "index-4", Map.of("node-0", 4, "node-1", 3, "node-2", 3));
-        addIndex(metadataBuilder, routingTableBuilder, "index-5", Map.of("node-0", 3, "node-1", 4, "node-2", 3));
-        addIndex(metadataBuilder, routingTableBuilder, "index-6", Map.of("node-0", 3, "node-1", 3, "node-2", 4));
+        var indices = Arrays.asList(
+            Tuple.tuple(UUIDs.randomBase64UUID(random()), Map.of("node-0", 4, "node-1", 4, "node-2", 2)),
+            Tuple.tuple(UUIDs.randomBase64UUID(random()), Map.of("node-0", 4, "node-1", 4, "node-2", 2)),
+            Tuple.tuple(UUIDs.randomBase64UUID(random()), Map.of("node-0", 3, "node-1", 3, "node-2", 4)),
+            Tuple.tuple(UUIDs.randomBase64UUID(random()), Map.of("node-0", 3, "node-1", 3, "node-2", 4)),
+            Tuple.tuple(UUIDs.randomBase64UUID(random()), Map.of("node-0", 4, "node-1", 3, "node-2", 3)),
+            Tuple.tuple(UUIDs.randomBase64UUID(random()), Map.of("node-0", 3, "node-1", 4, "node-2", 3)),
+            Tuple.tuple(UUIDs.randomBase64UUID(random()), Map.of("node-0", 3, "node-1", 3, "node-2", 4))
+        );
+        Collections.shuffle(indices, random());
+        for (var index : indices) {
+            addIndex(metadataBuilder, routingTableBuilder, index.v1(), index.v2());
+        }
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)

@@ -408,7 +408,7 @@ public class JobDataDeleter {
 
         // Step 5. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteAnnotationsHandler = ActionListener.wrap(
-            response -> jobConfigProvider.getJob(jobId, getJobHandler),
+            response -> jobConfigProvider.getJob(jobId, null, getJobHandler),
             failureHandler
         );
 
@@ -505,9 +505,7 @@ public class JobDataDeleter {
         return aliases.isEmpty()
             ? null
             : new IndicesAliasesRequest().addAliasAction(
-                IndicesAliasesRequest.AliasActions.remove()
-                    .aliases(aliases.toArray(new String[aliases.size()]))
-                    .indices(indices.toArray(new String[indices.size()]))
+                IndicesAliasesRequest.AliasActions.remove().aliases(aliases.toArray(new String[0])).indices(indices.toArray(new String[0]))
             );
     }
 

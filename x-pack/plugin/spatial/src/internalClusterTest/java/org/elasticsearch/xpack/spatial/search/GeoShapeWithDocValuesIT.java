@@ -26,11 +26,6 @@ import static org.hamcrest.Matchers.containsString;
 public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }

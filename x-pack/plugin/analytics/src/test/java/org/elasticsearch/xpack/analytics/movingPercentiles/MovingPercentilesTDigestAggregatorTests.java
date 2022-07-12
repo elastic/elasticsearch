@@ -67,8 +67,10 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 MappedField mappedField = new MappedField(aggBuilder.field(), new DateFieldMapper.DateFieldType());
-                MappedField mappedValueField = new MappedField("value_field", new NumberFieldMapper.NumberFieldType(
-                    NumberFieldMapper.NumberType.DOUBLE));
+                MappedField mappedValueField = new MappedField(
+                    "value_field",
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE)
+                );
 
                 InternalDateHistogram histogram;
                 histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000, mappedField, mappedValueField);

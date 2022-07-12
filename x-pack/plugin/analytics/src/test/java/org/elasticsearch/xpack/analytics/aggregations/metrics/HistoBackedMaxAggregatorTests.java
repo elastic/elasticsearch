@@ -135,7 +135,9 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedField defaultField() {
-        return new MappedField(HistoBackedMaxAggregatorTests.FIELD_NAME,
-            new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+        return new MappedField(
+            HistoBackedMaxAggregatorTests.FIELD_NAME,
+            new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null)
+        );
     }
 }

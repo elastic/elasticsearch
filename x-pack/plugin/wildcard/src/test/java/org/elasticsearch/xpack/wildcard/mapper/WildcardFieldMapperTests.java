@@ -360,10 +360,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 case 1 -> {
                     pattern = getRandomRegexPattern(values);
                     int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
-                    wildcardFieldQuery = wildcardFieldType.field()
-                        .regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
-                    keywordFieldQuery = keywordFieldType.field()
-                        .regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
+                    wildcardFieldQuery = wildcardFieldType.field().regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
+                    keywordFieldQuery = keywordFieldType.field().regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
                 }
                 case 2 -> {
                     pattern = randomABString(5);

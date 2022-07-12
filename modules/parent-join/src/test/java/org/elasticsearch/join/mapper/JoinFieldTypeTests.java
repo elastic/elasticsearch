@@ -27,8 +27,10 @@ public class JoinFieldTypeTests extends FieldTypeTestCase {
         Map<String, String> childValue = Map.of("relation", "child", "parent", "1");
         assertEquals(List.of(childValue), fetchSourceValue(mappedField, childValue));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> fetchSourceValue(mappedField, parentValue, "format"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fetchSourceValue(mappedField, parentValue, "format")
+        );
         assertEquals("Field [field] of type [join] doesn't support formats.", e.getMessage());
     }
 }

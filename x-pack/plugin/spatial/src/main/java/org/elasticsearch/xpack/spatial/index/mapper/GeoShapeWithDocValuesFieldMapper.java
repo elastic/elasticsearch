@@ -191,8 +191,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
-                                   LatLonGeometry... geometries) {
+        public Query geoShapeQuery(
+            String name,
+            SearchExecutionContext context,
+            String fieldName,
+            ShapeRelation relation,
+            LatLonGeometry... geometries
+        ) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(

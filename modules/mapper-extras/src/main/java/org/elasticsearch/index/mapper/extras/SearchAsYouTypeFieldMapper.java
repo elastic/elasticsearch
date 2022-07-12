@@ -217,8 +217,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             );
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
             TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity.getValue(), prefixSearchWrapper, searchAnalyzer);
-            final MappedField prefixField = PrefixFieldType.newMappedField(fullName,
-                new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
+            final MappedField prefixField = PrefixFieldType.newMappedField(
+                fullName,
+                new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM)
+            );
             final NamedAnalyzer prefixAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixField);
             indexAnalyzers.put(prefixField.name(), prefixAnalyzer);
@@ -369,9 +371,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                 SearchExecutionContext context)
-            throws IOException {
+        public Query phraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext context
+        ) throws IOException {
             checkForPositions(name);
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
@@ -383,9 +389,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                      SearchExecutionContext context)
-            throws IOException {
+        public Query multiPhraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext context
+        ) throws IOException {
             checkForPositions(name);
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
@@ -397,8 +407,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions,
-                                       SearchExecutionContext context) throws IOException {
+        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context)
+            throws IOException {
             int numPos = countPosition(stream);
             if (numPos > 1) {
                 checkForPositions(name);
@@ -412,8 +422,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
-                                         SearchExecutionContext context) {
+        public SpanQuery spanPrefixQuery(
+            String name,
+            String value,
+            SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+            SearchExecutionContext context
+        ) {
             if (prefixField == null || ((PrefixFieldType) prefixField.type()).termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField.name(), indexedValueForSearch(name, value))), name);
             } else {
@@ -630,22 +644,30 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                 SearchExecutionContext context)
-            throws IOException {
+        public Query phraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext context
+        ) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name, slop, enablePositionIncrements);
         }
 
         @Override
-        public Query multiPhraseQuery(String name, TokenStream stream, int slop, boolean enablePositionIncrements,
-                                      SearchExecutionContext context)
-            throws IOException {
+        public Query multiPhraseQuery(
+            String name,
+            TokenStream stream,
+            int slop,
+            boolean enablePositionIncrements,
+            SearchExecutionContext context
+        ) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name, slop, enablePositionIncrements);
         }
 
         @Override
-        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions,
-                                       SearchExecutionContext context) throws IOException {
+        public Query phrasePrefixQuery(String name, TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context)
+            throws IOException {
             final String prefixFieldName = slop > 0 ? null : prefixField.name();
             return TextFieldMapper.createPhrasePrefixQuery(
                 stream,
@@ -658,8 +680,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SpanQuery spanPrefixQuery(String name, String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method,
-                                         SearchExecutionContext context) {
+        public SpanQuery spanPrefixQuery(
+            String name,
+            String value,
+            SpanMultiTermQueryWrapper.SpanRewriteMethod method,
+            SearchExecutionContext context
+        ) {
             if (prefixField != null && ((PrefixFieldType) prefixField.type()).termLengthWithinBounds(value.length())) {
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixField.name(), indexedValueForSearch(name, value))), name);
             } else {

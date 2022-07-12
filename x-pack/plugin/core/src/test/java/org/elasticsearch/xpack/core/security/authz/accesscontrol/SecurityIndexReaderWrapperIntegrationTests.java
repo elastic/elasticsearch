@@ -207,9 +207,11 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MappingLookup mappingLookup = createMappingLookup(
-            List.of(new MappedField("field", new KeywordFieldType()),
+            List.of(
+                new MappedField("field", new KeywordFieldType()),
                 new MappedField("f1", new KeywordFieldType()),
-                new MappedField("f2", new KeywordFieldType()))
+                new MappedField("f2", new KeywordFieldType())
+            )
         );
         ScriptService scriptService = mock(ScriptService.class);
 

@@ -692,13 +692,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         for (int shingleSize = 2; shingleSize <= maxShingleSize; shingleSize++) {
             final ShingleFieldMapper shingleFieldMapper = mapper.shingleFields()[shingleSize - 2];
             assertThat(shingleFieldMapper, notNullValue());
-            assertShingleFieldType(
-                shingleFieldMapper,
-                mapper.indexAnalyzers(),
-                shingleSize,
-                analyzerName,
-                mapper.prefixField().field()
-            );
+            assertShingleFieldType(shingleFieldMapper, mapper.indexAnalyzers(), shingleSize, analyzerName, mapper.prefixField().field());
         }
 
         final int numberOfShingleSubfields = (maxShingleSize - 2) + 1;

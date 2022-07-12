@@ -113,8 +113,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     }
 
     public void testParentChildAsSubAgg() throws IOException {
-        MappedField kwd = new MappedField("kwd",
-            new KeywordFieldMapper.KeywordFieldType(randomBoolean(), true, Collections.emptyMap()));
+        MappedField kwd = new MappedField("kwd", new KeywordFieldMapper.KeywordFieldType(randomBoolean(), true, Collections.emptyMap()));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 

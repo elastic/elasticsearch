@@ -390,7 +390,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                 }
             }
             return new MatchNoDocsQuery(); // unmapped field
-        } else if (mappedField.type() instanceof final RankFeatureFieldType fft) {
+        } else if (mappedField.type()instanceof final RankFeatureFieldType fft) {
             return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else {
             throw new IllegalArgumentException(

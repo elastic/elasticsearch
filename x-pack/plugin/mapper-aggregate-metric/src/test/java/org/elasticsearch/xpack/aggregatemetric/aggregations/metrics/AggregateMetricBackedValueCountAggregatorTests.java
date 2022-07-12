@@ -120,9 +120,10 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
 
         for (Metric m : List.of(Metric.value_count, Metric.sum)) {
             String subfieldName = subfieldName(fieldName, m);
-            MappedField subfield = new MappedField(subfieldName, new NumberFieldMapper.NumberFieldType(
-                NumberFieldMapper.NumberType.DOUBLE
-            ));
+            MappedField subfield = new MappedField(
+                subfieldName,
+                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE)
+            );
             fieldType.addMetricField(fieldName, m, subfield);
         }
         fieldType.setDefaultMetric(Metric.sum);

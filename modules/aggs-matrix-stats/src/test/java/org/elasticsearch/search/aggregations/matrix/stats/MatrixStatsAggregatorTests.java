@@ -30,8 +30,7 @@ import java.util.List;
 public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
     public void testNoData() throws Exception {
-        MappedField mappedField = new MappedField("field",
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
 
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             if (randomBoolean()) {
@@ -50,8 +49,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        MappedField mappedField = new MappedField("field",
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
 
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             if (randomBoolean()) {
@@ -71,11 +69,9 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
     public void testTwoFields() throws Exception {
         String fieldA = "a";
-        MappedField ftA = new MappedField(fieldA,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+        MappedField ftA = new MappedField(fieldA, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
         String fieldB = "b";
-        MappedField ftB = new MappedField(fieldB,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
+        MappedField ftB = new MappedField(fieldB, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE));
 
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
 

@@ -180,8 +180,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 dimension.getValue(),
                 metric.getValue()
             );
-            return new UnsignedLongFieldMapper(name, new MappedField(context.buildFullName(name), fieldType),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(
+                name,
+                new MappedField(context.buildFullName(name), fieldType),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -478,13 +483,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final boolean dimension;
     private final MetricType metricType;
 
-    private UnsignedLongFieldMapper(
-        String simpleName,
-        MappedField mappedField,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    private UnsignedLongFieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedField, multiFields, copyTo);
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

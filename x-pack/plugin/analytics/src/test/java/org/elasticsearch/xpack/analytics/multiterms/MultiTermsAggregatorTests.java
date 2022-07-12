@@ -643,16 +643,19 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedField dateFieldType(String name) {
-        return new MappedField(name, new DateFieldMapper.DateFieldType(
-            true,
-            false,
-            true,
-            DateFormatter.forPattern("strict_date"),
-            DateFieldMapper.Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+        return new MappedField(
+            name,
+            new DateFieldMapper.DateFieldType(
+                true,
+                false,
+                true,
+                DateFormatter.forPattern("strict_date"),
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
     }
 
     private Iterable<IndexableField> docWithDate(String date, IndexableField... fields) {

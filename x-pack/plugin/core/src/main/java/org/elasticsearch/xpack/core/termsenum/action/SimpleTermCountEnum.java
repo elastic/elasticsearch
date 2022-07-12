@@ -19,7 +19,7 @@ import java.util.Arrays;
 
 /**
  * A utility class for fields that need to support autocomplete via
- * {@link MappedFieldType#getTerms(boolean, String, org.elasticsearch.index.query.SearchExecutionContext, String)}
+ * {@link MappedFieldType#getTerms(String, boolean, String, org.elasticsearch.index.query.SearchExecutionContext, String)}
  * but can't return a raw Lucene TermsEnum.
  */
 public class SimpleTermCountEnum extends TermsEnum {

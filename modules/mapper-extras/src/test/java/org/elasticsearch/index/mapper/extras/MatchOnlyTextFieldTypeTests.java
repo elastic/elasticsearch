@@ -45,8 +45,10 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         MappedFieldType ft = new MatchOnlyTextFieldType();
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("field", "foo", null));
-        assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")),
-            ft.termQueryCaseInsensitive("field", "fOo", null));
+        assertEquals(
+            AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")),
+            ft.termQueryCaseInsensitive("field", "fOo", null)
+        );
     }
 
     public void testTermsQuery() {

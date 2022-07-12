@@ -29,9 +29,11 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         UnsignedLongFieldType ft = new UnsignedLongFieldType();
 
         assertEquals(LongPoint.newExactQuery("my_unsigned_long", -9223372036854775808L), ft.termQuery("my_unsigned_long", 0, null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("my_unsigned_long","9223372036854775808", null));
-        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L),
-            ft.termQuery("my_unsigned_long", "18446744073709551615", null));
+        assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("my_unsigned_long", "9223372036854775808", null));
+        assertEquals(
+            LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L),
+            ft.termQuery("my_unsigned_long", "18446744073709551615", null)
+        );
 
         assertEquals(new MatchNoDocsQuery(), ft.termQuery("my_unsigned_long", -1L, null));
         assertEquals(new MatchNoDocsQuery(), ft.termQuery("my_unsigned_long", 10.5, null));
@@ -55,15 +57,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        UnsignedLongFieldType ft = new UnsignedLongFieldType(
-            true,
-            false,
-            false,
-            null,
-            Collections.emptyMap(),
-            false,
-            null
-        );
+        UnsignedLongFieldType ft = new UnsignedLongFieldType(true, false, false, null, Collections.emptyMap(), false, null);
 
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
@@ -86,21 +80,29 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             ft.rangeQuery("my_unsigned_long", "18446744073709551615", "18446744073709551616", true, true, null)
         );
 
-        assertEquals(new MatchNoDocsQuery(),
-            ft.rangeQuery("my_unsigned_long", -1f, -0.5f, true, true, null));
-        assertEquals(new MatchNoDocsQuery(),
-            ft.rangeQuery("my_unsigned_long", -1L, 0L, true, false, null));
-        assertEquals(new MatchNoDocsQuery(),
-            ft.rangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775806L, true, true, null));
-        assertEquals(new MatchNoDocsQuery(),
-            ft.rangeQuery("my_unsigned_long", "18446744073709551616", "18446744073709551616", true, true, null));
-        assertEquals(new MatchNoDocsQuery(),
-            ft.rangeQuery("my_unsigned_long", "18446744073709551615", "18446744073709551616", false, true, null));
-        assertEquals(new MatchNoDocsQuery(),
-            ft.rangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775806L, true, true, null));
+        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("my_unsigned_long", -1f, -0.5f, true, true, null));
+        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("my_unsigned_long", -1L, 0L, true, false, null));
+        assertEquals(
+            new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775806L, true, true, null)
+        );
+        assertEquals(
+            new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", "18446744073709551616", "18446744073709551616", true, true, null)
+        );
+        assertEquals(
+            new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", "18446744073709551615", "18446744073709551616", false, true, null)
+        );
+        assertEquals(
+            new MatchNoDocsQuery(),
+            ft.rangeQuery("my_unsigned_long", 9223372036854775807L, 9223372036854775806L, true, true, null)
+        );
 
-        expectThrows(NumberFormatException.class,
-            () -> ft.rangeQuery("my_unsigned_long", "18incorrectnumber", "18incorrectnumber", true, true, null));
+        expectThrows(
+            NumberFormatException.class,
+            () -> ft.rangeQuery("my_unsigned_long", "18incorrectnumber", "18incorrectnumber", true, true, null)
+        );
     }
 
     public void testParseTermForTermQuery() {

@@ -216,8 +216,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
      * Test a string_stats aggregation as a subaggregation of a terms aggregation
      */
     public void testNestedAggregation() throws IOException {
-        MappedField numericField = new MappedField("value",
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField numericField = new MappedField("value", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
 
         final MappedField textField = new MappedField("text", new TextFieldMapper.TextFieldType());
         ((TextFieldMapper.TextFieldType) textField.type()).setFielddata(true);

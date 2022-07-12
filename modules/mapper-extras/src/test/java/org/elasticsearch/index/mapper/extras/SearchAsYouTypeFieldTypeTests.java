@@ -58,8 +58,12 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
             Lucene.STANDARD_ANALYZER,
             Collections.emptyMap()
         );
-        fieldType.setPrefixField(PrefixFieldType.newMappedField(NAME,
-            new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM)));
+        fieldType.setPrefixField(
+            PrefixFieldType.newMappedField(
+                NAME,
+                new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM)
+            )
+        );
         fieldType.setShingleFields(new MappedField[] { new MappedField(NAME, new ShingleFieldType(2, TextSearchInfo.SIMPLE_MATCH_ONLY)) });
         return fieldType;
     }
@@ -67,7 +71,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         final MappedFieldType fieldType = createFieldType();
 
-        assertThat(fieldType.termQuery(NAME,"foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
+        assertThat(fieldType.termQuery(NAME, "foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
 
         SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(
             UNSEARCHABLE,
@@ -76,7 +80,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
             Lucene.STANDARD_ANALYZER,
             Collections.emptyMap()
         );
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(NAME,"foo", null));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(NAME, "foo", null));
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
 
@@ -139,20 +143,18 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("42"), fetchSourceValue(mappedField, 42L));
         assertEquals(List.of("true"), fetchSourceValue(mappedField, true));
 
-        MappedField prefixField = PrefixFieldType.newMappedField(mappedField.name(), new SearchAsYouTypeFieldMapper.PrefixFieldType(
+        MappedField prefixField = PrefixFieldType.newMappedField(
             mappedField.name(),
-            mappedField.getTextSearchInfo(),
-            2,
-            10
-        ));
+            new SearchAsYouTypeFieldMapper.PrefixFieldType(mappedField.name(), mappedField.getTextSearchInfo(), 2, 10)
+        );
         assertEquals(List.of("value"), fetchSourceValue(prefixField, "value"));
         assertEquals(List.of("42"), fetchSourceValue(prefixField, 42L));
         assertEquals(List.of("true"), fetchSourceValue(prefixField, true));
 
-        MappedField shingleFieldType = new MappedField(mappedField.name(), new SearchAsYouTypeFieldMapper.ShingleFieldType(
-            5,
-            mappedField.getTextSearchInfo()
-        ));
+        MappedField shingleFieldType = new MappedField(
+            mappedField.name(),
+            new SearchAsYouTypeFieldMapper.ShingleFieldType(5, mappedField.getTextSearchInfo())
+        );
         assertEquals(List.of("value"), fetchSourceValue(shingleFieldType, "value"));
         assertEquals(List.of("42"), fetchSourceValue(shingleFieldType, 42L));
         assertEquals(List.of("true"), fetchSourceValue(shingleFieldType, true));

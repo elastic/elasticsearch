@@ -154,31 +154,37 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     public void testBuildMetricProducers() {
         final Map<String, MappedField> provideMappedFieldType = Map.of(
             "gauge_field",
-            new MappedField("gauge_field", new NumberFieldMapper.NumberFieldType(
-                NumberFieldMapper.NumberType.DOUBLE,
-                true,
-                true,
-                true,
-                true,
-                null,
-                emptyMap(),
-                null,
-                false,
-                TimeSeriesParams.MetricType.gauge
-            )),
+            new MappedField(
+                "gauge_field",
+                new NumberFieldMapper.NumberFieldType(
+                    NumberFieldMapper.NumberType.DOUBLE,
+                    true,
+                    true,
+                    true,
+                    true,
+                    null,
+                    emptyMap(),
+                    null,
+                    false,
+                    TimeSeriesParams.MetricType.gauge
+                )
+            ),
             "counter_field",
-            new MappedField("counter_field", new NumberFieldMapper.NumberFieldType(
-                NumberFieldMapper.NumberType.DOUBLE,
-                true,
-                true,
-                true,
-                true,
-                null,
-                emptyMap(),
-                null,
-                false,
-                TimeSeriesParams.MetricType.counter
-            ))
+            new MappedField(
+                "counter_field",
+                new NumberFieldMapper.NumberFieldType(
+                    NumberFieldMapper.NumberType.DOUBLE,
+                    true,
+                    true,
+                    true,
+                    true,
+                    null,
+                    emptyMap(),
+                    null,
+                    false,
+                    TimeSeriesParams.MetricType.counter
+                )
+            )
         );
 
         IndexSettings settings = createIndexSettings();

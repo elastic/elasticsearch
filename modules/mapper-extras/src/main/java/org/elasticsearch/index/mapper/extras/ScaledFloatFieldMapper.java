@@ -175,8 +175,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 metric.getValue()
             );
-            return new ScaledFloatFieldMapper(name, new MappedField(context.buildFullName(name), type),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new ScaledFloatFieldMapper(
+                name,
+                new MappedField(context.buildFullName(name), type),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -378,13 +383,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final boolean coerceByDefault;
     private final TimeSeriesParams.MetricType metricType;
 
-    private ScaledFloatFieldMapper(
-        String simpleName,
-        MappedField mappedField,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
+    private ScaledFloatFieldMapper(String simpleName, MappedField mappedField, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedField, multiFields, copyTo);
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

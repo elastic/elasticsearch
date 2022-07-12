@@ -135,7 +135,9 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedField defaultField() {
-        return new MappedField(HistoBackedSumAggregatorTests.FIELD_NAME,
-            new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+        return new MappedField(
+            HistoBackedSumAggregatorTests.FIELD_NAME,
+            new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null)
+        );
     }
 }

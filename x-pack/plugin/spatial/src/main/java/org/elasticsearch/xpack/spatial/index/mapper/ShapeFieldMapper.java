@@ -92,14 +92,15 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 ignoreZValue.get().value()
             );
             Parser<Geometry> parser = new ShapeParser(geometryParser);
-            ShapeFieldType ft = new ShapeFieldType(
-                indexed.get(),
-                orientation.get().value(),
+            ShapeFieldType ft = new ShapeFieldType(indexed.get(), orientation.get().value(), parser, meta.get());
+            return new ShapeFieldMapper(
+                name,
+                new MappedField(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
                 parser,
-                meta.get()
+                this
             );
-            return new ShapeFieldMapper(name, new MappedField(context.buildFullName(name), ft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
         }
     }
 

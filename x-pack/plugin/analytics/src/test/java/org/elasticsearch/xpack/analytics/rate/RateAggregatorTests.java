@@ -924,16 +924,19 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedField dateField(String name) {
-        return new MappedField(name, new DateFieldMapper.DateFieldType(
-            true,
-            false,
-            true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            DateFieldMapper.Resolution.MILLISECONDS,
-            null,
-            null,
-            Collections.emptyMap()
-        ));
+        return new MappedField(
+            name,
+            new DateFieldMapper.DateFieldType(
+                true,
+                false,
+                true,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
     }
 
     private Iterable<IndexableField> doc(String date, IndexableField... fields) {

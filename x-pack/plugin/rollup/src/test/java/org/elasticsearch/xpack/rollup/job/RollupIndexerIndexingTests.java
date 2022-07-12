@@ -730,20 +730,17 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private Map<String, MappedField> createMappedFields(RollupJobConfig job) {
         Map<String, MappedField> mappedFields = new HashMap<>();
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(Locale.ROOT);
-        MappedField mappedField = new MappedField(job.getGroupConfig().getDateHistogram().getField(),
-            new DateFieldMapper.DateFieldType(formatter));
+        MappedField mappedField = new MappedField(
+            job.getGroupConfig().getDateHistogram().getField(),
+            new DateFieldMapper.DateFieldType(formatter)
+        );
         mappedFields.put(mappedField.name(), mappedField);
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedField ft = new NumberFieldMapper.Builder(
-                    field,
-                    NumberType.LONG,
-                    ScriptCompiler.NONE,
-                    false,
-                    false,
-                    Version.CURRENT
-                ).build(MapperBuilderContext.ROOT).field();
+                MappedField ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, false, false, Version.CURRENT)
+                    .build(MapperBuilderContext.ROOT)
+                    .field();
                 mappedFields.put(ft.name(), ft);
             }
         }
@@ -792,14 +789,14 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     for (Object obj : values) {
                         if (mappedField.type() instanceof KeywordFieldMapper.KeywordFieldType) {
                             luceneDoc.add(new SortedSetDocValuesField(name, new BytesRef(obj.toString())));
-                        } else if (mappedField.type() instanceof DateFieldMapper.DateFieldType ||
-                            mappedField.type() instanceof NumberFieldMapper.NumberFieldType) {
-                            assert obj instanceof Number;
-                            // Force all numbers to longs
-                            long longValue = ((Number) value).longValue();
-                            luceneDoc.add(new SortedNumericDocValuesField(name, longValue));
-                            luceneDoc.add(new LongPoint(name, longValue));
-                        }
+                        } else if (mappedField.type() instanceof DateFieldMapper.DateFieldType
+                            || mappedField.type() instanceof NumberFieldMapper.NumberFieldType) {
+                                assert obj instanceof Number;
+                                // Force all numbers to longs
+                                long longValue = ((Number) value).longValue();
+                                luceneDoc.add(new SortedNumericDocValuesField(name, longValue));
+                                luceneDoc.add(new LongPoint(name, longValue));
+                            }
                     }
                 }
                 indexWriter.addDocument(luceneDoc);

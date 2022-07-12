@@ -105,15 +105,15 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 ignoreZValue.get().value(),
                 ignoreMalformed.get().value()
             );
-            PointFieldType ft = new PointFieldType(
-                indexed.get(),
-                stored.get(),
-                hasDocValues.get(),
+            PointFieldType ft = new PointFieldType(indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
+            return new PointFieldMapper(
+                name,
+                new MappedField(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
                 parser,
-                meta.get()
+                this
             );
-            return new PointFieldMapper(name, new MappedField(context.buildFullName(name), ft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
         }
 
     }

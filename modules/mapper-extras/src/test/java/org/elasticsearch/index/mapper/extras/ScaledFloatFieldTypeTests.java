@@ -38,16 +38,16 @@ import java.util.List;
 public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-            0.1 + randomDouble() * 100
-        );
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(0.1 + randomDouble() * 100);
         double value = (randomDouble() * 2 - 1) * 10000;
         long scaledValue = Math.round(value * ft.getScalingFactor());
         assertEquals(LongPoint.newExactQuery("scaled_float", scaledValue), ft.termQuery("scaled_float", value, MOCK_CONTEXT));
 
         MappedFieldType ft2 = new ScaledFloatFieldMapper.ScaledFloatFieldType(0.1 + randomDouble() * 100, false);
-        ElasticsearchException e2 = expectThrows(ElasticsearchException.class,
-            () -> ft2.termQuery("scaled_float","42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));
+        ElasticsearchException e2 = expectThrows(
+            ElasticsearchException.class,
+            () -> ft2.termQuery("scaled_float", "42", MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
         assertEquals(
             "Cannot search on field [scaled_float] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
             e2.getMessage()
@@ -55,9 +55,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermsQuery() {
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-            0.1 + randomDouble() * 100
-        );
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(0.1 + randomDouble() * 100);
         double value1 = (randomDouble() * 2 - 1) * 10000;
         long scaledValue1 = Math.round(value1 * ft.getScalingFactor());
         double value2 = (randomDouble() * 2 - 1) * 10000;
@@ -165,9 +163,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testValueForSearch() {
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-            0.1 + randomDouble() * 100
-        );
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(0.1 + randomDouble() * 100);
         assertNull(ft.valueForDisplay(null));
         assertEquals(10 / ft.getScalingFactor(), ft.valueForDisplay(10L));
     }
@@ -183,9 +179,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         w.addDocument(doc);
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             // single-valued
-            ScaledFloatFieldMapper.ScaledFloatFieldType f1 = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-                scalingFactor
-            );
+            ScaledFloatFieldMapper.ScaledFloatFieldType f1 = new ScaledFloatFieldMapper.ScaledFloatFieldType(scalingFactor);
             IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder(
                 "scaled_float1",
                 "index",
@@ -199,12 +193,12 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertEquals(10 / f1.getScalingFactor(), values.nextValue(), 10e-5);
 
             // multi-valued
-            ScaledFloatFieldMapper.ScaledFloatFieldType f2 = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-                scalingFactor
-            );
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("scaled_float2", "index",
-                    () -> { throw new UnsupportedOperationException(); })
-                .build(null, null);
+            ScaledFloatFieldMapper.ScaledFloatFieldType f2 = new ScaledFloatFieldMapper.ScaledFloatFieldType(scalingFactor);
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder(
+                "scaled_float2",
+                "index",
+                () -> { throw new UnsupportedOperationException(); }
+            ).build(null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));

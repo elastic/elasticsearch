@@ -150,8 +150,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(String name, boolean caseInsensitive, String string, SearchExecutionContext queryShardContext,
-                                  String searchAfter) {
+        public TermsEnum getTerms(
+            String name,
+            boolean caseInsensitive,
+            String string,
+            SearchExecutionContext queryShardContext,
+            String searchAfter
+        ) {
             if (value == null) {
                 return TermsEnum.EMPTY;
             }

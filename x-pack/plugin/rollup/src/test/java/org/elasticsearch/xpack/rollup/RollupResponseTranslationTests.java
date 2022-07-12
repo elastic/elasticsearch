@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.mapper.MappedField;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -568,8 +567,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(), new DateFieldMapper.DateFieldType());
         MappedField rFTtimestamp = new MappedField(rollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTvalue = new MappedField("timestamp.date_histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueDoc(100, 1));
@@ -603,8 +604,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(), new DateFieldMapper.DateFieldType());
         MappedField rFTtimestamp = new MappedField(rollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTvalue = new MappedField("timestamp.date_histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueDoc(100, 1));
@@ -680,8 +683,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(), new DateFieldMapper.DateFieldType());
         MappedField rFTtimestamp = new MappedField(rollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTvalue = new MappedField("timestamp.date_histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         MappedField nrKeywordFT = new MappedField("partition", new KeywordFieldMapper.KeywordFieldType());
         MappedField rKeywordFT = new MappedField("partition", new KeywordFieldMapper.KeywordFieldType());
@@ -790,8 +795,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(), new DateFieldMapper.DateFieldType());
         MappedField rFTtimestamp = new MappedField(rollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTvalue = new MappedField("timestamp.date_histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueDoc(100, 1));
@@ -837,8 +844,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(), new DateFieldMapper.DateFieldType());
         MappedField rFTtimestamp = new MappedField(rollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTvalue = new MappedField("timestamp.date_histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueDoc(100, 1));
@@ -894,8 +903,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(), new DateFieldMapper.DateFieldType());
         MappedField rFTtimestamp = new MappedField(rollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTvalue = new MappedField("timestamp.date_histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         InternalAggregation currentTree = doQuery(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueRollupDoc(100, 1));
@@ -932,8 +943,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SumAggregationBuilder rollup = new SumAggregationBuilder("avg").field("foo.avg." + RollupField.VALUE);
 
         MappedField nrFTvalue = new MappedField("foo", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
-        MappedField rFTvalue = new MappedField("foo.avg." + RollupField.VALUE,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "foo.avg." + RollupField.VALUE,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueDoc(100, 1));
@@ -1047,8 +1060,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         MappedField rFTterm = new MappedField(rollupTerms.field(), new KeywordFieldMapper.KeywordFieldType());
 
-        MappedField rFTvalue = new MappedField("stringfield.terms." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "stringfield.terms." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(stringValueDoc("abc"));
@@ -1081,8 +1096,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         MappedField rFTterm = new MappedField(rollupTerms.field(), new KeywordFieldMapper.KeywordFieldType());
 
-        MappedField rFTvalue = new MappedField("stringfield.terms." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "stringfield.terms." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(stringValueDoc("abc"));
@@ -1117,15 +1134,20 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD).field("longfield.terms." + RollupField.COUNT_FIELD)
             );
 
+        MappedField nrFTterm = new MappedField(
+            nonRollupTerms.field(),
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
-        MappedField nrFTterm = new MappedField(nonRollupTerms.field(),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTterm = new MappedField(
+            rollupTerms.field(),
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
-        MappedField rFTterm = new MappedField(rollupTerms.field(),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
-
-        MappedField rFTvalue = new MappedField("longfield.terms." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "longfield.terms." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(longValueDoc(19L));
@@ -1153,14 +1175,17 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD).field("bar.histogram." + RollupField.COUNT_FIELD)
             );
 
-        MappedField nrFTbar = new MappedField(nonRollupHisto.field(),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField nrFTbar = new MappedField(
+            nonRollupHisto.field(),
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
-        MappedField rFTbar = new MappedField(rollupHisto.field(),
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTbar = new MappedField(rollupHisto.field(), new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
 
-        MappedField rFTvalue = new MappedField("bar.histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "bar.histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueDoc(100, 1));
@@ -1189,14 +1214,14 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD).field("timestamp.date_histogram." + RollupField.COUNT_FIELD)
             );
 
-        MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(),
-            new DateFieldMapper.DateFieldType());
+        MappedField nrFTtimestamp = new MappedField(nonRollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTtimestamp = new MappedField(rollupHisto.field(),
-            new DateFieldMapper.DateFieldType());
+        MappedField rFTtimestamp = new MappedField(rollupHisto.field(), new DateFieldMapper.DateFieldType());
 
-        MappedField rFTvalue = new MappedField("timestamp.date_histogram." + RollupField.COUNT_FIELD,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField rFTvalue = new MappedField(
+            "timestamp.date_histogram." + RollupField.COUNT_FIELD,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(timestampedValueDoc(100, 1));

@@ -52,8 +52,9 @@ public class ShapeQueryProcessor {
         if (mappedField == null || mappedField.type() instanceof ShapeFieldMapper.ShapeFieldType == false) {
             throw new QueryShardException(
                 context,
-                "Expected " + ShapeFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " +
-                    mappedField == null ? "absent field" : mappedField.typeName()
+                "Expected " + ShapeFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " + mappedField == null
+                    ? "absent field"
+                    : mappedField.typeName()
             );
         }
     }

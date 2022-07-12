@@ -256,8 +256,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(name, new MappedField(context.buildFullName(name), metricFieldType),
-                metricMappers, this);
+            return new AggregateDoubleMetricFieldMapper(
+                name,
+                new MappedField(context.buildFullName(name), metricFieldType),
+                metricMappers,
+                this
+            );
         }
     }
 
@@ -364,8 +368,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            return ((NumberFieldMapper.NumberFieldType) delegateField().type())
-                .rangeQuery(delegateField().name(), lowerTerm, upperTerm, includeLower, includeUpper, context);
+            return ((NumberFieldMapper.NumberFieldType) delegateField().type()).rangeQuery(
+                delegateField().name(),
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                context
+            );
         }
 
         @Override
@@ -390,8 +400,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             DateMathParser dateMathParser,
             QueryRewriteContext context
         ) throws IOException {
-            return delegateField().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser,
-                context);
+            return delegateField().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
         }
 
         @Override

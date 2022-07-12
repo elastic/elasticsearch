@@ -374,18 +374,13 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
 
         try {
             MappedField field = new MappedField("value_field", new GeoPointFieldMapper.GeoPointFieldType());
-            MappedField groupField = new MappedField("group_id",
-                new KeywordFieldMapper.KeywordFieldType(false, true, Collections.emptyMap()));
+            MappedField groupField = new MappedField(
+                "group_id",
+                new KeywordFieldMapper.KeywordFieldType(false, true, Collections.emptyMap())
+            );
             MappedField field2 = new MappedField("sort_field", new NumberFieldMapper.NumberFieldType(fieldNumberType));
 
-            Terms terms = searchAndReduce(
-                indexSearcher,
-                new MatchAllDocsQuery(),
-                aggregationBuilder,
-                field,
-                field2,
-                groupField
-            );
+            Terms terms = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, field, field2, groupField);
             verify.accept(terms);
         } finally {
             indexReader.close();

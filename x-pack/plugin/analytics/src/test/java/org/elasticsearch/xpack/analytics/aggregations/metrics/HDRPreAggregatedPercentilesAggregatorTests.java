@@ -149,8 +149,10 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number")
                     .method(PercentilesMethod.HDR);
 
-                MappedField mappedField = new MappedField("number",
-                    new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null));
+                MappedField mappedField = new MappedField(
+                    "number",
+                    new HistogramFieldMapper.HistogramFieldType(Collections.emptyMap(), null)
+                );
                 Aggregator aggregator = createAggregator(builder, indexSearcher, mappedField);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);

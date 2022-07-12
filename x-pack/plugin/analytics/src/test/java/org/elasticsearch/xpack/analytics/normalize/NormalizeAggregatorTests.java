@@ -158,10 +158,11 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
 
             // setup mapping
             MappedField dateField = new MappedField(DATE_FIELD, new DateFieldMapper.DateFieldType());
-            MappedField valueField = new MappedField(VALUE_FIELD,
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
-            MappedField termField = new MappedField(TERM_FIELD,
-                new KeywordFieldMapper.KeywordFieldType(false, true, Collections.emptyMap()));
+            MappedField valueField = new MappedField(VALUE_FIELD, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+            MappedField termField = new MappedField(
+                TERM_FIELD,
+                new KeywordFieldMapper.KeywordFieldType(false, true, Collections.emptyMap())
+            );
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);

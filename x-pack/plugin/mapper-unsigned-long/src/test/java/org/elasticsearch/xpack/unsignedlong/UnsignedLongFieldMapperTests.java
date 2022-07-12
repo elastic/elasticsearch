@@ -250,9 +250,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        MappedField mappedField = mapperService.mappedField(
-            "field"
-        );
+        MappedField mappedField = mapperService.mappedField("field");
         assertFalse(mappedField.isDimension());
 
         assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
@@ -308,9 +306,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        MappedField mappedField = mapperService.mappedField(
-            "field"
-        );
+        MappedField mappedField = mapperService.mappedField("field");
         assertNull(mappedField.getMetricType());
 
         assertMetricType("gauge", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);

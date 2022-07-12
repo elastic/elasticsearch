@@ -267,10 +267,14 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         TTestType tTestType = randomFrom(TTestType.values());
         boolean missA = randomBoolean();
         boolean missB = missA == false || randomBoolean(); // at least one of the fields should be missing
-        MappedField field1 = new MappedField(missA ? "not_a" : "a",
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
-        MappedField field2 = new MappedField(missB ? "not_b" : "b",
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field1 = new MappedField(
+            missA ? "not_a" : "a",
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER)
+        );
+        MappedField field2 = new MappedField(
+            missB ? "not_b" : "b",
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER)
+        );
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("a").setMissing(100).build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("b").setMissing(100).build()).testType(tTestType);
@@ -373,8 +377,10 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         } else {
             a.setFieldName("a");
         }
-        MappedField field2 = new MappedField(missB ? "not_b" : "b",
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField field2 = new MappedField(
+            missB ? "not_b" : "b",
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER)
+        );
 
         MultiValuesSourceFieldConfig.Builder b = new MultiValuesSourceFieldConfig.Builder();
         if (missB) {

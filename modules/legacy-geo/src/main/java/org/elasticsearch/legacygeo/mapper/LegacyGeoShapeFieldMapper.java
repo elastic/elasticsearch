@@ -333,12 +333,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, MapperBuilderContext context) {
-            GeoShapeFieldType ft = new GeoShapeFieldType(
-                indexed.get(),
-                orientation.get().value(),
-                parser,
-                meta.get()
-            );
+            GeoShapeFieldType ft = new GeoShapeFieldType(indexed.get(), orientation.get().value(), parser, meta.get());
             setupFieldTypeDeprecatedParameters(ft);
             setupPrefixTrees(ft, context);
             return ft;
@@ -366,8 +361,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);
-            return new LegacyGeoShapeFieldMapper(name, new MappedField(context.buildFullName(name), ft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new LegacyGeoShapeFieldMapper(
+                name,
+                new MappedField(context.buildFullName(name), ft),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                parser,
+                this
+            );
         }
     }
 
@@ -431,12 +432,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private final LegacyGeoShapeQueryProcessor queryProcessor;
 
-        private GeoShapeFieldType(
-            boolean indexed,
-            Orientation orientation,
-            LegacyGeoShapeParser parser,
-            Map<String, String> meta
-        ) {
+        private GeoShapeFieldType(boolean indexed, Orientation orientation, LegacyGeoShapeParser parser, Map<String, String> meta) {
             super(indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
@@ -446,8 +442,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public Query geoShapeQuery(String name, SearchExecutionContext context, String fieldName, ShapeRelation relation,
-                                   LatLonGeometry... geometries) {
+        public Query geoShapeQuery(
+            String name,
+            SearchExecutionContext context,
+            String fieldName,
+            ShapeRelation relation,
+            LatLonGeometry... geometries
+        ) {
             throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 

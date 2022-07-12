@@ -462,8 +462,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedField valueFieldType = new MappedField(valueField, new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
-        MappedField metricFieldType = new MappedField(metricField,
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+        MappedField metricFieldType = new MappedField(
+            metricField,
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
 
         // Setup the composite agg
         TermsGroupConfig termsGroupConfig = new TermsGroupConfig(valueField);

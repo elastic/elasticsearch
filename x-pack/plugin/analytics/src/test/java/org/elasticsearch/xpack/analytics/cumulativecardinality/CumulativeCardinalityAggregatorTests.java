@@ -154,8 +154,10 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 MappedField fieldType = new MappedField(HISTO_FIELD, new DateFieldMapper.DateFieldType());
-                MappedField valueFieldType = new MappedField("value_field",
-                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG));
+                MappedField valueFieldType = new MappedField(
+                    "value_field",
+                    new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG)
+                );
 
                 InternalAggregation histogram;
                 histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);

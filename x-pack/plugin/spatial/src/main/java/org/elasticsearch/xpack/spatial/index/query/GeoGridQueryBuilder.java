@@ -52,9 +52,14 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedField mappedField, String id) {
-                if (mappedField.type() instanceof GeoShapeQueryable geoShapeQueryable) {
-                    return geoShapeQueryable.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS,
-                        getQueryHash(id));
+                if (mappedField.type()instanceof GeoShapeQueryable geoShapeQueryable) {
+                    return geoShapeQueryable.geoShapeQuery(
+                        mappedField.name(),
+                        context,
+                        fieldName,
+                        ShapeRelation.INTERSECTS,
+                        getQueryHash(id)
+                    );
                 }
                 throw new QueryShardException(
                     context,
@@ -78,9 +83,14 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedField mappedField, String id) {
-                if (mappedField.type() instanceof GeoShapeQueryable geoShapeQueryable) {
-                    return geoShapeQueryable.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS,
-                        getQueryTile(id));
+                if (mappedField.type()instanceof GeoShapeQueryable geoShapeQueryable) {
+                    return geoShapeQueryable.geoShapeQuery(
+                        mappedField.name(),
+                        context,
+                        fieldName,
+                        ShapeRelation.INTERSECTS,
+                        getQueryTile(id)
+                    );
                 }
                 throw new QueryShardException(
                     context,
@@ -105,9 +115,9 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedField mappedField, String id) {
                 H3LatLonGeometry geometry = new H3LatLonGeometry(id);
-                if (mappedField.type() instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
+                if (mappedField.type()instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
                     return pointFieldType.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS, geometry);
-                } else if (mappedField.type() instanceof GeoPointScriptFieldType scriptType) {
+                } else if (mappedField.type()instanceof GeoPointScriptFieldType scriptType) {
                     return scriptType.geoShapeQuery(mappedField.name(), context, fieldName, ShapeRelation.INTERSECTS, geometry);
                 }
                 throw new QueryShardException(

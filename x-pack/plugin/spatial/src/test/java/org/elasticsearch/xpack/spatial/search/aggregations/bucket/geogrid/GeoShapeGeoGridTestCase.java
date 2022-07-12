@@ -276,14 +276,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
 
-        MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
-            true,
-            true,
-            Orientation.RIGHT,
-            null,
-            null,
-            Collections.emptyMap()
-        );
+        MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, new MappedField(FIELD_NAME, fieldType));
         aggregator.preCollection();

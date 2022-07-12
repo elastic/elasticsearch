@@ -11,19 +11,42 @@
 
 `PUT /_security/api_key/<id>`
 
-[[security-api-invalidate-api-key-prereqs]]
+[[security-api-update-api-key-prereqs]]
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_own_api_key` cluster privilege.
 
 IMPORTANT: Only the user who created an API key can update it.
+// TODO Don't hardcode?
 Other users, including `superuser`, cannot.
 It's not possible to use an API key as the authentication credential for this API.
 Doing so will result in an error.
 
-[[security-api-invalidate-api-key-desc]]
+[[security-api-update-api-key-desc]]
 ==== {api-description-title}
 
 The API keys created by <<security-api-create-api-key,create API Key>> can be updated using this API.
+The roles assigned to an API key and API key metadata can be updated by specifying them in the request.
+Several other fields are updated automatically on every call.
+It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>
+
+[[security-api-update-api-key-request-body]]
+==== {api-request-body-title}
+
+// TODO path param
+
+IMPORTANT: Regardless of whether any parameters are specified, the _point in time snapshot of permissions of the authenticated user_ is always updated.
+
+The following parameters can be specified in the body of a PUT request:
+
+`role_descriptors`::
+(Optional, array-of-role-descriptor) An array of new role descriptors for this API key.
+This parameter is optional.
+When specified, the new role descriptors replace those currently assigned to this API key.
+When it is not specified, the API key keeps its previously assigned role descriptors.
+If you supply role descriptors then the resultant permissions would be an intersection of API keys permissions and authenticated user's permissions thereby limiting the access scope for API keys.
+The structure of role descriptor is the same as the request for create role API.
+For more details, see <<security-api-put-role, create or update roles API>>.
++
 
 coming::[8.4.0]

@@ -22,6 +22,7 @@ import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -675,9 +676,10 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertFieldWarnings("tree", "strategy");
     }
 
-    protected void assertSearchable(MappedFieldType fieldType) {
+    @Override
+    protected void assertSearchable(MappedField mappedField) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isSearchable());
+        assertTrue(mappedField.isSearchable());
     }
 
     @Override

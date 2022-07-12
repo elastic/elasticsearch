@@ -201,7 +201,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     public void testSameFieldAndNoFilters() {
         TTestType tTestType = randomFrom(TTestType.values());
-        MappedField mappedField = new MappedField("number", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
+        MappedField mappedField = new MappedField("field", new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER));
         TTestAggregationBuilder aggregationBuilder = new TTestAggregationBuilder("t_test").a(
             new MultiValuesSourceFieldConfig.Builder().setFieldName("field").setMissing(100).build()
         ).b(new MultiValuesSourceFieldConfig.Builder().setFieldName("field").setMissing(100).build()).testType(tTestType);

@@ -156,7 +156,6 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                         if (term == null) {
                             break;
                         }
-                        // Do we need to skip terms without postings?
                         final int hash = hashTerm(term) % bloomFilterSize;
                         final int pos = hash >> 3;
                         final int mask = 1 << (hash & 0x7);

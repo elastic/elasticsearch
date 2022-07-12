@@ -75,7 +75,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
 
     private int relocatingShards = 0;
 
-    private final ConcurrentMap<String, Set<String>> attributeValuesByAttribute;
+    private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
     /**

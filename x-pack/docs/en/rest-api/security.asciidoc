@@ -136,6 +136,8 @@ communicate with a secured {es} cluster.
 [[security-user-profile-apis]]
 === User Profile
 
+IMPORTANT: {es-feature-flag}
+
 Use the following APIs to retrieve and manage user profiles.
 
 * <<security-api-activate-user-profile, Activate user profile>>

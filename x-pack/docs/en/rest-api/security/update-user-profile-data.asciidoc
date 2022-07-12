@@ -5,7 +5,7 @@
 <titleabbrev>Update user profile data</titleabbrev>
 ++++
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
 Updates specific data for the user profile that's associated with the specified
 unique ID.

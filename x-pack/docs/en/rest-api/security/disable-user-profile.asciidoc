@@ -5,7 +5,7 @@
 <titleabbrev>Disable user profile</titleabbrev>
 ++++
 
-beta::[]
+IMPORTANT: {es-feature-flag}
 
 Disables a user profile so it's not visible in
 <<security-api-suggest-user-profile,user profile searches>>.

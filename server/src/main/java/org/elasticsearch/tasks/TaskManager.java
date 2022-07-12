@@ -89,7 +89,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
-    private final Tracer tracer;
+    private volatile Tracer tracer;
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
@@ -451,6 +451,10 @@ public class TaskManager implements ClusterStateApplier {
     // for testing
     public boolean assertCancellableTaskConsistency() {
         return cancellableTasks.assertConsistent();
+    }
+
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
     }
 
     private class Ban {

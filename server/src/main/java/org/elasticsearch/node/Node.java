@@ -418,7 +418,7 @@ public class Node implements Closeable {
                 Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet());
 
-            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
+            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, Tracer.NOOP); // set a real tracer later
 
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());
@@ -705,6 +705,8 @@ public class Node implements Closeable {
             ).toList();
 
             final Tracer tracer = getTracer(pluginComponents);
+
+            taskManager.setTracer(tracer);
 
             ActionModule actionModule = new ActionModule(
                 settings,

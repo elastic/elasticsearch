@@ -145,10 +145,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
 
         if (filterAutomaton.run(traceable.getSpanName()) == false) {
+            LOGGER.trace("Skipping tracing [{}] [{}] as it has been filtered out", traceable.getSpanId(), traceable.getSpanName());
             return;
         }
 
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
+            LOGGER.trace("Tracing [{}] [{}]", traceable.getSpanId(), traceable.getSpanName());
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
 
             // A span can have a parent span, which here is modelled though a parent span context.
@@ -310,6 +312,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public void onTraceStopped(Traceable traceable) {
         final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
         if (span != null) {
+            LOGGER.trace("Finishing trace [{}] [{}]", traceable.getSpanId(), traceable.getSpanName());
             span.end();
         }
     }

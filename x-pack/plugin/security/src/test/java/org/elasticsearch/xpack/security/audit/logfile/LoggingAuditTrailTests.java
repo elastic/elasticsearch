@@ -590,8 +590,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         createApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
         String expectedCreateKeyAuditEventString = """
-            "create":{"apikey":{"name":"%s","expiration":%s,%s}}\
-            """.formatted(keyName, expiration != null ? "\"" + expiration + "\"" : "null", roleDescriptorsStringBuilder);
+            "create":{"apikey":{"id":"%s","name":"%s","expiration":%s,%s}}\
+            """.formatted(
+            createApiKeyRequest.getId(),
+            keyName,
+            expiration != null ? "\"" + expiration + "\"" : "null",
+            roleDescriptorsStringBuilder
+        );
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedCreateKeyAuditEventString = output.get(1);
@@ -646,7 +651,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedGrantKeyAuditEventString = output.get(1);
-        StringBuilder grantKeyAuditEventStringBuilder = new StringBuilder().append("\"create\":{\"apikey\":{\"name\":\"")
+        StringBuilder grantKeyAuditEventStringBuilder = new StringBuilder().append("\"create\":{\"apikey\":{\"id\":\"")
+            .append(grantApiKeyRequest.getApiKeyRequest().getId())
+            .append("\",\"name\":\"")
             .append(keyName)
             .append("\",\"expiration\":")
             .append(expiration != null ? "\"" + expiration + "\"" : "null")

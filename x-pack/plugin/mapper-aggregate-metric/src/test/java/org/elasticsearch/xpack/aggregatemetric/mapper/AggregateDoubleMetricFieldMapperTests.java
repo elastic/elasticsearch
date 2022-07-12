@@ -530,8 +530,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     protected void assertExistsQuery(MappedField mappedField, Query query, LuceneDocument fields) {
         assertThat(query, Matchers.instanceOf(FieldExistsQuery.class));
         FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
-        String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) mappedField.type())
-            .getDefaultMetric().name();
+        String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) mappedField.type()).getDefaultMetric()
+            .name();
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
         assertNoFieldNamesField(fields);
     }

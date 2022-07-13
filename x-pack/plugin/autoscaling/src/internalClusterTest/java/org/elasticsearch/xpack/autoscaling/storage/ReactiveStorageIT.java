@@ -356,6 +356,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         ensureGreen();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88478")
     public void testScaleDuringSplitOrClone() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();

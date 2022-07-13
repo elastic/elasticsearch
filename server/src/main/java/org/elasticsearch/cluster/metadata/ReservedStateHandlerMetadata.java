@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -26,15 +26,15 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Metadata class to hold a set of immutable keys in the cluster state, set by each {@link ImmutableClusterStateHandler}.
+ * Metadata class to hold a set of reserved keys in the cluster state, set by each {@link ReservedClusterStateHandler}.
  *
  * <p>
- * Since we hold immutable metadata state for multiple namespaces, the same handler can appear in
- * multiple namespaces. See {@link ImmutableStateMetadata} and {@link Metadata}.
+ * Since we hold reserved metadata state for multiple namespaces, the same handler can appear in
+ * multiple namespaces. See {@link ReservedStateMetadata} and {@link Metadata}.
  */
-public record ImmutableStateHandlerMetadata(String name, Set<String> keys)
+public record ReservedStateHandlerMetadata(String name, Set<String> keys)
     implements
-        SimpleDiffable<ImmutableStateHandlerMetadata>,
+        SimpleDiffable<ReservedStateHandlerMetadata>,
         ToXContentFragment {
 
     static final ParseField KEYS = new ParseField("keys");
@@ -46,14 +46,14 @@ public record ImmutableStateHandlerMetadata(String name, Set<String> keys)
     }
 
     /**
-     * Reads an {@link ImmutableStateHandlerMetadata} from a {@link StreamInput}
+     * Reads an {@link ReservedStateHandlerMetadata} from a {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read from
-     * @return {@link ImmutableStateHandlerMetadata}
+     * @return {@link ReservedStateHandlerMetadata}
      * @throws IOException
      */
-    public static ImmutableStateHandlerMetadata readFrom(StreamInput in) throws IOException {
-        return new ImmutableStateHandlerMetadata(in.readString(), in.readSet(StreamInput::readString));
+    public static ReservedStateHandlerMetadata readFrom(StreamInput in) throws IOException {
+        return new ReservedStateHandlerMetadata(in.readString(), in.readSet(StreamInput::readString));
     }
 
     @Override
@@ -65,10 +65,10 @@ public record ImmutableStateHandlerMetadata(String name, Set<String> keys)
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ImmutableStateHandlerMetadata, String> PARSER = new ConstructingObjectParser<>(
-        "immutable_state_handler_metadata",
+    private static final ConstructingObjectParser<ReservedStateHandlerMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "reserved_state_handler_metadata",
         false,
-        (a, name) -> new ImmutableStateHandlerMetadata(name, Set.copyOf((List<String>) a[0]))
+        (a, name) -> new ReservedStateHandlerMetadata(name, Set.copyOf((List<String>) a[0]))
     );
 
     static {
@@ -76,24 +76,24 @@ public record ImmutableStateHandlerMetadata(String name, Set<String> keys)
     }
 
     /**
-     * Reads an {@link ImmutableStateHandlerMetadata} from xContent
+     * Reads an {@link ReservedStateHandlerMetadata} from xContent
      *
      * @param parser {@link XContentParser}
-     * @return {@link ImmutableStateHandlerMetadata}
+     * @return {@link ReservedStateHandlerMetadata}
      * @throws IOException
      */
-    public static ImmutableStateHandlerMetadata fromXContent(XContentParser parser, String name) throws IOException {
+    public static ReservedStateHandlerMetadata fromXContent(XContentParser parser, String name) throws IOException {
         return PARSER.apply(parser, name);
     }
 
     /**
-     * Reads an {@link ImmutableStateHandlerMetadata} {@link Diff} from {@link StreamInput}
+     * Reads an {@link ReservedStateHandlerMetadata} {@link Diff} from {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read the diff from
-     * @return a {@link Diff} of {@link ImmutableStateHandlerMetadata}
+     * @return a {@link Diff} of {@link ReservedStateHandlerMetadata}
      * @throws IOException
      */
-    public static Diff<ImmutableStateHandlerMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(ImmutableStateHandlerMetadata::readFrom, in);
+    public static Diff<ReservedStateHandlerMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(ReservedStateHandlerMetadata::readFrom, in);
     }
 }

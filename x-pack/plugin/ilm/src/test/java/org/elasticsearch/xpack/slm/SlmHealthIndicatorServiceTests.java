@@ -19,6 +19,7 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -31,7 +32,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
-import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
@@ -254,7 +254,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             Set.of(
-                SlmHealthIndicatorService.GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT
+                LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

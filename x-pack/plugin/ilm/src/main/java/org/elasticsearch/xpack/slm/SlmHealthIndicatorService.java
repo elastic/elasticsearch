@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -27,9 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
-import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING;
 
 /**
  * This indicator reports health for snapshot lifecycle management component.
@@ -49,18 +48,6 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         null
     );
 
-    /**
-     * The number of repeated failures allowed since a policy's last successful snapshot before a health warning is surfaced in the
-     * health API.
-     */
-    public static final Setting<Long> GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT = new Setting<>(
-        "slm.snapshot.failure.warning.count",
-        "5",
-        Long::parseLong,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
     public static final String ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = null;
     public static final UserAction.Definition ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS = new UserAction.Definition(
         "check_recent_snapshot_failures",
@@ -71,16 +58,17 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     private final ClusterService clusterService;
-    private volatile long snapshotFailureWarningCount;
+    private volatile long failedSnapshotWarnThreshold;
 
     public SlmHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.snapshotFailureWarningCount = clusterService.getClusterSettings().get(GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT, this::updateSnapshotFailureWarningCount);
+        this.failedSnapshotWarnThreshold = clusterService.getClusterSettings().get(SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING, this::setFailedSnapshotWarnThreshold);
     }
 
-    public void updateSnapshotFailureWarningCount(long value) {
-        this.snapshotFailureWarningCount = value;
+    public void setFailedSnapshotWarnThreshold(long value) {
+        this.failedSnapshotWarnThreshold = value;
     }
 
     @Override
@@ -177,7 +165,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return false;
         }
 
-        return policyMetadata.getInvocationsSinceLastSuccess() >= snapshotFailureWarningCount;
+        return policyMetadata.getInvocationsSinceLastSuccess() >= failedSnapshotWarnThreshold;
     }
 
     private static HealthIndicatorDetails createDetails(

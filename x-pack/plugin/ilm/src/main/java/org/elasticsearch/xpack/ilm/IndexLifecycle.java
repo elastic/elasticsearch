@@ -187,7 +187,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
-            LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING
+            LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING,
+            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
         );
     }
 

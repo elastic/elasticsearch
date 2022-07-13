@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class MetadataTests extends ESTestCase {
     Metadata md;

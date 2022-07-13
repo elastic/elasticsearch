@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -110,7 +109,6 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>();
         classpathPlugins.add(SearchBusinessRules.class);
-        classpathPlugins.add(TestGeoShapeFieldMapperPlugin.class);
         return classpathPlugins;
     }
 

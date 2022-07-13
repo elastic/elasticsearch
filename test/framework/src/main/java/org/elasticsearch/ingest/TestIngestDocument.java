@@ -9,9 +9,10 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.SourceAndMetadataMap;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -36,10 +37,15 @@ public class TestIngestDocument {
      * _versions.  Normally null _version is not allowed, but many tests don't care about that invariant.
      */
     public static IngestDocument ofIngestWithNullableVersion(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Map<String, SourceAndMetadataMap.Validator> validators = replaceValidator(VERSION, SourceAndMetadataMap::longValidator);
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestSourceAndMetadata.splitSourceAndMetadata(sourceAndMetadata);
-        IngestSourceAndMetadata withNullableVersion = new IngestSourceAndMetadata(sm.v1(), sm.v2(), null, validators);
-        return new IngestDocument(withNullableVersion, ingestMetadata);
+        Map<String, Object> source = new HashMap<>(sourceAndMetadata);
+        Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
+        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
+            String key = m.getFieldName();
+            if (sourceAndMetadata.containsKey(key)) {
+                metadata.put(key, source.remove(key));
+            }
+        }
+        return new IngestDocument(new IngestCtxMap(source, TestIngestCtxMetadata.withNullableVersion(metadata)), ingestMetadata);
     }
 
     /**
@@ -54,24 +60,11 @@ public class TestIngestDocument {
     }
 
     /**
-     * Return the default validator map with a single validator replaced, if that validator was already present in the default validators
-     * map
-     */
-    protected static Map<String, SourceAndMetadataMap.Validator> replaceValidator(String key, SourceAndMetadataMap.Validator validator) {
-        Map<String, SourceAndMetadataMap.Validator> validators = new HashMap<>(IngestSourceAndMetadata.VALIDATORS);
-        validators.computeIfPresent(key, (k, v) -> validator);
-        return validators;
-    }
-
-    /**
      * Create an IngestDocument with a metadata map and validators.  The metadata map is passed by reference, not copied, so callers
      * can observe changes to the map directly.
      */
-    public static IngestDocument ofMetadataWithValidator(
-        Map<String, Object> metadata,
-        Map<String, SourceAndMetadataMap.Validator> validators
-    ) {
-        return new IngestDocument(new IngestSourceAndMetadata(new HashMap<>(), metadata, null, validators), new HashMap<>());
+    public static IngestDocument ofMetadataWithValidator(Map<String, Object> metadata, Map<String, Metadata.FieldProperty<?>> properties) {
+        return new IngestDocument(new IngestCtxMap(new HashMap<>(), new TestIngestCtxMetadata(metadata, properties)), new HashMap<>());
     }
 
     /**

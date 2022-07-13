@@ -194,7 +194,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .renamePattern("^(.*)$")
             .renameReplacement(request.getFollowerIndex())
             .masterNodeTimeout(request.masterNodeTimeout())
-            .indexSettings(overrideSettings);
+            .indexSettings(overrideSettings)
+            .quiet(true);
 
         final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
             this.client,

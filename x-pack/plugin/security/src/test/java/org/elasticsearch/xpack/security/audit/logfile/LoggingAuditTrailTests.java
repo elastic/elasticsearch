@@ -46,12 +46,15 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -587,8 +590,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         createApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
         String expectedCreateKeyAuditEventString = """
-            "create":{"apikey":{"name":"%s","expiration":%s,%s}}\
-            """.formatted(keyName, expiration != null ? "\"" + expiration + "\"" : "null", roleDescriptorsStringBuilder);
+            "create":{"apikey":{"id":"%s","name":"%s","expiration":%s,%s}}\
+            """.formatted(
+            createApiKeyRequest.getId(),
+            keyName,
+            expiration != null ? "\"" + expiration + "\"" : "null",
+            roleDescriptorsStringBuilder
+        );
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedCreateKeyAuditEventString = output.get(1);
@@ -605,6 +613,32 @@ public class LoggingAuditTrailTests extends ESTestCase {
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
+        final String keyId = randomAlphaOfLength(10);
+        final var updateApiKeyRequest = new UpdateApiKeyRequest(
+            keyId,
+            randomBoolean() ? null : keyRoleDescriptors,
+            ApiKeyTests.randomMetadata()
+        );
+        auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
+        final var expectedUpdateKeyAuditEventString = """
+            "change":{"apikey":{"id":"%s"%s}}\
+            """.formatted(keyId, updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedUpdateKeyAuditEventString = output.get(1);
+        assertThat(generatedUpdateKeyAuditEventString, containsString(expectedUpdateKeyAuditEventString));
+        generatedUpdateKeyAuditEventString = generatedUpdateKeyAuditEventString.replace(", " + expectedUpdateKeyAuditEventString, "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+            .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "change_apikey")
+            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedUpdateKeyAuditEventString, checkedFields.map());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
         GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
         grantApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         grantApiKeyRequest.getGrant().setType(randomFrom(randomAlphaOfLength(8), null));
@@ -617,7 +651,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedGrantKeyAuditEventString = output.get(1);
-        StringBuilder grantKeyAuditEventStringBuilder = new StringBuilder().append("\"create\":{\"apikey\":{\"name\":\"")
+        StringBuilder grantKeyAuditEventStringBuilder = new StringBuilder().append("\"create\":{\"apikey\":{\"id\":\"")
+            .append(grantApiKeyRequest.getApiKeyRequest().getId())
+            .append("\",\"name\":\"")
             .append(keyName)
             .append("\",\"expiration\":")
             .append(expiration != null ? "\"" + expiration + "\"" : "null")
@@ -1800,7 +1836,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             new Tuple<>(
                 SetProfileEnabledAction.NAME,
                 new SetProfileEnabledRequest(randomAlphaOfLength(20), randomBoolean(), WriteRequest.RefreshPolicy.WAIT_UNTIL)
-            )
+            ),
+            new Tuple<>(UpdateApiKeyAction.NAME, UpdateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(10)))
         );
         auditTrail.accessGranted(requestId, authentication, actionAndRequest.v1(), actionAndRequest.v2(), authorizationInfo);
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);

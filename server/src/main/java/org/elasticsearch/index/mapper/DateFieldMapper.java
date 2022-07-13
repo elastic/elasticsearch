@@ -276,7 +276,7 @@ public final class DateFieldMapper extends FieldMapper {
                 this.format = Parameter.stringParam(
                     "format",
                     indexCreatedVersion.isLegacyIndexVersion(),
-                    (n, c, o) -> LegacyFormatNames.compatibleFormat(XContentMapValues.nodeStringValue(o)),
+                    (n, c, o) -> LegacyFormatNames.camelCaseToSnakeCase(XContentMapValues.nodeStringValue(o)),
                     m -> toType(m).format,
                     defaultFormat.pattern(),
                     XContentBuilder::field

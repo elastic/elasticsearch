@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -344,51 +343,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
             var docMapper = merge(mappingMetadata.type(), mappingMetadata.source(), reason);
-            var mappingSource = upgradeFormats(mappingMetadata.type(), mappingMetadata.source(), docMapper.mappingSource());
-            Map<String, Object> origMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
+            if (indexVersionCreated.major <= Version.CURRENT.previousMajor().major) {
+                var upgradedSource = MapperServiceUpgraders.upgradeFormatsIfNeeded(
+                    mappingMetadata.type(),
+                    mappingMetadata,
+                    docMapper.mappingSource()
+                );
 
-            if (origMap.equals(mappingSource) == false) {
-                return IndexMetadata.builder(indexMetadata).putMapping(new MappingMetadata(mappingMetadata.type(), mappingSource)).build();
-            }
-        }
-        return indexMetadata;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getProperties(Map<String, Object> sourceMap, String type) {
-        Map<String, Object> typeMap = (Map<String, Object>) sourceMap.get(type);
-        if (typeMap == null) {
-            return null;
-        }
-
-        return (Map<String, Object>) typeMap.get("properties");
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    Map<String, Object> upgradeFormats(String type, CompressedXContent mappingSource, CompressedXContent newMappingSource) {
-        Map<String, Object> sourceMap = XContentHelper.convertToMap(mappingSource.compressedReference(), true).v2();
-        Map<String, Object> newMap = XContentHelper.convertToMap(newMappingSource.compressedReference(), true).v2();
-        
-        Map<String, Object> properties = getProperties(sourceMap, type);
-        Map<String, Object> parsedProperties = getProperties(newMap, type);
-        if (properties != null && parsedProperties != null) {
-            for (var property : properties.entrySet()) {
-                if (property.getValue() instanceof Map map) {
-                    Object format = map.get("format");
-                    if (format != null) {
-                        var newProperty = parsedProperties.get(property.getKey());
-                        if (newProperty instanceof Map parsedMap) {
-                            Object parsedFormat = parsedMap.get("format");
-                            if (parsedFormat != null && parsedFormat.equals(format) == false) {
-                                map.put("format", parsedFormat);
-                            }
-                        }
-                    }
+                if (mappingMetadata.source().equals(upgradedSource) == false) {
+                    return IndexMetadata.builder(indexMetadata).putMapping(new MappingMetadata(upgradedSource)).build();
                 }
             }
         }
-
-        return sourceMap;
+        return indexMetadata;
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {

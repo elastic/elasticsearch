@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.immutablestate.action;
+package org.elasticsearch.reservedstate.action;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.immutablestate.TransformState;
+import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -22,9 +22,9 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class ImmutableClusterSettingsActionTests extends ESTestCase {
+public class ReservedClusterSettingsActionTests extends ESTestCase {
 
-    private TransformState processJSON(ImmutableClusterSettingsAction action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(ReservedClusterSettingsAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(parser.map(), prevState);
         }
@@ -35,7 +35,7 @@ public class ImmutableClusterSettingsActionTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ImmutableClusterSettingsAction action = new ImmutableClusterSettingsAction(clusterSettings);
+        ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(clusterSettings);
 
         String badPolicyJSON = """
             {
@@ -53,7 +53,7 @@ public class ImmutableClusterSettingsActionTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ImmutableClusterSettingsAction action = new ImmutableClusterSettingsAction(clusterSettings);
+        ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(clusterSettings);
 
         String emptyJSON = "";
 

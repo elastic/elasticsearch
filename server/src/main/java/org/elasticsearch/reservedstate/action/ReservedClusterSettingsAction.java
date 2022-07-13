@@ -6,37 +6,37 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.immutablestate.action;
+package org.elasticsearch.reservedstate.action;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
-import org.elasticsearch.immutablestate.TransformState;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.Maps.asMap;
-
 /**
- * This Action is the immutable state save version of RestClusterUpdateSettingsAction
+ * This Action is the reserved state save version of RestClusterUpdateSettingsAction
  * <p>
- * It is used by the ImmutableClusterStateController to update the persistent cluster settings.
+ * It is used by the ReservedClusterStateController to update the persistent cluster settings.
  * Since transient cluster settings are deprecated, this action doesn't support updating transient cluster settings.
  */
-public class ImmutableClusterSettingsAction implements ImmutableClusterStateHandler<ClusterUpdateSettingsRequest> {
+public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<Map<String, Object>> {
 
     public static final String NAME = "cluster_settings";
 
     private final ClusterSettings clusterSettings;
 
-    public ImmutableClusterSettingsAction(ClusterSettings clusterSettings) {
+    public ReservedClusterSettingsAction(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
     }
 
@@ -49,11 +49,12 @@ public class ImmutableClusterSettingsAction implements ImmutableClusterStateHand
     private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
 
-        Map<String, ?> source = asMap(input);
         Map<String, Object> persistentSettings = new HashMap<>();
         Set<String> toDelete = new HashSet<>(previouslySet);
 
-        source.forEach((k, v) -> {
+        Map<String, Object> settings = (Map<String, Object>) input;
+
+        settings.forEach((k, v) -> {
             persistentSettings.put(k, v);
             toDelete.remove(k);
         });
@@ -86,5 +87,10 @@ public class ImmutableClusterSettingsAction implements ImmutableClusterStateHand
             .collect(Collectors.toSet());
 
         return new TransformState(state, currentKeys);
+    }
+
+    @Override
+    public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+        return parser.map();
     }
 }

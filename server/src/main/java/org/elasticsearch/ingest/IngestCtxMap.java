@@ -13,6 +13,7 @@ import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -31,9 +32,7 @@ import java.util.Map;
 class IngestCtxMap extends CtxMap {
 
     /**
-     * Create an IngestCtxMap with the given metadata, source and default validators.
-     *
-     * Source is not copied, callers can observe changes to source.
+     * Create an IngestCtxMap with the given metadata, source and default validators
      */
     IngestCtxMap(
         String index,
@@ -44,7 +43,7 @@ class IngestCtxMap extends CtxMap {
         ZonedDateTime timestamp,
         Map<String, Object> source
     ) {
-        super(source, new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
+        super(new HashMap<>(source), new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
     }
 
     /**

@@ -93,8 +93,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * This field holds the results of the tasks in the clusterFormationInfoTasks field above. The field is accessed (reads/writes) from
      * multiple threads, but the reference itself is only ever changed on the cluster change event thread.
      */
-    // Non-private for testing
-    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = null;
+    private volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = null;
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 

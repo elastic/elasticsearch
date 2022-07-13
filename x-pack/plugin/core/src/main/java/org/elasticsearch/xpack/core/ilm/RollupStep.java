@@ -16,13 +16,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.util.Objects;
 
 /**
- * ILM step that invokes the rollup action for an index using a {@link RollupActionConfig}. The rollup
+ * ILM step that invokes the rollup action for an index using a {@link DateHistogramInterval}. The rollup
  * action produces a rollup index using a prefix prepended to the original index name for the name of the rollup
  * index. Also, the rollup action deletes the source index at the end, so no DeleteStep is required after this
  * step.
@@ -32,11 +33,11 @@ public class RollupStep extends AsyncActionStep {
 
     private static final Logger logger = LogManager.getLogger(RollupStep.class);
 
-    private final RollupActionConfig config;
+    private final DateHistogramInterval fixedInterval;
 
-    public RollupStep(StepKey key, StepKey nextStepKey, Client client, RollupActionConfig config) {
+    public RollupStep(StepKey key, StepKey nextStepKey, Client client, DateHistogramInterval fixedInterval) {
         super(key, nextStepKey, client);
-        this.config = config;
+        this.fixedInterval = fixedInterval;
     }
 
     @Override
@@ -100,6 +101,7 @@ public class RollupStep extends AsyncActionStep {
             return;
         }
 
+        RollupActionConfig config = new RollupActionConfig(fixedInterval);
         RollupAction.Request request = new RollupAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(TimeValue.MAX_VALUE);
         // Currently, RollupAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(
@@ -109,13 +111,13 @@ public class RollupStep extends AsyncActionStep {
         );
     }
 
-    public RollupActionConfig getConfig() {
-        return config;
+    public DateHistogramInterval getFixedInterval() {
+        return fixedInterval;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), config);
+        return Objects.hash(super.hashCode(), fixedInterval);
     }
 
     @Override
@@ -127,6 +129,6 @@ public class RollupStep extends AsyncActionStep {
             return false;
         }
         RollupStep other = (RollupStep) obj;
-        return super.equals(obj) && Objects.equals(config, other.config);
+        return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval);
     }
 }

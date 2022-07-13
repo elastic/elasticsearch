@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.RollupILMAction;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -143,7 +143,7 @@ public class RollupActionIT extends ESRestTestCase {
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String phaseName = randomFrom("warm", "cold");
-        createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(RollupActionConfigTests.randomConfig()));
+        createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(ConfigTestHelpers.randomInterval()));
         updatePolicy(client(), index, policy);
 
         assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(index)), 30, TimeUnit.SECONDS);
@@ -155,7 +155,9 @@ public class RollupActionIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertThat(settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()), equalTo(index));
         });
-        assertBusy(() -> assertTrue(aliasExists(rollupIndex, alias)));
+        assertBusy(
+            () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
+        );
     }
 
     public void testRollupIndexInTheHotPhase() throws Exception {
@@ -164,7 +166,7 @@ public class RollupActionIT extends ESRestTestCase {
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "hot", new RollupILMAction(RollupActionConfigTests.randomConfig()))
+            () -> createNewSingletonPolicy(client(), policy, "hot", new RollupILMAction(ConfigTestHelpers.randomInterval()))
         );
         assertTrue(
             e.getMessage().contains("the [rollup] action(s) may not be used in the [hot] phase without an accompanying [rollover] action")
@@ -179,7 +181,7 @@ public class RollupActionIT extends ESRestTestCase {
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null),
             RollupILMAction.NAME,
-            new RollupILMAction(RollupActionConfigTests.randomConfig())
+            new RollupILMAction(ConfigTestHelpers.randomInterval())
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -227,12 +229,14 @@ public class RollupActionIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertThat(settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()), equalTo(originalIndex));
         });
-        assertBusy(() -> assertTrue(aliasExists(rollupIndex, alias)));
+        assertBusy(
+            () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
+        );
     }
 
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
-        createNewSingletonPolicy(client(), policy, "warm", new RollupILMAction(RollupActionConfigTests.randomConfig()));
+        createNewSingletonPolicy(client(), policy, "warm", new RollupILMAction(ConfigTestHelpers.randomInterval()));
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);

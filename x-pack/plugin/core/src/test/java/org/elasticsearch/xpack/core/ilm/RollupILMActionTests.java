@@ -12,8 +12,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
 
 import java.util.List;
 
@@ -24,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction> {
 
     static RollupILMAction randomInstance() {
-        return new RollupILMAction(RollupActionConfigTests.randomConfig());
+        return new RollupILMAction(ConfigTestHelpers.randomInterval());
     }
 
     @Override
@@ -49,7 +47,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
 
     @Override
     public void testToSteps() {
-        RollupILMAction action = new RollupILMAction(RollupActionConfigTests.randomConfig());
+        RollupILMAction action = new RollupILMAction(ConfigTestHelpers.randomInterval());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -120,15 +118,14 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
     }
 
     RollupILMAction copy(RollupILMAction rollupILMAction) {
-        return new RollupILMAction(rollupILMAction.config());
+        return new RollupILMAction(rollupILMAction.fixedInterval());
     }
 
     RollupILMAction notCopy(RollupILMAction rollupILMAction) {
         DateHistogramInterval fixedInterval = randomValueOtherThan(
-            rollupILMAction.config().getFixedInterval(),
+            rollupILMAction.fixedInterval(),
             ConfigTestHelpers::randomInterval
         );
-        RollupActionConfig newConfig = new RollupActionConfig(fixedInterval);
-        return new RollupILMAction(newConfig);
+        return new RollupILMAction(fixedInterval);
     }
 }

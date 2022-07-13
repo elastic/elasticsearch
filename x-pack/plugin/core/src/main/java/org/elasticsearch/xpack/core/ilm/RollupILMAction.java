@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,6 +26,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 /**
  * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.rollup.action.RollupAction} on an index
  */
@@ -33,48 +36,52 @@ public class RollupILMAction implements LifecycleAction {
     public static final String NAME = "rollup";
     public static final String ROLLUP_INDEX_PREFIX = "rollup-";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
+    public static final String GENERATE_ROLLUP_STEP_NAME = "generate-rollup-name";
+    private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(RollupActionConfig.FIXED_INTERVAL);
 
-    private static final ParseField CONFIG_FIELD = new ParseField("config");
-
-    @SuppressWarnings("unchecked")
+//    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RollupILMAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new RollupILMAction((RollupActionConfig) a[0])
+        a -> new RollupILMAction((DateHistogramInterval) a[0])
     );
-    public static final String GENERATE_ROLLUP_STEP_NAME = "generate-rollup-name";
-
-    private final RollupActionConfig config;
 
     static {
         PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> RollupActionConfig.fromXContent(p),
-            CONFIG_FIELD,
-            ObjectParser.ValueType.OBJECT
+            constructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            FIXED_INTERVAL_FIELD,
+            ObjectParser.ValueType.STRING
         );
     }
+
+    private final DateHistogramInterval fixedInterval;
 
     public static RollupILMAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RollupILMAction(RollupActionConfig config) {
-        this.config = config;
+    public RollupILMAction(DateHistogramInterval fixedInterval) {
+        if (fixedInterval == null) {
+            throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
+        }
+        this.fixedInterval = fixedInterval;
     }
 
     public RollupILMAction(StreamInput in) throws IOException {
-        this(new RollupActionConfig(in));
+        this(new DateHistogramInterval(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        config.writeTo(out);
+        fixedInterval.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CONFIG_FIELD.getPreferredName(), config);
+        if (fixedInterval != null) {
+            builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
+        }
         builder.endObject();
         return builder;
     }
@@ -84,8 +91,8 @@ public class RollupILMAction implements LifecycleAction {
         return NAME;
     }
 
-    public RollupActionConfig config() {
-        return config;
+    public DateHistogramInterval fixedInterval() {
+        return fixedInterval;
     }
 
     @Override
@@ -137,7 +144,7 @@ public class RollupILMAction implements LifecycleAction {
         );
 
         // Here is where the actual rollup action takes place
-        RollupStep rollupStep = new RollupStep(rollupKey, waitForGreenRollupIndexKey, client, config);
+        RollupStep rollupStep = new RollupStep(rollupKey, waitForGreenRollupIndexKey, client, fixedInterval);
         // Wait until the Rollup index health is green
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
             waitForGreenRollupIndexKey,
@@ -213,12 +220,12 @@ public class RollupILMAction implements LifecycleAction {
         if (o == null || getClass() != o.getClass()) return false;
 
         RollupILMAction that = (RollupILMAction) o;
-        return Objects.equals(this.config, that.config);
+        return Objects.equals(this.fixedInterval, that.fixedInterval);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config);
+        return Objects.hash(fixedInterval);
     }
 
     @Override

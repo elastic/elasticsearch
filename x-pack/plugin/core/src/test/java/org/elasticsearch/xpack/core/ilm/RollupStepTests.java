@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.mockito.Mockito;
 
@@ -38,29 +38,29 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
     public RollupStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        RollupActionConfig config = RollupActionConfigTests.randomConfig();
-        return new RollupStep(stepKey, nextStepKey, client, config);
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        return new RollupStep(stepKey, nextStepKey, client, fixedInterval);
     }
 
     @Override
     public RollupStep mutateInstance(RollupStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        RollupActionConfig config = instance.getConfig();
+        DateHistogramInterval fixedInterval = instance.getFixedInterval();
 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 2 -> config = RollupActionConfigTests.randomConfig();
+            case 2 -> fixedInterval = ConfigTestHelpers.randomInterval();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new RollupStep(key, nextKey, instance.getClient(), config);
+        return new RollupStep(key, nextKey, instance.getClient(), fixedInterval);
     }
 
     @Override
     public RollupStep copyInstance(RollupStep instance) {
-        return new RollupStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getConfig());
+        return new RollupStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getFixedInterval());
     }
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, RollupStep step) {

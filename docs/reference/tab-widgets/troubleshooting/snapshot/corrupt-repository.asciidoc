@@ -38,7 +38,7 @@ at the left of the repository name in the repositories table and click the
 
 At this point, it's only the primary (current) deployment that has the repository marked
 as writeable.
-{es} sees it as corrupt though so let's remove the repository and re-add it so that 
+{es} sees it as corrupt, so the repository needs to be removed and added back so that 
 {es} can resume using it:
 
 Note that now we're configuring the main (current) deployment.

@@ -521,7 +521,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                         RoutingTable.builder().addAsNew(metadata.index(index.getName())).addAsNew(metadata.index(anotherIndex)).build()
                     )
                     .build(),
-                new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of()),
+                new DevNullClusterInfo(Map.of(), Map.of(), Map.of()),
                 null,
                 0
             ),

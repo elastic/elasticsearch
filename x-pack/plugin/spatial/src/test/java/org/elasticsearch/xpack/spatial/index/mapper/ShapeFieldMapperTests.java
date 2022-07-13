@@ -57,6 +57,16 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
@@ -75,17 +85,6 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             ShapeFieldMapper gpfm = (ShapeFieldMapper) m;
             assertTrue(gpfm.coerce());
         });
-    }
-
-    @Override
-    protected boolean supportsSearchLookup() {
-        // TODO: is this really true? We have failing tests, but they look like test issues not core issues
-        return false;
-    }
-
-    @Override
-    protected boolean supportsStoredFields() {
-        return false;
     }
 
     public void testDefaultConfiguration() throws IOException {

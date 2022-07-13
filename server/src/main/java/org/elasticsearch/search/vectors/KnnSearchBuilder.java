@@ -173,7 +173,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, Arrays.hashCode(queryVector), boost);
+        return Objects.hash(field, k, numCands, Arrays.hashCode(queryVector), Objects.hashCode(filterQueries), boost);
     }
 
     @Override
@@ -204,10 +204,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeVInt(k);
         out.writeVInt(numCands);
         out.writeFloatArray(queryVector);
-        out.writeVInt(filterQueries.size());
-        for (QueryBuilder query : filterQueries) {
-            out.writeNamedWriteable(query);
-        }
+        out.writeNamedWriteableList(filterQueries);
         out.writeFloat(boost);
     }
 }

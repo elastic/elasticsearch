@@ -49,7 +49,7 @@ and go to **Stack Management > Snapshot and Restore > Repositories**.
 [role="screenshot"]
 image::images/repositories.png[{kib} Console,align="center"]
 
-. Get the details for the repository we'll readd by clicking on the repository
+. Get the details for the repository to re-add by clicking on the repository
 name in the repositories table and making note of all the repository configurations
 that are displayed on the repository details page (we'll use them when we re-add
 the repository to the system). Close the details page using the "X Close" link at

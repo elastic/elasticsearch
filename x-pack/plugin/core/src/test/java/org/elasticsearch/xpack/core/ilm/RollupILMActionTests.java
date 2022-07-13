@@ -122,10 +122,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
     }
 
     RollupILMAction notCopy(RollupILMAction rollupILMAction) {
-        DateHistogramInterval fixedInterval = randomValueOtherThan(
-            rollupILMAction.fixedInterval(),
-            ConfigTestHelpers::randomInterval
-        );
+        DateHistogramInterval fixedInterval = randomValueOtherThan(rollupILMAction.fixedInterval(), ConfigTestHelpers::randomInterval);
         return new RollupILMAction(fixedInterval);
     }
 }

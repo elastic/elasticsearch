@@ -39,7 +39,6 @@ public class RollupILMAction implements LifecycleAction {
     public static final String GENERATE_ROLLUP_STEP_NAME = "generate-rollup-name";
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(RollupActionConfig.FIXED_INTERVAL);
 
-//    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RollupILMAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         a -> new RollupILMAction((DateHistogramInterval) a[0])

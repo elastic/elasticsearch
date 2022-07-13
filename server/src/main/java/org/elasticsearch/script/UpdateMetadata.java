@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 /**
  * The update context has read-only metadata:
  * _index, _id, _version, _routing, _type (always '_doc'), _now (timestamp in millis)
- * <p>
  * and read-write op that may be one of 'noop' or 'none' (legacy), 'index', 'delete' or null
  */
 public class UpdateMetadata extends Metadata {

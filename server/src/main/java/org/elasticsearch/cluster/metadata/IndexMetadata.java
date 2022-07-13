@@ -712,6 +712,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
     }
 
+    /**
+     * Copy constructor that sets the in-sync allocation ids for the specified shard.
+     * @param shardId shard id to set in-sync allocation ids for
+     * @param inSyncSet new in-sync allocation ids
+     * @return updated instance
+     */
     public IndexMetadata withInSyncAllocationIds(int shardId, Set<String> inSyncSet) {
         if (inSyncSet.equals(inSyncAllocationIds.get(shardId))) {
             return this;
@@ -761,6 +767,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
     }
 
+    /**
+     * Creates a copy of this instance that has the primary term for the given shard id incremented.
+     * @param shardId shard id to increment primary term for
+     * @return updated instance with incremented primary term
+     */
     public IndexMetadata withIncrementedPrimaryTerm(int shardId) {
         final long[] incremented = this.primaryTerms.clone();
         incremented[shardId]++;
@@ -809,6 +820,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
     }
 
+    /**
+     * @param timestampRange new timestamp range
+     * @return copy of this instance with updated timestamp range
+     */
     public IndexMetadata withTimestampRange(IndexLongFieldRange timestampRange) {
         if (timestampRange.equals(this.timestampRange)) {
             return this;
@@ -858,6 +873,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
     }
 
+    /**
+     * @return a copy of this instance that has its version incremented by one
+     */
     public IndexMetadata withIncrementedVersion() {
         return new IndexMetadata(
             this.index,

@@ -127,7 +127,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 updatedIndices.put(updatedIndexMetadata.getIndex().getName(), updatedIndexMetadata.withIncrementedVersion());
             }
         }
-        return oldMetadata.withAllocationUpdatesOnly(updatedIndices);
+        return oldMetadata.withAllocationAndTermUpdatesOnly(updatedIndices);
     }
 
     /**

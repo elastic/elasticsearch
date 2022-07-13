@@ -119,7 +119,7 @@ The reponse will look like this:
 +
 <1> Represents the current configuration for the repository.
 
-. Using the settings retrieve above let's add the `readonly: true` option to mark
+. Using the settings retrieved above, add the `readonly: true` option to mark
 it as read-only:
 +
 [source,console]
@@ -157,12 +157,12 @@ The response will look like this:
 ------------------------------------------------------------------------------
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 
-At this point, it's only the main (current) cluster that has the repository marked
+At this point, it's only the primary (current) cluster that has the repository marked
 as writeable.
 {es} sees it as corrupt though so let's remove the repository and re-add it so that 
 {es} can resume using it:
 
-Note that now we're configuring the main (current) cluster.
+Note that now we're configuring the primary (current) cluster.
 
 . Get the configuration of the repository and save its configuration as we'll use it
 to re-add the repository:

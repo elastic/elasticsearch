@@ -137,7 +137,7 @@ public abstract class ShapeValues<T extends ToXContentFragment> {
             Component2DVisitor visitor = Component2DVisitor.getVisitor(
                 component,
                 ShapeField.QueryRelation.INTERSECTS,
-                CoordinateEncoder.Cartesian
+                CoordinateEncoder.CARTESIAN
             );
             reader.visit(visitor);
             return visitor.matches();

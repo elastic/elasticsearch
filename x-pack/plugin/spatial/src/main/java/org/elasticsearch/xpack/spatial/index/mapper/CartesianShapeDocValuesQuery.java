@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 public class CartesianShapeDocValuesQuery extends ShapeDocValuesQuery<XYGeometry> {
 
     public CartesianShapeDocValuesQuery(String field, ShapeField.QueryRelation relation, XYGeometry... geometries) {
-        super(field, CoordinateEncoder.Cartesian, relation, geometries);
+        super(field, CoordinateEncoder.CARTESIAN, relation, geometries);
     }
 
     @Override

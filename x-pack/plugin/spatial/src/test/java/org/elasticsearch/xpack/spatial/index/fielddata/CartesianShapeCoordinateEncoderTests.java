@@ -53,10 +53,10 @@ public class CartesianShapeCoordinateEncoderTests extends ESTestCase {
     }
 
     public void testX() {
-        verifyEncoding(CoordinateEncoder.Cartesian::encodeX, CoordinateEncoder.Cartesian::decodeX);
+        verifyEncoding(CoordinateEncoder.CARTESIAN::encodeX, CoordinateEncoder.CARTESIAN::decodeX);
     }
 
     public void testY() {
-        verifyEncoding(CoordinateEncoder.Cartesian::encodeY, CoordinateEncoder.Cartesian::decodeY);
+        verifyEncoding(CoordinateEncoder.CARTESIAN::encodeY, CoordinateEncoder.CARTESIAN::decodeY);
     }
 }

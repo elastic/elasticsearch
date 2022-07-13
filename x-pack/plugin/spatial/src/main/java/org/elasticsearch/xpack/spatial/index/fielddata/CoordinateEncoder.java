@@ -14,7 +14,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 public interface CoordinateEncoder {
 
     CoordinateEncoder GEO = new GeoShapeCoordinateEncoder();
-    CoordinateEncoder Cartesian = new CartesianShapeCoordinateEncoder();
+    CoordinateEncoder CARTESIAN = new CartesianShapeCoordinateEncoder();
 
     /** encode X value */
     int encodeX(double x);

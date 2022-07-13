@@ -41,7 +41,7 @@ as writeable.
 {es} sees it as corrupt, so the repository needs to be removed and added back so that 
 {es} can resume using it:
 
-Note that now we're configuring the main (current) deployment.
+Note that we're now configuring the primary (current) deployment.
 
 . Open the main deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
 and go to **Stack Management > Snapshot and Restore > Repositories**.

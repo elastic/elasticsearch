@@ -121,15 +121,13 @@ For the examples below, assume that the authenticated user's permissions are:
 [source,console-result]
 --------------------------------------------------
 {
-  "user-role": {
-    "cluster": ["all"],
-    "index": [
-      {
-        "names": ["*"],
-        "privileges": ["all"]
-      }
-    ]
-  }
+  "cluster": ["all"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["all"]
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -174,14 +172,12 @@ The API key's effective permissions after the update will be the intersection of
 [source,console-result]
 --------------------------------------------------
 {
-  "role-a": {
-    "index": [
-      {
-        "names": ["*"],
-        "privileges": ["write"]
-      }
-    ]
-  }
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["write"]
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -201,19 +197,17 @@ Which returns the response:
 }
 ----
 
-Assuming the user's permissions have not changed since the creation or last update of the API key, this request does _not_ result in a change, and the API key's effective permissions remain:
+Assuming the user's permissions have not changed since the previous update of the API key, this request does _not_ result in a change, and the API key's effective permissions remain:
 
 [source,console-result]
 --------------------------------------------------
 {
-  "role-a": {
-    "index": [
-      {
-        "names": ["*"],
-        "privileges": ["write"]
-      }
-    ]
-  }
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["write"]
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -241,14 +235,12 @@ The API key's effective permissions after the update will be:
 [source,console-result]
 --------------------------------------------------
 {
-  "user-role": {
-    "cluster": ["all"],
-    "index": [
-      {
-        "names": ["*"],
-        "privileges": ["all"]
-      }
-    ]
-  }
+  "cluster": ["all"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["all"]
+    }
+  ]
 }
 --------------------------------------------------

@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
-    public InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
+    InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
         super(name, docCount, subAggregations, metadata);
     }
 

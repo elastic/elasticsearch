@@ -589,7 +589,13 @@ public class PersistedClusterStateService {
 
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, document -> document.getField(INDEX_UUID_FIELD_NAME).stringValue(), bytes -> {
-            final IndexMetadata indexMetadata = readXContent(bytes, parser -> IndexMetadata.fromXContent(parser, mappingsByHash));
+            final IndexMetadata indexMetadata = readXContent(bytes, parser -> {
+                try {
+                    return IndexMetadata.fromXContent(parser, mappingsByHash);
+                } catch (Exception e) {
+                    throw new CorruptStateException(e);
+                }
+            });
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
                 throw new CorruptStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");

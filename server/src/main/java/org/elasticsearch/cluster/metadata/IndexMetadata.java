@@ -2047,7 +2047,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         case KEY_SYSTEM -> builder.system(parser.booleanValue());
                         case KEY_MAPPINGS_HASH -> {
                             assert mappingsByHash != null : "no deduplicated mappings given";
-                            assert mappingsByHash.containsKey(parser.text()) : "mapping with hash [" + parser.text() + "] not found";
+                            if (mappingsByHash.containsKey(parser.text()) == false) {
+                                throw new IllegalArgumentException("mapping with hash [" + parser.text() + "] not found");
+                            }
                             builder.putMapping(mappingsByHash.get(parser.text()));
                         }
                         default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");

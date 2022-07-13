@@ -1675,9 +1675,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             writeDocumentsAndCommit(dataPath.resolve(METADATA_DIRECTORY_NAME), commitUserData, documents);
 
-            final String message = expectThrows(AssertionError.class, () -> persistedClusterStateService.loadBestOnDiskState())
+            final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
+                .getCause()
                 .getMessage();
-            assertEquals("mapping with hash [" + hash + "] not found", message);
+            assertEquals("java.lang.IllegalArgumentException: mapping with hash [" + hash + "] not found", message);
         }
     }
 

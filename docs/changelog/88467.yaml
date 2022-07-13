@@ -1,0 +1,6 @@
+pr: 88467
+summary: Adjust date conversion for execution context in watcher compare condition
+area: Infra/Scripting
+type: bug
+issues:
+ - 88408

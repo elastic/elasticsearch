@@ -18,8 +18,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -33,7 +33,7 @@ public class MlAggsHelperTests extends ESTestCase {
     public void testExtractSimpleCountPath() {
         InternalDateRange agg = new InternalDateRange.Factory().create(
             "daily",
-            Arrays.asList(
+            List.of(
                 new InternalDateRange.Bucket(
                     "*-2021-07-19T00:00:00.000Z",
                     Double.NaN,
@@ -72,15 +72,15 @@ public class MlAggsHelperTests extends ESTestCase {
     public void testExtractDoubleBucketedValuesFromKeyedPath() {
         InternalFilters internalFilters = new InternalFilters(
             "airline",
-            Arrays.asList(
+            List.of(
                 new InternalFilters.InternalBucket(
                     "DE",
                     14,
                     InternalAggregations.from(
-                        Arrays.asList(
+                        List.of(
                             new InternalDateRange.Factory().create(
                                 "daily",
-                                Arrays.asList(
+                                List.of(
                                     new InternalDateRange.Bucket(
                                         "*-2021-07-19T00:00:00.000Z",
                                         Double.NaN,
@@ -116,10 +116,10 @@ public class MlAggsHelperTests extends ESTestCase {
                     "US",
                     49,
                     InternalAggregations.from(
-                        Arrays.asList(
+                        List.of(
                             new InternalDateRange.Factory().create(
                                 "daily",
-                                Arrays.asList(
+                                List.of(
                                     new InternalDateRange.Bucket(
                                         "*-2021-07-19T00:00:00.000Z",
                                         Double.NaN,
@@ -197,20 +197,20 @@ public class MlAggsHelperTests extends ESTestCase {
     public void testExtractDoubleBucketedValuesFromKeyedAndSingleBucketAggPath() {
         InternalFilters internalFilters = new InternalFilters(
             "airline",
-            Arrays.asList(
+            List.of(
                 new InternalFilters.InternalBucket(
                     "DE",
                     14,
                     InternalAggregations.from(
-                        Arrays.asList(
+                        List.of(
                             new InternalFilter(
                                 "foo",
                                 1,
                                 InternalAggregations.from(
-                                    Arrays.asList(
+                                    List.of(
                                         new InternalDateRange.Factory().create(
                                             "daily",
-                                            Arrays.asList(
+                                            List.of(
                                                 new InternalDateRange.Bucket(
                                                     "*-2021-07-19T00:00:00.000Z",
                                                     Double.NaN,
@@ -256,15 +256,15 @@ public class MlAggsHelperTests extends ESTestCase {
                     "US",
                     49,
                     InternalAggregations.from(
-                        Arrays.asList(
+                        List.of(
                             new InternalFilter(
                                 "foo",
                                 2,
                                 InternalAggregations.from(
-                                    Arrays.asList(
+                                    List.of(
                                         new InternalDateRange.Factory().create(
                                             "daily",
-                                            Arrays.asList(
+                                            List.of(
                                                 new InternalDateRange.Bucket(
                                                     "*-2021-07-19T00:00:00.000Z",
                                                     Double.NaN,

@@ -70,7 +70,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
                     new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance())
                 )
             ),
-            containsString("buckets_path aggregation [missing] does not exist for aggregation [correlation-agg]")
+            containsString("buckets_path aggregation does not exist for aggregation [correlation-agg]: missing>metric")
         );
 
         // Now validate with a single bucket agg

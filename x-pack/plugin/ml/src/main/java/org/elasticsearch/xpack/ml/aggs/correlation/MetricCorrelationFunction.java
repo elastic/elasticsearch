@@ -77,7 +77,7 @@ public class MetricCorrelationFunction implements CorrelationFunction {
 
     @Override
     public int hashCode() {
-        return NAME.getPreferredName().hashCode();
+        return Objects.hash(bucketsPath);
     }
 
     @Override

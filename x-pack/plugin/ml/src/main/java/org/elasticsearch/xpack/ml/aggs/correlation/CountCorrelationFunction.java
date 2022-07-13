@@ -77,7 +77,7 @@ public class CountCorrelationFunction implements CorrelationFunction {
 
     @Override
     public int hashCode() {
-        return NAME.getPreferredName().hashCode();
+        return Objects.hash(indicator);
     }
 
     @Override

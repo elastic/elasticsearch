@@ -1,5 +1,5 @@
 pr: 88514
-summary: Updatable API keys - auto-update legacy superuser RDs
+summary: Updatable API keys - auto-update legacy superuser user role descriptors on API key update
 area: Authorization
 type: enhancement
-issues: []
+issues: [ ]

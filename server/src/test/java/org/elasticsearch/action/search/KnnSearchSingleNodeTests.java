@@ -11,6 +11,8 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -66,6 +68,86 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         // Because of the boost, vector results should appear first
         assertNotNull(response.getHits().getAt(0).field("vector"));
+    }
+
+    public void testKnnFilter() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        for (int doc = 0; doc < 10; doc++) {
+            String value = doc % 2 == 0 ? "first" : "second";
+            client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", value).get();
+        }
+
+        client().admin().indices().prepareRefresh("index").get();
+
+        float[] queryVector = randomVector();
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50).addFilterQuery(
+            QueryBuilders.termsQuery("field", "second")
+        );
+        SearchResponse response = client().prepareSearch("index").setKnnSearch(knnSearch).addFetchField("*").setSize(10).get();
+
+        assertHitCount(response, 5);
+        assertEquals(5, response.getHits().getHits().length);
+        for (SearchHit hit : response.getHits().getHits()) {
+            assertEquals("second", hit.field("field").getValue());
+        }
+    }
+
+    public void testKnnFilterWithRewrite() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("other-field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        for (int doc = 0; doc < 10; doc++) {
+            client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "value").get();
+        }
+        client().prepareIndex("index").setId("lookup-doc").setSource("other-field", "value").get();
+
+        client().admin().indices().prepareRefresh("index").get();
+
+        float[] queryVector = randomVector();
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50).addFilterQuery(
+            QueryBuilders.termsLookupQuery("field", new TermsLookup("index", "lookup-doc", "other-field"))
+        );
+        SearchResponse response = client().prepareSearch("index").setKnnSearch(knnSearch).setSize(10).get();
+
+        assertHitCount(response, 5);
+        assertEquals(5, response.getHits().getHits().length);
     }
 
     public void testKnnSearchAction() throws IOException {

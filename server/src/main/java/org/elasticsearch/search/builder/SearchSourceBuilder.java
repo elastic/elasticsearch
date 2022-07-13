@@ -1036,7 +1036,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public SearchSourceBuilder rewrite(QueryRewriteContext context) throws IOException {
         assert (this.equals(
-            shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder)
+            shallowCopy(queryBuilder, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder)
         ));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
@@ -1045,6 +1045,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         QueryBuilder postQueryBuilder = null;
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
+        }
+        KnnSearchBuilder knnSearch = null;
+        if (this.knnSearch != null) {
+            knnSearch = this.knnSearch.rewrite(context);
         }
         AggregatorFactories.Builder aggregations = null;
         if (this.aggregations != null) {
@@ -1060,12 +1064,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         boolean rewritten = queryBuilder != this.queryBuilder
             || postQueryBuilder != this.postQueryBuilder
+            || knnSearch != this.knnSearch
             || aggregations != this.aggregations
             || rescoreBuilders != this.rescoreBuilders
             || sorts != this.sorts
             || this.highlightBuilder != highlightBuilder;
         if (rewritten) {
-            return shallowCopy(queryBuilder, postQueryBuilder, aggregations, this.sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
+            return shallowCopy(
+                queryBuilder,
+                postQueryBuilder,
+                knnSearch,
+                aggregations,
+                this.sliceBuilder,
+                sorts,
+                rescoreBuilders,
+                highlightBuilder
+            );
         }
         return this;
     }
@@ -1074,7 +1088,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Create a shallow copy of this builder with a new slice configuration.
      */
     public SearchSourceBuilder shallowCopy() {
-        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
+        return shallowCopy(queryBuilder, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
     }
 
     /**
@@ -1085,6 +1099,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private SearchSourceBuilder shallowCopy(
         QueryBuilder queryBuilder,
         QueryBuilder postQueryBuilder,
+        KnnSearchBuilder knnSearch,
         AggregatorFactories.Builder aggregations,
         SliceBuilder slice,
         List<SortBuilder<?>> sorts,

@@ -71,20 +71,20 @@ public class AssignmentPlanner {
     private AssignmentPlan solveKeepingOneAllocationOnPreviousAssignments() {
         // We do not want to ever completely unassign a model from a node so we
         // can move allocations without having temporary impact on performance.
-        logger.trace(() -> format("Solving preserving one allocation on previous assignments"));
+        logger.debug("Solving preserving one allocation on previous assignments");
         return solvePreservingPreviousAssignments(new PreserveOneAllocation(nodes, models));
     }
 
     private AssignmentPlan solvePreservingAllPreviousAssignments() {
-        logger.trace(() -> format("Solving preserving all allocations on previous assignments"));
+        logger.debug("Solving preserving all allocations on previous assignments");
         return solvePreservingPreviousAssignments(new PreserveAllAllocations(nodes, models));
     }
 
     private AssignmentPlan solvePreservingPreviousAssignments(AbstractPreserveAllocations preserveAllocations) {
         List<Node> planNodes = preserveAllocations.nodesPreservingAllocations();
         List<Model> planModels = preserveAllocations.modelsPreservingAllocations();
-        logger.trace(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));
-        logger.trace(() -> format("Models after applying allocation preserving strategy = %s", planModels));
+        logger.debug(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));
+        logger.debug(() -> format("Models after applying allocation preserving strategy = %s", planModels));
         AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planModels).solvePlan();
         return preserveAllocations.mergePreservedAllocations(assignmentPlan);
     }

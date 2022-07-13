@@ -1,5 +1,5 @@
 [[add-repository]]
-== Mark repository as read-only in other deployments and re-create it in this deployment
+== Multiple deployments writing to the same repository
 
 Multiple {es} deployments are writing to the same snapshot repository. {es} doesn't 
 support this configuration and only one cluster is allowed to write to the same 

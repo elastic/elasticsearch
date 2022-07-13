@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -260,6 +261,26 @@ public final class ExceptionsHelper {
                 new Thread(() -> { throw error; }).start();
             }
         });
+    }
+
+    /**
+     * Unwraps a throwable and calls an error listener with every unwrapped throwable
+     * @param t the starting throwable
+     * @param errorListener a listener function that will be called with every unwrapped throwable we find
+     * @param limit after how many encountered throwables should we stop unwrapping. Prevents stack overflows. 10 is reasonable max.
+     */
+    public static void unwrap(Throwable t, Consumer<Throwable> errorListener, int limit) {
+        int counter = 0;
+        Throwable cause;
+        Throwable prev = t;
+        errorListener.accept(prev);
+        while ((cause = prev.getCause()) != null && (prev != cause)) {
+            prev = cause;
+            errorListener.accept(prev);
+            if (counter++ > limit) {
+                return;
+            }
+        }
     }
 
     /**

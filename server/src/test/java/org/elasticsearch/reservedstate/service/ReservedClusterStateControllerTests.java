@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.immutablestate.service;
+package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -15,17 +15,17 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.metadata.ImmutableStateErrorMetadata;
-import org.elasticsearch.cluster.metadata.ImmutableStateHandlerMetadata;
-import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
-import org.elasticsearch.immutablestate.TransformState;
-import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -53,7 +53,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ImmutableClusterStateControllerTests extends ESTestCase {
+public class ReservedClusterStateControllerTests extends ESTestCase {
 
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -63,9 +63,9 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(
+        ReservedClusterStateController controller = new ReservedClusterStateController(
             clusterService,
-            List.of(new ImmutableClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
 
         String testJSON = """
@@ -130,13 +130,12 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         when(clusterService.getRerouteService()).thenReturn(rerouteService);
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
-        ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor taskExecutor =
-            new ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor(clusterService.getRerouteService());
+        ReservedStateUpdateTaskExecutor taskExecutor = new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService());
 
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
-        ImmutableStateUpdateStateTask task = spy(
-            new ImmutableStateUpdateStateTask(
+        ReservedStateUpdateTask task = spy(
+            new ReservedStateUpdateTask(
                 "test",
                 null,
                 Collections.emptyMap(),
@@ -154,9 +153,9 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
 
         doReturn(state).when(task).execute(any());
 
-        ClusterStateTaskExecutor.TaskContext<ImmutableStateUpdateStateTask> taskContext = new ClusterStateTaskExecutor.TaskContext<>() {
+        ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> taskContext = new ClusterStateTaskExecutor.TaskContext<>() {
             @Override
-            public ImmutableStateUpdateStateTask getTask() {
+            public ReservedStateUpdateTask getTask() {
                 return task;
             }
 
@@ -191,14 +190,9 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
     public void testErrorStateTask() throws Exception {
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
 
-        ImmutableStateUpdateErrorTask task = spy(
-            new ImmutableStateUpdateErrorTask(
-                new ImmutableClusterStateController.ImmutableUpdateErrorState(
-                    "test",
-                    1L,
-                    List.of("some parse error", "some io error"),
-                    ImmutableStateErrorMetadata.ErrorKind.PARSING
-                ),
+        ReservedStateErrorTask task = spy(
+            new ReservedStateErrorTask(
+                new ErrorState("test", 1L, List.of("some parse error", "some io error"), ReservedStateErrorMetadata.ErrorKind.PARSING),
                 new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {}
@@ -209,10 +203,10 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             )
         );
 
-        ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor.TaskContext<ImmutableStateUpdateErrorTask> taskContext =
-            new ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor.TaskContext<>() {
+        ReservedStateErrorTaskExecutor.TaskContext<ReservedStateErrorTask> taskContext =
+            new ReservedStateErrorTaskExecutor.TaskContext<>() {
                 @Override
-                public ImmutableStateUpdateErrorTask getTask() {
+                public ReservedStateErrorTask getTask() {
                     return task;
                 }
 
@@ -234,23 +228,22 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
                 public void onFailure(Exception failure) {}
             };
 
-        ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor executor =
-            new ImmutableClusterStateController.ImmutableUpdateErrorTaskExecutor();
+        ReservedStateErrorTaskExecutor executor = new ReservedStateErrorTaskExecutor();
 
         ClusterState newState = executor.execute(state, List.of(taskContext));
 
         verify(task, times(1)).execute(any());
 
-        ImmutableStateMetadata operatorMetadata = newState.metadata().immutableStateMetadata().get("test");
+        ReservedStateMetadata operatorMetadata = newState.metadata().reservedStateMetadata().get("test");
         assertNotNull(operatorMetadata);
         assertNotNull(operatorMetadata.errorMetadata());
         assertEquals(1L, (long) operatorMetadata.errorMetadata().version());
-        assertEquals(ImmutableStateErrorMetadata.ErrorKind.PARSING, operatorMetadata.errorMetadata().errorKind());
+        assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, operatorMetadata.errorMetadata().errorKind());
         assertThat(operatorMetadata.errorMetadata().errors(), contains("some parse error", "some io error"));
     }
 
     public void testUpdateTaskDuplicateError() {
-        ImmutableClusterStateHandler<Map<String, Object>> dummy = new ImmutableClusterStateHandler<>() {
+        ReservedClusterStateHandler<Map<String, Object>> dummy = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "one";
@@ -267,10 +260,10 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             }
         };
 
-        ImmutableStateUpdateStateTask task = spy(
-            new ImmutableStateUpdateStateTask(
+        ReservedStateUpdateTask task = spy(
+            new ReservedStateUpdateTask(
                 "namespace_one",
-                new ImmutableClusterStateController.Package(Map.of("one", "two"), new PackageVersion(1L, Version.CURRENT)),
+                new ReservedStateChunk(Map.of("one", "two"), new ReservedStateVersion(1L, Version.CURRENT)),
                 Map.of("one", dummy),
                 List.of(dummy.name()),
                 (errorState) -> {},
@@ -284,14 +277,14 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             )
         );
 
-        ImmutableStateHandlerMetadata hmOne = new ImmutableStateHandlerMetadata("one", Set.of("a", "b"));
-        ImmutableStateErrorMetadata emOne = new ImmutableStateErrorMetadata(
+        ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
+        ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
             1L,
-            ImmutableStateErrorMetadata.ErrorKind.VALIDATION,
+            ReservedStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
 
-        ImmutableStateMetadata operatorMetadata = ImmutableStateMetadata.builder("namespace_one")
+        ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("namespace_one")
             .errorMetadata(emOne)
             .version(1L)
             .putHandler(hmOne)
@@ -303,17 +296,17 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         // We exit on duplicate errors before we update the cluster state error metadata
         assertEquals(
             "Not updating error state because version [1] is less or equal to the last state error version [1]",
-            expectThrows(ImmutableClusterStateController.IncompatibleVersionException.class, () -> task.execute(state)).getMessage()
+            expectThrows(ReservedStateVersion.IncompatibleVersionException.class, () -> task.execute(state)).getMessage()
         );
 
-        emOne = new ImmutableStateErrorMetadata(
+        emOne = new ReservedStateErrorMetadata(
             0L,
-            ImmutableStateErrorMetadata.ErrorKind.VALIDATION,
+            ReservedStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
 
         // If we are writing with older error metadata, we should get proper IllegalStateException
-        operatorMetadata = ImmutableStateMetadata.builder("namespace_one").errorMetadata(emOne).version(0L).putHandler(hmOne).build();
+        operatorMetadata = ReservedStateMetadata.builder("namespace_one").errorMetadata(emOne).version(0L).putHandler(hmOne).build();
 
         metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState newState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
@@ -326,39 +319,43 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
     }
 
     public void testCheckMetadataVersion() {
-        ImmutableStateMetadata operatorMetadata = ImmutableStateMetadata.builder("test").version(123L).build();
+        ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
         assertTrue(
-            ImmutableClusterStateController.checkMetadataVersion(operatorMetadata, new PackageVersion(124L, Version.CURRENT), (e) -> {})
+            ReservedClusterStateController.checkMetadataVersion(
+                operatorMetadata,
+                new ReservedStateVersion(124L, Version.CURRENT),
+                (e) -> {}
+            )
         );
 
         AtomicReference<Exception> x = new AtomicReference<>();
 
         assertFalse(
-            ImmutableClusterStateController.checkMetadataVersion(
+            ReservedClusterStateController.checkMetadataVersion(
                 operatorMetadata,
-                new PackageVersion(123L, Version.CURRENT),
+                new ReservedStateVersion(123L, Version.CURRENT),
                 (e) -> x.set(e)
             )
         );
 
-        assertTrue(x.get() instanceof ImmutableClusterStateController.IncompatibleVersionException);
+        assertTrue(x.get() instanceof ReservedStateVersion.IncompatibleVersionException);
         assertTrue(x.get().getMessage().contains("is less or equal to the current metadata version"));
 
         assertFalse(
-            ImmutableClusterStateController.checkMetadataVersion(
+            ReservedClusterStateController.checkMetadataVersion(
                 operatorMetadata,
-                new PackageVersion(124L, Version.fromId(Version.CURRENT.id + 1)),
+                new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)),
                 (e) -> x.set(e)
             )
         );
 
-        assertEquals(ImmutableClusterStateController.IncompatibleVersionException.class, x.get().getClass());
+        assertEquals(ReservedStateVersion.IncompatibleVersionException.class, x.get().getClass());
         assertTrue(x.get().getMessage().contains("is not compatible with this Elasticsearch node"));
     }
 
     public void testHandlerOrdering() {
-        ImmutableClusterStateHandler<Map<String, Object>> oh1 = new ImmutableClusterStateHandler<>() {
+        ReservedClusterStateHandler<Map<String, Object>> oh1 = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "one";
@@ -380,7 +377,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             }
         };
 
-        ImmutableClusterStateHandler<Map<String, Object>> oh2 = new ImmutableClusterStateHandler<>() {
+        ReservedClusterStateHandler<Map<String, Object>> oh2 = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "two";
@@ -397,7 +394,7 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             }
         };
 
-        ImmutableClusterStateHandler<Map<String, Object>> oh3 = new ImmutableClusterStateHandler<>() {
+        ReservedClusterStateHandler<Map<String, Object>> oh3 = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "three";
@@ -420,25 +417,30 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         };
 
         ClusterService clusterService = mock(ClusterService.class);
-        final var controller = new ImmutableClusterStateController(clusterService, List.of(oh1, oh2, oh3));
-        Collection<String> ordered = controller.orderedStateHandlers(Set.of("one", "two", "three"));
+        final var controller = new ReservedClusterStateController(clusterService, List.of(oh1, oh2, oh3));
+        Collection<String> ordered = HandlerDependencyManager.orderedStateHandlers(controller.handlers, Set.of("one", "two", "three"));
         assertThat(ordered, contains("two", "three", "one"));
 
         // assure that we bail on unknown handler
         assertEquals(
-            "Unknown settings definition type: four",
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two", "three", "four")))
-                .getMessage()
+            "Unknown handler type: four",
+            expectThrows(
+                IllegalStateException.class,
+                () -> HandlerDependencyManager.orderedStateHandlers(controller.handlers, Set.of("one", "two", "three", "four"))
+            ).getMessage()
         );
 
         // assure that we bail on missing dependency link
         assertEquals(
-            "Missing settings dependency definition: one -> three",
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage()
+            "Missing handler dependency definition: one -> three",
+            expectThrows(
+                IllegalStateException.class,
+                () -> HandlerDependencyManager.orderedStateHandlers(controller.handlers, Set.of("one", "two"))
+            ).getMessage()
         );
 
         // Change the second handler so that we create cycle
-        oh2 = new ImmutableClusterStateHandler<>() {
+        oh2 = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "two";
@@ -460,10 +462,13 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
             }
         };
 
-        final var controller1 = new ImmutableClusterStateController(clusterService, List.of(oh1, oh2));
+        final var controller1 = new ReservedClusterStateController(clusterService, List.of(oh1, oh2));
 
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller1.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> HandlerDependencyManager.orderedStateHandlers(controller1.handlers, Set.of("one", "two"))
+            ).getMessage(),
             anyOf(
                 is("Cycle found in settings dependencies: one -> two -> one"),
                 is("Cycle found in settings dependencies: two -> one -> two")
@@ -482,19 +487,19 @@ public class ImmutableClusterStateControllerTests extends ESTestCase {
         assertTrue(
             expectThrows(
                 IllegalStateException.class,
-                () -> new ImmutableClusterStateController(
+                () -> new ReservedClusterStateController(
                     clusterService,
-                    List.of(new ImmutableClusterSettingsAction(clusterSettings), new TestHandler())
+                    List.of(new ReservedClusterSettingsAction(clusterSettings), new TestHandler())
                 )
             ).getMessage().startsWith("Duplicate key cluster_settings")
         );
     }
 
-    class TestHandler implements ImmutableClusterStateHandler<Map<String, Object>> {
+    class TestHandler implements ReservedClusterStateHandler<Map<String, Object>> {
 
         @Override
         public String name() {
-            return ImmutableClusterSettingsAction.NAME;
+            return ReservedClusterSettingsAction.NAME;
         }
 
         @Override

@@ -18,13 +18,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.immutablestate.TransformState;
-import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
-import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
-import org.elasticsearch.immutablestate.service.ImmutableStateUpdateStateTask;
-import org.elasticsearch.immutablestate.service.PackageVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateController;
+import org.elasticsearch.reservedstate.service.ReservedStateChunk;
+import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
+import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
+import org.elasticsearch.reservedstate.service.ReservedStateVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -236,17 +237,16 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
         doAnswer((Answer<Object>) invocation -> {
             Object[] args = invocation.getArguments();
 
-            if ((args[3] instanceof ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor) == false) {
+            if ((args[3] instanceof ReservedStateUpdateTaskExecutor) == false) {
                 fail("Should have gotten a state update task to execute, instead got: " + args[3].getClass().getName());
             }
 
-            ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor task =
-                (ImmutableClusterStateController.ImmutableUpdateStateTaskExecutor) args[3];
+            ReservedStateUpdateTaskExecutor task = (ReservedStateUpdateTaskExecutor) args[3];
 
-            ClusterStateTaskExecutor.TaskContext<ImmutableStateUpdateStateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
+            ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
                 @Override
-                public ImmutableStateUpdateStateTask getTask() {
-                    return (ImmutableStateUpdateStateTask) args[1];
+                public ReservedStateUpdateTask getTask() {
+                    return (ReservedStateUpdateTask) args[1];
                 }
 
                 @Override
@@ -281,9 +281,9 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(
+        ReservedClusterStateController controller = new ReservedClusterStateController(
             clusterService,
-            List.of(new ImmutableClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
 
         String testJSON = """
@@ -353,11 +353,11 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        controller = new ImmutableClusterStateController(
+        controller = new ReservedClusterStateController(
             clusterService,
             List.of(
-                new ImmutableClusterSettingsAction(clusterSettings),
-                new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
+                new ReservedClusterSettingsAction(clusterSettings),
+                new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
             )
         );
 
@@ -380,18 +380,18 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(
+        ReservedClusterStateController controller = new ReservedClusterStateController(
             clusterService,
-            List.of(new ImmutableClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
 
         AtomicReference<Exception> x = new AtomicReference<>();
 
-        ImmutableClusterStateController.Package pack = new ImmutableClusterStateController.Package(
+        ReservedStateChunk pack = new ReservedStateChunk(
             Map.of(
-                ImmutableClusterSettingsAction.NAME,
+                ReservedClusterSettingsAction.NAME,
                 Map.of("indices.recovery.max_bytes_per_sec", "50mb"),
-                ImmutableLifecycleAction.NAME,
+                ReservedLifecycleAction.NAME,
                 List.of(
                     new LifecyclePolicy(
                         "my_timeseries_lifecycle",
@@ -404,7 +404,7 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
                     )
                 )
             ),
-            new PackageVersion(123L, Version.CURRENT)
+            new ReservedStateVersion(123L, Version.CURRENT)
         );
 
         controller.process("operator", pack, (e) -> x.set(e));
@@ -417,11 +417,11 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        controller = new ImmutableClusterStateController(
+        controller = new ReservedClusterStateController(
             clusterService,
             List.of(
-                new ImmutableClusterSettingsAction(clusterSettings),
-                new ImmutableLifecycleAction(xContentRegistry(), client, licenseState)
+                new ReservedClusterSettingsAction(clusterSettings),
+                new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
             )
         );
 
@@ -433,5 +433,4 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
             }
         });
     }
-
 }

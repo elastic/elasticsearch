@@ -1,0 +1,232 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.reservedstate.service;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
+
+/**
+ * Controller class for storing and reserving a portion of the {@link ClusterState}
+ * <p>
+ * This class contains the logic about validation, ordering and applying of
+ * the cluster state specified in a file or through plugins/modules. Reserved cluster state
+ * cannot be modified throught the REST APIs, only through this controller class.
+ */
+public class ReservedClusterStateController {
+    private static final Logger logger = LogManager.getLogger(ReservedClusterStateController.class);
+
+    public static final ParseField STATE_FIELD = new ParseField("state");
+    public static final ParseField METADATA_FIELD = new ParseField("metadata");
+
+    final Map<String, ReservedClusterStateHandler<?>> handlers;
+    final ClusterService clusterService;
+    private final ReservedStateUpdateTaskExecutor updateStateTaskExecutor;
+    private final ReservedStateErrorTaskExecutor errorStateTaskExecutor;
+
+    @SuppressWarnings("unchecked")
+    private final ConstructingObjectParser<ReservedStateChunk, Void> stateChunkParser = new ConstructingObjectParser<>(
+        "reserved_state_chunk",
+        a -> {
+            List<Tuple<String, Object>> tuples = (List<Tuple<String, Object>>) a[0];
+            Map<String, Object> stateMap = new HashMap<>();
+            for (var tuple : tuples) {
+                stateMap.put(tuple.v1(), tuple.v2());
+            }
+
+            return new ReservedStateChunk(stateMap, (ReservedStateVersion) a[1]);
+        }
+    );
+
+    /**
+     * Controller class for saving and reserving {@link ClusterState}.
+     * @param clusterService for fetching and saving the modified state
+     * @param handlerList a list of reserved state handlers, which we use to transform the state
+     */
+    public ReservedClusterStateController(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
+        this.clusterService = clusterService;
+        this.updateStateTaskExecutor = new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService());
+        this.errorStateTaskExecutor = new ReservedStateErrorTaskExecutor();
+        this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
+        stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
+            if (handlers.containsKey(name) == false) {
+                throw new IllegalStateException("Missing handler definition for content key [" + name + "]");
+            }
+            p.nextToken();
+            return new Tuple<>(name, handlers.get(name).fromXContent(p));
+        }, STATE_FIELD);
+        stateChunkParser.declareObject(ConstructingObjectParser.constructorArg(), ReservedStateVersion::parse, METADATA_FIELD);
+    }
+
+    /**
+     * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
+     *
+     * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
+     * @param parser the XContentParser to process
+     * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
+     *        cluster state cannot be correctly applied, {@link ReservedStateVersion.IncompatibleVersionException} if the content is stale
+     *        or incompatible with this node {@link Version}, null if successful.
+     */
+    public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
+        ReservedStateChunk stateChunk;
+
+        try {
+            stateChunk = stateChunkParser.apply(parser, null);
+        } catch (Exception e) {
+            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            saveErrorState(errorState);
+            logger.error("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
+
+            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            return;
+        }
+
+        process(namespace, stateChunk, errorListener);
+    }
+
+    /**
+     * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
+     *
+     * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
+     * @param reservedStateChunk a {@link ReservedStateChunk} composite state object to process
+     * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
+     *        cluster state cannot be correctly applied, {@link ReservedStateVersion.IncompatibleVersionException} if the content is stale
+     *        or incompatible with this node {@link Version}, null if successful.
+     */
+    public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
+        Map<String, Object> reservedState = reservedStateChunk.state();
+        ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
+
+        LinkedHashSet<String> orderedHandlers;
+        try {
+            orderedHandlers = HandlerDependencyManager.orderedStateHandlers(handlers, reservedState.keySet());
+        } catch (Exception e) {
+            ErrorState errorState = new ErrorState(
+                namespace,
+                reservedStateVersion.version(),
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
+
+            saveErrorState(errorState);
+            logger.error("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
+
+            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            return;
+        }
+
+        ClusterState state = clusterService.state();
+        ReservedStateMetadata existingMetadata = state.metadata().reservedStateMetadata().get(namespace);
+        if (checkMetadataVersion(existingMetadata, reservedStateVersion, errorListener) == false) {
+            return;
+        }
+
+        clusterService.submitStateUpdateTask(
+            "reserved cluster state [" + namespace + "]",
+            new ReservedStateUpdateTask(
+                namespace,
+                reservedStateChunk,
+                handlers,
+                orderedHandlers,
+                (errorState) -> saveErrorState(errorState),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {
+                        logger.info("Successfully applied new reserved cluster state for namespace [{}]", namespace);
+                        errorListener.accept(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Failed to apply reserved cluster state", e);
+                        errorListener.accept(e);
+                    }
+                }
+            ),
+            ClusterStateTaskConfig.build(Priority.URGENT),
+            updateStateTaskExecutor
+        );
+    }
+
+    // package private for testing
+    static boolean checkMetadataVersion(
+        ReservedStateMetadata existingMetadata,
+        ReservedStateVersion reservedStateVersion,
+        Consumer<Exception> errorListener
+    ) {
+        if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
+            errorListener.accept(
+                new ReservedStateVersion.IncompatibleVersionException(
+                    format(
+                        "Cluster state version [%s] is not compatible with this Elasticsearch node",
+                        reservedStateVersion.minCompatibleVersion()
+                    )
+                )
+            );
+            return false;
+        }
+
+        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
+            errorListener.accept(
+                new ReservedStateVersion.IncompatibleVersionException(
+                    format(
+                        "Not updating cluster state because version [%s] is less or equal to the current metadata version [%s]",
+                        reservedStateVersion.version(),
+                        existingMetadata.version()
+                    )
+                )
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    private void saveErrorState(ErrorState state) {
+        clusterService.submitStateUpdateTask(
+            "reserved cluster state update error for [ " + state.namespace() + "]",
+            new ReservedStateErrorTask(state, new ActionListener<>() {
+                @Override
+                public void onResponse(ActionResponse.Empty empty) {
+                    logger.info("Successfully applied new reserved error state for namespace [{}]", state.namespace());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to apply reserved error cluster state", e);
+                }
+            }),
+            ClusterStateTaskConfig.build(Priority.URGENT),
+            errorStateTaskExecutor
+        );
+    }
+}

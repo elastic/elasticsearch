@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.immutablestate.service;
+package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,12 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.ImmutableStateErrorMetadata;
-import org.elasticsearch.cluster.metadata.ImmutableStateHandlerMetadata;
-import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
-import org.elasticsearch.immutablestate.TransformState;
+import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.TransformState;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,33 +30,38 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.reservedstate.service.ErrorState.unwrapException;
 
 /**
- * Generic immutable cluster state update task
+ * Generic task to update and reserve parts of the cluster state
+ *
+ * <p>
+ * Reserved cluster state can only be modified by using the {@link ReservedClusterStateController}. Updating
+ * the reserved cluster state through REST APIs is not permitted.
  */
-public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
-    private static final Logger logger = LogManager.getLogger(ImmutableStateUpdateStateTask.class);
+public class ReservedStateUpdateTask implements ClusterStateTaskListener {
+    private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTask.class);
 
     private final String namespace;
-    private final ImmutableClusterStateController.Package immutableStatePackage;
-    private final Map<String, ImmutableClusterStateHandler<?>> handlers;
+    private final ReservedStateChunk stateChunk;
+    private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
-    private final Consumer<ImmutableClusterStateController.ImmutableUpdateErrorState> recordErrorState;
+    private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
 
-    public ImmutableStateUpdateStateTask(
+    public ReservedStateUpdateTask(
         String namespace,
-        ImmutableClusterStateController.Package immutableStatePackage,
-        Map<String, ImmutableClusterStateHandler<?>> handlers,
+        ReservedStateChunk stateChunk,
+        Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
-        Consumer<ImmutableClusterStateController.ImmutableUpdateErrorState> recordErrorState,
+        Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
         this.namespace = namespace;
-        this.immutableStatePackage = immutableStatePackage;
+        this.stateChunk = stateChunk;
         this.handlers = handlers;
         this.orderedHandlers = orderedHandlers;
-        this.recordErrorState = recordErrorState;
+        this.errorReporter = errorReporter;
         this.listener = listener;
     }
 
@@ -70,22 +75,22 @@ public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
     }
 
     protected ClusterState execute(ClusterState state) {
-        ImmutableStateMetadata existingMetadata = state.metadata().immutableStateMetadata().get(namespace);
-        Map<String, Object> immutableState = immutableStatePackage.state();
-        PackageVersion packageVersion = immutableStatePackage.metadata();
+        ReservedStateMetadata existingMetadata = state.metadata().reservedStateMetadata().get(namespace);
+        Map<String, Object> reservedState = stateChunk.state();
+        ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
-        var immutableMetadataBuilder = new ImmutableStateMetadata.Builder(namespace).version(packageVersion.version());
+        var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
         for (var handlerName : orderedHandlers) {
-            ImmutableClusterStateHandler<?> handler = handlers.get(handlerName);
+            ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
-                TransformState transformState = handler.transform(immutableState.get(handlerName), new TransformState(state, existingKeys));
+                TransformState transformState = handler.transform(reservedState.get(handlerName), new TransformState(state, existingKeys));
                 state = transformState.state();
-                immutableMetadataBuilder.putHandler(new ImmutableStateHandlerMetadata(handlerName, transformState.keys()));
+                reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
             } catch (Exception e) {
-                errors.add(format("Error processing %s state change: %s", handler.name(), e.getMessage()));
+                errors.add(format("Error processing %s state change: %s", handler.name(), unwrapException(e)));
             }
         }
 
@@ -94,25 +99,20 @@ public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
             // version hasn't been updated.
             if (existingMetadata != null
                 && existingMetadata.errorMetadata() != null
-                && existingMetadata.errorMetadata().version() >= packageVersion.version()) {
+                && existingMetadata.errorMetadata().version() >= reservedStateVersion.version()) {
                 logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-                throw new ImmutableClusterStateController.IncompatibleVersionException(
+                throw new ReservedStateVersion.IncompatibleVersionException(
                     format(
                         "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
-                        packageVersion.version(),
+                        reservedStateVersion.version(),
                         existingMetadata.errorMetadata().version()
                     )
                 );
             }
 
-            recordErrorState.accept(
-                new ImmutableClusterStateController.ImmutableUpdateErrorState(
-                    namespace,
-                    packageVersion.version(),
-                    errors,
-                    ImmutableStateErrorMetadata.ErrorKind.VALIDATION
-                )
+            errorReporter.accept(
+                new ErrorState(namespace, reservedStateVersion.version(), errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION)
             );
             logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
@@ -120,19 +120,19 @@ public class ImmutableStateUpdateStateTask implements ClusterStateTaskListener {
         }
 
         // remove the last error if we had previously encountered any
-        immutableMetadataBuilder.errorMetadata(null);
+        reservedMetadataBuilder.errorMetadata(null);
 
         ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(immutableMetadataBuilder.build());
+        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(reservedMetadataBuilder.build());
 
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private Set<String> keysForHandler(ImmutableStateMetadata immutableStateMetadata, String handlerName) {
-        if (immutableStateMetadata == null || immutableStateMetadata.handlers().get(handlerName) == null) {
+    private Set<String> keysForHandler(ReservedStateMetadata reservedStateMetadata, String handlerName) {
+        if (reservedStateMetadata == null || reservedStateMetadata.handlers().get(handlerName) == null) {
             return Collections.emptySet();
         }
 
-        return immutableStateMetadata.handlers().get(handlerName).keys();
+        return reservedStateMetadata.handlers().get(handlerName).keys();
     }
 }

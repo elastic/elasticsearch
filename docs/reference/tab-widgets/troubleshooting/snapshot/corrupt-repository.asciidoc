@@ -1,8 +1,8 @@
 // tag::cloud[]
 Fixing the corrupted repository will entail making changes in multiple deployments
 that write to the same snapshot repository.
-Only one deployment must be writing to a repository. Let's call the deployment 
-we want to keep writing to the repository the "main" deployment (the current cluster), 
+Only one deployment must be writing to a repository. The deployment 
+that will keep writing to the repository will be called the "primary" deployment (the current cluster), 
 and the other one(s) where we'll mark the repository as read-only the "secondary" 
 deployments.
 

@@ -18,13 +18,12 @@
 
 IMPORTANT: Only the user who created an API key can update it.
 It's not possible to use an API key as the authentication credential for this API.
-Doing so will result in an error.
 To update an API key, basic or token credentials are required.
 
 [[security-api-update-api-key-desc]]
 ==== {api-description-title}
 
-The API keys created by <<security-api-create-api-key,create API Key>> can be updated using this API.
+The API keys created by <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> can be updated using this API.
 
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>
 
@@ -167,7 +166,6 @@ A successful call returns a JSON structure indicating that the API key was updat
 ----
 
 The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-update-api-key-examples-user-permissions, authenticated user's permissions>>:
-// TODO index vs indices
 
 [source,console-result]
 --------------------------------------------------

@@ -19,6 +19,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -1606,6 +1607,176 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 mockAppender.stop();
             }
             mockAppender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testFailsIfMappingIsDuplicated() throws IOException {
+        final Path dataPath = createTempDir();
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .put(
+                            IndexMetadata.builder("test-1")
+                                .putMapping(randomMappingMetadata(false))
+                                .settings(
+                                    Settings.builder()
+                                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                                )
+                        )
+                )
+                .build();
+
+            String hash = clusterState.metadata().getMappingsByHash().keySet().iterator().next();
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(0L, clusterState);
+            }
+
+            final List<Document> documents = new ArrayList<>();
+            final Map<String, String> commitUserData;
+
+            try (
+                Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
+                DirectoryReader reader = DirectoryReader.open(directory)
+            ) {
+                commitUserData = reader.getIndexCommit().getUserData();
+                final IndexSearcher indexSearcher = new IndexSearcher(reader);
+                indexSearcher.setQueryCache(null);
+                for (String typeName : new String[] { GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME }) {
+                    final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
+                    final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
+                    for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
+                        final Scorer scorer = weight.scorer(leafReaderContext);
+                        if (scorer != null) {
+                            final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                            final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                            final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                            while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                if (isLiveDoc.test(docIdSetIterator.docID())) {
+                                    final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                                    document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
+                                    documents.add(document);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // duplicate all documents associated with the mapping in question
+            for (Document document : new ArrayList<>(documents)) { // iterating a copy
+                IndexableField mappingHash = document.getField("mapping_hash");
+                if (mappingHash != null && mappingHash.stringValue().equals(hash)) {
+                    documents.add(document);
+                }
+            }
+
+            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
+                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+                    for (Document document : documents) {
+                        indexWriter.addDocument(document);
+                    }
+                    indexWriter.setLiveCommitData(commitUserData.entrySet());
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
+                .getMessage();
+            assertEquals("duplicate metadata found for mapping hash [" + hash + "]", message);
+        }
+    }
+
+    public void testFailsIfMappingIsMissing() throws IOException {
+        final Path dataPath = createTempDir();
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .put(
+                            IndexMetadata.builder("test-1")
+                                .putMapping(randomMappingMetadata(false))
+                                .settings(
+                                    Settings.builder()
+                                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                                )
+                        )
+                )
+                .build();
+
+            String hash = clusterState.metadata().getMappingsByHash().keySet().iterator().next();
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(0L, clusterState);
+            }
+
+            final List<Document> documents = new ArrayList<>();
+            final Map<String, String> commitUserData;
+
+            try (
+                Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
+                DirectoryReader reader = DirectoryReader.open(directory)
+            ) {
+                commitUserData = reader.getIndexCommit().getUserData();
+                final IndexSearcher indexSearcher = new IndexSearcher(reader);
+                indexSearcher.setQueryCache(null);
+                for (String typeName : new String[] { GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME }) {
+                    final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
+                    final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
+                    for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
+                        final Scorer scorer = weight.scorer(leafReaderContext);
+                        if (scorer != null) {
+                            final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                            final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                            final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                            while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                if (isLiveDoc.test(docIdSetIterator.docID())) {
+                                    final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                                    document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
+                                    documents.add(document);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // remove all documents associated with the mapping in question
+            for (Document document : new ArrayList<>(documents)) { // iterating a copy
+                IndexableField mappingHash = document.getField("mapping_hash");
+                if (mappingHash != null && mappingHash.stringValue().equals(hash)) {
+                    documents.remove(document);
+                }
+            }
+
+            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
+                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+                    for (Document document : documents) {
+                        indexWriter.addDocument(document);
+                    }
+                    indexWriter.setLiveCommitData(commitUserData.entrySet());
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(AssertionError.class, () -> persistedClusterStateService.loadBestOnDiskState())
+                .getMessage();
+            assertEquals("mapping with hash [" + hash + "] not found", message);
         }
     }
 

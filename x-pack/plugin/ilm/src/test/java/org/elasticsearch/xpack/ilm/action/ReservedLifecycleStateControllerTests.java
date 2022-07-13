@@ -24,6 +24,7 @@ import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
 import org.elasticsearch.immutablestate.service.ImmutableStateUpdateStateTask;
 import org.elasticsearch.immutablestate.service.PackageVersion;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -69,7 +70,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ImmutableILMStateControllerTests extends ESTestCase {
+public class ReservedLifecycleStateControllerTests extends ESTestCase {
 
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
@@ -106,7 +107,7 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         return new NamedXContentRegistry(entries);
     }
 
-    private TransformState processJSON(ImmutableLifecycleAction action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(ReservedLifecycleAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -118,7 +119,7 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
         ClusterState state = ClusterState.builder(clusterName).build();
-        ImmutableLifecycleAction action = new ImmutableLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
+        ReservedLifecycleAction action = new ReservedLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
         TransformState prevState = new TransformState(state, Collections.emptySet());
 
         String badPolicyJSON = """
@@ -147,7 +148,7 @@ public class ImmutableILMStateControllerTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
 
-        ImmutableLifecycleAction action = new ImmutableLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
+        ReservedLifecycleAction action = new ReservedLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
 
         String emptyJSON = "";
 

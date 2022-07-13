@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.ilm.ILMImmutableStateHandlerProvider
+org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider

@@ -27,11 +27,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * A metadata class to hold error information about errors encountered
  * while applying a cluster state update for a given namespace.
  * <p>
- * This information is held by the {@link ImmutableStateMetadata} class.
+ * This information is held by the {@link ReservedStateMetadata} class.
  */
-public record ImmutableStateErrorMetadata(Long version, ErrorKind errorKind, List<String> errors)
+public record ReservedStateErrorMetadata(Long version, ErrorKind errorKind, List<String> errors)
     implements
-        SimpleDiffable<ImmutableStateErrorMetadata>,
+        SimpleDiffable<ReservedStateErrorMetadata>,
         ToXContentFragment {
 
     static final ParseField ERRORS = new ParseField("errors");
@@ -39,13 +39,13 @@ public record ImmutableStateErrorMetadata(Long version, ErrorKind errorKind, Lis
     static final ParseField ERROR_KIND = new ParseField("error_kind");
 
     /**
-     * Constructs an immutable state error metadata
+     * Constructs a reserved state error metadata
      *
      * @param version   the metadata version of the content which failed to apply
      * @param errorKind the kind of error we encountered while processing
-     * @param errors    the list of errors encountered during parsing and validation of the immutable state content
+     * @param errors    the list of errors encountered during parsing and validation of the reserved state content
      */
-    public ImmutableStateErrorMetadata {}
+    public ReservedStateErrorMetadata {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -55,14 +55,14 @@ public record ImmutableStateErrorMetadata(Long version, ErrorKind errorKind, Lis
     }
 
     /**
-     * Reads an {@link ImmutableStateErrorMetadata} from a {@link StreamInput}
+     * Reads an {@link ReservedStateErrorMetadata} from a {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read from
-     * @return {@link ImmutableStateErrorMetadata}
+     * @return {@link ReservedStateErrorMetadata}
      * @throws IOException
      */
-    public static ImmutableStateErrorMetadata readFrom(StreamInput in) throws IOException {
-        return new ImmutableStateErrorMetadata(in.readLong(), ErrorKind.of(in.readString()), in.readList(StreamInput::readString));
+    public static ReservedStateErrorMetadata readFrom(StreamInput in) throws IOException {
+        return new ReservedStateErrorMetadata(in.readLong(), ErrorKind.of(in.readString()), in.readList(StreamInput::readString));
     }
 
     @Override
@@ -76,9 +76,9 @@ public record ImmutableStateErrorMetadata(Long version, ErrorKind errorKind, Lis
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ImmutableStateErrorMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "immutable_state_error_metadata",
-        (a) -> new ImmutableStateErrorMetadata((Long) a[0], ErrorKind.of((String) a[1]), (List<String>) a[2])
+    private static final ConstructingObjectParser<ReservedStateErrorMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        "reserved_state_error_metadata",
+        (a) -> new ReservedStateErrorMetadata((Long) a[0], ErrorKind.of((String) a[1]), (List<String>) a[2])
     );
 
     static {
@@ -88,28 +88,28 @@ public record ImmutableStateErrorMetadata(Long version, ErrorKind errorKind, Lis
     }
 
     /**
-     * Reads an {@link ImmutableStateErrorMetadata} from xContent
+     * Reads an {@link ReservedStateErrorMetadata} from xContent
      *
      * @param parser {@link XContentParser}
-     * @return {@link ImmutableStateErrorMetadata}
+     * @return {@link ReservedStateErrorMetadata}
      */
-    public static ImmutableStateErrorMetadata fromXContent(final XContentParser parser) {
+    public static ReservedStateErrorMetadata fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     /**
-     * Reads an {@link ImmutableStateErrorMetadata} {@link Diff} from {@link StreamInput}
+     * Reads an {@link ReservedStateErrorMetadata} {@link Diff} from {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read the diff from
-     * @return a {@link Diff} of {@link ImmutableStateErrorMetadata}
+     * @return a {@link Diff} of {@link ReservedStateErrorMetadata}
      * @throws IOException
      */
-    public static Diff<ImmutableStateErrorMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(ImmutableStateErrorMetadata::readFrom, in);
+    public static Diff<ReservedStateErrorMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(ReservedStateErrorMetadata::readFrom, in);
     }
 
     /**
-     * Enum for kinds of errors we might encounter while processing immutable cluster state updates.
+     * Enum for kinds of errors we might encounter while processing reserved cluster state updates.
      */
     public enum ErrorKind {
         PARSING("parsing"),

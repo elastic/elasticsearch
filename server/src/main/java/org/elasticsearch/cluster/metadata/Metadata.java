@@ -250,7 +250,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         SortedMap<String, IndexAbstraction> indicesLookup,
         Map<String, MappingMetadata> mappingsByHash,
         Version oldestIndexVersion,
-        Map<String, ReservedStateMetadata> ReservedStateMetadata
+        Map<String, ReservedStateMetadata> reservedStateMetadata
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -275,7 +275,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         this.indicesLookup = indicesLookup;
         this.mappingsByHash = mappingsByHash;
         this.oldestIndexVersion = oldestIndexVersion;
-        this.reservedStateMetadata = ReservedStateMetadata;
+        this.reservedStateMetadata = reservedStateMetadata;
     }
 
     public Metadata withIncrementedVersion() {
@@ -1175,7 +1175,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     RESERVED_DIFF_VALUE_READER
                 );
             } else {
-                reservedStateMetadata = ReservedStateMetadata.EMPTY_DIFF;
+                reservedStateMetadata = DiffableUtils.emptyDiff();;
             }
         }
 

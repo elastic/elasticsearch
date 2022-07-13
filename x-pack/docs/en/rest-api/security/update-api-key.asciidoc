@@ -227,7 +227,7 @@ For the next example, assume that the authenticated user's permissions changed f
 }
 --------------------------------------------------
 
-The following request re-applies the user's updated permission to the API key:
+The following request re-applies the user's updated permissions to the API key:
 
 [source,console]
 ----

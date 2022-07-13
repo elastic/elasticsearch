@@ -18,7 +18,8 @@
 
 IMPORTANT: Only the user who created an API key can update it.
 It's not possible to use an API key as the authentication credential for this API.
-Doing so will result in an error. To update an API key, basic or token credentials are required.
+Doing so will result in an error.
+To update an API key, basic or token credentials are required.
 
 [[security-api-update-api-key-desc]]
 ==== {api-description-title}
@@ -114,6 +115,24 @@ For example:
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 // TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
+For the examples below, assume that the authenticated user's permissions are:
+
+[[security-api-update-api-key-examples-user-permissions]]
+[source,console-result]
+--------------------------------------------------
+{
+  "user-role": {
+    "cluster": ["all"],
+    "index": [
+      {
+        "names": ["*"],
+        "privileges": ["all"]
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
 The following example updates the API key, assigning it new role descriptors and metadata:
 
 [source,console]
@@ -149,7 +168,24 @@ A successful call returns a JSON structure indicating that the API key was updat
 }
 ----
 
-The following example updates the API key, applying the authenticated user's permissions to the API key:
+The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-update-api-key-examples-user-permissions, authenticated user's permissions>>:
+// TODO index vs indices
+
+[source,console-result]
+--------------------------------------------------
+{
+  "role-a": {
+    "index": [
+      {
+        "names": ["*"],
+        "privileges": ["write"]
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+The following example re-applies the <<security-api-update-api-key-examples-user-permissions, authenticated user's permissions>> to the API key:
 
 [source,console]
 ----
@@ -161,11 +197,27 @@ Which returns the response:
 [source,console-result]
 ----
 {
-  "updated": true
+  "updated": false
 }
 ----
 
-The following example updates the API key, replacing the API key's assigned permissions with the authenticated user's:
+Assuming the user's permissions have not changed since the creation or last update of the API key, this request does _not_ result in a change, and the API key's effective permissions remain:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "role-a": {
+    "index": [
+      {
+        "names": ["*"],
+        "privileges": ["write"]
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+The following example updates the API key, replacing the API key's assigned permissions with the <<security-api-update-api-key-examples-user-permissions, authenticated user's>>:
 
 [source,console]
 ----
@@ -183,3 +235,20 @@ Which returns the response:
   "updated": true
 }
 ----
+
+The API key's effective permissions after the update will be:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "user-role": {
+    "cluster": ["all"],
+    "index": [
+      {
+        "names": ["*"],
+        "privileges": ["all"]
+      }
+    ]
+  }
+}
+--------------------------------------------------

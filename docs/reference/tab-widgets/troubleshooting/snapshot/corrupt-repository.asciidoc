@@ -6,7 +6,7 @@ that will keep writing to the repository will be called the "primary" deployment
 and the other one(s) where we'll mark the repository as read-only the "secondary" 
 deployments.
 
-Let's first mark the repository as read-only on the secondary deployments:
+First mark the repository as read-only on the secondary deployments:
 
 **Use {kib}**
 

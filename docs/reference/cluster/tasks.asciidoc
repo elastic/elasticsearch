@@ -141,7 +141,7 @@ If the parent isn't found, the API does not return a 404.
 ===== Get more information about tasks
 
 You can also use the `detailed` request parameter to get more information about
-the running tasks. This is useful for distinguish one task from another task but
+the running tasks. This is useful to distinguish tasks from each other but
 is more costly to execute. For example, fetching all searches using the `detailed`
 request parameter:
 

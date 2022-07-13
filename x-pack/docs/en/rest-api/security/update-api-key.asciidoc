@@ -31,7 +31,7 @@ It's not possible to update expired API keys, or API keys that have been invalid
 This API supports updates to an API key's access scope, i.e., its permissions, and its metadata.
 
 IMPORTANT: A call to <<security-api-update-api-key,update API Key>> may result in a change in the API key's access scope, even if you don't specify new <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request.
-This is because the API key's access scope is <<security-api-update-api-key-api-key-role-descriptors,derived>> from the authenticated user's current permissions at the time of the request.
+This is because the API key's access scope is <<security-api-update-api-key-api-key-role-descriptors,derived and updated>> based on a snapshot of the authenticated user's permissions at the time of the request.
 
 [[security-api-update-api-key-path-params]]
 ==== {api-path-parms-title}

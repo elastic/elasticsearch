@@ -27,6 +27,10 @@ The API keys created by <<security-api-create-api-key,create API Key>> or <<secu
 
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>
 
+IMPORTANT: An API key's permissions are always restricted by the permissions of the authenticated user creating or updating the API key.
+Any call to the update API, **regardless** of whether parameters are supplied or not, will automatically apply the authenticated user's current permissions to the API key.
+This may result in changes in the API key's access scope, even when <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> is not specified in the update request.
+
 [[security-api-update-api-key-path-params]]
 ==== {api-path-parms-title}
 
@@ -36,13 +40,8 @@ It's not possible to update expired API keys, or API keys that have been invalid
 [[security-api-update-api-key-request-body]]
 ==== {api-request-body-title}
 
-// TODO body optional
-
-IMPORTANT: An API key's permissions are always limited by the permissions of the authenticated user creating or updating the API key.
-Any call to the update API, **regardless** of whether parameters are supplied or not, will automatically apply the authenticated user's current permissions to the API key.
-This may result in changes in the API key's access scope, even when <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> is not specified in the update request.
-
-The following parameters can be specified in the body of a PUT request:
+The request body is optional.
+Following parameters can be specified in it:
 
 [[security-api-update-api-key-api-key-role-descriptors]]
 `role_descriptors`::
@@ -213,7 +212,7 @@ The API key's effective permissions after the update will be:
 }
 --------------------------------------------------
 
-For the next example, assume that the authenticated user's permissions changed from <<security-api-update-api-key-examples-user-permissions, authenticated user's permissions>> to:
+For the next example, assume that the authenticated user's permissions changed from <<security-api-update-api-key-examples-user-permissions, the original permissions>> to:
 
 [source,console-result]
 --------------------------------------------------

@@ -462,12 +462,51 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         clusterFormationResponses = new ConcurrentHashMap<>();
         clusterFormationInfoTasks = new CopyOnWriteArrayList<>();
         getMasterEligibleNodes().forEach(
-            masterNode -> fetchClusterFormationInfo(
-                masterNode,
-                response -> clusterFormationResponses.put(masterNode, response),
-                clusterFormationInfoTasks::add
-            )
+            masterNode -> { beginPollingClusterFormationInfo(masterNode, clusterFormationResponses, clusterFormationInfoTasks); }
         );
+    }
+
+    /**
+     * This method returns quickly, but in the background schedules to query the remote node's cluster formation state in 10 seconds, and
+     * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables.
+     * @param masterNode The node being polled
+     * @param responses The
+     * @param cancellables
+     */
+    void beginPollingClusterFormationInfo(
+        DiscoveryNode masterNode,
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses,
+        List<Scheduler.Cancellable> cancellables
+    ) {
+        Consumer<ClusterFormationStateOrException> responseConsumer = response -> { responses.put(masterNode, response); };
+        Scheduler.Cancellable scheduleFetch = fetchClusterFormationInfo(
+            masterNode,
+            responseConsumer.andThen(rescheduleFetchConsumer(masterNode, responseConsumer, cancellables))
+        );
+        cancellables.add(scheduleFetch);
+    }
+
+    /**
+     * This wraps the responseConsumer in a Consumer that will run beginPollingClusterFormationInfo() after responseConsumer has
+     * completed, adding the resulting Cancellable to cancellables.
+     * @param masterNode The node being polled
+     * @param responseConsumer The response consumer to be wrapped
+     * @param cancellables The list of Cancellables
+     * @return
+     */
+    private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleFetchConsumer(
+        DiscoveryNode masterNode,
+        Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> responseConsumer,
+        List<Scheduler.Cancellable> cancellables
+    ) {
+        return response -> {
+            cancellables.add(
+                fetchClusterFormationInfo(
+                    masterNode,
+                    responseConsumer.andThen(rescheduleFetchConsumer(masterNode, responseConsumer, cancellables))
+                )
+            );
+        };
     }
 
     private void cancelPollingClusterFormationInfo() {
@@ -484,14 +523,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables.
      * @param node The node to poll for cluster formation information
      * @param responseConsumer The consumer of the cluster formation info for the node, or the exception encountered while contacting it
-     * @param cancellableConsumer The consumer for all Cancellables generated within this method. Since this method continues to schedule
-     *                            tasks approximately every 10 seconds, there will potentially be many Cancellables generated.
      */
-    // Non-private for testing
-    void fetchClusterFormationInfo(
+    private Scheduler.Cancellable fetchClusterFormationInfo(
         DiscoveryNode node,
-        Consumer<ClusterFormationStateOrException> responseConsumer,
-        Consumer<Scheduler.Cancellable> cancellableConsumer
+        Consumer<ClusterFormationStateOrException> responseConsumer
     ) {
         StepListener<Releasable> connectionListener = new StepListener<>();
         StepListener<ClusterFormationInfoAction.Response> fetchClusterInfoListener = new StepListener<>();
@@ -506,27 +541,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 new ClusterFormationInfoAction.Request(),
                 TransportRequestOptions.timeout(transportTimeout),
                 new ActionListenerResponseHandler<>(
-                    /*
-                     * This part (runAfter/runBefore looks a little strange but it is needed. The runBefore makes sure that we close the
-                     * connection to the server before we run the actions in the fetchClusterInfoListener, whether on success or failure.
-                     * The runAfter makes sure that we call fetchClusterFormationInfo after we run the actions in the
-                     * fetchClusterInfoListener, whether on success or failure.
-                     */
-                    ActionListener.runAfter(
-                        ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
-                        () -> fetchClusterFormationInfo(node, responseConsumer, cancellableConsumer)
-                    ),
+                    ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
                     ClusterFormationInfoAction.Response::new
                 )
             );
         }, e -> {
             logger.warn("Exception connecting to master node", e);
             responseConsumer.accept(new ClusterFormationStateOrException(e));
-            /*
-             * Note: We can't call fetchClusterFormationInfo() in a runAfter() in this case because when the corresponding
-             * onResponse() is called we actually aren't finished yet (because it makes another asynchronous request).
-             */
-            fetchClusterFormationInfo(node, responseConsumer, cancellableConsumer);
         });
 
         fetchClusterInfoListener.whenComplete(response -> {
@@ -538,7 +559,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             responseConsumer.accept(new ClusterFormationStateOrException(e));
         });
 
-        cancellableConsumer.accept(transportService.getThreadPool().schedule(() -> {
+        return transportService.getThreadPool().schedule(() -> {
             Version minSupportedVersion = Version.V_8_4_0;
             if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
                 logger.trace(
@@ -555,7 +576,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     connectionListener
                 );
             }
-        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME));
+        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
     }
 
     // Non-private for testing

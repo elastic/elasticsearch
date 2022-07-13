@@ -101,6 +101,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -1744,11 +1745,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var initialRequest = new UpdateApiKeyRequest(
             apiKeyId,
             List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)),
-            ApiKeyTests.randomMetadata()
+            // Ensure not `null` to set metadata since we use the initialRequest further down in the test to check assert whether
+            // metadata updates are noops or not
+            randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata)
         );
         UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
-        // First update is not noop, because role descriptors changed and possibly metadata
+        // First update is not noop, because role descriptors and metadata changed
         assertTrue(response.isUpdated());
 
         // Update with same request is a noop and does not clear cache

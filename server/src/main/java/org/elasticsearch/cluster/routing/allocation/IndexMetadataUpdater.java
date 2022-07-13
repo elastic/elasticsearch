@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -113,24 +112,26 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         for (Map.Entry<Index, List<Map.Entry<ShardId, Updates>>> indexChanges : changesGroupedByIndex.entrySet()) {
             Index index = indexChanges.getKey();
             final IndexMetadata oldIndexMetadata = oldMetadata.getIndexSafe(index);
-            IndexMetadata.Builder indexMetadataBuilder = null;
+            IndexMetadata updatedIndexMetadata = oldIndexMetadata;
             for (Map.Entry<ShardId, Updates> shardEntry : indexChanges.getValue()) {
                 ShardId shardId = shardEntry.getKey();
                 Updates updates = shardEntry.getValue();
-                indexMetadataBuilder = updateInSyncAllocations(newRoutingTable, oldIndexMetadata, indexMetadataBuilder, shardId, updates);
-                indexMetadataBuilder = updatePrimaryTerm(oldIndexMetadata, indexMetadataBuilder, shardId, updates);
+                updatedIndexMetadata = updateInSyncAllocations(newRoutingTable, oldIndexMetadata, updatedIndexMetadata, shardId, updates);
+                updatedIndexMetadata = updates.increaseTerm
+                    ? updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
+                    : updatedIndexMetadata;
             }
 
-            if (indexMetadataBuilder != null) {
+            if (updatedIndexMetadata != null) {
                 if (metadataBuilder == null) {
                     metadataBuilder = Metadata.builder(oldMetadata);
                 }
-                metadataBuilder.put(indexMetadataBuilder);
+                metadataBuilder.put(updatedIndexMetadata, true);
             }
         }
 
         if (metadataBuilder != null) {
-            return metadataBuilder.build();
+            return metadataBuilder.build(true);
         } else {
             return oldMetadata;
         }
@@ -139,10 +140,10 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
     /**
      * Updates in-sync allocations with routing changes that were made to the routing table.
      */
-    private static IndexMetadata.Builder updateInSyncAllocations(
+    private static IndexMetadata updateInSyncAllocations(
         RoutingTable newRoutingTable,
         IndexMetadata oldIndexMetadata,
-        IndexMetadata.Builder indexMetadataBuilder,
+        IndexMetadata updatedIndexMetadata,
         ShardId shardId,
         Updates updates
     ) {
@@ -166,26 +167,22 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
             assert updates.addedAllocationIds.isEmpty()
                 : (emptyPrimary ? "empty" : "stale")
                     + " primary is not force-initialized in same allocation round where shards are started";
-
-            if (indexMetadataBuilder == null) {
-                indexMetadataBuilder = IndexMetadata.builder(oldIndexMetadata);
-            }
             if (emptyPrimary) {
                 // forcing an empty primary resets the in-sync allocations to the empty set (ShardRouting.allocatedPostIndexCreate)
-                indexMetadataBuilder.putInSyncAllocationIds(shardId.id(), Collections.emptySet());
+                updatedIndexMetadata = updatedIndexMetadata.withInSyncAllocationIds(shardId.id(), Set.of());
             } else {
                 final String allocationId;
                 if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
-                    indexMetadataBuilder.timestampRange(
-                        indexMetadataBuilder.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
+                    updatedIndexMetadata = updatedIndexMetadata.withTimestampRange(
+                        updatedIndexMetadata.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
                     );
                 } else {
                     assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;
                     allocationId = updates.initializedPrimary.allocationId().getId();
                 }
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id
-                indexMetadataBuilder.putInSyncAllocationIds(shardId.id(), Collections.singleton(allocationId));
+                updatedIndexMetadata = updatedIndexMetadata.withInSyncAllocationIds(shardId.id(), Set.of(allocationId));
             }
         } else {
             // standard path for updating in-sync ids
@@ -237,13 +234,10 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
 
             // be extra safe here and only update in-sync set if it is non-empty
             if (inSyncAllocationIds.isEmpty() == false) {
-                if (indexMetadataBuilder == null) {
-                    indexMetadataBuilder = IndexMetadata.builder(oldIndexMetadata);
-                }
-                indexMetadataBuilder.putInSyncAllocationIds(shardId.id(), inSyncAllocationIds);
+                updatedIndexMetadata = updatedIndexMetadata.withInSyncAllocationIds(shardId.id(), inSyncAllocationIds);
             }
         }
-        return indexMetadataBuilder;
+        return updatedIndexMetadata;
     }
 
     /**
@@ -303,24 +297,6 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         } else {
             return clusterState;
         }
-    }
-
-    /**
-     * Increases the primary term if {@link #increasePrimaryTerm} was called for this shard id.
-     */
-    private static IndexMetadata.Builder updatePrimaryTerm(
-        IndexMetadata oldIndexMetadata,
-        IndexMetadata.Builder indexMetadataBuilder,
-        ShardId shardId,
-        Updates updates
-    ) {
-        if (updates.increaseTerm) {
-            if (indexMetadataBuilder == null) {
-                indexMetadataBuilder = IndexMetadata.builder(oldIndexMetadata);
-            }
-            indexMetadataBuilder.primaryTerm(shardId.id(), oldIndexMetadata.primaryTerm(shardId.id()) + 1);
-        }
-        return indexMetadataBuilder;
     }
 
     /**

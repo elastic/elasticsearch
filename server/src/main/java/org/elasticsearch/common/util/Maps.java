@@ -22,9 +22,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Map.entry;
 
 public class Maps {
 
@@ -41,9 +38,6 @@ public class Maps {
      */
     @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedEntry(final Map<K, V> map, final K key, final V value) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value);
         assert checkIsImmutableMap(map, key, value);
         assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
         @SuppressWarnings("rawtypes")
@@ -64,13 +58,25 @@ public class Maps {
      * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map and a mapping from the specified key to the specified value
      */
+    @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedOrReplacedEntry(final Map<K, V> map, final K key, final V value) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value);
+        final V existing = map.get(key);
+        if (existing == null) {
+            return copyMapWithAddedEntry(map, key, value);
+        }
         assert checkIsImmutableMap(map, key, value);
-        return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        @SuppressWarnings("rawtypes")
+        final Map.Entry<K, V>[] entries = new Map.Entry[map.size()];
+        boolean replaced = false;
+        int i = 0;
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (replaced == false && entry.getKey().equals(key)) {
+                entry = Map.entry(entry.getKey(), value);
+                replaced = true;
+            }
+            entries[i++] = entry;
+        }
+        return Map.ofEntries(entries);
     }
 
     /**

@@ -1392,7 +1392,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     return this;
                 }
                 // if we put a new index metadata, increment its version
-                indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
+                indexMetadata = indexMetadata.withIncrementedVersion();
                 previous = indices.put(name, indexMetadata);
             } else {
                 previous = indices.put(name, indexMetadata);
@@ -1853,7 +1853,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return build(false);
         }
 
-        private Metadata build(boolean skipNameCollisionChecks) {
+        public Metadata build(boolean skipNameCollisionChecks) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.

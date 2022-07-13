@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.xcontent.ToXContentFragment;
-
 import java.util.function.BiFunction;
 
 /**
@@ -17,7 +15,7 @@ import java.util.function.BiFunction;
  *
  * TODO: We could instead choose the point closer to the centroid which improves unbalanced trees
  */
-public class LabelPositionVisitor<T extends ToXContentFragment> implements TriangleTreeReader.Visitor {
+public class LabelPositionVisitor<T> implements TriangleTreeReader.Visitor {
 
     private T labelPosition;
     private final CoordinateEncoder encoder;

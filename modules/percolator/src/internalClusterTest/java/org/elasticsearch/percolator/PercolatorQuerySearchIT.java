@@ -63,11 +63,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(PercolatorPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }

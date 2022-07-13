@@ -309,7 +309,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<T> result = new ArrayList<>();
 
         for (LoadedPlugin pluginTuple : plugins()) {
-            ServiceLoader.load(service, pluginTuple.loader()).iterator().forEachRemaining(c -> result.add(c));
+            result.addAll(createExtensions(service, pluginTuple.instance));
         }
 
         return Collections.unmodifiableList(result);
@@ -348,11 +348,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
         }
 
-        if (constructors.length > 1) {
+        Constructor<T> constructor = constructors[0];
+        // Using modules and SPI requires that we declare the default no-arg constructor apart from our custom
+        // one arg constructor with a plugin.
+        if (constructors.length == 2) {
+            // we prefer the one arg constructor in this case
+            if (constructors[1].getParameterCount() > 0) {
+                constructor = constructors[1];
+            }
+        } else if (constructors.length > 1) {
             throw new IllegalStateException("no unique public " + extensionConstructorMessage(extensionClass, extensionPointType));
         }
 
-        final Constructor<T> constructor = constructors[0];
         if (constructor.getParameterCount() > 1) {
             throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
         }

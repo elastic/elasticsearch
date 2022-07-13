@@ -14,6 +14,8 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
@@ -197,6 +199,7 @@ public final class SearchPhaseController {
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
+            checkSameSortTypes(results, firstTopDocs.fields);
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
@@ -205,6 +208,56 @@ public final class SearchPhaseController {
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
         return mergedTopDocs;
+    }
+
+    private static void checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
+        if (results.size() < 2) return;
+
+        SortField.Type[] firstTypes = new SortField.Type[firstSortFields.length];
+        boolean isFirstResult = true;
+        for (TopDocs topDocs : results) {
+            SortField[] curSortFields = ((TopFieldDocs) topDocs).fields;
+            if (isFirstResult) {
+                for (int i = 0; i < curSortFields.length; i++) {
+                    firstTypes[i] = getType(firstSortFields[i]);
+                    if (firstTypes[i] == SortField.Type.CUSTOM) {
+                        // for custom types that we can't resolve, we can't do the check
+                        return;
+                    }
+                }
+                isFirstResult = false;
+            } else {
+                for (int i = 0; i < curSortFields.length; i++) {
+                    SortField.Type curType = getType(curSortFields[i]);
+                    if (curType != firstTypes[i]) {
+                        if (curType == SortField.Type.CUSTOM) {
+                            // for custom types that we can't resolve, we can't do the check
+                            return;
+                        }
+                        throw new IllegalArgumentException(
+                            "Can't sort on field ["
+                                + curSortFields[i].getField()
+                                + "]; the field has incompatible sort types: ["
+                                + firstTypes[i]
+                                + "] and ["
+                                + curType
+                                + "] across shards!"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static SortField.Type getType(SortField sortField) {
+        if (sortField instanceof SortedNumericSortField) {
+            return ((SortedNumericSortField) sortField).getNumericType();
+        }
+        if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else {
+            return sortField.getType();
+        }
     }
 
     static void setShardIndex(TopDocs topDocs, int shardIndex) {

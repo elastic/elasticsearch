@@ -135,6 +135,7 @@ class RollupShardIndexer {
     }
 
     public RollupIndexerAction.ShardRollupResponse execute() throws IOException {
+        long startTime = System.currentTimeMillis();
         BulkProcessor bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             // TODO: add cancellations
@@ -146,11 +147,12 @@ class RollupShardIndexer {
         }
 
         logger.info(
-            "Shard {} successfully sent [{}], indexed [{}], failed [{}]",
+            "Shard [{}] successfully sent [{}], indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),
             numSent.get(),
             numIndexed.get(),
-            numFailed.get()
+            numFailed.get(),
+            TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
         );
 
         if (numIndexed.get() != numSent.get()) {
@@ -217,6 +219,7 @@ class RollupShardIndexer {
         private long bucketsCreated;
         private final RollupBucketBuilder rollupBucketBuilder = new RollupBucketBuilder();
         long lastTimestamp = Long.MAX_VALUE;
+        long lastHistoTimestamp = Long.MAX_VALUE;
         BytesRef lastTsid = null;
 
         TimeSeriesBucketCollector(BulkProcessor bulkProcessor) {
@@ -244,18 +247,24 @@ class RollupShardIndexer {
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final long timestamp = aggCtx.getTimestamp();
-                    final long histoTimestamp = Math.max(
-                        rounding.round(timestamp),
-                        searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
-                    );
 
-                    logger.trace(
-                        "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
-                        docId,
-                        DocValueFormat.TIME_SERIES_ID.format(tsid),
-                        timestampFormat.format(timestamp),
-                        timestampFormat.format(histoTimestamp)
-                    );
+                    boolean tsidChanged = tsid.equals(rollupBucketBuilder.tsid()) == false;
+                    if (tsidChanged || timestamp < lastHistoTimestamp) {
+                        lastHistoTimestamp =Math.max(
+                            rounding.round(timestamp),
+                            searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
+                        );
+                    }
+
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
+                            docId,
+                            DocValueFormat.TIME_SERIES_ID.format(tsid),
+                            timestampFormat.format(timestamp),
+                            timestampFormat.format(lastHistoTimestamp)
+                        );
+                    }
 
                     /*
                      * Sanity checks to ensure that we receive documents in the correct order
@@ -277,7 +286,7 @@ class RollupShardIndexer {
                     lastTsid = BytesRef.deepCopyOf(tsid);
                     lastTimestamp = timestamp;
 
-                    if (tsid.equals(rollupBucketBuilder.tsid()) == false || rollupBucketBuilder.timestamp() != histoTimestamp) {
+                    if (tsidChanged || rollupBucketBuilder.timestamp() != lastHistoTimestamp) {
                         // Flush rollup doc if not empty
                         if (rollupBucketBuilder.isEmpty() == false) {
                             Map<String, Object> doc = rollupBucketBuilder.buildRollupDocument();
@@ -285,7 +294,7 @@ class RollupShardIndexer {
                         }
 
                         // Create new rollup bucket
-                        rollupBucketBuilder.init(tsid, histoTimestamp);
+                        rollupBucketBuilder.init(tsid, lastHistoTimestamp);
                         bucketsCreated++;
                     }
 

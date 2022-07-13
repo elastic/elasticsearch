@@ -36,7 +36,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("_if_primary_term", 10000);
         metadata.put("_version_type", "internal");
         metadata.put("_dynamic_templates", Map.of("foo", "bar"));
-        map = new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(metadata, null));
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null));
         md = map.getMetadata();
         assertEquals("myIndex", md.getIndex());
         md.setIndex("myIndex2");
@@ -69,7 +69,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("_version", Double.MAX_VALUE);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(metadata, null))
+            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null))
         );
         assertThat(err.getMessage(), containsString("_version may only be set to an int or a long but was ["));
         assertThat(err.getMessage(), containsString("] with type [java.lang.Double]"));
@@ -80,7 +80,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("_version", 25);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(source, new IngestCtxMap.IngestMetadata(source, null))
+            () -> new IngestCtxMap(source, new IngestDocMetadata(source, null))
         );
         assertEquals("unexpected metadata [_version:25] in source", err.getMessage());
     }
@@ -92,7 +92,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("routing", "myRouting");
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(metadata, null))
+            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null))
         );
         assertEquals("Unexpected metadata keys [routing:myRouting, version:567]", err.getMessage());
     }
@@ -101,7 +101,7 @@ public class IngestCtxMapTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("_version", 123);
         Map<String, Object> source = new HashMap<>();
-        map = new IngestCtxMap(source, new IngestCtxMap.IngestMetadata(metadata, null));
+        map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null));
     }
 
     public void testRemove() {
@@ -221,7 +221,7 @@ public class IngestCtxMapTests extends ESTestCase {
     }
 
     public void testContainsValue() {
-        map = new IngestCtxMap(Map.of("myField", "fieldValue"), new IngestCtxMap.IngestMetadata(Map.of("_version", 5678), null));
+        map = new IngestCtxMap(Map.of("myField", "fieldValue"), new IngestDocMetadata(Map.of("_version", 5678), null));
         assertTrue(map.containsValue(5678));
         assertFalse(map.containsValue(5679));
         assertTrue(map.containsValue("fieldValue"));
@@ -295,7 +295,7 @@ public class IngestCtxMapTests extends ESTestCase {
     public void testHandlesAllVersionTypes() {
         Map<String, Object> mdRawMap = new HashMap<>();
         mdRawMap.put("_version", 1234);
-        map = new IngestCtxMap(new HashMap<>(), new IngestCtxMap.IngestMetadata(mdRawMap, null));
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(mdRawMap, null));
         md = map.getMetadata();
         assertNull(md.getVersionType());
         for (VersionType vt : VersionType.values()) {
@@ -310,13 +310,6 @@ public class IngestCtxMapTests extends ESTestCase {
 
         md.setVersionType(null);
         assertNull(md.getVersionType());
-    }
-
-    public void testDefaultFieldPropertiesForAllMetadata() {
-        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
-            assertThat(IngestCtxMap.IngestMetadata.PROPERTIES, hasEntry(equalTo(m.getFieldName()), notNullValue()));
-        }
-        assertEquals(IngestDocument.Metadata.values().length, IngestCtxMap.IngestMetadata.PROPERTIES.size());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

@@ -9,15 +9,14 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Construct ingest documents for testing purposes
@@ -38,11 +37,15 @@ public class TestIngestDocument {
      * _versions.  Normally null _version is not allowed, but many tests don't care about that invariant.
      */
     public static IngestDocument ofIngestWithNullableVersion(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestCtxMap.splitSourceAndMetadata(
-            sourceAndMetadata,
-            Arrays.stream(IngestDocument.Metadata.values()).map(IngestDocument.Metadata::getFieldName).collect(Collectors.toSet())
-        );
-        return new IngestDocument(new IngestCtxMap(sm.v1(), TestIngestCtxMetadata.withNullableVersion(sm.v2())), ingestMetadata);
+        Map<String, Object> source = new HashMap<>(sourceAndMetadata);
+        Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
+        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
+            String key = m.getFieldName();
+            if (sourceAndMetadata.containsKey(key)) {
+                metadata.put(key, source.remove(key));
+            }
+        }
+        return new IngestDocument(new IngestCtxMap(source, TestIngestCtxMetadata.withNullableVersion(metadata)), ingestMetadata);
     }
 
     /**

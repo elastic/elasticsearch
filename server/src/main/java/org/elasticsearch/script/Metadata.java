@@ -57,7 +57,7 @@ public class Metadata {
     }
 
     /**
-     * Check that all metadata map contains only valid metadata and no extraneous keys and source map contains no metadata
+     * Check that all metadata map contains only valid metadata and no extraneous keys
      */
     protected void validateMetadata() {
         int numMetadata = 0;

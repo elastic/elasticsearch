@@ -6,15 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.immutablestate;
+package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.cluster.ClusterState;
 
 import java.util.Set;
 
 /**
- * A {@link ClusterState} wrapper used by the ImmutableClusterStateController to pass the
- * current state as well as previous keys set by an {@link ImmutableClusterStateHandler} to each transform
+ * A {@link ClusterState} wrapper used by the ReservedClusterStateController to pass the
+ * current state as well as previous keys set by an {@link ReservedClusterStateHandler} to each transform
  * step of the cluster state update.
  *
  */

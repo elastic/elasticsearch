@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -125,17 +124,6 @@ public record ImmutableStateMetadata(
     public static Diff<ImmutableStateMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ImmutableStateMetadata::readFrom, in);
     }
-
-    /**
-     * Empty {@link org.elasticsearch.cluster.DiffableUtils.MapDiff} helper for metadata backwards compatibility.
-     */
-    public static final DiffableUtils.MapDiff<String, ImmutableStateMetadata, Map<String, ImmutableStateMetadata>> EMPTY_DIFF =
-        new DiffableUtils.MapDiff<>(null, null, List.of(), List.of(), List.of()) {
-            @Override
-            public Map<String, ImmutableStateMetadata> apply(Map<String, ImmutableStateMetadata> part) {
-                return part;
-            }
-        };
 
     /**
      * Convenience method for creating a {@link Builder} for {@link ImmutableStateMetadata}

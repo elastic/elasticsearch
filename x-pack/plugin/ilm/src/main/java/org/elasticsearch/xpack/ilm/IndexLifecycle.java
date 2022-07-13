@@ -27,6 +27,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -159,6 +160,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
     private final SetOnce<SlmHealthIndicatorService> slmHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<ImmutableLifecycleAction> immutableLifecycleAction = new SetOnce<>();
     private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
@@ -268,10 +270,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
         ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
+        immutableLifecycleAction.set(new ImmutableLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
 
-        ILMImmutableStateHandlerProvider.registerHandlers(
-            new ImmutableLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState())
-        );
         return components;
     }
 
@@ -420,6 +420,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             )
         );
         return actions;
+    }
+
+    List<ImmutableClusterStateHandler<?>> immutableClusterStateHandlers() {
+        return List.of(immutableLifecycleAction.get());
     }
 
     @Override

@@ -43,7 +43,7 @@ as writeable.
 
 Note that we're now configuring the primary (current) deployment.
 
-. Open the main deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+. Open the primary deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
 and go to **Stack Management > Snapshot and Restore > Repositories**.
 +
 [role="screenshot"]

@@ -16,8 +16,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class LucenePageCollector extends SimpleCollector implements Operator {
 
-    public static final int PAGE_SIZE = 4096;
+    private static final int PAGE_SIZE = 4096;
 
+    private final int pageSize;
     private int[] currentPage;
     private int currentPos;
     private LeafReaderContext lastContext;
@@ -25,17 +26,23 @@ public class LucenePageCollector extends SimpleCollector implements Operator {
 
     public final BlockingQueue<Page> pages = new LinkedBlockingQueue<>(2);
 
-    LucenePageCollector() {}
+    public LucenePageCollector() {
+        this(PAGE_SIZE);
+    }
+
+    public LucenePageCollector(int pageSize) {
+        this.pageSize = pageSize;
+    }
 
     @Override
     public void collect(int doc) {
         if (currentPage == null) {
-            currentPage = new int[PAGE_SIZE];
+            currentPage = new int[pageSize];
             currentPos = 0;
         }
         currentPage[currentPos] = doc;
         currentPos++;
-        if (currentPos == PAGE_SIZE) {
+        if (currentPos == pageSize) {
             createPage();
         }
     }

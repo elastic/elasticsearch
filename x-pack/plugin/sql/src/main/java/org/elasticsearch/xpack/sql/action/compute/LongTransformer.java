@@ -33,12 +33,14 @@ public class LongTransformer implements Operator {
         for (int i = 0; i < block.getPositionCount(); i++) {
             newBlock[i] = longTransformer.apply(block.getLong(i));
         }
-        return lastInput.appendColumn(new LongBlock(newBlock, block.getPositionCount()));
+        Page lastPage = lastInput.appendColumn(new LongBlock(newBlock, block.getPositionCount()));
+        lastInput = null;
+        return lastPage;
     }
 
     @Override
     public boolean isFinished() {
-        return finished;
+        return lastInput == null && finished;
     }
 
     @Override

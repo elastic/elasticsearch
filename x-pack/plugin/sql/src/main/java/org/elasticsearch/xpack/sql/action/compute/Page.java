@@ -72,4 +72,8 @@ public class Page {
             "blocks=" + Arrays.toString(blocks) +
             '}';
     }
+
+    public int getPositionCount() {
+        return positionCount;
+    }
 }

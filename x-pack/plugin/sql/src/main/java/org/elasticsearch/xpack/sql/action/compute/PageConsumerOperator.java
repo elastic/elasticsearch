@@ -32,7 +32,6 @@ public class PageConsumerOperator implements Operator {
     @Override
     public void finish() {
         finished = true;
-        pageConsumer.accept(null);
     }
 
     @Override

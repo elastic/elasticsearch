@@ -1175,6 +1175,7 @@ teardown:
           nodes:
             - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
+  - match: { dry_run: true }
 
   - do:
       catch: missing
@@ -1200,6 +1201,7 @@ teardown:
           nodes:
             - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
+  - match: { dry_run: false }
 
   - do:
       _internal.get_desired_nodes: {}
@@ -1220,3 +1222,4 @@ teardown:
             - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.name": "instance-000188" }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
+  - match: { dry_run: true }

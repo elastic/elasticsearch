@@ -196,7 +196,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 final var replacedExistingHistoryId = previousDesiredNodes != null
                     && previousDesiredNodes.hasSameHistoryId(newDesiredNodes) == false;
                 taskContext.success(
-                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId))
+                    () -> taskContext.getTask()
+                        .listener()
+                        .onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId, taskContext.getTask().request().isDryRun()))
                 );
             }
 

@@ -54,23 +54,31 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
         final var response = updateDesiredNodes(updateDesiredNodesRequest);
         assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(false)));
+        assertThat(response.dryRun(), is(equalTo(false)));
 
         final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
         assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
     }
 
     public void testDryRunUpdateDoesNotUpdateEmptyDesiredNodes() {
-        updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
+            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+        );
+        assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
     }
 
     public void testDryRunUpdateDoesNotUpdateExistingDesiredNodes() {
-        updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        assertThat(response.dryRun(), is(equalTo(false)));
 
         DesiredNodes desiredNodes = getLatestDesiredNodes();
 
-        updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
+            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+        );
+        assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
         assertEquals(getLatestDesiredNodes(), desiredNodes);
     }

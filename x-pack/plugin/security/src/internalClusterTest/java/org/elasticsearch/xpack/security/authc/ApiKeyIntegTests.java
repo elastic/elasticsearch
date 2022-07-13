@@ -1745,13 +1745,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var initialRequest = new UpdateApiKeyRequest(
             apiKeyId,
             List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)),
-            // Ensure not `null` to set metadata since we use the initialRequest further down in the test to check assert whether
-            // metadata updates are noops or not
+            // Ensure not `null` to set metadata since we use the initialRequest further down in the test to ensure that
+            // metadata updates are non-noops
             randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata)
         );
         UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
-        // First update is not noop, because role descriptors and metadata changed
+        // First update is not noop, because role descriptors changed and possibly metadata
         assertTrue(response.isUpdated());
 
         // Update with same request is a noop and does not clear cache

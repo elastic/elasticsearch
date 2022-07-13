@@ -49,10 +49,10 @@ and go to **Stack Management > Snapshot and Restore > Repositories**.
 [role="screenshot"]
 image::images/repositories.png[{kib} Console,align="center"]
 
-. Get the details for the repository to re-add by clicking on the repository
+. Get the details for the repository we'll recreate later by clicking on the repository
 name in the repositories table and making note of all the repository configurations
-that are displayed on the repository details page (we'll use them when we re-add
-the repository to the system). Close the details page using the "X Close" link at
+that are displayed on the repository details page (we'll use them when we recreate
+the repository). Close the details page using the "X Close" link at
 the bottom left of the page.
 +
 [role="screenshot"]
@@ -62,7 +62,7 @@ image::images/repo_details.png[{kib} Console,align="center"]
 checkbox at the left of the repository and hit the "Remove repository" red button
 at the top left of the page.
 
-. Re-add the repository to the system by clicking the "Register Repository" button
+. Recreate the repository by clicking the "Register Repository" button
 at the top right corner of the repositories table. 
 +
 [role="screenshot"]
@@ -159,13 +159,13 @@ The response will look like this:
 
 At this point, it's only the primary (current) cluster that has the repository marked
 as writeable.
-{es} sees it as corrupt though so let's remove the repository and re-add it so that 
+{es} sees it as corrupt though so let's remove the repository and recreate it so that 
 {es} can resume using it:
 
 Note that now we're configuring the primary (current) cluster.
 
 . Get the configuration of the repository and save its configuration as we'll use it
-to re-add the repository:
+to recreate the repository:
 +
 [source,console]
 ----
@@ -190,8 +190,7 @@ The response will look like this:
 ------------------------------------------------------------------------------
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 
-. Using the configuration we obtained above, let's re-add the repository to the
-system using:
+. Using the configuration we obtained above, let's recreate the repository:
 +
 [source,console]
 ----

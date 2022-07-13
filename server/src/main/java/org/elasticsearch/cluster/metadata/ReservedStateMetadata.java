@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -31,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Metadata class that contains information about immutable cluster state set
+ * Metadata class that contains information about reserved cluster state set
  * through file based settings or by modules/plugins.
  *
  * <p>
@@ -39,19 +39,19 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * but can only be modified through a versioned 'operator mode' update, e.g.
  * file based settings or module/plugin upgrade.
  */
-public record ImmutableStateMetadata(
+public record ReservedStateMetadata(
     String namespace,
     Long version,
-    Map<String, ImmutableStateHandlerMetadata> handlers,
-    ImmutableStateErrorMetadata errorMetadata
-) implements SimpleDiffable<ImmutableStateMetadata>, ToXContentFragment {
+    Map<String, ReservedStateHandlerMetadata> handlers,
+    ReservedStateErrorMetadata errorMetadata
+) implements SimpleDiffable<ReservedStateMetadata>, ToXContentFragment {
 
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField HANDLERS = new ParseField("handlers");
     private static final ParseField ERRORS_METADATA = new ParseField("errors");
 
     /**
-     * ImmutableStateMetadata contains information about immutable cluster settings.
+     * ReservedStateMetadata contains information about reserved cluster settings.
      *
      * <p>
      * These settings cannot be updated by the end user and are set outside of the
@@ -62,21 +62,21 @@ public record ImmutableStateMetadata(
      * @param handlers      Per state update handler information on key set in by this update. These keys are validated at REST time.
      * @param errorMetadata If the update failed for some reason, this is where we store the error information metadata.
      */
-    public ImmutableStateMetadata {}
+    public ReservedStateMetadata {}
 
     /**
-     * Creates a set intersection between cluster state keys set by a given {@link ImmutableClusterStateHandler}
+     * Creates a set intersection between cluster state keys set by a given {@link ReservedClusterStateHandler}
      * and the input set.
      *
      * <p>
      * This method is to be used to check if a REST action handler is allowed to modify certain cluster state.
      *
-     * @param handlerName the name of the immutable state handler we need to check for keys
+     * @param handlerName the name of the reserved state handler we need to check for keys
      * @param modified a set of keys we want to see if we can modify.
      * @return
      */
     public Set<String> conflicts(String handlerName, Set<String> modified) {
-        ImmutableStateHandlerMetadata handlerMetadata = handlers.get(handlerName);
+        ReservedStateHandlerMetadata handlerMetadata = handlers.get(handlerName);
         if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
             return Collections.emptySet();
         }
@@ -87,22 +87,22 @@ public record ImmutableStateMetadata(
     }
 
     /**
-     * Reads an {@link ImmutableStateMetadata} from a {@link StreamInput}
+     * Reads an {@link ReservedStateMetadata} from a {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read from
-     * @return {@link ImmutableStateMetadata}
+     * @return {@link ReservedStateMetadata}
      * @throws IOException
      */
-    public static ImmutableStateMetadata readFrom(StreamInput in) throws IOException {
+    public static ReservedStateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString()).version(in.readLong());
 
         int handlersSize = in.readVInt();
         for (int i = 0; i < handlersSize; i++) {
-            ImmutableStateHandlerMetadata handler = ImmutableStateHandlerMetadata.readFrom(in);
+            ReservedStateHandlerMetadata handler = ReservedStateHandlerMetadata.readFrom(in);
             builder.putHandler(handler);
         }
 
-        builder.errorMetadata(in.readOptionalWriteable(ImmutableStateErrorMetadata::readFrom));
+        builder.errorMetadata(in.readOptionalWriteable(ReservedStateErrorMetadata::readFrom));
         return builder.build();
     }
 
@@ -115,20 +115,20 @@ public record ImmutableStateMetadata(
     }
 
     /**
-     * Reads an {@link ImmutableStateMetadata} {@link Diff} from {@link StreamInput}
+     * Reads an {@link ReservedStateMetadata} {@link Diff} from {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read the diff from
-     * @return a {@link Diff} of {@link ImmutableStateMetadata}
+     * @return a {@link Diff} of {@link ReservedStateMetadata}
      * @throws IOException
      */
-    public static Diff<ImmutableStateMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(ImmutableStateMetadata::readFrom, in);
+    public static Diff<ReservedStateMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(ReservedStateMetadata::readFrom, in);
     }
 
     /**
-     * Convenience method for creating a {@link Builder} for {@link ImmutableStateMetadata}
+     * Convenience method for creating a {@link Builder} for {@link ReservedStateMetadata}
      *
-     * @param namespace the namespace under which we'll store the {@link ImmutableStateMetadata}
+     * @param namespace the namespace under which we'll store the {@link ReservedStateMetadata}
      * @return {@link Builder}
      */
     public static Builder builder(String namespace) {
@@ -136,13 +136,13 @@ public record ImmutableStateMetadata(
     }
 
     /**
-     * Convenience method for creating a {@link Builder} for {@link ImmutableStateMetadata}
+     * Convenience method for creating a {@link Builder} for {@link ReservedStateMetadata}
      *
-     * @param namespace the namespace under which we'll store the {@link ImmutableStateMetadata}
-     * @param metadata an existing {@link ImmutableStateMetadata}
+     * @param namespace the namespace under which we'll store the {@link ReservedStateMetadata}
+     * @param metadata an existing {@link ReservedStateMetadata}
      * @return {@link Builder}
      */
-    public static Builder builder(String namespace, ImmutableStateMetadata metadata) {
+    public static Builder builder(String namespace, ReservedStateMetadata metadata) {
         return new Builder(namespace, metadata);
     }
 
@@ -160,52 +160,52 @@ public record ImmutableStateMetadata(
         return builder;
     }
 
-    private static final ConstructingObjectParser<ImmutableStateMetadata, String> PARSER = new ConstructingObjectParser<>(
-        "immutable_state_metadata",
+    private static final ConstructingObjectParser<ReservedStateMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "reserved_state_metadata",
         false,
         (a, namespace) -> {
-            Map<String, ImmutableStateHandlerMetadata> handlers = new HashMap<>();
+            Map<String, ReservedStateHandlerMetadata> handlers = new HashMap<>();
             @SuppressWarnings("unchecked")
-            List<ImmutableStateHandlerMetadata> handlersList = (List<ImmutableStateHandlerMetadata>) a[1];
+            List<ReservedStateHandlerMetadata> handlersList = (List<ReservedStateHandlerMetadata>) a[1];
             handlersList.forEach(h -> handlers.put(h.name(), h));
 
-            return new ImmutableStateMetadata(namespace, (Long) a[0], Map.copyOf(handlers), (ImmutableStateErrorMetadata) a[2]);
+            return new ReservedStateMetadata(namespace, (Long) a[0], Map.copyOf(handlers), (ReservedStateErrorMetadata) a[2]);
         }
     );
 
     static {
         PARSER.declareLong(constructorArg(), VERSION);
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, name) -> ImmutableStateHandlerMetadata.fromXContent(p, name), HANDLERS);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> ImmutableStateErrorMetadata.fromXContent(p), null, ERRORS_METADATA);
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, name) -> ReservedStateHandlerMetadata.fromXContent(p, name), HANDLERS);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> ReservedStateErrorMetadata.fromXContent(p), null, ERRORS_METADATA);
     }
 
     /**
-     * Reads {@link ImmutableStateMetadata} from {@link XContentParser}
+     * Reads {@link ReservedStateMetadata} from {@link XContentParser}
      *
      * @param parser {@link XContentParser}
-     * @return {@link ImmutableStateMetadata}
+     * @return {@link ReservedStateMetadata}
      * @throws IOException
      */
-    public static ImmutableStateMetadata fromXContent(final XContentParser parser) throws IOException {
+    public static ReservedStateMetadata fromXContent(final XContentParser parser) throws IOException {
         parser.nextToken();
         return PARSER.apply(parser, parser.currentName());
     }
 
     /**
-     * Builder class for {@link ImmutableStateMetadata}
+     * Builder class for {@link ReservedStateMetadata}
      */
     public static class Builder {
         private final String namespace;
         private Long version;
-        private Map<String, ImmutableStateHandlerMetadata> handlers;
-        ImmutableStateErrorMetadata errorMetadata;
+        private Map<String, ReservedStateHandlerMetadata> handlers;
+        ReservedStateErrorMetadata errorMetadata;
 
         /**
-         * Empty builder for ImmutableStateMetadata.
+         * Empty builder for ReservedStateMetadata.
          * <p>
-         * The immutable metadata namespace is a required parameter
+         * The reserved metadata namespace is a required parameter
          *
-         * @param namespace The namespace for this immutable metadata
+         * @param namespace The namespace for this reserved metadata
          */
         public Builder(String namespace) {
             this.namespace = namespace;
@@ -215,12 +215,12 @@ public record ImmutableStateMetadata(
         }
 
         /**
-         * Creates an immutable state metadata builder
+         * Creates an reserved state metadata builder
          *
          * @param namespace the namespace for which we are storing metadata, e.g. file_settings
          * @param metadata  the previous metadata
          */
-        public Builder(String namespace, ImmutableStateMetadata metadata) {
+        public Builder(String namespace, ReservedStateMetadata metadata) {
             this(namespace);
             if (metadata != null) {
                 this.version = metadata.version;
@@ -230,13 +230,13 @@ public record ImmutableStateMetadata(
         }
 
         /**
-         * Stores the version for the immutable state metadata.
+         * Stores the version for the reserved state metadata.
          *
          * <p>
-         * Each new immutable cluster state update mode requires a version bump.
+         * Each new reserved cluster state update mode requires a version bump.
          * The version increase doesn't have to be monotonic.
          *
-         * @param version the new immutable state metadata version
+         * @param version the new reserved state metadata version
          * @return {@link Builder}
          */
         public Builder version(Long version) {
@@ -245,39 +245,39 @@ public record ImmutableStateMetadata(
         }
 
         /**
-         * Adds {@link ImmutableStateErrorMetadata} if we need to store error information about certain
-         * immutable state processing.
+         * Adds {@link ReservedStateErrorMetadata} if we need to store error information about certain
+         * reserved state processing.
          *
-         * @param errorMetadata {@link ImmutableStateErrorMetadata}
+         * @param errorMetadata {@link ReservedStateErrorMetadata}
          * @return {@link Builder}
          */
-        public Builder errorMetadata(ImmutableStateErrorMetadata errorMetadata) {
+        public Builder errorMetadata(ReservedStateErrorMetadata errorMetadata) {
             this.errorMetadata = errorMetadata;
             return this;
         }
 
         /**
-         * Adds an {@link ImmutableStateHandlerMetadata} for this {@link ImmutableStateMetadata}.
+         * Adds an {@link ReservedStateHandlerMetadata} for this {@link ReservedStateMetadata}.
          *
          * <p>
-         * The handler metadata is stored in a map, keyed off the {@link ImmutableStateHandlerMetadata} name. Previously
-         * stored {@link ImmutableStateHandlerMetadata} for a given name is overwritten.
+         * The handler metadata is stored in a map, keyed off the {@link ReservedStateHandlerMetadata} name. Previously
+         * stored {@link ReservedStateHandlerMetadata} for a given name is overwritten.
          *
-         * @param handler {@link ImmutableStateHandlerMetadata}
+         * @param handler {@link ReservedStateHandlerMetadata}
          * @return {@link Builder}
          */
-        public Builder putHandler(ImmutableStateHandlerMetadata handler) {
+        public Builder putHandler(ReservedStateHandlerMetadata handler) {
             this.handlers.put(handler.name(), handler);
             return this;
         }
 
         /**
-         * Builds an {@link ImmutableStateMetadata} from this builder.
+         * Builds an {@link ReservedStateMetadata} from this builder.
          *
-         * @return {@link ImmutableStateMetadata}
+         * @return {@link ReservedStateMetadata}
          */
-        public ImmutableStateMetadata build() {
-            return new ImmutableStateMetadata(namespace, version, Collections.unmodifiableMap(handlers), errorMetadata);
+        public ReservedStateMetadata build() {
+            return new ReservedStateMetadata(namespace, version, Collections.unmodifiableMap(handlers), errorMetadata);
         }
     }
 }

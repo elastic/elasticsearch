@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.immutablestate;
+package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -16,9 +16,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ImmutableClusterStateHandlerTests extends ESTestCase {
+public class ReservedClusterStateHandlerTests extends ESTestCase {
     public void testValidation() {
-        ImmutableClusterStateHandler<ValidRequest> handler = new ImmutableClusterStateHandler<>() {
+        ReservedClusterStateHandler<ValidRequest> handler = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "handler";

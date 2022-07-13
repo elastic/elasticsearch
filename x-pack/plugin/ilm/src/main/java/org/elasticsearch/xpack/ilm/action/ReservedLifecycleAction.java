@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
-import org.elasticsearch.immutablestate.TransformState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -31,13 +31,13 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
 /**
- * This {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} is responsible for immutable state
+ * This {@link ReservedClusterStateHandler} is responsible for reserved state
  * CRUD operations on ILM policies in, e.g. file based settings.
  * <p>
  * Internally it uses {@link TransportPutLifecycleAction} and
  * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
-public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<List<LifecyclePolicy>> {
+public class ReservedLifecycleAction implements ReservedClusterStateHandler<List<LifecyclePolicy>> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -45,7 +45,7 @@ public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<Li
 
     public static final String NAME = "ilm";
 
-    public ImmutableLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
+    public ReservedLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;

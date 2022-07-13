@@ -275,7 +275,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
-    exports org.elasticsearch.immutablestate;
+    exports org.elasticsearch.reservedstate;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
@@ -359,5 +359,5 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
-    uses org.elasticsearch.immutablestate.ImmutableClusterStateHandlerProvider;
+    uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 }

@@ -2049,11 +2049,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
-    /** Returns {@code true} iff this test cluster should use a dummy geo_shape field mapper */
-    protected boolean addMockGeoShapeFieldMapper() {
-        return true;
-    }
-
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -2095,9 +2090,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (addMockGeoShapeFieldMapper()) {
-            mocks.add(TestGeoShapeFieldMapperPlugin.class);
-        }
         return Collections.unmodifiableList(mocks);
     }
 

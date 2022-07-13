@@ -26,8 +26,10 @@ To update an API key, user password or <<security-api-get-token, token credentia
 ==== {api-description-title}
 
 The API keys created by <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> can be updated using this API.
-
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
+
+This API supports updates to an API key's access scope, i.e., its permissions, and its metadata.
+Other properties such as `name` or `expiration` cannot be updated.
 
 IMPORTANT: An API key's permissions are always restricted by the permissions of the authenticated user creating or updating the API key.
 Any call to the update API, **regardless** of whether parameters are supplied or not, will automatically apply the authenticated user's current permissions to the API key.

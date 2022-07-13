@@ -80,6 +80,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1088,42 +1089,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 DirectoryReader reader = DirectoryReader.open(directory)
             ) {
                 commitUserData = reader.getIndexCommit().getUserData();
-                final IndexSearcher indexSearcher = new IndexSearcher(reader);
-                indexSearcher.setQueryCache(null);
-                for (String typeName : new String[] { GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME }) {
-                    final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
-                    final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
-                    for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
-                        final Scorer scorer = weight.scorer(leafReaderContext);
-                        if (scorer != null) {
-                            final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
-                            final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
-                            final DocIdSetIterator docIdSetIterator = scorer.iterator();
-                            while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                if (isLiveDoc.test(docIdSetIterator.docID())) {
-                                    final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                    document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
-                                    documents.add(document);
-                                }
-                            }
-                        }
-                    }
-                }
+                forEachDocument(reader, Set.of(GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME), documents::add);
             }
 
             Randomness.shuffle(documents);
 
-            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
-                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
-                    for (Document document : documents) {
-                        indexWriter.addDocument(document);
-                    }
-                    indexWriter.setLiveCommitData(commitUserData.entrySet());
-                    indexWriter.commit();
-                }
-            }
+            writeDocumentsAndCommit(dataPath.resolve(METADATA_DIRECTORY_NAME), commitUserData, documents);
 
             final ClusterState loadedState = loadPersistedClusterState(persistedClusterStateService);
             assertEquals(clusterState.metadata().indices(), loadedState.metadata().indices());
@@ -1157,17 +1128,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
-                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
-                    for (Document document : documents) {
-                        indexWriter.addDocument(document);
-                    }
-                    indexWriter.setLiveCommitData(commitUserData.entrySet());
-                    indexWriter.commit();
-                }
-            }
+            writeDocumentsAndCommit(dataPath.resolve(METADATA_DIRECTORY_NAME), commitUserData, documents);
 
             expectThrows(CorruptStateException.class, () -> loadPersistedClusterState(persistedClusterStateService));
         }
@@ -1646,27 +1607,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 DirectoryReader reader = DirectoryReader.open(directory)
             ) {
                 commitUserData = reader.getIndexCommit().getUserData();
-                final IndexSearcher indexSearcher = new IndexSearcher(reader);
-                indexSearcher.setQueryCache(null);
-                for (String typeName : new String[] { GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME }) {
-                    final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
-                    final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
-                    for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
-                        final Scorer scorer = weight.scorer(leafReaderContext);
-                        if (scorer != null) {
-                            final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
-                            final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
-                            final DocIdSetIterator docIdSetIterator = scorer.iterator();
-                            while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                if (isLiveDoc.test(docIdSetIterator.docID())) {
-                                    final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                    document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
-                                    documents.add(document);
-                                }
-                            }
-                        }
-                    }
-                }
+                forEachDocument(reader, Set.of(GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME), documents::add);
             }
 
             // duplicate all documents associated with the mapping in question
@@ -1677,17 +1618,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
-                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
-                    for (Document document : documents) {
-                        indexWriter.addDocument(document);
-                    }
-                    indexWriter.setLiveCommitData(commitUserData.entrySet());
-                    indexWriter.commit();
-                }
-            }
+            writeDocumentsAndCommit(dataPath.resolve(METADATA_DIRECTORY_NAME), commitUserData, documents);
 
             final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
                 .getMessage();
@@ -1731,27 +1662,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 DirectoryReader reader = DirectoryReader.open(directory)
             ) {
                 commitUserData = reader.getIndexCommit().getUserData();
-                final IndexSearcher indexSearcher = new IndexSearcher(reader);
-                indexSearcher.setQueryCache(null);
-                for (String typeName : new String[] { GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME }) {
-                    final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
-                    final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
-                    for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
-                        final Scorer scorer = weight.scorer(leafReaderContext);
-                        if (scorer != null) {
-                            final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
-                            final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
-                            final DocIdSetIterator docIdSetIterator = scorer.iterator();
-                            while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                if (isLiveDoc.test(docIdSetIterator.docID())) {
-                                    final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                    document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
-                                    documents.add(document);
-                                }
-                            }
-                        }
-                    }
-                }
+                forEachDocument(reader, Set.of(GLOBAL_TYPE_NAME, MAPPING_TYPE_NAME, INDEX_TYPE_NAME), documents::add);
             }
 
             // remove all documents associated with the mapping in question
@@ -1762,17 +1673,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
 
-            try (Directory directory = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
-                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
-                    for (Document document : documents) {
-                        indexWriter.addDocument(document);
-                    }
-                    indexWriter.setLiveCommitData(commitUserData.entrySet());
-                    indexWriter.commit();
-                }
-            }
+            writeDocumentsAndCommit(dataPath.resolve(METADATA_DIRECTORY_NAME), commitUserData, documents);
 
             final String message = expectThrows(AssertionError.class, () -> persistedClusterStateService.loadBestOnDiskState())
                 .getMessage();
@@ -1870,16 +1771,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     /**
-     * Search the underlying persisted state indices for non-deleted mapping_hash documents that represent the
-     * first page of data, collecting and returning the distinct mapping_hashes themselves.
+     * Utility method for applying a consumer to each document (of the given types) associated with a DirectoryReader.
      */
-    private static Set<String> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
-        Set<String> hashes = new HashSet<>();
-        try (Directory directory = new NIOFSDirectory(metadataDirectory); DirectoryReader reader = DirectoryReader.open(directory)) {
-            final IndexSearcher indexSearcher = new IndexSearcher(reader);
-            indexSearcher.setQueryCache(null);
-
-            final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, MAPPING_TYPE_NAME));
+    private static void forEachDocument(DirectoryReader reader, Set<String> types, Consumer<Document> consumer) throws IOException {
+        final IndexSearcher indexSearcher = new IndexSearcher(reader);
+        indexSearcher.setQueryCache(null);
+        for (String typeName : types) {
+            final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));
             final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
             for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
                 final Scorer scorer = weight.scorer(leafReaderContext);
@@ -1890,15 +1788,47 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         if (isLiveDoc.test(docIdSetIterator.docID())) {
                             final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                            int page = document.getField("page").numericValue().intValue();
-                            if (page == 0) {
-                                String hash = document.getField("mapping_hash").stringValue();
-                                assertTrue(hashes.add(hash));
-                            }
+                            document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
+                            consumer.accept(document);
                         }
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Utility method writing documents back to a directory.
+     */
+    private static void writeDocumentsAndCommit(Path metadataDirectory, Map<String, String> commitUserData, List<Document> documents)
+        throws IOException {
+        try (Directory directory = new NIOFSDirectory(metadataDirectory)) {
+            final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+            indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+                for (Document document : documents) {
+                    indexWriter.addDocument(document);
+                }
+                indexWriter.setLiveCommitData(commitUserData.entrySet());
+                indexWriter.commit();
+            }
+        }
+    }
+
+    /**
+     * Search the underlying persisted state indices for non-deleted mapping_hash documents that represent the
+     * first page of data, collecting and returning the distinct mapping_hashes themselves.
+     */
+    private static Set<String> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
+        Set<String> hashes = new HashSet<>();
+        try (Directory directory = new NIOFSDirectory(metadataDirectory); DirectoryReader reader = DirectoryReader.open(directory)) {
+            forEachDocument(reader, Set.of(MAPPING_TYPE_NAME), document -> {
+                int page = document.getField("page").numericValue().intValue();
+                if (page == 0) {
+                    String hash = document.getField("mapping_hash").stringValue();
+                    assertTrue(hashes.add(hash));
+                }
+            });
         }
         return hashes;
     }

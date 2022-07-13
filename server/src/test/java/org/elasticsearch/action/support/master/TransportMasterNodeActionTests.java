@@ -796,7 +796,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertTrue(
             expectThrows(IllegalArgumentException.class, () -> action.validateForImmutableState(request, clusterState)).getMessage()
-                .contains("with errors: [a] set as read-only by [namespace_one]\n" + "[e] set as read-only by [namespace_two]")
+                .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
         );
 
         ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest().persistentSettings(

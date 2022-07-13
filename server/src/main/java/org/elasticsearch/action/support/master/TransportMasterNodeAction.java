@@ -186,13 +186,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         for (ImmutableStateMetadata metadata : state.metadata().immutableStateMetadata().values()) {
             Set<String> conflicts = metadata.conflicts(handlerName.get(), modified);
             if (conflicts.isEmpty() == false) {
-                errors.add(format("[%s] set as read-only by [%s]", String.join(",", conflicts), metadata.namespace()));
+                errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));
             }
         }
 
         if (errors.isEmpty() == false) {
             throw new IllegalArgumentException(
-                format("Failed to process request [%s] with errors: %s", request, String.join(System.lineSeparator(), errors))
+                format("Failed to process request [%s] with errors: [%s]", request, String.join(", ", errors))
             );
         }
     }

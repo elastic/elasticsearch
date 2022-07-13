@@ -418,9 +418,11 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             .get();
         assertHitCount(result, 1);
 
+        // In geo coordinates the polygon wraps the dateline, so we need to search within valid longitude ranges
+        double xWrapped = getFieldTypeName().contains("geo") ? -174 : 186;
         result = client().prepareSearch()
             .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(186, -4)))
+            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(xWrapped, -4)))
             .get();
         assertHitCount(result, 1);
 

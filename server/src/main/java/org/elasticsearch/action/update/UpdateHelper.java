@@ -89,7 +89,6 @@ public class UpdateHelper {
      * Tuple of operation and updated {@code _source} is returned.
      */
     Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Script script, UpsertCtxMap ctxMap) {
-        // Tell the script that this is a create and not an update (insert from upsert)
         ctxMap = executeScript(script, ctxMap);
         UpdateOpType operation = UpdateOpType.lenientFromString(ctxMap.getMetadata().getOp(), logger, script.getIdOrCode());
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {

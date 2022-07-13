@@ -33,12 +33,12 @@ class LatLonShapeDocValuesQuery extends ShapeDocValuesQuery<LatLonGeometry> {
     }
 
     @Override
-    protected boolean addSpecialCase(List<Component2D> components2D, LatLonGeometry geometry) {
+    protected void add(List<Component2D> components2D, LatLonGeometry geometry) {
         if (geometry instanceof Rectangle r && r.minLon > r.maxLon) {
-            components2D.add(LatLonGeometry.create(new Rectangle(r.minLat, r.maxLat, r.minLon, 180)));
-            components2D.add(LatLonGeometry.create(new Rectangle(r.minLat, r.maxLat, -180, r.maxLon)));
-            return true;
+            super.add(components2D, new Rectangle(r.minLat, r.maxLat, r.minLon, 180));
+            super.add(components2D, new Rectangle(r.minLat, r.maxLat, -180, r.maxLon));
+        } else {
+            super.add(components2D, geometry);
         }
-        return false;
     }
 }

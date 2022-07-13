@@ -52,6 +52,11 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
 
     protected abstract Component2D create(GEOMETRY[] geometries);
 
+    /** Override if special cases, like dateline support, should be considered */
+    protected void add(List<Component2D> components2D, GEOMETRY geometry) {
+        components2D.add(create(geometry));
+    }
+
     @Override
     public String toString(String otherField) {
         StringBuilder sb = new StringBuilder();
@@ -138,18 +143,10 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
         };
     }
 
-    /** Override if special cases, like dateline support, should be considered */
-    protected boolean addSpecialCase(List<Component2D> components2D, GEOMETRY geometry) {
-        return false;
-    }
-
     private ConstantScoreWeight getContainsWeight(ScoreMode scoreMode, float boost) {
         final List<Component2D> components2D = new ArrayList<>(geometries.length);
-        for (int i = 0; i < geometries.length; i++) {
-            GEOMETRY geometry = geometries[i];
-            if (addSpecialCase(components2D, geometry) == false) {
-                components2D.add(create(geometry));
-            }
+        for (GEOMETRY geometry : geometries) {
+            add(components2D, geometry);
         }
         return new ConstantScoreWeight(this, boost) {
 

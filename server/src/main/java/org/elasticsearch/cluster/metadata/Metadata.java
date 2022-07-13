@@ -1175,7 +1175,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     RESERVED_DIFF_VALUE_READER
                 );
             } else {
-                reservedStateMetadata = DiffableUtils.emptyDiff();;
+                reservedStateMetadata = DiffableUtils.emptyDiff();
             }
         }
 

@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -197,8 +198,11 @@ class RollupShardIndexer {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 numIndexed.addAndGet(request.numberOfActions());
                 if (response.hasFailures()) {
-                    Map<String, String> failures = Arrays.stream(response.getItems())
-                        .filter(BulkItemResponse::isFailed)
+                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed).collect(Collectors.toList());
+                    numFailed.addAndGet(failedItems.size());
+
+                    Map<String, String> failures = failedItems.stream()
                         .collect(
                             Collectors.toMap(
                                 BulkItemResponse::getId,
@@ -206,7 +210,6 @@ class RollupShardIndexer {
                                 (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2
                             )
                         );
-                    numFailed.addAndGet(failures.size());
                     logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
 
                     // cancel rollup task

@@ -81,6 +81,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -370,10 +371,33 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 }
         );
         status.setCancelStatus();
-        {
-            TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
-            assertThat(exception.getMessage(), containsString("Shard [" + sourceIndex + "][0] rollup cancelled"));
-        }
+
+        TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
+        assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][0] rollup cancelled"));
+    }
+
+    public void testRollupBulkFailed() throws IOException {
+        // create rollup config and index documents into source index
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        // block rollup index
+        assertAcked(client().admin()
+            .indices()
+            .preparePutTemplate(rollupIndex)
+            .setPatterns(List.of(rollupIndex))
+            .setSettings(Settings.builder().put("index.blocks.write", "true").build())
+            .get());
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));
     }
 
     private DateHistogramInterval randomInterval() {

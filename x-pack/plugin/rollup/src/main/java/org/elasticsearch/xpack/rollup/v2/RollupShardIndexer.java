@@ -250,7 +250,7 @@ class RollupShardIndexer {
 
                     boolean tsidChanged = tsid.equals(rollupBucketBuilder.tsid()) == false;
                     if (tsidChanged || timestamp < lastHistoTimestamp) {
-                        lastHistoTimestamp =Math.max(
+                        lastHistoTimestamp = Math.max(
                             rounding.round(timestamp),
                             searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
                         );

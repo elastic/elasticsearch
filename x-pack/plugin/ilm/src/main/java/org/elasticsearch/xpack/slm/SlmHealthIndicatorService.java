@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -50,22 +50,37 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     /**
-     * A grace period for snapshot policy failures. When a snapshot policy encounters a failed snapshot, if the last successful snapshot
-     * exists outside this look-back window then we report degraded health of the snapshot policy.
+     * The number of repeated failures allowed since a policy's last successful snapshot before a health warning is surfaced in the
+     * health API.
      */
-    private static final TimeValue SNAPSHOT_FAILURE_WARNING_WINDOW = TimeValue.timeValueHours(24);
+    public static final Setting<Long> GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT = new Setting<>(
+        "slm.snapshot.failure.warning.count",
+        "5",
+        Long::parseLong,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
+    public static final String ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = null;
     public static final UserAction.Definition ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS = new UserAction.Definition(
         "check_recent_snapshot_failures",
-        "The following snapshot lifecycle policies have not had successful snapshot executions for longer than 24 hours. Check the " +
-            "cluster logs for failures.",
-        null
+        """
+            The following snapshot lifecycle policies have exceeded the warning threshold for repeat failures without a successful
+            execution. Check the snapshot lifecycle policies [/_slm/policy/<policy_name>?human] for detailed failure info.""",
+        ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
     );
 
     private final ClusterService clusterService;
+    private volatile long snapshotFailureWarningCount;
 
     public SlmHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
+        this.snapshotFailureWarningCount = clusterService.getClusterSettings().get(GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT, this::updateSnapshotFailureWarningCount);
+    }
+
+    public void updateSnapshotFailureWarningCount(long value) {
+        this.snapshotFailureWarningCount = value;
     }
 
     @Override
@@ -110,10 +125,8 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 List.of(SLM_NOT_RUNNING)
             );
         } else {
-            List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies = slmMetadata.getSnapshotConfigurations()
-                .values()
-                .stream()
-                .filter(this::snapshotFailuresExceedWarningThreshold)
+            List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies = slmMetadata.getSnapshotConfigurations().values().stream()
+                .filter(this::snapshotFailuresExceedWarningCount)
                 .toList();
 
             if (unhealthyPolicies.size() > 0) {
@@ -127,7 +140,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 );
 
                 return createIndicator(
-                    RED,
+                    YELLOW,
                     "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
                     createDetails(explain, unhealthyPolicies, slmMetadata),
                     impacts,
@@ -150,7 +163,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private boolean snapshotFailuresExceedWarningThreshold(SnapshotLifecyclePolicyMetadata policyMetadata) {
+    private boolean snapshotFailuresExceedWarningCount(SnapshotLifecyclePolicyMetadata policyMetadata) {
         SnapshotInvocationRecord lastFailure = policyMetadata.getLastFailure();
         if (lastFailure == null) {
             // No failures yet to act on
@@ -164,16 +177,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return false;
         }
 
-        long periodStart;
-        if (lastSuccess == null) {
-            // Base the period start on the modification time for the policy
-            periodStart = policyMetadata.getModifiedDate();
-        } else {
-            periodStart = lastSuccess.getSnapshotStartTimestamp();
-        }
-
-        long snapshotFailureWarningThreshold = periodStart + SNAPSHOT_FAILURE_WARNING_WINDOW.getMillis();
-        return lastFailure.getSnapshotStartTimestamp() > snapshotFailureWarningThreshold;
+        return policyMetadata.getInvocationsSinceLastSuccess() >= snapshotFailureWarningCount;
     }
 
     private static HealthIndicatorDetails createDetails(

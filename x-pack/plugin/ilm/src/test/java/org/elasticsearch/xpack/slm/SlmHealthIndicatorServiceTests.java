@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -134,14 +137,15 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testIsGreenWhenPoliciesHaveFailedForLessThan24Hours() {
+    public void testIsGreenWhenPoliciesHaveFailedForLessThanWarningThreshold() {
         long execTime = System.currentTimeMillis();
         long window = TimeUnit.HOURS.toMillis(24) - 5000L; // Just under 24 hours.
         var clusterState = createClusterStateWith(
             new SnapshotLifecycleMetadata(
                 createSlmPolicyWithInvocations(
                     snapshotInvocation(execTime, execTime + 1000L),
-                    snapshotInvocation(execTime + window, execTime + window + 1000L)
+                    snapshotInvocation(execTime + window, execTime + window + 1000L),
+                    randomLongBetween(0, 4)
                 ),
                 RUNNING,
                 null
@@ -166,14 +170,15 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testIsRedWhenPoliciesHaveFailedFor24Hours() {
+    public void testIsYellowWhenPoliciesHaveFailedForMoreThanWarningThreshold() {
         long execTime = System.currentTimeMillis();
         long window = TimeUnit.HOURS.toMillis(24) + 5000L; // 24 hours and some extra room.
         var clusterState = createClusterStateWith(
             new SnapshotLifecycleMetadata(
                 createSlmPolicyWithInvocations(
                     snapshotInvocation(execTime, execTime + 1000L),
-                    snapshotInvocation(execTime + window, execTime + window + 1000L)
+                    snapshotInvocation(execTime + window, execTime + window + 1000L),
+                    randomLongBetween(5L, Long.MAX_VALUE)
                 ),
                 RUNNING,
                 null
@@ -188,7 +193,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
-                    RED,
+                    YELLOW,
                     "Encountered [1] unhealthy snapshot lifecycle management policies.",
                     SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1, "unhealthy_policies", 1)),
@@ -218,12 +223,13 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private static Map<String, SnapshotLifecyclePolicyMetadata> createSlmPolicy() {
-        return createSlmPolicyWithInvocations(null, null);
+        return createSlmPolicyWithInvocations(null, null, 0L);
     }
 
     private static Map<String, SnapshotLifecyclePolicyMetadata> createSlmPolicyWithInvocations(
         SnapshotInvocationRecord lastSuccess,
-        SnapshotInvocationRecord lastFailure
+        SnapshotInvocationRecord lastFailure,
+        long invocationsSinceLastSuccess
     ) {
         return Map.of(
             "test-policy",
@@ -233,6 +239,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 .setModifiedDate(System.currentTimeMillis())
                 .setLastSuccess(lastSuccess)
                 .setLastFailure(lastFailure)
+                .setInvocationsSinceLastSuccess(invocationsSinceLastSuccess)
                 .build()
         );
     }
@@ -244,6 +251,13 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
     private static SlmHealthIndicatorService createSlmHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(
+                SlmHealthIndicatorService.GLOBAL_SLM_SNAPSHOT_FAILURE_WARNING_COUNT
+            )
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new SlmHealthIndicatorService(clusterService);
     }
 }

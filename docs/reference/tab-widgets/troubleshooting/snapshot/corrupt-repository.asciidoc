@@ -86,7 +86,7 @@ deployment can connect to your repository.
 Fixing the corrupted repository will entail making changes in multiple clusters
 that write to the same snapshot repository.
 Only one cluster must be writing to a repository. Let's call the cluster 
-we want to keep writing to the repository the "main" cluster (the current cluster), 
+we want to keep writing to the repository the "primary" cluster (the current cluster), 
 and the other one(s) where we'll mark the repository as read-only the "secondary" 
 clusters.
 

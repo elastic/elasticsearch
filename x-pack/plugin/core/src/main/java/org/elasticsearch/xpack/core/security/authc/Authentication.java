@@ -86,7 +86,7 @@ public final class Authentication implements ToXContentObject {
 
     public Authentication(StreamInput in) throws IOException {
         // Read the user(s)
-        final User outerUser = AuthenticationSerializationHelper.doReadUserFrom(in);
+        final User outerUser = AuthenticationSerializationHelper.readUserWithoutTrailingBoolean(in);
         final boolean hasInnerUser;
         if (User.isInternal(outerUser)) {
             hasInnerUser = false;
@@ -104,11 +104,20 @@ public final class Authentication implements ToXContentObject {
         final RealmRef authenticatedBy = new RealmRef(in);
         final RealmRef lookedUpBy;
         if (in.readBoolean()) {
-            assert innerUser != null : "inconsistent looked-up-by realm and inner-user";
             lookedUpBy = new RealmRef(in);
         } else {
             lookedUpBy = null;
         }
+
+        // The combinations for innerUser and lookedUpBy that must be maintained are:
+        // 1. InnerUser is null -> no run-as -> lookedUpBy must be null as well
+        // 2. lookedUpBy is NOT null -> successful run-as -> innerUser must be NOT null
+        // Other combinations are still possible, but they do not need assertions, e.g.,
+        // * innerUser != null -> lookedUp by can be either null (failed run-as lookup) or non-null (successful lookup)
+        // * lookedUpBy == null -> innerUser can be either null (no run-as) or non-null (failed run-as lookup)
+        assert (innerUser == null && lookedUpBy == null) || (lookedUpBy != null && innerUser != null)
+            : "inconsistent inner-user [" + innerUser + "] and looked-up-by [" + lookedUpBy + "]";
+
         final Version version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
         final Map<String, Object> metadata = in.readMap();
@@ -120,7 +129,6 @@ public final class Authentication implements ToXContentObject {
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
             effectiveSubject = new Subject(outerUser, lookedUpBy, version, Map.of());
         } else {
-            assert lookedUpBy == null : "inconsistent looked-up-by realm and inner-user";
             authenticatingSubject = effectiveSubject = new Subject(outerUser, authenticatedBy, version, metadata);
         }
         assertInternalConsistency();
@@ -139,6 +147,10 @@ public final class Authentication implements ToXContentObject {
      */
     public Subject getEffectiveSubject() {
         return effectiveSubject;
+    }
+
+    public AuthenticationType getAuthenticationType() {
+        return type;
     }
 
     /**
@@ -204,16 +216,18 @@ public final class Authentication implements ToXContentObject {
      * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
      * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
      * the lifetime of the original request.
+     *
+     * Use {@code getEffectiveSubject().getVersion()} instead.
      */
+    @Deprecated
     public Version getVersion() {
         return effectiveSubject.getVersion();
     }
 
-    public AuthenticationType getAuthenticationType() {
-        return type;
-    }
-
-    // authentication contains metadata, includes api_key details (including api_key metadata)
+    /**
+     * Use {@code getAuthenticatingSubject().getMetadata()} instead.
+     */
+    @Deprecated
     public Map<String, Object> getMetadata() {
         return authenticatingSubject.getMetadata();
     }
@@ -270,6 +284,11 @@ public final class Authentication implements ToXContentObject {
     /**
      * Returns a new {@code Authentication} that reflects a "run as another user" action under the current {@code Authentication}.
      * The security {@code RealmRef#Domain} of the resulting {@code Authentication} is that of the run-as user's realm.
+     *
+     * @param runAs The user to be impersonated
+     * @param lookupRealmRef The realm where the impersonated user is looked up from. It can be null if the user does
+     *                       not exist. The null lookup realm is used to indicate the lookup failure which will be rejected
+     *                       at authorization time.
      */
     public Authentication runAs(User runAs, @Nullable RealmRef lookupRealmRef) {
         assert supportsRunAs(null);
@@ -971,8 +990,12 @@ public final class Authentication implements ToXContentObject {
 
         private AuthenticationSerializationHelper() {}
 
+        /**
+         * Read the User object as well as the trailing boolean flag if the user is *not* an internal user.
+         * The trailing boolean, if exits, must be false (indicating no following inner-user).
+         */
         public static User readUserFrom(StreamInput input) throws IOException {
-            final User user = doReadUserFrom(input);
+            final User user = readUserWithoutTrailingBoolean(input);
             if (false == User.isInternal(user)) {
                 boolean hasInnerUser = input.readBoolean();
                 assert false == hasInnerUser : "no inner user is possible, otherwise use UserTuple.readFrom";
@@ -989,7 +1012,7 @@ public final class Authentication implements ToXContentObject {
             }
         }
 
-        private static User doReadUserFrom(StreamInput input) throws IOException {
+        private static User readUserWithoutTrailingBoolean(StreamInput input) throws IOException {
             final boolean isInternalUser = input.readBoolean();
             final String username = input.readString();
             if (isInternalUser) {

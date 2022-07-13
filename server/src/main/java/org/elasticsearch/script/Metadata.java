@@ -43,8 +43,8 @@ public class Metadata {
     protected static final String ROUTING = "_routing";
     protected static final String VERSION_TYPE = "_version_type";
     protected static final String VERSION = "_version";
-    protected static final String TYPE = "_type"; // type is deprecated so it's supported in the map but not available as a getter
-    protected static final String TIMESTAMP = "_timestamp";
+    protected static final String TYPE = "_type"; // type is deprecated, so it's supported in the map but not available as a getter
+    protected static final String TIMESTAMP = "_now";
     protected static final String OP = "op";
     protected static final String IF_SEQ_NO = "_if_seq_no";
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";

@@ -126,7 +126,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
         for (ShardRouting routing : node.initializing()) {
-            if (routing.relocatingNodeId() == null && metadata.index(routing.index()).isSearchableSnapshot() == false) {
+            if (routing.relocatingNodeId() == null && metadata.getIndexSafe(routing.index()).isSearchableSnapshot() == false) {
                 // in practice the only initializing-but-not-relocating non-searchable-snapshot shards with a nonzero expected shard size
                 // will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking

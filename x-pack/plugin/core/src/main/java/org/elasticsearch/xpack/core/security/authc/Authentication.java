@@ -112,11 +112,12 @@ public final class Authentication implements ToXContentObject {
         // The combinations for innerUser and lookedUpBy that must be maintained are:
         // 1. InnerUser is null -> no run-as -> lookedUpBy must be null as well
         // 2. lookedUpBy is NOT null -> successful run-as -> innerUser must be NOT null
-        // Other combinations are still possible, but they do not need assertions, e.g.,
-        // * innerUser != null -> lookedUp by can be either null (failed run-as lookup) or non-null (successful lookup)
-        // * lookedUpBy == null -> innerUser can be either null (no run-as) or non-null (failed run-as lookup)
-        assert (innerUser == null && lookedUpBy == null) || (lookedUpBy != null && innerUser != null)
-            : "inconsistent inner-user [" + innerUser + "] and looked-up-by [" + lookedUpBy + "]";
+        // 3. innerUser != null -> lookedUp by can be either null (failed run-as lookup) or non-null (successful lookup)
+        // 4. lookedUpBy == null -> innerUser can be either null (no run-as) or non-null (failed run-as lookup)
+        assert (innerUser == null && lookedUpBy == null)
+            || (lookedUpBy != null && innerUser != null)
+            || innerUser != null
+            || lookedUpBy == null : "Authentication has no inner-user, but looked-up-by is [" + lookedUpBy + "]";
 
         final Version version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];

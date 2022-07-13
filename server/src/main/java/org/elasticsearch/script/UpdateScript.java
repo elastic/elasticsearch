@@ -24,14 +24,11 @@ public abstract class UpdateScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    private final Metadata metadata;
+    private final UpdateCtxMap ctxMap;
 
-    private final Map<String, Object> ctx;
-
-    public UpdateScript(Map<String, Object> params, Map<String, Object> ctx, Metadata metadata) {
+    public UpdateScript(Map<String, Object> params, UpdateCtxMap ctxMap) {
         this.params = params;
-        this.ctx = ctx;
-        this.metadata = metadata;
+        this.ctxMap = ctxMap;
     }
 
     /** Return the parameters for this script. */
@@ -41,17 +38,17 @@ public abstract class UpdateScript {
 
     /** Return the update context for this script. */
     public Map<String, Object> getCtx() {
-        return ctx;
+        return ctxMap;
     }
 
     /** Return the update metadata for this script */
     public Metadata metadata() {
-        return metadata;
+        return ctxMap.getMetadata();
     }
 
     public abstract void execute();
 
     public interface Factory {
-        UpdateScript newInstance(Map<String, Object> params, Map<String, Object> ctx, Metadata metadata);
+        UpdateScript newInstance(Map<String, Object> params, UpdateCtxMap ctxMap);
     }
 }

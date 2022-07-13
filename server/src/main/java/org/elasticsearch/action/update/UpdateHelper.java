@@ -31,9 +31,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
-import org.elasticsearch.script.UpdateSourceAndMetadata;
-import org.elasticsearch.script.UpsertSourceAndMetadata;
+import org.elasticsearch.script.UpsertCtxMap;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -88,17 +88,17 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Script script, UpsertSourceAndMetadata srcAndMeta) {
+    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Script script, UpsertCtxMap ctxMap) {
         // Tell the script that this is a create and not an update (insert from upsert)
-        srcAndMeta = executeScript(script, srcAndMeta);
-        UpdateOpType operation = UpdateOpType.lenientFromString(srcAndMeta.getOp(), logger, script.getIdOrCode());
+        ctxMap = executeScript(script, ctxMap);
+        UpdateOpType operation = UpdateOpType.lenientFromString(ctxMap.getMetadata().getOp(), logger, script.getIdOrCode());
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
             logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
             operation = UpdateOpType.NONE;
         }
 
-        return new Tuple<>(operation, srcAndMeta.getSource());
+        return new Tuple<>(operation, ctxMap.getSource());
     }
 
     /**
@@ -113,14 +113,14 @@ public class UpdateHelper {
         if (request.scriptedUpsert() && request.script() != null) {
             // Run the script to perform the create logic
             IndexRequest upsert = request.upsertRequest();
-            UpsertSourceAndMetadata srcAndMeta = new UpsertSourceAndMetadata(
+            UpsertCtxMap ctxMap = new UpsertCtxMap(
                 getResult.getIndex(),
                 getResult.getId(),
                 UpdateOpType.CREATE.toString(),
                 nowInMillis.getAsLong(),
                 upsert.sourceAsMap()
             );
-            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(request.script, srcAndMeta);
+            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(request.script, ctxMap);
             switch (upsertResult.v1()) {
                 case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
                 case NONE -> {
@@ -234,9 +234,9 @@ public class UpdateHelper {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
 
-        UpdateSourceAndMetadata srcAndMeta = executeScript(
+        UpdateCtxMap ctxMap = executeScript(
             request.script,
-            new UpdateSourceAndMetadata(
+            new UpdateCtxMap(
                 getResult.getIndex(),
                 getResult.getId(),
                 getResult.getVersion(),
@@ -247,8 +247,8 @@ public class UpdateHelper {
                 sourceAndContent.v2()
             )
         );
-        UpdateOpType operation = UpdateOpType.lenientFromString(srcAndMeta.getOp(), logger, request.script.getIdOrCode());
-        final Map<String, Object> updatedSourceAsMap = srcAndMeta.getSource();
+        UpdateOpType operation = UpdateOpType.lenientFromString(ctxMap.getMetadata().getOp(), logger, request.script.getIdOrCode());
+        final Map<String, Object> updatedSourceAsMap = ctxMap.getSource();
 
         switch (operation) {
             case INDEX -> {
@@ -301,17 +301,17 @@ public class UpdateHelper {
         }
     }
 
-    private <T extends UpdateSourceAndMetadata> T executeScript(Script script, T metadata) {
+    private <T extends UpdateCtxMap> T executeScript(Script script, T ctxMap) {
         try {
             if (scriptService != null) {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                UpdateScript executableScript = factory.newInstance(script.getParams(), metadata, metadata);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), ctxMap);
                 executableScript.execute();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);
         }
-        return metadata;
+        return ctxMap;
     }
 
     /**

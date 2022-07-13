@@ -72,6 +72,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -230,7 +231,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                         request.getThreadsPerAllocation(),
                         request.getNumberOfAllocations(),
                         request.getQueueCapacity(),
-                        request.getCacheSize()
+                        Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelBytes))
                     );
                     PersistentTasksCustomMetadata persistentTasks = clusterService.state()
                         .getMetadata()

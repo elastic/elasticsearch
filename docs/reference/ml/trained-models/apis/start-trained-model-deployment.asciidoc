@@ -57,8 +57,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `cache_size`::
 (Optional, <<byte-units,byte value>>)
-The inference cache size (off JVM heap) per node for the model. The default value is the same size as the model
-size estimate. To disable cache, `0b` can be provided.
+The inference cache size (in memory outside the JVM heap) per node for the model.
+The default value is the same size as the `model_size_bytes`. To disable cache, `0b` can be provided.
 
 `number_of_allocations`::
 (Optional, integer)

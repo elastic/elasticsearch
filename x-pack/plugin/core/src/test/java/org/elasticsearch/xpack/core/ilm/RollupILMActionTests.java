@@ -58,7 +58,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(12, steps.size());
+        assertEquals(13, steps.size());
 
         assertTrue(steps.get(0) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(0).getKey().getName(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
@@ -99,7 +99,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         assertTrue(steps.get(9) instanceof BranchingStep);
         assertThat(steps.get(9).getKey().getName(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
         expectThrows(IllegalStateException.class, () -> steps.get(9).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(9)).getNextStepKeyOnFalse().getName(), equalTo(DeleteStep.NAME));
+        assertThat(((BranchingStep) steps.get(9)).getNextStepKeyOnFalse().getName(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
         assertThat(((BranchingStep) steps.get(9)).getNextStepKeyOnTrue().getName(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
 
         assertTrue(steps.get(10) instanceof ReplaceDataStreamBackingIndexStep);
@@ -109,6 +109,10 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         assertTrue(steps.get(11) instanceof DeleteStep);
         assertThat(steps.get(11).getKey().getName(), equalTo(DeleteStep.NAME));
         assertThat(steps.get(11).getNextStepKey(), equalTo(nextStepKey));
+
+        assertTrue(steps.get(12) instanceof SwapAliasesAndDeleteSourceIndexStep);
+        assertThat(steps.get(12).getKey().getName(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertThat(steps.get(12).getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testEqualsAndHashCode() {

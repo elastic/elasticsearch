@@ -155,6 +155,7 @@ public class RollupActionIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertThat(settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()), equalTo(index));
         });
+        assertBusy(() -> assertTrue(aliasExists(rollupIndex, alias)));
     }
 
     public void testRollupIndexInTheHotPhase() throws Exception {
@@ -226,6 +227,7 @@ public class RollupActionIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertThat(settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()), equalTo(originalIndex));
         });
+        assertBusy(() -> assertTrue(aliasExists(rollupIndex, alias)));
     }
 
     public void testTsdbDataStreams() throws Exception {

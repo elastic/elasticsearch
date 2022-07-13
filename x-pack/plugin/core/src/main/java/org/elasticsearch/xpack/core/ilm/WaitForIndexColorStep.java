@@ -44,9 +44,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
     }
 
     WaitForIndexColorStep(StepKey key, StepKey nextStepKey, ClusterHealthStatus color, @Nullable String indexNamePrefix) {
-        super(key, nextStepKey);
-        this.color = color;
-        this.indexNameSupplier = (index, lifecycleState) -> indexNamePrefix + index;
+        this(key, nextStepKey, color, (index, lifecycleState) -> indexNamePrefix + index);
     }
 
     WaitForIndexColorStep(

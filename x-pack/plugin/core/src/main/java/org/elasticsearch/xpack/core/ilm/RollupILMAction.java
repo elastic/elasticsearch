@@ -101,12 +101,13 @@ public class RollupILMAction implements LifecycleAction {
         StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
         StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
-        StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey waitForGreenRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
 
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndex,
@@ -136,9 +137,10 @@ public class RollupILMAction implements LifecycleAction {
         );
 
         // Here is where the actual rollup action takes place
-        RollupStep rollupStep = new RollupStep(rollupKey, waitForGreenRestoredIndexKey, client, config);
+        RollupStep rollupStep = new RollupStep(rollupKey, waitForGreenRollupIndexKey, client, config);
+        // Wait until the Rollup index health is green
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
-            waitForGreenRestoredIndexKey,
+            waitForGreenRollupIndexKey,
             copyMetadataKey,
             ClusterHealthStatus.GREEN,
             (indexName, lifecycleState) -> lifecycleState.rollupIndexName()
@@ -164,7 +166,7 @@ public class RollupILMAction implements LifecycleAction {
         // then deleting the source index.
         BranchingStep isDataStreamBranchingStep = new BranchingStep(
             dataStreamCheckBranchingKey,
-            deleteIndexKey,
+            swapAliasesKey,
             replaceDataStreamIndexKey,
             (index, clusterState) -> {
                 IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
@@ -180,6 +182,14 @@ public class RollupILMAction implements LifecycleAction {
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, nextStepKey, client);
 
+        SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(
+            swapAliasesKey,
+            nextStepKey,
+            client,
+            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            false
+        );
+
         return List.of(
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
@@ -192,7 +202,8 @@ public class RollupILMAction implements LifecycleAction {
             copySettingsStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,
-            deleteSourceIndexStep
+            deleteSourceIndexStep,
+            swapAliasesAndDeleteSourceIndexStep
         );
     }
 

@@ -96,6 +96,7 @@ public final class Authentication implements ToXContentObject {
         final User innerUser;
         if (hasInnerUser) {
             innerUser = AuthenticationSerializationHelper.readUserFrom(in);
+            assert false == User.isInternal(innerUser) : "internal users cannot participate in run-as";
         } else {
             innerUser = null;
         }
@@ -470,7 +471,8 @@ public final class Authentication implements ToXContentObject {
         if (isRunAs()) {
             final User outerUser = effectiveSubject.getUser();
             final User innerUser = authenticatingSubject.getUser();
-            assert false == User.isInternal(outerUser) && false == User.isInternal(innerUser);
+            assert false == User.isInternal(outerUser) && false == User.isInternal(innerUser)
+                : "internal users cannot participate in run-as";
             User.writeUser(outerUser, out);
             out.writeBoolean(true);
             User.writeUser(innerUser, out);
@@ -614,7 +616,7 @@ public final class Authentication implements ToXContentObject {
         if (isRunAs()) {
             assert authenticatingSubject != effectiveSubject : "isRunAs logic does not hold";
             assert false == User.isInternal(effectiveSubject.getUser()) && false == User.isInternal(authenticatingSubject.getUser())
-                : "internal user cannot participate in run-as";
+                : "internal users cannot participate in run-as";
         } else {
             assert authenticatingSubject == effectiveSubject : "isRunAs logic does not hold";
         }
@@ -973,7 +975,7 @@ public final class Authentication implements ToXContentObject {
             final User user = doReadUserFrom(input);
             if (false == User.isInternal(user)) {
                 boolean hasInnerUser = input.readBoolean();
-                assert false == hasInnerUser : "no inner user is possible, otherwise user UserTuple.readFrom";
+                assert false == hasInnerUser : "no inner user is possible, otherwise use UserTuple.readFrom";
             }
             return user;
         }

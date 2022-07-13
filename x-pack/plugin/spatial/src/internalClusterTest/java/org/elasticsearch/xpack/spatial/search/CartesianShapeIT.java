@@ -22,7 +22,7 @@ import java.util.Collections;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
-public class CartesianShapeWithDocValuesIT extends CartesianShapeIntegTestCase {
+public class CartesianShapeIT extends CartesianShapeIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

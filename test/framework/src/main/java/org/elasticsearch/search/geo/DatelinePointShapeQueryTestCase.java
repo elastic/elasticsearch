@@ -22,38 +22,41 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
-public abstract class GeoPointShapeQueryTestCase extends BasePointShapeQueryTestCase<GeoShapeQueryBuilder> {
+/**
+ * Some tests are specific to geographic test cases, notably those involving special behaviour
+ * regarding the international data line. These have been moved into this utility class
+ * since Java does not support multiple inheritance, otherwise they need to exist in multiple places
+ * - GeoShapeQueryTestCase (and therefor all test classes using that)
+ * - GeoPointShapeQueryTests
+ */
+public class DatelinePointShapeQueryTestCase {
 
-    private final SpatialQueryBuilders<GeoShapeQueryBuilder> geoShapeQueryBuilder = SpatialQueryBuilders.GEO;
+    protected static final String defaultFieldName = BasePointShapeQueryTestCase.defaultFieldName;
+    protected static final String defaultIndexName = BasePointShapeQueryTestCase.defaultIndexName;
 
-    @Override
-    protected SpatialQueryBuilders<GeoShapeQueryBuilder> queryBuilder() {
-        return geoShapeQueryBuilder;
-    }
+    public void testRectangleSpanningDateline(BasePointShapeQueryTestCase<GeoShapeQueryBuilder> tests) throws Exception {
+        tests.createMapping(defaultIndexName, defaultFieldName);
+        tests.ensureGreen();
 
-    @Override
-    protected String fieldTypeName() {
-        return "geo_shape";
-    }
-
-    public void testRectangleSpanningDateline() throws Exception {
-        createMapping(defaultIndexName, defaultFieldName);
-        ensureGreen();
-
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-169 0)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-179 0)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("3")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(171 0)").endObject())
             .setRefreshPolicy(IMMEDIATE)
@@ -62,36 +65,40 @@ public abstract class GeoPointShapeQueryTestCase extends BasePointShapeQueryTest
         Rectangle rectangle = new Rectangle(169, -178, 1, -1);
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, rectangle);
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
+        SearchResponse response = tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();
         assertEquals(2, searchHits.getTotalHits().value);
         assertNotEquals("1", searchHits.getAt(0).getId());
         assertNotEquals("1", searchHits.getAt(1).getId());
     }
 
-    public void testPolygonSpanningDateline() throws Exception {
-        createMapping(defaultIndexName, defaultFieldName);
-        ensureGreen();
+    public void testPolygonSpanningDateline(BasePointShapeQueryTestCase<GeoShapeQueryBuilder> tests) throws Exception {
+        tests.createMapping(defaultIndexName, defaultFieldName);
+        tests.ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-169 7)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-179 7)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("3")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(179 7)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("4")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(171 7)").endObject())
             .setRefreshPolicy(IMMEDIATE)
@@ -101,7 +108,7 @@ public abstract class GeoPointShapeQueryTestCase extends BasePointShapeQueryTest
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, polygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
+        SearchResponse response = tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();
         assertEquals(2, searchHits.getTotalHits().value);
         assertNotEquals("1", searchHits.getAt(0).getId());
@@ -110,23 +117,26 @@ public abstract class GeoPointShapeQueryTestCase extends BasePointShapeQueryTest
         assertNotEquals("4", searchHits.getAt(1).getId());
     }
 
-    public void testMultiPolygonSpanningDateline() throws Exception {
-        createMapping(defaultIndexName, defaultFieldName);
-        ensureGreen();
+    public void testMultiPolygonSpanningDateline(BasePointShapeQueryTestCase<GeoShapeQueryBuilder> tests) throws Exception {
+        tests.createMapping(BasePointShapeQueryTestCase.defaultIndexName, BasePointShapeQueryTestCase.defaultFieldName);
+        tests.ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-169 7)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-179 7)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
+        tests.client()
+            .prepareIndex(defaultIndexName)
             .setId("3")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(171 7)").endObject())
             .setRefreshPolicy(IMMEDIATE)
@@ -140,7 +150,7 @@ public abstract class GeoPointShapeQueryTestCase extends BasePointShapeQueryTest
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, multiPolygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
+        SearchResponse response = tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
         SearchHits searchHits = response.getHits();
         assertEquals(2, searchHits.getTotalHits().value);
         assertNotEquals("3", searchHits.getAt(0).getId());

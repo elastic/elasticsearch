@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,7 +30,19 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
-public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
+public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShapeQueryBuilder> {
+
+    private final SpatialQueryBuilders<GeoShapeQueryBuilder> geoShapeQueryBuilder = SpatialQueryBuilders.GEO;
+
+    @Override
+    protected SpatialQueryBuilders<GeoShapeQueryBuilder> queryBuilder() {
+        return geoShapeQueryBuilder;
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return "geo_shape";
+    }
 
     @SuppressWarnings("deprecation")
     @Override
@@ -78,6 +91,20 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
 
         SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", point)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
+    }
+
+    private final DatelinePointShapeQueryTestCase dateline = new DatelinePointShapeQueryTestCase();
+
+    public void testRectangleSpanningDateline() throws Exception {
+        dateline.testRectangleSpanningDateline(this);
+    }
+
+    public void testPolygonSpanningDateline() throws Exception {
+        dateline.testPolygonSpanningDateline(this);
+    }
+
+    public void testMultiPolygonSpanningDateline() throws Exception {
+        dateline.testMultiPolygonSpanningDateline(this);
     }
 
     /**

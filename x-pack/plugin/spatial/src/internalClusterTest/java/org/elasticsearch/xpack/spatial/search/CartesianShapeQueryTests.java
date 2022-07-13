@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import java.util.Collection;
 import java.util.Collections;
 
-public class CartesianShapeWithDocValuesQueryTests extends CartesianShapeQueryTestCase {
+public class CartesianShapeQueryTests extends CartesianShapeQueryTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

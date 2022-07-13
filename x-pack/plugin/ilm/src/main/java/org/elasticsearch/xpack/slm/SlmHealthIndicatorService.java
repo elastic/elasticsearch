@@ -113,7 +113,9 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 List.of(SLM_NOT_RUNNING)
             );
         } else {
-            List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies = slmMetadata.getSnapshotConfigurations().values().stream()
+            List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies = slmMetadata.getSnapshotConfigurations()
+                .values()
+                .stream()
                 .filter(this::snapshotFailuresExceedWarningCount)
                 .toList();
 

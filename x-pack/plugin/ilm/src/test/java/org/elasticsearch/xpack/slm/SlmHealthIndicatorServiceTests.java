@@ -200,15 +200,12 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     Collections.singletonList(
                         new HealthIndicatorImpact(
                             2,
-                            "Some automated snapshots have not had a successful execution recently. Indices restored from affected " +
-                                "snapshots may not contain recent changes.",
+                            "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
+                                + "snapshots may not contain recent changes.",
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new UserAction(
-                        SlmHealthIndicatorService.ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS,
-                        List.of("test-policy")
-                    ))
+                    List.of(new UserAction(SlmHealthIndicatorService.ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS, List.of("test-policy")))
                 )
             )
         );
@@ -253,9 +250,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(
-                LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
-            )
+            Set.of(LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new SlmHealthIndicatorService(clusterService);

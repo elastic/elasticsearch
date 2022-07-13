@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -108,7 +109,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
             .stream()
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
 
-        Metadata.Builder metadataBuilder = null;
+        final Map<String, IndexMetadata> updatedIndices = Maps.newHashMapWithExpectedSize(changesGroupedByIndex.size());
         for (Map.Entry<Index, List<Map.Entry<ShardId, Updates>>> indexChanges : changesGroupedByIndex.entrySet()) {
             Index index = indexChanges.getKey();
             final IndexMetadata oldIndexMetadata = oldMetadata.getIndexSafe(index);
@@ -122,19 +123,11 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                     : updatedIndexMetadata;
             }
 
-            if (updatedIndexMetadata != null) {
-                if (metadataBuilder == null) {
-                    metadataBuilder = Metadata.builder(oldMetadata);
-                }
-                metadataBuilder.put(updatedIndexMetadata, true);
+            if (updatedIndexMetadata != oldIndexMetadata) {
+                updatedIndices.put(updatedIndexMetadata.getIndex().getName(), updatedIndexMetadata.withIncrementedVersion());
             }
         }
-
-        if (metadataBuilder != null) {
-            return metadataBuilder.build(true);
-        } else {
-            return oldMetadata;
-        }
+        return oldMetadata.withAllocationUpdatesOnly(updatedIndices);
     }
 
     /**

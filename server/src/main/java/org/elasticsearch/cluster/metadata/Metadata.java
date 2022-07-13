@@ -397,6 +397,40 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         );
     }
 
+    public Metadata withAllocationUpdatesOnly(Map<String, IndexMetadata> updates) {
+        if (updates.isEmpty()) {
+            return this;
+        }
+        final var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
+        updatedIndicesBuilder.putAllFromMap(updates);
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            updatedIndicesBuilder.build(),
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion,
+            immutableStateMetadata
+        );
+    }
+
     public long version() {
         return this.version;
     }

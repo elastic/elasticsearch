@@ -36,7 +36,7 @@ Alternatively if deleting the repository altogether is prefered select the check
 at the left of the repository name in the repositories table and click the 
 "Remove repository" red button at the top left of the table.
 
-At this point, it's only the main (current) deployment that has the repository marked
+At this point, it's only the primary (current) deployment that has the repository marked
 as writeable.
 {es} sees it as corrupt though so let's remove the repository and re-add it so that 
 {es} can resume using it:

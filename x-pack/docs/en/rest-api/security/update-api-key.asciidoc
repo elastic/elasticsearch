@@ -179,36 +179,6 @@ The API key's effective permissions after the update will be the intersection of
 }
 --------------------------------------------------
 
-The following example re-applies the <<security-api-update-api-key-examples-user-permissions, authenticated user's permissions>> to the API key:
-
-[source,console]
-----
-PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
-----
-
-Which returns the response:
-
-[source,console-result]
-----
-{
-  "updated": false
-}
-----
-
-Assuming the user's permissions have not changed since the previous update of the API key, this request does _not_ result in a change, and the API key's effective permissions remain:
-
-[source,console-result]
---------------------------------------------------
-{
-  "index": [
-    {
-      "names": ["*"],
-      "privileges": ["write"]
-    }
-  ]
-}
---------------------------------------------------
-
 The following example updates the API key, replacing the API key's assigned permissions with the <<security-api-update-api-key-examples-user-permissions, authenticated user's>>:
 
 [source,console]
@@ -238,6 +208,52 @@ The API key's effective permissions after the update will be:
     {
       "names": ["*"],
       "privileges": ["all"]
+    }
+  ]
+}
+--------------------------------------------------
+
+For the next example, assume that the authenticated user's permissions changed from <<security-api-update-api-key-examples-user-permissions, authenticated user's permissions>> to:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "cluster": ["manage_own_api_key"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+--------------------------------------------------
+
+The following request re-applies the user's updated permission to the API key:
+
+[source,console]
+----
+PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
+----
+
+Which returns the response:
+
+[source,console-result]
+----
+{
+  "updated": true
+}
+----
+
+Resulting in the following permissions for API key:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "cluster": ["manage_own_api_key"],
+  "index": [
+    {
+      "names": ["*"],
+      "privileges": ["read"]
     }
   ]
 }

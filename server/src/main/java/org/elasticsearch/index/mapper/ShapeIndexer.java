@@ -13,6 +13,11 @@ import org.elasticsearch.geometry.Geometry;
 
 import java.util.List;
 
+/**
+ * Utility that converts geometries into Lucene-compatible form for indexing in a shape or geo_shape field.
+ * Implementing classes handle the specifics for converting either geo_shape into LatLon lucene index format
+ * or shape into XY lucene format.
+ */
 public interface ShapeIndexer {
     List<IndexableField> indexShape(Geometry geometry);
 }

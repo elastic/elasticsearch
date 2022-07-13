@@ -28,6 +28,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Utility class that converts geometries into Lucene-compatible form for indexing in a shape field.
+ */
 public class CartesianShapeIndexer implements ShapeIndexer {
     private final String name;
 

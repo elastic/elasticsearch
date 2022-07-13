@@ -50,7 +50,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(
-            (params, ctx, md) -> new UpdateScript(Collections.emptyMap(), ctx, md) {
+            (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
                 @Override
                 public void execute() {
                     scriptBody.accept(ctx);

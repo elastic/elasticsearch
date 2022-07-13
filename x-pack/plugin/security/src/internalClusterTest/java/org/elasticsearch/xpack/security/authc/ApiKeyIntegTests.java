@@ -1878,8 +1878,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
         );
         final Set<RoleDescriptor> legacySuperuserRoleDescriptor = Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR);
-        // Force set user role descriptors to 7.x `LEGACY_SUPERUSER_ROLE_DESCRIPTOR`
         PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        // Force set user role descriptors to 7.x legacy superuser role descriptors
         serviceWithNodeName.service()
             .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), legacySuperuserRoleDescriptor, listener);
         UpdateApiKeyResponse response = listener.get();
@@ -1887,28 +1887,22 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(response.isUpdated());
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", legacySuperuserRoleDescriptor, getApiKeyDocument(apiKeyId));
 
-        final Set<RoleDescriptor> v8SuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Set<RoleDescriptor> currentSuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         PlainActionFuture<UpdateApiKeyResponse> listener2 = new PlainActionFuture<>();
         serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), v8SuperuserRoleDescriptors, listener2);
+            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), currentSuperuserRoleDescriptors, listener2);
         response = listener2.get();
         assertNotNull(response);
         // The first request is not a noop because we are auto-updating the legacy role descriptors to 8.x role descriptors
         assertTrue(response.isUpdated());
-        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", v8SuperuserRoleDescriptors, getApiKeyDocument(apiKeyId));
+        expectRoleDescriptorsForApiKey("limited_by_role_descriptors", currentSuperuserRoleDescriptors, getApiKeyDocument(apiKeyId));
 
         PlainActionFuture<UpdateApiKeyResponse> listener3 = new PlainActionFuture<>();
         serviceWithNodeName.service()
-            .updateApiKey(
-                authentication,
-                UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
-                // 8.x superuser role descriptor
-                v8SuperuserRoleDescriptors,
-                listener3
-            );
+            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), currentSuperuserRoleDescriptors, listener3);
         response = listener3.get();
         assertNotNull(response);
-        // Second update is noop because role descriptors were auto-updated
+        // Second update is noop because role descriptors were auto-updated by the previous request
         assertFalse(response.isUpdated());
     }
 

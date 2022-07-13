@@ -47,6 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -463,12 +464,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private void beginPollingClusterFormationInfo() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         cancelPollingClusterFormationInfo();
-        final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
         List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
-        getMasterEligibleNodes().forEach(
-            masterNode -> { beginPollingClusterFormationInfo(masterNode, response -> responses.put(masterNode, response),
-                cancellables::add); }
-        );
+        beginPollingClusterFormationInfo(getMasterEligibleNodes(), responses::put, cancellables::add);
         clusterFormationResponses = responses;
         clusterFormationInfoTasks = cancellables;
     }
@@ -476,41 +474,45 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     /**
      * This method returns quickly, but in the background schedules to query the remote node's cluster formation state in 10 seconds, and
      * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables. This method
-     * exists (rather than being just a line in the beginPollingClusterFormationInfo() above) in order to facilitate unit testing.
-     * @param masterNode The node being polled
-     * @param responseConsumer A consumer for any results produced by this method
+     * exists (rather than being just part of the beginPollingClusterFormationInfo() above) in order to facilitate unit testing.
+     * @param nodeResponseConsumer A consumer for any results produced for a node by this method
      * @param cancellableConsumer A consumer for any Cancellable tasks produced by this method
      */
     // Non-private for testing
     void beginPollingClusterFormationInfo(
-        DiscoveryNode masterNode,
-        Consumer<ClusterFormationStateOrException> responseConsumer,
+        Collection<DiscoveryNode> masterEligibleNodes,
+        BiConsumer<DiscoveryNode, ClusterFormationStateOrException> nodeResponseConsumer,
         Consumer<Scheduler.Cancellable> cancellableConsumer
     ) {
-        cancellableConsumer.accept(fetchClusterFormationInfo(
-            masterNode,
-            responseConsumer.andThen(rescheduleFetchConsumer(masterNode, responseConsumer, cancellableConsumer))
-        ));
+        masterEligibleNodes.forEach(masterEligibleNode -> {
+            Consumer<ClusterFormationStateOrException> responseConsumer = result -> nodeResponseConsumer.accept(masterEligibleNode, result);
+            cancellableConsumer.accept(
+                fetchClusterFormationInfo(
+                    masterEligibleNode,
+                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                )
+            );
+        });
     }
 
     /**
      * This wraps the responseConsumer in a Consumer that will run beginPollingClusterFormationInfo() after responseConsumer has
      * completed, adding the resulting Cancellable to cancellableConsumer.
-     * @param masterNode The node being polled
+     * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
      * @param cancellableConsumer The list of Cancellables
      * @return
      */
     private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleFetchConsumer(
-        DiscoveryNode masterNode,
+        DiscoveryNode masterEligibleNode,
         Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> responseConsumer,
         Consumer<Scheduler.Cancellable> cancellableConsumer
     ) {
         return response -> {
             cancellableConsumer.accept(
                 fetchClusterFormationInfo(
-                    masterNode,
-                    responseConsumer.andThen(rescheduleFetchConsumer(masterNode, responseConsumer, cancellableConsumer))
+                    masterEligibleNode,
+                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
                 )
             );
         };

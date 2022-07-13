@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
+import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService.ClusterFormationStateOrException;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -592,9 +593,12 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    public void testFetchClusterFormationInfo() {
-        /**
-         * This test sets up a 4-node cluster (3 master eligible), and then begins
+    public void testBeginPollingClusterFormationInfo() {
+        /*
+         * This test sets up a 4-node cluster (3 master eligible). We call beginPollingClusterFormationInfo() on each node. This is allowed
+         * to run for a bit, and then we assert that we have cluster formation information from each master eligible node. Then we
+         * disconnect a random master eligible node, allow the polling to continue to run (we never cancelled it), and assert that we
+         * have the expected exceptions in the polling results.
          */
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);
@@ -605,36 +609,45 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 .filter(DiscoveryNode::isMasterNode)
                 .toList();
             cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
-                ConcurrentMap<
-                    DiscoveryNode,
-                    CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap =
-                        new ConcurrentHashMap<>();
-                masterNodes.stream()
-                    .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
-                    .forEach(
-                        masterNode -> {
-                            node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
-                                masterNode,
-                                response -> nodeToClusterFormationStateMap.put(masterNode, response),
-                                cancellable -> {}
-                            );
-                        }
-                    );
+                ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
+                node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
+                    masterNodes,
+                    nodeToClusterFormationStateMap::put,
+                    cancellable -> {}
+                );
+
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();
+
+                /*
+                 * The cluster has now run normally for some period of time, so check that the outputs of
+                 * beginPollingClusterFormationInfo() are present with no exceptions:
+                 */
+                assertThat(nodeToClusterFormationStateMap.size(), equalTo(masterNodes.size()));
+                masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
+                    ClusterFormationStateOrException clusterFormationStateOrException = nodeToClusterFormationStateMap.get(masterNode);
+                    assertNotNull(clusterFormationStateOrException);
+                    assertNotNull(clusterFormationStateOrException.clusterFormationState());
+                    assertNull(clusterFormationStateOrException.exception());
+                    ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = clusterFormationStateOrException
+                        .clusterFormationState();
+                    assertThat(clusterFormationState.getDescription(), not(emptyOrNullString()));
+                });
+
+                /*
+                 * Now we disconnect a random node, simulate running the cluster for a little while, and make sure that the results of
+                 * beginPollingClusterFormationInfo() contain the expected exceptions.
+                 */
                 Cluster.ClusterNode nodeToDisconnect = cluster.clusterNodes.stream()
                     .filter(clusterNode -> clusterNode.getLocalNode().isMasterNode())
                     .findAny()
                     .get();
                 nodeToDisconnect.disconnect();
                 cluster.stabilise();
-                // We're not calling the method on the local node:
-                assertThat(nodeToClusterFormationStateMap.size(), equalTo(masterNodes.size() - 1));
-
+                assertThat(nodeToClusterFormationStateMap.size(), equalTo(masterNodes.size()));
                 AtomicInteger exceptions = new AtomicInteger();
                 masterNodes.stream().filter(masterNode -> node.getLocalNode().equals(masterNode) == false).forEach(masterNode -> {
-                    CoordinationDiagnosticsService.ClusterFormationStateOrException clusterFormationStateOrException =
-                        nodeToClusterFormationStateMap.get(masterNode);
+                    ClusterFormationStateOrException clusterFormationStateOrException = nodeToClusterFormationStateMap.get(masterNode);
                     assertNotNull(clusterFormationStateOrException);
                     if (clusterFormationStateOrException.clusterFormationState() != null) {
                         assertNull(clusterFormationStateOrException.exception());
@@ -647,8 +660,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     }
                 });
                 if (node.equals(nodeToDisconnect)) {
+                    // If this was the disconnected node, it will have encountered exceptions contacting all nodes except itself:
                     assertThat(exceptions.get(), equalTo(masterNodes.size() - 1));
                 } else {
+                    // Other nodes will only have encountered an exception contacting the disconnected node:
                     assertThat(exceptions.get(), equalTo(1));
                 }
                 nodeToDisconnect.heal();
@@ -656,7 +671,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    public void testFetchClusterFormationInfoCancel() {
+    public void testBeginPollingClusterFormationInfoCancel() {
+        /*
+         * This test sets up a 4-node cluster (3 master eligible). We call beginPollingClusterFormationInfo() on each node. We then
+         * cancel all tasks. This simulates what will happen most often in practice -- polling is triggered when the master node goes
+         * null, and then polling is cancelled when a new master node is elected within 10 seconds. We then simulate the cluster running
+         * for a little while, and assert that there are no results from beginPollingClusterFormationInfo().
+         */
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
@@ -666,22 +687,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 .filter(DiscoveryNode::isMasterNode)
                 .toList();
             cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
-                ConcurrentMap<
-                    DiscoveryNode,
-                    CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap =
-                        new ConcurrentHashMap<>();
+                ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
                 List<Scheduler.Cancellable> cancellables = new ArrayList<>();
-                masterNodes.stream()
-                    .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
-                    .forEach(
-                        masterNode -> {
-                            node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
-                                masterNode,
-                                response -> nodeToClusterFormationStateMap.put(masterNode, response),
-                                cancellables::add
-                            );
-                        }
-                    );
+                node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
+                    masterNodes,
+                    nodeToClusterFormationStateMap::put,
+                    cancellables::add
+                );
                 cancellables.forEach(Scheduler.Cancellable::cancel); // This is what will most often happen in practice
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();

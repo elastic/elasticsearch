@@ -140,11 +140,11 @@ public class RenameProcessorTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("new_field", (k, v) -> {
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("new_field", (o, k, v) -> {
             if (v != null) {
                 throw new UnsupportedOperationException();
             }
-        }, "list", (k, v) -> {}));
+        }, "list", (o, k, v) -> {}));
         Processor processor = createRenameProcessor("list", "new_field", false);
         try {
             processor.execute(ingestDocument);
@@ -160,7 +160,7 @@ public class RenameProcessorTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("list", Collections.singletonList("item"));
 
-        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("list", (k, v) -> {
+        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(metadata, Map.of("list", (o, k, v) -> {
             if (v == null) {
                 throw new UnsupportedOperationException();
             }

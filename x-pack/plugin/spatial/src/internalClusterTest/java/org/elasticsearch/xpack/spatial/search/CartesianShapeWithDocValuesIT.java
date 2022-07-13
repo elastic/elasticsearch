@@ -25,11 +25,6 @@ import static org.hamcrest.Matchers.containsString;
 public class CartesianShapeWithDocValuesIT extends CartesianShapeIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }

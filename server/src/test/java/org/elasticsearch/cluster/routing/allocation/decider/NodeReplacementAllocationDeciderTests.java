@@ -95,7 +95,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
 
-        decision = decider.canRemain(shard, routingNode, allocation);
+        decision = decider.canRemain(null, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
     }
@@ -149,7 +149,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canRemain(shard, routingNode, allocation);
+        Decision decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
@@ -158,13 +158,13 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         routingNode = RoutingNodesHelper.routingNode(NODE_B.getId(), NODE_B, shard);
 
-        decision = decider.canRemain(shard, routingNode, allocation);
+        decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), equalTo("node [" + NODE_B.getId() + "] is not being replaced"));
 
         routingNode = RoutingNodesHelper.routingNode(NODE_C.getId(), NODE_C, shard);
 
-        decision = decider.canRemain(shard, routingNode, allocation);
+        decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), equalTo("node [" + NODE_C.getId() + "] is not being replaced"));
     }

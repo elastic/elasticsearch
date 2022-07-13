@@ -15,17 +15,19 @@
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_own_api_key` cluster privilege.
+Users can only update their own API keys, i.e., API keys they created.
+To update another user's API key, you must use the run as feature.
+For more information, see <<run-as-privilege>>.
 
-IMPORTANT: Only the user who created an API key can update it.
-It's not possible to use an API key as the authentication credential for this API.
-To update an API key, basic or token credentials are required.
+IMPORTANT: It's not possible to use an API key as the authentication credential for this API.
+To update an API key, user password or <<security-api-get-token, token credentials>> are required.
 
 [[security-api-update-api-key-desc]]
 ==== {api-description-title}
 
 The API keys created by <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> can be updated using this API.
 
-It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>
+It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
 IMPORTANT: An API key's permissions are always restricted by the permissions of the authenticated user creating or updating the API key.
 Any call to the update API, **regardless** of whether parameters are supplied or not, will automatically apply the authenticated user's current permissions to the API key.

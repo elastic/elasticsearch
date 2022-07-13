@@ -20,14 +20,19 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -38,6 +43,7 @@ import java.util.jar.Manifest;
 
 import static java.util.jar.Attributes.Name.MULTI_RELEASE;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.core.internal.provider.EmbeddedModulePath.isPackageName;
 
 /**
  * A class loader that is responsible for loading implementation classes and resources embedded
@@ -73,10 +79,13 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private static final String IMPL_PREFIX = "IMPL-JARS/";
     private static final String JAR_LISTING_FILE = "/LISTING.TXT";
 
-    record JarMeta(String prefix, boolean isMultiRelease) {}
+    record JarMeta(String prefix, boolean isMultiRelease, Set<String> packages, Map<String, List<Integer>> pkgToVersions) {}
 
     /** Ordered list of jar metadata (prefixes and code sources) to use when loading classes and resources. */
     private final List<JarMeta> jarMetas;
+
+    /** Map of package to Jar metadata. */
+    private final Map<String, JarMeta> packageToJarMeta;
 
     /** A map of prefix to codebase, used to determine the code source when defining classes. */
     private final Map<String, CodeSource> prefixToCodeBase;
@@ -96,6 +105,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         this.prefixToCodeBase = prefixToCodeBase.entrySet()
             .stream()
             .collect(toUnmodifiableMap(k -> k.getKey().prefix(), Map.Entry::getValue));
+        Map<String, JarMeta> map = new HashMap<>();
+        for (var jarMeta : prefixToCodeBase.keySet()) {
+            jarMeta.packages().stream().forEach(pkg -> map.put(pkg, jarMeta));
+        }
+        this.packageToJarMeta = Collections.unmodifiableMap(map);
     }
 
     record Resource(InputStream inputStream, CodeSource codeSource) {}
@@ -125,10 +139,33 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return null;
     }
 
+    // Retrieves a class resource from this loader's jars, or null.
+    private Resource getClassResourceOrNull(String name) {
+        String filepath = name.replace('.', '/').concat(".class");
+        String pkg = toPackageName(filepath);
+        JarMeta jarMeta = packageToJarMeta.get(pkg);
+        if (jarMeta != null) {
+            List<Integer> releaseVersions = jarMeta.pkgToVersions().get(pkg);
+            if (jarMeta.isMultiRelease() && releaseVersions != null) {
+                for (int releaseVersion : releaseVersions) {
+                    String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
+                    InputStream is = parent.getResourceAsStream(fullName);
+                    if (is != null) {
+                        return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
+                    }
+                }
+            }
+            InputStream is = parent.getResourceAsStream(jarMeta.prefix() + "/" + filepath);
+            if (is != null) {
+                return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
+            }
+        }
+        return null;
+    }
+
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
-        String filepath = name.replace('.', '/').concat(".class");
-        Resource res = privilegedGetResourceOrNull(filepath);
+        Resource res = getClassResourceOrNull(name);
         if (res != null) {
             try (InputStream in = res.inputStream()) {
                 byte[] bytes = in.readAllBytes();
@@ -259,13 +296,16 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     }
 
     private Path[] modulePath() throws IOException {
-        Function<Path, Path[]> entries = path -> prefixToCodeBase.keySet()
-            .stream()
+        URI rootURI = rootURI(prefixToCodeBase.values().stream().findFirst().map(CodeSource::getLocation).orElseThrow());
+        return embeddedJarPath(prefixToCodeBase.keySet(), rootURI);
+    }
+
+    private static Path[] embeddedJarPath(Set<String> prefixes, URI rootURI) throws IOException {
+        Function<Path, Path[]> entries = path -> prefixes.stream()
             .map(EmbeddedImplClassLoader::basePrefix)
             .distinct()
             .map(pfx -> path.resolve(pfx))
             .toArray(Path[]::new);
-        URI rootURI = rootURI(prefixToCodeBase.values().stream().findFirst().map(CodeSource::getLocation).orElseThrow());
         if (rootURI.getScheme().equals("file")) {
             return entries.apply(Path.of(rootURI));
         } else if (rootURI.getScheme().equals("jar")) {
@@ -305,6 +345,71 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         }
     }
 
+    static String removeMRJARPrefix(Path path) {
+        assert path.startsWith(MRJAR_VERSION_PREFIX) : path;
+        int c = path.getNameCount();
+        assert c >= 3 : path.getNameCount();
+        return c == 3 ? "" : path.subpath(3, path.getNameCount()).toString();
+    }
+
+    static int getMRVersionFromPrefix(Path path) {
+        assert path.startsWith(MRJAR_VERSION_PREFIX) : path;
+        int c = path.getNameCount();
+        assert c >= 3 : path.getNameCount();
+        return Integer.valueOf(path.subpath(2, 3).toString());
+    }
+
+    static String toPackageName(String name) {
+        assert name.endsWith("/") == false;
+        int index = name.lastIndexOf('/');
+        if (index != -1) {
+            return name.substring(0, index).replace('/', '.');
+        }
+        return name;
+    }
+
+    /** Tuple of package and package-to-release-version map. */
+    record ScanResult(Set<String> packages, Map<String, List<Integer>> pkgVersions) {}
+
+    static ScanResult scanPackages(Path dir) {
+        String separator = dir.getFileSystem().getSeparator();
+        Set<String> pkgs = new HashSet<>();
+        Map<String, List<Integer>> pkgVersions = new HashMap<>();
+        try {
+            try (var paths = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))) {
+                paths.map(path -> dir.relativize(path)).filter(path -> path.getFileName().toString().endsWith(".class")).forEach(path -> {
+                    Path parent = path.getParent();
+                    if (parent != null) {
+                        if (parent.startsWith(MRJAR_VERSION_PREFIX)) {
+                            int version = getMRVersionFromPrefix(path);
+                            if (version <= RUNTIME_VERSION_FEATURE) {
+                                String pkg = removeMRJARPrefix(parent).replace(separator, ".");
+                                if (isPackageName(pkg)) {
+                                    pkgVersions.computeIfAbsent(pkg, k -> new ArrayList<>()).add(version);
+                                    pkgs.add(pkg);
+                                }
+                            }
+                        } else {
+                            String pkg = parent.toString().replace(separator, ".");
+                            if (isPackageName(pkg)) {
+                                pkgs.add(pkg);
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (IOException x) {
+            throw new UncheckedIOException(x);
+        }
+
+        return new ScanResult(
+            Set.copyOf(pkgs),
+            pkgVersions.entrySet()
+                .stream() // sort MR JAR prefixes by release number descending
+                .collect(toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().stream().sorted(Comparator.reverseOrder()).toList()))
+        );
+    }
+
     private static Map<JarMeta, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
         String providerPrefix = IMPL_PREFIX + providerName;
         InputStream in = parent.getResourceAsStream(providerPrefix + JAR_LISTING_FILE);
@@ -319,14 +424,15 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             List<String> jars = reader.lines().toList();
             Map<JarMeta, CodeSource> map = new HashMap<>();
             for (String jar : jars) {
+                final CodeSource codeSource = codeSource(parent.getResource(providerPrefix + JAR_LISTING_FILE), jar);
                 final String jarPrefix = providerPrefix + "/" + jar;
-                JarMeta jam;
-                if (isMultiRelease(parent, jarPrefix)) {
-                    jam = new JarMeta(jarPrefix, true);
-                } else {
-                    jam = new JarMeta(jarPrefix, false);
+                URI rootURI = rootURI(codeSource.getLocation());
+                Path p = embeddedJarPath(Set.of(jarPrefix), rootURI)[0];
+                var scan = scanPackages(p);
+                if (p.getFileSystem().provider().getScheme().equals("jar")) {
+                    p.getFileSystem().close();
                 }
-                map.put(jam, codeSource(parent.getResource(providerPrefix + JAR_LISTING_FILE), jar));
+                map.put(new JarMeta(jarPrefix, isMultiRelease(parent, jarPrefix), scan.packages(), scan.pkgVersions()), codeSource);
             }
             return Map.copyOf(map);
         } catch (IOException e) {

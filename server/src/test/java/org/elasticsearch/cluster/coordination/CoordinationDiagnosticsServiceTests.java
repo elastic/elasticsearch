@@ -593,6 +593,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testFetchClusterFormationInfo() {
+        /**
+         * This test sets up a 4-node cluster (3 master eligible), and then begins
+         */
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
@@ -606,19 +609,17 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     DiscoveryNode,
                     CoordinationDiagnosticsService.ClusterFormationStateOrException> nodeToClusterFormationStateMap =
                         new ConcurrentHashMap<>();
-                List<Scheduler.Cancellable> cancellables = new ArrayList<>();
                 masterNodes.stream()
                     .filter(masterNode -> node.getLocalNode().equals(masterNode) == false)
                     .forEach(
                         masterNode -> {
                             node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
                                 masterNode,
-                                nodeToClusterFormationStateMap,
-                                cancellables
+                                response -> nodeToClusterFormationStateMap.put(masterNode, response),
+                                cancellable -> {}
                             );
                         }
                     );
-
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();
                 Cluster.ClusterNode nodeToDisconnect = cluster.clusterNodes.stream()
@@ -676,8 +677,8 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                         masterNode -> {
                             node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
                                 masterNode,
-                                nodeToClusterFormationStateMap,
-                                cancellables
+                                response -> nodeToClusterFormationStateMap.put(masterNode, response),
+                                cancellables::add
                             );
                         }
                     );

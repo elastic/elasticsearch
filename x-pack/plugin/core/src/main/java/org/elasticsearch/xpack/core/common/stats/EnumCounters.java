@@ -118,9 +118,11 @@ public class EnumCounters<E extends Enum<E>> implements Writeable {
         StringBuilder buf = new StringBuilder("[");
         boolean first = true;
         for (E e : enums) {
-            if (first == false) buf.append(", ");
-            first = false;
             buf.append(e.name().toLowerCase(Locale.ROOT)).append(": ").append(get(e));
+            if (first) {
+                buf.append(", ");
+                first = false;
+            }
         }
         buf.append("]");
         return buf.toString();

@@ -69,7 +69,7 @@ When specified, this fully replaces metadata previously associated with the API 
 `updated`::
 (boolean) `true` if the API key was updated, `false` if the API key did not change.
 
-[[security-api-create-api-key-example]]
+[[security-api-update-api-key-example]]
 ==== {api-examples-title}
 
 If you create an API key as follows:
@@ -132,7 +132,7 @@ For the examples below, assume that the authenticated user's permissions are:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example updates the API key, assigning it new role descriptors and metadata:
+The following example updates the API key created above, assigning it new role descriptors and metadata:
 
 [source,console]
 ----

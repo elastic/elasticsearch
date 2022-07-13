@@ -285,20 +285,6 @@ public class Maps {
     }
 
     /**
-     * Convenience method to convert the passed in input object as a map with String keys.
-     *
-     * @param input the input passed into the operator handler after parsing the content
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-    public static Map<String, ?> asMap(Object input) {
-        if (input instanceof Map<?, ?> source) {
-            return (Map<String, Object>) source;
-        }
-        throw new IllegalStateException("Unsupported input format");
-    }
-
-    /**
      * This method creates a copy of the {@code source} map using {@code copyValueFunction} to create a defensive copy of each value.
      */
     public static <K, V> Map<K, V> copyOf(Map<K, V> source, Function<V, V> copyValueFunction) {

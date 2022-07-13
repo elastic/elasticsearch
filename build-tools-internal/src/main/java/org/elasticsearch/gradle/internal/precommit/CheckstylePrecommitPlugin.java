@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Project;

@@ -256,7 +256,7 @@ Which returns the response:
 }
 ----
 
-Resulting in the following permissions for API key:
+Resulting in the following permissions for the API key:
 
 [source,js]
 --------------------------------------------------

@@ -115,6 +115,10 @@ public class RollupShardStatus implements Task.Status {
         this.status = status;
     }
 
+    public void setCancelStatus() {
+        this.status = Status.ABORT;
+    }
+
     public static RollupShardStatus fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }

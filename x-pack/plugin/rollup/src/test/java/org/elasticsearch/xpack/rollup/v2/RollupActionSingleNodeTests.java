@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -56,6 +55,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -67,9 +67,6 @@ import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
@@ -78,7 +75,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -349,30 +345,34 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field("@timestamp", randomDateForInterval(config.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(1))
-            .field("numeric_1", randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
 
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
-        Index srcIndex = resolveIndex(index);
+        Index srcIndex = resolveIndex(sourceIndex);
         IndexService indexService = indexServices.indexServiceSafe(srcIndex);
         IndexShard shard = indexService.getShard(0);
+        RollupShardStatus status = new RollupShardStatus(shard.shardId());
 
         // re-use source index as temp index for test
         RollupShardIndexer indexer = new RollupShardIndexer(
-            new RollupShardStatus(shard.shardId()),
+            status,
             client(),
             indexService,
             shard.shardId(),
+            rollupIndex,
             config,
-            rollupIndex
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 }
         );
-        indexer.status.setStatus(Status.ABORT);
+        status.setCancelStatus();
         {
-            ExecutionCancelledException exception = expectThrows(ExecutionCancelledException.class, () -> indexer.execute());
-            assertThat(exception.getMessage(), containsString("rollup cancelled"));
+            TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
+            assertThat(exception.getMessage(), containsString("Shard [" + sourceIndex + "][0] rollup cancelled"));
         }
     }
 

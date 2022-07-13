@@ -139,22 +139,14 @@ class RollupShardIndexer {
         long startTime = System.currentTimeMillis();
         BulkProcessor bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
-            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
-                logger.warn(
-                    "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
-                    indexShard.shardId(),
-                    numSent.get(),
-                    numIndexed.get(),
-                    numFailed.get()
-                );
-                if (status.getStatus() == Status.ABORT) {
-                    throw new TaskCancelledException(format("Shard [{}] rollup abort", indexShard.shardId()));
-                }
-            }));
+            final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> { checkCancelled(); }));
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(new MatchAllDocsQuery(), bucketCollector);
             bucketCollector.postCollection();
+
+            // check cancel after the flush all data
+            checkCancelled();
         }
 
         logger.info(
@@ -181,6 +173,19 @@ class RollupShardIndexer {
         return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), numIndexed.get());
     }
 
+    private void checkCancelled() {
+        if (status.getStatus() == Status.ABORT) {
+            logger.warn(
+                "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
+                indexShard.shardId(),
+                numSent.get(),
+                numIndexed.get(),
+                numFailed.get()
+            );
+            throw new TaskCancelledException(format("Shard %s rollup cancelled", indexShard.shardId()));
+        }
+    }
+
     private BulkProcessor createBulkProcessor() {
         final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
             @Override
@@ -203,6 +208,9 @@ class RollupShardIndexer {
                         );
                     numFailed.addAndGet(failures.size());
                     logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
+
+                    // cancel rollup task
+                    status.setCancelStatus();
                 }
             }
 
@@ -212,6 +220,9 @@ class RollupShardIndexer {
                     long items = request.numberOfActions();
                     numFailed.addAndGet(items);
                     logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
+
+                    // cancel rollup task
+                    status.setCancelStatus();
                 }
             }
         };
@@ -277,16 +288,18 @@ class RollupShardIndexer {
                      * - _tsid must be sorted in ascending order
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
-                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0 : "_tsid is not sorted in ascending order: ["
-                        + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
-                        + "] -> ["
-                        + DocValueFormat.TIME_SERIES_ID.format(tsid)
-                        + "]";
-                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp : "@timestamp is not sorted in descending order: ["
-                        + timestampFormat.format(lastTimestamp)
-                        + "] -> ["
-                        + timestampFormat.format(timestamp)
-                        + "]";
+                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
+                        : "_tsid is not sorted in ascending order: ["
+                            + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
+                            + "] -> ["
+                            + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                            + "]";
+                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
+                        : "@timestamp is not sorted in descending order: ["
+                            + timestampFormat.format(lastTimestamp)
+                            + "] -> ["
+                            + timestampFormat.format(timestamp)
+                            + "]";
                     lastTsid = BytesRef.deepCopyOf(tsid);
                     lastTimestamp = timestamp;
 

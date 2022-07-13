@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -77,21 +76,22 @@ public final class IngestDocument {
      * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        Tuple<Map<String, Object>, Map<String, Object>> sm = IngestCtxMap.splitSourceAndMetadata(
-            sourceAndMetadata,
-            Arrays.stream(IngestDocument.Metadata.values()).map(IngestDocument.Metadata::getFieldName).collect(Collectors.toSet())
-        );
-        this.sourceAndMetadata = new IngestCtxMap(
-            sm.v1(),
-            new IngestCtxMap.IngestMetadata(sm.v2(), IngestCtxMap.getTimestamp(ingestMetadata))
-        );
-        this.ingestMetadata = new HashMap<>(ingestMetadata);
-        this.ingestMetadata.computeIfPresent(TIMESTAMP, (k, v) -> {
-            if (v instanceof String) {
-                return this.sourceAndMetadata.getMetadata().getTimestamp();
+        Map<String, Object> source;
+        Map<String, Object> metadata;
+        if (sourceAndMetadata instanceof IngestCtxMap ingestCtxMap) {
+            source = new HashMap<>(ingestCtxMap.getSource());
+            metadata = new HashMap<>(ingestCtxMap.getMetadata().getMap());
+        } else {
+            metadata = Maps.newHashMapWithExpectedSize(Metadata.METADATA_NAMES.size());
+            source = new HashMap<>(sourceAndMetadata);
+            for (String key : Metadata.METADATA_NAMES) {
+                if (sourceAndMetadata.containsKey(key)) {
+                    metadata.put(key, source.remove(key));
+                }
             }
-            return v;
-        });
+        }
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.sourceAndMetadata = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
     }
 
     /**

@@ -19,7 +19,7 @@ public class TestIngestCtxMetadata extends Metadata {
     }
 
     public static TestIngestCtxMetadata withNullableVersion(Map<String, Object> map) {
-        Map<String, FieldProperty<?>> updatedProperties = new HashMap<>(IngestCtxMap.IngestMetadata.PROPERTIES);
+        Map<String, FieldProperty<?>> updatedProperties = new HashMap<>(IngestDocMetadata.PROPERTIES);
         updatedProperties.replace(VERSION, new Metadata.FieldProperty<>(Number.class, true, true, FieldProperty.LONGABLE_NUMBER));
         return new TestIngestCtxMetadata(map, updatedProperties);
     }

@@ -8,9 +8,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Tuple;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
@@ -50,28 +48,6 @@ public class CtxMap extends AbstractMap<String, Object> {
                     + "] in source"
             );
         }
-    }
-
-    /**
-     * Returns a new metadata map and the existing source map with metadata removed.
-     */
-    public static Tuple<Map<String, Object>, Map<String, Object>> splitSourceAndMetadata(
-        Map<String, Object> sourceAndMetadata,
-        Set<String> metadataKeys
-    ) {
-        if (sourceAndMetadata instanceof CtxMap ctxMap) {
-            return new Tuple<>(new HashMap<>(ctxMap.source), new HashMap<>(ctxMap.metadata.getMap()));
-        }
-
-        Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(metadataKeys.size());
-        Map<String, Object> source = new HashMap<>(sourceAndMetadata);
-
-        for (String metadataKey : metadataKeys) {
-            if (sourceAndMetadata.containsKey(metadataKey)) {
-                metadata.put(metadataKey, source.remove(metadataKey));
-            }
-        }
-        return new Tuple<>(source, metadata);
     }
 
     /**

@@ -6,15 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.script;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.Metadata;
 
-import java.time.ZonedDateTime;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
@@ -28,45 +23,21 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Map containing ingest source and metadata.
- *
- * The Metadata values in {@link IngestDocument.Metadata} are validated when put in the map.
- * _index, _id and _routing must be a String or null
- * _version_type must be a lower case VersionType or null
- * _version must be representable as a long without loss of precision or null
- * _dyanmic_templates must be a map
- * _if_seq_no must be a long or null
- * _if_primary_term must be a long or null
- *
- * The map is expected to be used by processors, server code should the typed getter and setters where possible.
+ * A scripting ctx map with metadata for write ingest contexts.  Delegates all metadata updates to metadata and
+ * all other updates to source.  Implements the {@link Map} interface for backwards compatibility while performing
+ * validation via {@link Metadata}.
  */
-class IngestSourceAndMetadata extends AbstractMap<String, Object> {
-
+public class CtxMap extends AbstractMap<String, Object> {
     protected final Map<String, Object> source;
     protected final Metadata metadata;
 
     /**
-     * Create an IngestSourceAndMetadata with the given metadata, source and default validators
-     */
-    IngestSourceAndMetadata(
-        String index,
-        String id,
-        long version,
-        String routing,
-        VersionType versionType,
-        ZonedDateTime timestamp,
-        Map<String, Object> source
-    ) {
-        this(new HashMap<>(source), new Metadata(index, id, version, routing, versionType, timestamp));
-    }
-
-    /**
-     * Create IngestSourceAndMetadata from a source and metadata
+     * Create CtxMap from a source and metadata
      *
      * @param source the source document map
      * @param metadata the metadata map
      */
-    IngestSourceAndMetadata(Map<String, Object> source, Metadata metadata) {
+    protected CtxMap(Map<String, Object> source, Metadata metadata) {
         this.source = source != null ? source : new HashMap<>();
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
@@ -77,41 +48,6 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
                     + "] in source"
             );
         }
-    }
-
-    /**
-     * Returns a new metadata map and the existing source map with metadata removed.
-     */
-    public static Tuple<Map<String, Object>, Map<String, Object>> splitSourceAndMetadata(Map<String, Object> sourceAndMetadata) {
-        if (sourceAndMetadata instanceof IngestSourceAndMetadata ingestSourceAndMetadata) {
-            return new Tuple<>(new HashMap<>(ingestSourceAndMetadata.source), new HashMap<>(ingestSourceAndMetadata.metadata.getMap()));
-        }
-        Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
-        Map<String, Object> source = new HashMap<>(sourceAndMetadata);
-        for (IngestDocument.Metadata ingestDocumentMetadata : IngestDocument.Metadata.values()) {
-            String metadataName = ingestDocumentMetadata.getFieldName();
-            if (sourceAndMetadata.containsKey(metadataName)) {
-                metadata.put(metadataName, source.remove(metadataName));
-            }
-        }
-        return new Tuple<>(source, metadata);
-    }
-
-    /**
-     * Fetch the timestamp from the ingestMetadata, if it exists
-     * @return the timestamp for the document or null
-     */
-    public static ZonedDateTime getTimestamp(Map<String, Object> ingestMetadata) {
-        if (ingestMetadata == null) {
-            return null;
-        }
-        Object ts = ingestMetadata.get(IngestDocument.TIMESTAMP);
-        if (ts instanceof ZonedDateTime timestamp) {
-            return timestamp;
-        } else if (ts instanceof String str) {
-            return ZonedDateTime.parse(str);
-        }
-        return null;
     }
 
     /**
@@ -328,10 +264,10 @@ class IngestSourceAndMetadata extends AbstractMap<String, Object> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if ((o instanceof CtxMap) == false) return false;
         if (super.equals(o) == false) return false;
-        IngestSourceAndMetadata that = (IngestSourceAndMetadata) o;
-        return Objects.equals(source, that.source) && Objects.equals(metadata, that.metadata);
+        CtxMap ctxMap = (CtxMap) o;
+        return source.equals(ctxMap.source) && metadata.equals(ctxMap.metadata);
     }
 
     @Override

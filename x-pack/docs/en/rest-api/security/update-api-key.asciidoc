@@ -114,6 +114,9 @@ For example:
   "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 --------------------------------------------------
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
 For the examples below, assume that the authenticated user's permissions are:
 
@@ -157,7 +160,8 @@ PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
   }
 }
 ----
-// TEST[skip:tests in subsequent PR]
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.id}/]
+// TEST[continued]
 
 A successful call returns a JSON structure indicating that the API key was updated:
 
@@ -192,7 +196,8 @@ PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
   "role_descriptors": {}
 }
 ----
-// TEST[skip:tests in subsequent PR]
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.id}/]
+// TEST[continued]
 
 Which returns the response:
 
@@ -241,7 +246,8 @@ The following request re-applies the user's updated permissions to the API key:
 ----
 PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
 ----
-// TEST[skip:tests in subsequent PR]
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.id}/]
+// TEST[continued]
 
 Which returns the response:
 
@@ -251,7 +257,6 @@ Which returns the response:
   "updated": true
 }
 ----
-// TEST[skip:tests in subsequent PR]
 
 Resulting in the following permissions for API key:
 

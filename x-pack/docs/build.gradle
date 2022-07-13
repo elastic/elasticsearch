@@ -65,6 +65,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
 
   user username: 'test_admin'
+  user username: 'test_user'
 }
 
 tasks.named("buildRestTests").configure { buildRestTests ->

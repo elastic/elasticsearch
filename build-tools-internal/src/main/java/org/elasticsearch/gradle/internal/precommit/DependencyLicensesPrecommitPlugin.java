@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -18,7 +17,7 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.TaskProvider;
 
-public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {

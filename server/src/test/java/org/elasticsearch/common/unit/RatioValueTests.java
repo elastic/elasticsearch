@@ -43,6 +43,17 @@ public class RatioValueTests extends ESTestCase {
         testInvalidRatio("1/2");
     }
 
+    public void testToStringNoTrailingZeros() {
+        assertThat(RatioValue.formatNoTrailingZerosPercent(100.0), is("100%"));
+        assertThat(RatioValue.formatNoTrailingZerosPercent(.000000), is("0%"));
+        assertThat(RatioValue.formatNoTrailingZerosPercent(0.000000), is("0%"));
+        assertThat(RatioValue.formatNoTrailingZerosPercent(-0), is("0%"));
+        assertThat(RatioValue.formatNoTrailingZerosPercent(0), is("0%"));
+        assertThat(RatioValue.formatNoTrailingZerosPercent(15.1), is("15.1%"));
+        assertThat(RatioValue.formatNoTrailingZerosPercent(0.1000000), is("0.1%"));
+        assertThat(RatioValue.formatNoTrailingZerosPercent(1.1234567890), is("1.123456789%"));
+    }
+
     public void testInvalidRatio(String r) {
         try {
             RatioValue.parseRatioValue(r);

@@ -1858,6 +1858,13 @@ connections allowed per endpoint.
 Defaults to `200`.
 // end::oidc-http-max-endpoint-connections-tag[]
 
+// tag::oidc-http-tcp-keepalive-tag[]
+`http.tcp.keep_alive` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Whether to enable TCP keepalives on HTTP connections used for back-channel communication
+to the OpenID Connect Provider endpoints. Defaults to `true`.
+// end::oidc-http-tcp-keepalive-tag[]
+
 // tag::oidc-http-connection-pool-ttl-tag[]
 `http.connection_pool_ttl` {ess-icon}::
 (<<static-cluster-setting,Static>>)

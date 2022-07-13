@@ -820,6 +820,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
     public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+        protected static final Op INITIAL_OPERATION = Op.INDEX;
 
         private final WorkerBulkByScrollTaskState taskWorker;
         protected final ScriptService scriptService;
@@ -839,71 +840,46 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public RequestWrapper<?> apply(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
             if (script == null) {
                 return request;
             }
-
-            Map<String, Object> context = new HashMap<>();
-            context.put(IndexFieldMapper.NAME, doc.getIndex());
-            context.put(IdFieldMapper.NAME, doc.getId());
-            Long oldVersion = doc.getVersion();
-            context.put(VersionFieldMapper.NAME, oldVersion);
-            String oldRouting = doc.getRouting();
-            context.put(RoutingFieldMapper.NAME, oldRouting);
-            context.put(SourceFieldMapper.NAME, request.getSource());
-
-            OpType oldOpType = OpType.INDEX;
-            context.put("op", oldOpType.toString());
-
-            execute(context);
-
-            String newOp = (String) context.remove("op");
-            if (newOp == null) {
-                throw new IllegalArgumentException("Script cleared operation type");
-            }
+            BulkMetadata metadata = execute(doc, request.getSource());
 
             /*
              * It'd be lovely to only set the source if we know its been modified
              * but it isn't worth keeping two copies of it around just to check!
              */
-            request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
+            request.setSource(metadata.getSource());
 
-            Object newValue = context.remove(IndexFieldMapper.NAME);
-            if (false == doc.getIndex().equals(newValue)) {
-                scriptChangedIndex(request, newValue);
+            if (metadata.indexChanged()) {
+                scriptChangedIndex(request, metadata.getIndex());
             }
-            newValue = context.remove(IdFieldMapper.NAME);
-            if (false == doc.getId().equals(newValue)) {
-                scriptChangedId(request, newValue);
+
+            if (metadata.idChanged()) {
+                scriptChangedId(request, metadata.getId());
             }
-            newValue = context.remove(VersionFieldMapper.NAME);
-            if (false == Objects.equals(oldVersion, newValue)) {
-                scriptChangedVersion(request, newValue);
+
+            if (metadata.versionChanged()) {
+                scriptChangedVersion(request, metadata::getVersion);
             }
             /*
              * Its important that routing comes after parent in case you want to
              * change them both.
              */
-            newValue = context.remove(RoutingFieldMapper.NAME);
-            if (false == Objects.equals(oldRouting, newValue)) {
-                scriptChangedRouting(request, newValue);
+            if (metadata.routingChanged()) {
+                scriptChangedRouting(request, metadata.getRouting());
             }
 
-            OpType newOpType = OpType.fromString(newOp);
-            if (newOpType != oldOpType) {
-                return scriptChangedOpType(request, oldOpType, newOpType);
+            if (metadata.opChanged()) {
+                return scriptChangedOpType(request, metadata.getOp());
             }
 
-            if (false == context.isEmpty()) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
-            }
             return request;
         }
 
-        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
-            switch (newOpType) {
+        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, Op op) {
+            switch (op) {
                 case NOOP -> {
                     taskWorker.countNoop();
                     return null;
@@ -921,15 +897,15 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
         }
 
-        protected abstract void scriptChangedIndex(RequestWrapper<?> request, Object to);
+        protected abstract void scriptChangedIndex(RequestWrapper<?> request, String to);
 
-        protected abstract void scriptChangedId(RequestWrapper<?> request, Object to);
+        protected abstract void scriptChangedId(RequestWrapper<?> request, String to);
 
-        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Object to);
+        protected abstract void scriptChangedVersion(RequestWrapper<?> request, String to);
 
-        protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
+        protected abstract void scriptChangedRouting(RequestWrapper<?> request, String to);
 
-        protected abstract void execute(Map<String, Object> ctx);
+        protected abstract BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
     }
 
     public enum OpType {

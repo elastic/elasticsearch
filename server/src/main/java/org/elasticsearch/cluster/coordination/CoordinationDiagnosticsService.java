@@ -412,9 +412,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     /**
-     * This method checks whether each master eligible node has discovered each of the other master eligible nodes. If any node in
-     * nodeToClusterFormationStateMap to discover any other node in masterEligibleNodes, then this method returns true. If no discovery
-     * problems are detected, this method returns false.
+     * This method checks whether each master eligible node has discovered each of the other master eligible nodes. For the sake of this
+     * method, a discovery problem is when the foundPeers of any ClusterFormationState on any node we have that information for does not
+     * contain all of the nodes in the local coordinator.getFoundPeers().
      * @param masterEligibleNodes The collection of all master eligible nodes
      * @param nodeToClusterFormationStateMap A map of each master node to its ClusterFormationState
      * @return true if there are discovery problems, false otherwise
@@ -455,7 +455,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     /**
      * This method checks that each master eligible node in the quorum thinks that it can form a quorum. If there are nodes that report a
-     * problem forming a quorum, this method returns true
+     * problem forming a quorum, this method returns true. This method determines whether a node thinks that a quorum can be formed by
+     * checking the value of that node's ClusterFormationState.hasDiscoveredQuorum field.
      * @param nodeToClusterFormationStateMap A map of each master node to its ClusterFormationState
      * @return True if any nodes in nodeToClusterFormationStateMap report a problem forming a quorum, false otherwise.
      */

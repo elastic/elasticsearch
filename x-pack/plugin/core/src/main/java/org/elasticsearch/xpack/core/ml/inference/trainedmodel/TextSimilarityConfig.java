@@ -25,30 +25,31 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Sequence similarity configuration
+ * Text similarity configuration for running a cross-encoder transformer model with the given text and some number of documents
+ * containing another text field.
  */
-public class SequenceSimilarityConfig implements NlpConfig {
+public class TextSimilarityConfig implements NlpConfig {
 
-    public static final String NAME = "sequence_similarity";
-    public static final ParseField SEQUENCE = new ParseField("sequence");
+    public static final String NAME = "text_similarity";
+    public static final ParseField TEXT = new ParseField("text");
     public static final ParseField SPAN_SCORE_COMBINATION_FUNCTION = new ParseField("span_score_combination_function");
 
-    public static SequenceSimilarityConfig fromXContentStrict(XContentParser parser) {
+    public static TextSimilarityConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }
 
-    public static SequenceSimilarityConfig fromXContentLenient(XContentParser parser) {
+    public static TextSimilarityConfig fromXContentLenient(XContentParser parser) {
         return LENIENT_PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<SequenceSimilarityConfig, Void> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<SequenceSimilarityConfig, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<TextSimilarityConfig, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<TextSimilarityConfig, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<SequenceSimilarityConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<SequenceSimilarityConfig, Void> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<TextSimilarityConfig, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<TextSimilarityConfig, Void> parser = new ConstructingObjectParser<>(
             NAME,
             ignoreUnknownFields,
-            a -> new SequenceSimilarityConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2], (String) a[3])
+            a -> new TextSimilarityConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2], (String) a[3])
         );
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (ignoreUnknownFields == false) {
@@ -72,10 +73,10 @@ public class SequenceSimilarityConfig implements NlpConfig {
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
     private final String resultsField;
-    private final String sequence;
+    private final String text;
     private final SpanScoreFunction spanScoreFunction;
 
-    public SequenceSimilarityConfig(
+    public TextSimilarityConfig(
         @Nullable VocabularyConfig vocabularyConfig,
         @Nullable Tokenization tokenization,
         @Nullable String resultsField,
@@ -85,29 +86,29 @@ public class SequenceSimilarityConfig implements NlpConfig {
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.resultsField = resultsField;
-        this.sequence = null;
+        this.text = null;
         this.spanScoreFunction = Optional.ofNullable(spanScoreFunction).map(SpanScoreFunction::fromString).orElse(SpanScoreFunction.MAX);
     }
 
-    public SequenceSimilarityConfig(
-        String sequence,
+    public TextSimilarityConfig(
+        String text,
         VocabularyConfig vocabularyConfig,
         Tokenization tokenization,
         String resultsField,
         SpanScoreFunction spanScoreFunction
     ) {
-        this.sequence = ExceptionsHelper.requireNonNull(sequence, SEQUENCE);
+        this.text = ExceptionsHelper.requireNonNull(text, TEXT);
         this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
         this.tokenization = ExceptionsHelper.requireNonNull(tokenization, TOKENIZATION);
         this.resultsField = resultsField;
         this.spanScoreFunction = spanScoreFunction;
     }
 
-    public SequenceSimilarityConfig(StreamInput in) throws IOException {
+    public TextSimilarityConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
-        sequence = in.readOptionalString();
+        text = in.readOptionalString();
         spanScoreFunction = in.readEnum(SpanScoreFunction.class);
     }
 
@@ -116,7 +117,7 @@ public class SequenceSimilarityConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeOptionalString(resultsField);
-        out.writeOptionalString(sequence);
+        out.writeOptionalString(text);
         out.writeEnum(spanScoreFunction);
     }
 
@@ -128,8 +129,8 @@ public class SequenceSimilarityConfig implements NlpConfig {
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
-        if (sequence != null) {
-            builder.field(SEQUENCE.getPreferredName(), sequence);
+        if (text != null) {
+            builder.field(TEXT.getPreferredName(), text);
         }
         builder.field(SPAN_SCORE_COMBINATION_FUNCTION.getPreferredName(), spanScoreFunction.toString());
         builder.endObject();
@@ -161,17 +162,17 @@ public class SequenceSimilarityConfig implements NlpConfig {
         if (o == this) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SequenceSimilarityConfig that = (SequenceSimilarityConfig) o;
+        TextSimilarityConfig that = (TextSimilarityConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
-            && Objects.equals(sequence, that.sequence)
+            && Objects.equals(text, that.text)
             && Objects.equals(spanScoreFunction, that.spanScoreFunction)
             && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization, resultsField, sequence, spanScoreFunction);
+        return Objects.hash(vocabularyConfig, tokenization, resultsField, text, spanScoreFunction);
     }
 
     @Override
@@ -184,8 +185,8 @@ public class SequenceSimilarityConfig implements NlpConfig {
         return tokenization;
     }
 
-    public String getSequence() {
-        return sequence;
+    public String getText() {
+        return text;
     }
 
     public SpanScoreFunction getSpanScoreFunction() {

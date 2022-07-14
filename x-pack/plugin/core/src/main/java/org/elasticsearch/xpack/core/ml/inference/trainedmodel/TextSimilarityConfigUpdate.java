@@ -25,36 +25,36 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig.SEQUENCE;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig.SPAN_SCORE_COMBINATION_FUNCTION;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig.SPAN_SCORE_COMBINATION_FUNCTION;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig.TEXT;
 
-public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements NamedXContentObject {
+public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements NamedXContentObject {
 
-    public static final String NAME = "sequence_similarity";
+    public static final String NAME = "text_similarity";
 
-    public static SequenceSimilarityConfigUpdate fromXContentStrict(XContentParser parser) {
+    public static TextSimilarityConfigUpdate fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null).build();
     }
 
-    public static SequenceSimilarityConfigUpdate fromMap(Map<String, Object> map) {
+    public static TextSimilarityConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
         String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
-        String question = (String) options.remove(SEQUENCE.getPreferredName());
+        String text = (String) options.remove(TEXT.getPreferredName());
         String spanScoreFunction = (String) options.remove(SPAN_SCORE_COMBINATION_FUNCTION.getPreferredName());
         TokenizationUpdate tokenizationUpdate = NlpConfigUpdate.tokenizationFromMap(options);
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
         }
-        return new SequenceSimilarityConfigUpdate(question, resultsField, tokenizationUpdate, spanScoreFunction);
+        return new TextSimilarityConfigUpdate(text, resultsField, tokenizationUpdate, spanScoreFunction);
     }
 
-    private static final ObjectParser<SequenceSimilarityConfigUpdate.Builder, Void> STRICT_PARSER = new ObjectParser<>(
+    private static final ObjectParser<TextSimilarityConfigUpdate.Builder, Void> STRICT_PARSER = new ObjectParser<>(
         NAME,
-        SequenceSimilarityConfigUpdate.Builder::new
+        TextSimilarityConfigUpdate.Builder::new
     );
 
     static {
-        STRICT_PARSER.declareString(Builder::setSequence, SEQUENCE);
+        STRICT_PARSER.declareString(Builder::setText, TEXT);
         STRICT_PARSER.declareString(Builder::setResultsField, RESULTS_FIELD);
         STRICT_PARSER.declareString(Builder::setSpanScoreFunction, SPAN_SCORE_COMBINATION_FUNCTION);
         STRICT_PARSER.declareNamedObject(
@@ -64,35 +64,35 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
         );
     }
 
-    private final String sequence;
+    private final String text;
     private final String resultsField;
-    private final SequenceSimilarityConfig.SpanScoreFunction spanScoreFunction;
+    private final TextSimilarityConfig.SpanScoreFunction spanScoreFunction;
 
-    public SequenceSimilarityConfigUpdate(
+    public TextSimilarityConfigUpdate(
         String question,
         @Nullable String resultsField,
         @Nullable TokenizationUpdate tokenizationUpdate,
         @Nullable String spanScoreFunction
     ) {
         super(tokenizationUpdate);
-        this.sequence = ExceptionsHelper.requireNonNull(question, SEQUENCE);
+        this.text = ExceptionsHelper.requireNonNull(question, TEXT);
         this.resultsField = resultsField;
         this.spanScoreFunction = Optional.ofNullable(spanScoreFunction)
-            .map(SequenceSimilarityConfig.SpanScoreFunction::fromString)
+            .map(TextSimilarityConfig.SpanScoreFunction::fromString)
             .orElse(null);
     }
 
-    public SequenceSimilarityConfigUpdate(StreamInput in) throws IOException {
+    public TextSimilarityConfigUpdate(StreamInput in) throws IOException {
         super(in);
-        sequence = in.readString();
+        text = in.readString();
         resultsField = in.readOptionalString();
-        spanScoreFunction = in.readOptionalEnum(SequenceSimilarityConfig.SpanScoreFunction.class);
+        spanScoreFunction = in.readOptionalEnum(TextSimilarityConfig.SpanScoreFunction.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(sequence);
+        out.writeString(text);
         out.writeOptionalString(resultsField);
         out.writeOptionalEnum(spanScoreFunction);
     }
@@ -105,7 +105,7 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
         if (spanScoreFunction != null) {
             builder.field(SPAN_SCORE_COMBINATION_FUNCTION.getPreferredName(), spanScoreFunction);
         }
-        builder.field(SEQUENCE.getPreferredName(), sequence);
+        builder.field(TEXT.getPreferredName(), text);
         return builder;
     }
 
@@ -116,7 +116,7 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
 
     @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof SequenceSimilarityConfig == false) {
+        if (originalConfig instanceof TextSimilarityConfig == false) {
             throw ExceptionsHelper.badRequestException(
                 "Inference config of type [{}] can not be updated with a inference request of type [{}]",
                 originalConfig.getName(),
@@ -124,21 +124,21 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
             );
         }
 
-        SequenceSimilarityConfig sequenceSimilarityConfig = (SequenceSimilarityConfig) originalConfig;
-        return new SequenceSimilarityConfig(
-            sequence,
-            sequenceSimilarityConfig.getVocabularyConfig(),
+        TextSimilarityConfig textSimilarityConfig = (TextSimilarityConfig) originalConfig;
+        return new TextSimilarityConfig(
+            text,
+            textSimilarityConfig.getVocabularyConfig(),
             tokenizationUpdate == null
-                ? sequenceSimilarityConfig.getTokenization()
-                : tokenizationUpdate.apply(sequenceSimilarityConfig.getTokenization()),
-            Optional.ofNullable(resultsField).orElse(sequenceSimilarityConfig.getResultsField()),
-            Optional.ofNullable(spanScoreFunction).orElse(sequenceSimilarityConfig.getSpanScoreFunction())
+                ? textSimilarityConfig.getTokenization()
+                : tokenizationUpdate.apply(textSimilarityConfig.getTokenization()),
+            Optional.ofNullable(resultsField).orElse(textSimilarityConfig.getResultsField()),
+            Optional.ofNullable(spanScoreFunction).orElse(textSimilarityConfig.getSpanScoreFunction())
         );
     }
 
     @Override
     public boolean isSupported(InferenceConfig config) {
-        return config instanceof SequenceSimilarityConfig;
+        return config instanceof TextSimilarityConfig;
     }
 
     @Override
@@ -148,7 +148,7 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder().setSequence(sequence).setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
+        return new Builder().setText(text).setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override
@@ -161,31 +161,29 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
         if (o == this) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SequenceSimilarityConfigUpdate that = (SequenceSimilarityConfigUpdate) o;
-        return Objects.equals(sequence, that.sequence)
+        TextSimilarityConfigUpdate that = (TextSimilarityConfigUpdate) o;
+        return Objects.equals(text, that.text)
             && Objects.equals(resultsField, that.resultsField)
             && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resultsField, tokenizationUpdate, sequence);
+        return Objects.hash(resultsField, tokenizationUpdate, text);
     }
 
-    public String getSequence() {
-        return sequence;
+    public String getText() {
+        return text;
     }
 
-    public static class Builder
-        implements
-            InferenceConfigUpdate.Builder<SequenceSimilarityConfigUpdate.Builder, SequenceSimilarityConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<TextSimilarityConfigUpdate.Builder, TextSimilarityConfigUpdate> {
         private String resultsField;
         private String spanScoreFunction;
         private TokenizationUpdate tokenizationUpdate;
-        private String sequence;
+        private String text;
 
         @Override
-        public SequenceSimilarityConfigUpdate.Builder setResultsField(String resultsField) {
+        public TextSimilarityConfigUpdate.Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
         }
@@ -195,8 +193,8 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
             return this;
         }
 
-        public Builder setSequence(String sequence) {
-            this.sequence = sequence;
+        public Builder setText(String text) {
+            this.text = text;
             return this;
         }
 
@@ -206,8 +204,8 @@ public class SequenceSimilarityConfigUpdate extends NlpConfigUpdate implements N
         }
 
         @Override
-        public SequenceSimilarityConfigUpdate build() {
-            return new SequenceSimilarityConfigUpdate(sequence, resultsField, tokenizationUpdate, spanScoreFunction);
+        public TextSimilarityConfigUpdate build() {
+            return new TextSimilarityConfigUpdate(text, resultsField, tokenizationUpdate, spanScoreFunction);
         }
     }
 

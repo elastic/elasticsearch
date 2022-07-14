@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInfere
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SequenceSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationUpdate;
@@ -56,8 +56,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUp
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenizationUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
@@ -65,6 +63,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -388,15 +388,15 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 StrictlyParsedInferenceConfig.class,
-                new ParseField(SequenceSimilarityConfig.NAME),
-                SequenceSimilarityConfig::fromXContentStrict
+                new ParseField(TextSimilarityConfig.NAME),
+                TextSimilarityConfig::fromXContentStrict
             )
         );
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 LenientlyParsedInferenceConfig.class,
-                new ParseField(SequenceSimilarityConfig.NAME),
-                SequenceSimilarityConfig::fromXContentLenient
+                new ParseField(TextSimilarityConfig.NAME),
+                TextSimilarityConfig::fromXContentLenient
             )
         );
 
@@ -467,8 +467,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 InferenceConfigUpdate.class,
-                new ParseField(SequenceSimilarityConfigUpdate.NAME),
-                SequenceSimilarityConfigUpdate::fromXContentStrict
+                new ParseField(TextSimilarityConfigUpdate.NAME),
+                TextSimilarityConfigUpdate::fromXContentStrict
             )
         );
 
@@ -606,8 +606,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceResults.class,
-                SequenceSimilarityInferenceResults.NAME,
-                SequenceSimilarityInferenceResults::new
+                TextSimilarityInferenceResults.NAME,
+                TextSimilarityInferenceResults::new
             )
         );
         // Inference Configs
@@ -630,9 +630,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, QuestionAnsweringConfig.NAME, QuestionAnsweringConfig::new)
         );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceConfig.class, SequenceSimilarityConfig.NAME, SequenceSimilarityConfig::new)
-        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, TextSimilarityConfig.NAME, TextSimilarityConfig::new));
 
         // Inference Configs Updates
         namedWriteables.add(
@@ -685,11 +683,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceConfigUpdate.class,
-                SequenceSimilarityConfigUpdate.NAME,
-                SequenceSimilarityConfigUpdate::new
-            )
+            new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TextSimilarityConfigUpdate.NAME, TextSimilarityConfigUpdate::new)
         );
 
         // Location

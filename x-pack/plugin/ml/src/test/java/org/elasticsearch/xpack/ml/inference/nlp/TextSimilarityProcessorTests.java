@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.results.SequenceSimilarityInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizationResult;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SequenceSimilarityProcessorTests extends ESTestCase {
+public class TextSimilarityProcessorTests extends ESTestCase {
 
     // The data here is nonsensical. We just want to make sure tokens chosen match up with our scores
     public void testProcessor() throws IOException {
@@ -34,15 +34,15 @@ public class SequenceSimilarityProcessorTests extends ESTestCase {
         String input = "Pancake day is fun with Elasticsearch and little red car";
         BertTokenization tokenization = new BertTokenization(false, true, 384, Tokenization.Truncate.NONE, 128);
         BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, tokenization).build();
-        SequenceSimilarityConfig sequenceSimilarityConfig = new SequenceSimilarityConfig(
+        TextSimilarityConfig textSimilarityConfig = new TextSimilarityConfig(
             question,
             new VocabularyConfig(""),
             tokenization,
             "result",
-            SequenceSimilarityConfig.SpanScoreFunction.MAX
+            TextSimilarityConfig.SpanScoreFunction.MAX
         );
-        SequenceSimilarityProcessor processor = new SequenceSimilarityProcessor(tokenizer, sequenceSimilarityConfig);
-        TokenizationResult tokenizationResult = processor.getRequestBuilder(sequenceSimilarityConfig)
+        TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer, textSimilarityConfig);
+        TokenizationResult tokenizationResult = processor.getRequestBuilder(textSimilarityConfig)
             .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128)
             .tokenization();
         assertThat(tokenizationResult.anyTruncated(), is(false));
@@ -50,9 +50,9 @@ public class SequenceSimilarityProcessorTests extends ESTestCase {
         // tokenized question length with cls and sep token
         assertThat(tokenizationResult.getTokenization(0).seqPairOffset(), equalTo(7));
         double[][][] scores = { { { 42 } } };
-        NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(sequenceSimilarityConfig);
+        NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(textSimilarityConfig);
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, null);
-        SequenceSimilarityInferenceResults result = (SequenceSimilarityInferenceResults) resultProcessor.processResult(
+        TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             tokenizationResult,
             pyTorchResult
         );
@@ -64,33 +64,33 @@ public class SequenceSimilarityProcessorTests extends ESTestCase {
     public void testResultFunctions() {
         BertTokenization tokenization = new BertTokenization(false, true, 384, Tokenization.Truncate.NONE, 128);
         BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, tokenization).build();
-        SequenceSimilarityConfig sequenceSimilarityConfig = new SequenceSimilarityConfig(
+        TextSimilarityConfig textSimilarityConfig = new TextSimilarityConfig(
             randomAlphaOfLength(10),
             new VocabularyConfig(""),
             tokenization,
             "result",
-            SequenceSimilarityConfig.SpanScoreFunction.MAX
+            TextSimilarityConfig.SpanScoreFunction.MAX
         );
-        SequenceSimilarityProcessor processor = new SequenceSimilarityProcessor(tokenizer, sequenceSimilarityConfig);
-        NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(sequenceSimilarityConfig);
+        TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer, textSimilarityConfig);
+        NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(textSimilarityConfig);
         double[][][] scores = { { { 42 }, { 12 }, { 100 } } };
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, null);
-        SequenceSimilarityInferenceResults result = (SequenceSimilarityInferenceResults) resultProcessor.processResult(
+        TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             new BertTokenizationResult(List.of(), List.of(), 1),
             pyTorchResult
         );
         assertThat(result.predictedValue(), equalTo(100.0));
         // Test mean
-        sequenceSimilarityConfig = new SequenceSimilarityConfig(
+        textSimilarityConfig = new TextSimilarityConfig(
             randomAlphaOfLength(10),
             new VocabularyConfig(""),
             tokenization,
             "result",
-            SequenceSimilarityConfig.SpanScoreFunction.MEAN
+            TextSimilarityConfig.SpanScoreFunction.MEAN
         );
-        processor = new SequenceSimilarityProcessor(tokenizer, sequenceSimilarityConfig);
-        resultProcessor = processor.getResultProcessor(sequenceSimilarityConfig);
-        result = (SequenceSimilarityInferenceResults) resultProcessor.processResult(
+        processor = new TextSimilarityProcessor(tokenizer, textSimilarityConfig);
+        resultProcessor = processor.getResultProcessor(textSimilarityConfig);
+        result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             new BertTokenizationResult(List.of(), List.of(), 1),
             pyTorchResult
         );

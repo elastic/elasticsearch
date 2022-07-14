@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
-public class SequenceSimilarityConfigTests extends InferenceConfigItemTestCase<SequenceSimilarityConfig> {
+public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextSimilarityConfig> {
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -29,27 +29,27 @@ public class SequenceSimilarityConfigTests extends InferenceConfigItemTestCase<S
     }
 
     @Override
-    protected SequenceSimilarityConfig doParseInstance(XContentParser parser) throws IOException {
-        return SequenceSimilarityConfig.fromXContentLenient(parser);
+    protected TextSimilarityConfig doParseInstance(XContentParser parser) throws IOException {
+        return TextSimilarityConfig.fromXContentLenient(parser);
     }
 
     @Override
-    protected Writeable.Reader<SequenceSimilarityConfig> instanceReader() {
-        return SequenceSimilarityConfig::new;
+    protected Writeable.Reader<TextSimilarityConfig> instanceReader() {
+        return TextSimilarityConfig::new;
     }
 
     @Override
-    protected SequenceSimilarityConfig createTestInstance() {
+    protected TextSimilarityConfig createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected SequenceSimilarityConfig mutateInstanceForVersion(SequenceSimilarityConfig instance, Version version) {
+    protected TextSimilarityConfig mutateInstanceForVersion(TextSimilarityConfig instance, Version version) {
         return instance;
     }
 
-    public static SequenceSimilarityConfig createRandom() {
-        return new SequenceSimilarityConfig(
+    public static TextSimilarityConfig createRandom() {
+        return new TextSimilarityConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean()
                 ? null
@@ -62,8 +62,8 @@ public class SequenceSimilarityConfigTests extends InferenceConfigItemTestCase<S
             randomBoolean()
                 ? null
                 : randomFrom(
-                    Arrays.stream(SequenceSimilarityConfig.SpanScoreFunction.values())
-                        .map(SequenceSimilarityConfig.SpanScoreFunction::toString)
+                    Arrays.stream(TextSimilarityConfig.SpanScoreFunction.values())
+                        .map(TextSimilarityConfig.SpanScoreFunction::toString)
                         .toArray(String[]::new)
                 )
         );

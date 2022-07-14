@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 
@@ -64,10 +64,10 @@ public enum TaskType {
             return new QuestionAnsweringProcessor(tokenizer, (QuestionAnsweringConfig) config);
         }
     },
-    SEQUENCE_SIMILARITY {
+    TEXT_SIMILARITY {
         @Override
         public NlpTask.Processor createProcessor(NlpTokenizer tokenizer, NlpConfig config) {
-            return new SequenceSimilarityProcessor(tokenizer, (SequenceSimilarityConfig) config);
+            return new TextSimilarityProcessor(tokenizer, (TextSimilarityConfig) config);
         }
     };
 

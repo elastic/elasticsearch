@@ -22,29 +22,29 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig.SEQUENCE;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig.TEXT;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<SequenceSimilarityConfigUpdate> {
+public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextSimilarityConfigUpdate> {
 
-    public static SequenceSimilarityConfigUpdate randomUpdate() {
-        return new SequenceSimilarityConfigUpdate(
+    public static TextSimilarityConfigUpdate randomUpdate() {
+        return new TextSimilarityConfigUpdate(
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(5),
             randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null),
             randomBoolean()
                 ? null
                 : randomFrom(
-                    Arrays.stream(SequenceSimilarityConfig.SpanScoreFunction.values())
-                        .map(SequenceSimilarityConfig.SpanScoreFunction::toString)
+                    Arrays.stream(TextSimilarityConfig.SpanScoreFunction.values())
+                        .map(TextSimilarityConfig.SpanScoreFunction::toString)
                         .toArray(String[]::new)
                 )
         );
     }
 
-    public static SequenceSimilarityConfigUpdate mutateForVersion(SequenceSimilarityConfigUpdate instance, Version version) {
+    public static TextSimilarityConfigUpdate mutateForVersion(TextSimilarityConfigUpdate instance, Version version) {
         if (version.before(Version.V_8_1_0)) {
-            return new SequenceSimilarityConfigUpdate(instance.getSequence(), instance.getResultsField(), null, null);
+            return new TextSimilarityConfigUpdate(instance.getText(), instance.getResultsField(), null, null);
         }
         return instance;
     }
@@ -55,33 +55,33 @@ public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdate
     }
 
     @Override
-    protected SequenceSimilarityConfigUpdate doParseInstance(XContentParser parser) throws IOException {
-        return SequenceSimilarityConfigUpdate.fromXContentStrict(parser);
+    protected TextSimilarityConfigUpdate doParseInstance(XContentParser parser) throws IOException {
+        return TextSimilarityConfigUpdate.fromXContentStrict(parser);
     }
 
     @Override
-    protected Writeable.Reader<SequenceSimilarityConfigUpdate> instanceReader() {
-        return SequenceSimilarityConfigUpdate::new;
+    protected Writeable.Reader<TextSimilarityConfigUpdate> instanceReader() {
+        return TextSimilarityConfigUpdate::new;
     }
 
     @Override
-    protected SequenceSimilarityConfigUpdate createTestInstance() {
+    protected TextSimilarityConfigUpdate createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected SequenceSimilarityConfigUpdate mutateInstanceForVersion(SequenceSimilarityConfigUpdate instance, Version version) {
+    protected TextSimilarityConfigUpdate mutateInstanceForVersion(TextSimilarityConfigUpdate instance, Version version) {
         return mutateForVersion(instance, version);
     }
 
     @Override
-    Tuple<Map<String, Object>, SequenceSimilarityConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+    Tuple<Map<String, Object>, TextSimilarityConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
         String func = randomFrom(
-            Arrays.stream(SequenceSimilarityConfig.SpanScoreFunction.values())
-                .map(SequenceSimilarityConfig.SpanScoreFunction::toString)
+            Arrays.stream(TextSimilarityConfig.SpanScoreFunction.values())
+                .map(TextSimilarityConfig.SpanScoreFunction::toString)
                 .toArray(String[]::new)
         );
-        SequenceSimilarityConfigUpdate expected = new SequenceSimilarityConfigUpdate(
+        TextSimilarityConfigUpdate expected = new TextSimilarityConfigUpdate(
             "What is the meaning of life?",
             "ml-results",
             expectedTokenization,
@@ -90,17 +90,17 @@ public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdate
 
         Map<String, Object> config = new HashMap<>() {
             {
-                put(SEQUENCE.getPreferredName(), "What is the meaning of life?");
-                put(SequenceSimilarityConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-                put(SequenceSimilarityConfig.SPAN_SCORE_COMBINATION_FUNCTION.getPreferredName(), func);
+                put(TEXT.getPreferredName(), "What is the meaning of life?");
+                put(TextSimilarityConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
+                put(TextSimilarityConfig.SPAN_SCORE_COMBINATION_FUNCTION.getPreferredName(), func);
             }
         };
         return Tuple.tuple(config, expected);
     }
 
     @Override
-    SequenceSimilarityConfigUpdate fromMap(Map<String, Object> map) {
-        return SequenceSimilarityConfigUpdate.fromMap(map);
+    TextSimilarityConfigUpdate fromMap(Map<String, Object> map) {
+        return TextSimilarityConfigUpdate.fromMap(map);
     }
 
     public void testApply() {
@@ -109,30 +109,30 @@ public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdate
             MPNetTokenizationTests.createRandom(),
             RobertaTokenizationTests.createRandom()
         );
-        SequenceSimilarityConfig originalConfig = new SequenceSimilarityConfig(
+        TextSimilarityConfig originalConfig = new TextSimilarityConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             tokenizationConfig,
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean()
                 ? null
                 : randomFrom(
-                    Arrays.stream(SequenceSimilarityConfig.SpanScoreFunction.values())
-                        .map(SequenceSimilarityConfig.SpanScoreFunction::toString)
+                    Arrays.stream(TextSimilarityConfig.SpanScoreFunction.values())
+                        .map(TextSimilarityConfig.SpanScoreFunction::toString)
                         .toArray(String[]::new)
                 )
         );
         assertThat(
-            new SequenceSimilarityConfig(
+            new TextSimilarityConfig(
                 "Are you my mother?",
                 originalConfig.getVocabularyConfig(),
                 originalConfig.getTokenization(),
                 originalConfig.getResultsField(),
                 originalConfig.getSpanScoreFunction()
             ),
-            equalTo(new SequenceSimilarityConfigUpdate.Builder().setSequence("Are you my mother?").build().apply(originalConfig))
+            equalTo(new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").build().apply(originalConfig))
         );
         assertThat(
-            new SequenceSimilarityConfig(
+            new TextSimilarityConfig(
                 "Are you my mother?",
                 originalConfig.getVocabularyConfig(),
                 originalConfig.getTokenization(),
@@ -140,7 +140,7 @@ public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdate
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new SequenceSimilarityConfigUpdate.Builder().setSequence("Are you my mother?")
+                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
                     .setResultsField("updated-field")
                     .build()
                     .apply(originalConfig)
@@ -150,7 +150,7 @@ public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdate
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
         Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
-            new SequenceSimilarityConfig(
+            new TextSimilarityConfig(
                 "Are you my mother?",
                 originalConfig.getVocabularyConfig(),
                 tokenization,
@@ -158,7 +158,7 @@ public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdate
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new SequenceSimilarityConfigUpdate.Builder().setSequence("Are you my mother?")
+                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
                     .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
                     .build()
                     .apply(originalConfig)
@@ -166,7 +166,7 @@ public class SequenceSimilarityConfigUpdateTests extends AbstractNlpConfigUpdate
         );
     }
 
-    public static SequenceSimilarityConfigUpdate createRandom() {
+    public static TextSimilarityConfigUpdate createRandom() {
         return randomUpdate();
     }
 

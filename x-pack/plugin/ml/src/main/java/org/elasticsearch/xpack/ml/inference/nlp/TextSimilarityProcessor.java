@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SequenceSimilarityInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -25,9 +25,9 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public class SequenceSimilarityProcessor extends NlpTask.Processor {
+public class TextSimilarityProcessor extends NlpTask.Processor {
 
-    SequenceSimilarityProcessor(NlpTokenizer tokenizer, SequenceSimilarityConfig config) {
+    TextSimilarityProcessor(NlpTokenizer tokenizer, TextSimilarityConfig config) {
         super(tokenizer);
     }
 
@@ -38,26 +38,22 @@ public class SequenceSimilarityProcessor extends NlpTask.Processor {
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder(NlpConfig nlpConfig) {
-        if (nlpConfig instanceof SequenceSimilarityConfig sequenceSimilarityConfig) {
-            return new RequestBuilder(tokenizer, sequenceSimilarityConfig.getSequence());
+        if (nlpConfig instanceof TextSimilarityConfig textSimilarityConfig) {
+            return new RequestBuilder(tokenizer, textSimilarityConfig.getText());
         }
         throw ExceptionsHelper.badRequestException(
-            "please provide configuration update for sequence_similarity task including the desired [sequence]"
+            "please provide configuration update for text_similarity task including the desired [text]"
         );
     }
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig nlpConfig) {
-        if (nlpConfig instanceof SequenceSimilarityConfig sequenceSimilarityConfig) {
-            String resultsFieldValue = sequenceSimilarityConfig.getResultsField();
-            return new ResultProcessor(
-                sequenceSimilarityConfig.getSequence(),
-                resultsFieldValue,
-                sequenceSimilarityConfig.getSpanScoreFunction()
-            );
+        if (nlpConfig instanceof TextSimilarityConfig textSimilarityConfig) {
+            String resultsFieldValue = textSimilarityConfig.getResultsField();
+            return new ResultProcessor(textSimilarityConfig.getText(), resultsFieldValue, textSimilarityConfig.getSpanScoreFunction());
         }
         throw ExceptionsHelper.badRequestException(
-            "please provide configuration update for sequence_similarity task including the desired [sequence]"
+            "please provide configuration update for text_similarity task including the desired [text]"
         );
     }
 
@@ -67,7 +63,7 @@ public class SequenceSimilarityProcessor extends NlpTask.Processor {
         public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
             throws IOException {
             if (inputs.size() > 1) {
-                throw ExceptionsHelper.badRequestException("Unable to do sequence_similarity on more than one text input at a time");
+                throw ExceptionsHelper.badRequestException("Unable to do text_similarity on more than one text input at a time");
             }
             String context = inputs.get(0);
             List<TokenizationResult.Tokens> tokenizations = tokenizer.tokenize(sequence, context, truncate, span, 0);
@@ -76,28 +72,28 @@ public class SequenceSimilarityProcessor extends NlpTask.Processor {
         }
     }
 
-    record ResultProcessor(String question, String resultsField, SequenceSimilarityConfig.SpanScoreFunction function)
+    record ResultProcessor(String question, String resultsField, TextSimilarityConfig.SpanScoreFunction function)
         implements
             NlpTask.ResultProcessor {
 
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
             if (pyTorchResult.getInferenceResult().length < 1) {
-                throw new ElasticsearchStatusException("sequence_similarity result has no data", RestStatus.INTERNAL_SERVER_ERROR);
+                throw new ElasticsearchStatusException("text_similarity result has no data", RestStatus.INTERNAL_SERVER_ERROR);
             }
             SpanScoreFunction spanScoreFunction = fromConfig(function);
             for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
                 double[] result = pyTorchResult.getInferenceResult()[0][i];
                 if (result.length != 1) {
                     throw new ElasticsearchStatusException(
-                        "Expected exactly [1] value in sequence_similarity result; got [{}]",
+                        "Expected exactly [1] value in text_similarity result; got [{}]",
                         RestStatus.INTERNAL_SERVER_ERROR,
                         result.length
                     );
                 }
                 spanScoreFunction.accept(result[0]);
             }
-            return new SequenceSimilarityInferenceResults(
+            return new TextSimilarityInferenceResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
                 spanScoreFunction.score(),
                 tokenization.anyTruncated()
@@ -105,7 +101,7 @@ public class SequenceSimilarityProcessor extends NlpTask.Processor {
         }
     }
 
-    static SpanScoreFunction fromConfig(SequenceSimilarityConfig.SpanScoreFunction spanScoreFunction) {
+    static SpanScoreFunction fromConfig(TextSimilarityConfig.SpanScoreFunction spanScoreFunction) {
         return switch (spanScoreFunction) {
             case MAX -> new Max();
             case MEAN -> new Mean();

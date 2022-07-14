@@ -31,10 +31,10 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SequenceSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -80,7 +80,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 FillMaskConfigTests.createRandom(),
                 TextEmbeddingConfigTests.createRandom(),
                 QuestionAnsweringConfigTests.createRandom(),
-                SequenceSimilarityConfigTests.createRandom() }
+                TextSimilarityConfigTests.createRandom() }
             : new InferenceConfig[] {
                 ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig() };

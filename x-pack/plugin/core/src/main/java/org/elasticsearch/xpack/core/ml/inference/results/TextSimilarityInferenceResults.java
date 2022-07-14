@@ -14,20 +14,20 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class SequenceSimilarityInferenceResults extends NlpInferenceResults {
+public class TextSimilarityInferenceResults extends NlpInferenceResults {
 
-    public static final String NAME = "sequence_similarity";
+    public static final String NAME = "text_similarity";
 
     private final String resultsField;
     private final double score;
 
-    public SequenceSimilarityInferenceResults(String resultsField, double score, boolean isTruncated) {
+    public TextSimilarityInferenceResults(String resultsField, double score, boolean isTruncated) {
         super(isTruncated);
         this.resultsField = resultsField;
         this.score = score;
     }
 
-    public SequenceSimilarityInferenceResults(StreamInput in) throws IOException {
+    public TextSimilarityInferenceResults(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readString();
         this.score = in.readDouble();
@@ -44,7 +44,7 @@ public class SequenceSimilarityInferenceResults extends NlpInferenceResults {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        SequenceSimilarityInferenceResults that = (SequenceSimilarityInferenceResults) o;
+        TextSimilarityInferenceResults that = (TextSimilarityInferenceResults) o;
         return Objects.equals(resultsField, that.resultsField) && Objects.equals(score, that.score);
     }
 

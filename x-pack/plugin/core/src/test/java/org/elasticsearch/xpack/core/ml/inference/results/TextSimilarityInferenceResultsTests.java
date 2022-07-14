@@ -11,24 +11,24 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SequenceSimilarityInferenceResultsTests extends InferenceResultsTestCase<SequenceSimilarityInferenceResults> {
+public class TextSimilarityInferenceResultsTests extends InferenceResultsTestCase<TextSimilarityInferenceResults> {
 
-    public static SequenceSimilarityInferenceResults createRandomResults() {
-        return new SequenceSimilarityInferenceResults(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false), randomBoolean());
+    public static TextSimilarityInferenceResults createRandomResults() {
+        return new TextSimilarityInferenceResults(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false), randomBoolean());
     }
 
     @Override
-    protected SequenceSimilarityInferenceResults createTestInstance() {
+    protected TextSimilarityInferenceResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected Writeable.Reader<SequenceSimilarityInferenceResults> instanceReader() {
-        return SequenceSimilarityInferenceResults::new;
+    protected Writeable.Reader<TextSimilarityInferenceResults> instanceReader() {
+        return TextSimilarityInferenceResults::new;
     }
 
     @Override
-    void assertFieldValues(SequenceSimilarityInferenceResults createdInstance, IngestDocument document, String resultsField) {
+    void assertFieldValues(TextSimilarityInferenceResults createdInstance, IngestDocument document, String resultsField) {
         String path = resultsField + "." + createdInstance.getResultsField();
         assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
     }

@@ -23,6 +23,9 @@ setup:
               metricset:
                 type: keyword
                 time_series_dimension: true
+              count:
+                type: integer
+                time_series_metric: counter
               k8s:
                 properties:
                   pod:
@@ -48,21 +51,21 @@ setup:
         index: test
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "count": 1, "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "count": 2, "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "count": 3, "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "count": 4, "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "count": 10, "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "count": 12, "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "count": 14, "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "count": 16, "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
   - do:
       indices.put_settings:
@@ -118,6 +121,60 @@ setup:
   - do:
       indices.get:
         index: test
+
+  - do:
+      search:
+        index: rollup-test
+        body:
+          _source: false
+          sort: [ "_tsid", "@timestamp" ]
+          fields: [ metricset, count, k8s.pod.network.* ]
+
+  - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0.fields.metricset.0: pod }
+  - match: { hits.hits.0.fields.count.0: 2 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.tx.0.min: 2.001818691E9 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.tx.0.max: 2.005177954E9 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.tx.0.sum: 4.006996645E9 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.tx.0.value_count: 2 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.rx.0.min: 8.0147997E8 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.rx.0.max: 8.02133794E8 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.rx.0.sum: 1.603613764E9 }
+  - match: { hits.hits.0.fields.k8s\.pod\.network\.rx.0.value_count: 2 }
+
+  - match: { hits.hits.1.fields.metricset.0: pod }
+  - match: { hits.hits.1.fields.count.0: 4 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.tx.0.min: 2.006223737E9 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.tx.0.max: 2.012916202E9 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.tx.0.sum: 4.019139939E9 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.tx.0.value_count: 2 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.rx.0.min: 8.02337279E8 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.rx.0.max: 8.03685721E8 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.rx.0.sum: 1.606023E9 }
+  - match: { hits.hits.1.fields.k8s\.pod\.network\.rx.0.value_count: 2 }
+
+  - match: { hits.hits.2.fields.metricset.0: pod }
+  - match: { hits.hits.2.fields.count.0: 12 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.tx.0.min: 1.434521831E9 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.tx.0.max: 1.434577921E9 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.tx.0.sum: 2.869099752E9 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.tx.0.value_count: 2 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.rx.0.min: 5.30575198E8 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.rx.0.max: 5.30600088E8 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.rx.0.sum: 1.061175286E9 }
+  - match: { hits.hits.2.fields.k8s\.pod\.network\.rx.0.value_count: 2 }
+
+  - match: { hits.hits.3.fields.metricset.0: pod }
+  - match: { hits.hits.3.fields.count.0: 16 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.tx.0.min: 1.434587694E9 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.tx.0.max: 1.434595272E9 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.tx.0.sum: 2.869182966E9 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.tx.0.value_count: 2 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.rx.0.min: 5.30604797E8 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.rx.0.max: 5.30605511E8 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.rx.0.sum: 1.061210308E9 }
+  - match: { hits.hits.3.fields.k8s\.pod\.network\.rx.0.value_count: 2 }
 
 ---
 "Rollup non-existing index":

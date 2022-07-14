@@ -25,7 +25,7 @@ public abstract class ReindexScript {
     private final Map<String, Object> params;
 
     /** The context map for the script */
-    private final ReindexCtxMap ctxMap;
+    private final BulkCtxMap<ReindexMetadata> ctxMap;
 
     /**
      * Metadata available to the script
@@ -33,7 +33,7 @@ public abstract class ReindexScript {
      * _id, _routing and _version are writable and nullable
      * op must be NOOP, INDEX or DELETE
      */
-    public ReindexScript(Map<String, Object> params, ReindexCtxMap ctxMap) {
+    public ReindexScript(Map<String, Object> params, BulkCtxMap<ReindexMetadata> ctxMap) {
         this.params = params;
         this.ctxMap = ctxMap;
     }
@@ -56,6 +56,6 @@ public abstract class ReindexScript {
     public abstract void execute();
 
     public interface Factory {
-        ReindexScript newInstance(Map<String, Object> params, ReindexCtxMap ctxMap);
+        ReindexScript newInstance(Map<String, Object> params, BulkCtxMap<ReindexMetadata> ctxMap);
     }
 }

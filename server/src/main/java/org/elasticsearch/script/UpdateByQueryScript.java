@@ -25,9 +25,9 @@ public abstract class UpdateByQueryScript {
     private final Map<String, Object> params;
 
     /** The context map for the script */
-    private final UpdateByQueryMap ctxMap;
+    private final BulkCtxMap<UpdateByQueryMetadata> ctxMap;
 
-    public UpdateByQueryScript(Map<String, Object> params, UpdateByQueryMap ctx) {
+    public UpdateByQueryScript(Map<String, Object> params, BulkCtxMap<UpdateByQueryMetadata> ctxMap) {
         this.params = params;
         this.ctxMap = ctxMap;
     }
@@ -50,6 +50,6 @@ public abstract class UpdateByQueryScript {
     public abstract void execute();
 
     public interface Factory {
-        UpdateByQueryScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
+        UpdateByQueryScript newInstance(Map<String, Object> params, BulkCtxMap<UpdateByQueryMetadata> ctx);
     }
 }

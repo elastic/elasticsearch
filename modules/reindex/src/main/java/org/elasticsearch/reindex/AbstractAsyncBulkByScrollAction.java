@@ -30,11 +30,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -42,6 +37,7 @@ import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.script.BulkMetadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
@@ -53,7 +49,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +59,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -819,24 +815,29 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
-    public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
-        protected static final Op INITIAL_OPERATION = Op.INDEX;
+    public abstract static class ScriptApplier<T extends BulkMetadata>
+        implements
+            BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+        protected static final String INDEX = "index";
 
         private final WorkerBulkByScrollTaskState taskWorker;
         protected final ScriptService scriptService;
         protected final Script script;
         protected final Map<String, Object> params;
+        protected final LongSupplier nowInMillisSupplier;
 
         public ScriptApplier(
             WorkerBulkByScrollTaskState taskWorker,
             ScriptService scriptService,
             Script script,
-            Map<String, Object> params
+            Map<String, Object> params,
+            LongSupplier nowInMillisSupplier
         ) {
             this.taskWorker = taskWorker;
             this.scriptService = scriptService;
             this.script = script;
             this.params = params;
+            this.nowInMillisSupplier = nowInMillisSupplier;
         }
 
         @Override
@@ -844,68 +845,37 @@ public abstract class AbstractAsyncBulkByScrollAction<
             if (script == null) {
                 return request;
             }
-            BulkMetadata metadata = execute(doc, request.getSource());
 
-            /*
-             * It'd be lovely to only set the source if we know its been modified
-             * but it isn't worth keeping two copies of it around just to check!
-             */
-            request.setSource(metadata.getSource());
+            T metadata = execute(doc, request.getSource());
 
-            if (metadata.indexChanged()) {
-                scriptChangedIndex(request, metadata.getIndex());
-            }
+            updateRequest(request, metadata);
 
-            if (metadata.idChanged()) {
-                scriptChangedId(request, metadata.getId());
-            }
-
-            if (metadata.versionChanged()) {
-                scriptChangedVersion(request, metadata::getVersion);
-            }
-            /*
-             * Its important that routing comes after parent in case you want to
-             * change them both.
-             */
-            if (metadata.routingChanged()) {
-                scriptChangedRouting(request, metadata.getRouting());
-            }
-
-            if (metadata.opChanged()) {
-                return scriptChangedOpType(request, metadata.getOp());
-            }
-
-            return request;
+            return requestFromOp(request, metadata.getOp());
         }
 
-        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, Op op) {
+        protected RequestWrapper<?> requestFromOp(RequestWrapper<?> request, String op) {
             switch (op) {
-                case NOOP -> {
+                case "noop" -> {
                     taskWorker.countNoop();
                     return null;
                 }
-                case DELETE -> {
+                case "delete" -> {
                     RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
                     delete.setVersion(request.getVersion());
                     delete.setVersionType(VersionType.INTERNAL);
                     delete.setRouting(request.getRouting());
                     return delete;
                 }
-                default -> throw new IllegalArgumentException(
-                    "Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]"
-                );
+                case INDEX -> {
+                    return request;
+                }
+                default -> throw new IllegalArgumentException("Unsupported operation type change from [" + INDEX + "] to [" + op + "]");
             }
         }
 
-        protected abstract void scriptChangedIndex(RequestWrapper<?> request, String to);
+        protected abstract T execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
 
-        protected abstract void scriptChangedId(RequestWrapper<?> request, String to);
-
-        protected abstract void scriptChangedVersion(RequestWrapper<?> request, String to);
-
-        protected abstract void scriptChangedRouting(RequestWrapper<?> request, String to);
-
-        protected abstract BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
+        protected void updateRequest(RequestWrapper<?> request, T metadata) {}
     }
 
     public enum OpType {

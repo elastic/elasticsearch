@@ -273,10 +273,12 @@ public class InboundHandler {
                         }
                         final String executor = reg.getExecutor();
                         if (ThreadPool.Names.SAME.equals(executor)) {
-                            try {
-                                reg.processMessageReceived(request, transportChannel);
-                            } catch (Exception e) {
-                                sendErrorResponse(reg.getAction(), transportChannel, e);
+                            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                                try {
+                                    reg.processMessageReceived(request, transportChannel);
+                                } catch (Exception e) {
+                                    sendErrorResponse(reg.getAction(), transportChannel, e);
+                                }
                             }
                         } else {
                             boolean success = false;
@@ -284,8 +286,18 @@ public class InboundHandler {
                             try {
                                 threadPool.executor(executor).execute(new AbstractRunnable() {
                                     @Override
-                                    protected void doRun() throws Exception {
-                                        reg.processMessageReceived(request, transportChannel);
+                                    protected void doRun() {
+                                        // This is a hack - `AbstractRunnable#run()` is final, which means we can't
+                                        // override it to wrap the entire execution in its own context
+                                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                                            try {
+                                                reg.processMessageReceived(request, transportChannel);
+                                            } catch (Exception e) {
+                                                sendErrorResponse(reg.getAction(), transportChannel, e);
+                                            } finally {
+                                                request.decRef();
+                                            }
+                                        }
                                     }
 
                                     @Override
@@ -294,14 +306,7 @@ public class InboundHandler {
                                     }
 
                                     @Override
-                                    public void onFailure(Exception e) {
-                                        sendErrorResponse(reg.getAction(), transportChannel, e);
-                                    }
-
-                                    @Override
-                                    public void onAfter() {
-                                        request.decRef();
-                                    }
+                                    public void onFailure(Exception e) {}
                                 });
                                 success = true;
                             } finally {

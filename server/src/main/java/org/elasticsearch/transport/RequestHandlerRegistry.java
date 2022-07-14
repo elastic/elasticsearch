@@ -63,21 +63,19 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-            final Task task = taskManager.register(channel.getChannelType(), action, request);
-            Releasable unregisterTask = () -> taskManager.unregister(task);
-            try {
-                if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
-                    final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
-                    final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
-                    unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
-                }
-                final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
-                handler.messageReceived(request, taskTransportChannel, task);
-                unregisterTask = null;
-            } finally {
-                Releasables.close(unregisterTask);
+        final Task task = taskManager.register(channel.getChannelType(), action, request);
+        Releasable unregisterTask = () -> taskManager.unregister(task);
+        try {
+            if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
+                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
+                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
+                unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
+            handler.messageReceived(request, taskTransportChannel, task);
+            unregisterTask = null;
+        } finally {
+            Releasables.close(unregisterTask);
         }
     }
 

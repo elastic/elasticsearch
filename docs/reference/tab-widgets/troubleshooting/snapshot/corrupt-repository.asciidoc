@@ -3,7 +3,7 @@ Fixing the corrupted repository will entail making changes in multiple deploymen
 that write to the same snapshot repository.
 Only one deployment must be writing to a repository. The deployment 
 that will keep writing to the repository will be called the "primary" deployment (the current cluster), 
-and the other one(s) where we'll mark the repository as read-only the "secondary" 
+and the other one(s) where we'll mark the repository read-only as the "secondary" 
 deployments.
 
 First mark the repository as read-only on the secondary deployments:
@@ -32,7 +32,7 @@ image::images/repositories.png[{kib} Console,align="center"]
 . The repositories table should now be visible. Click on the pencil icon at the 
 right side of the repository to be marked as read-only. On the Edit page that opened 
 scroll down and check "Read-only repository". Click "Save".
-Alternatively if deleting the repository altogether is prefered select the checkbox
+Alternatively if deleting the repository altogether is preferable, select the checkbox
 at the left of the repository name in the repositories table and click the 
 "Remove repository" red button at the top left of the table.
 
@@ -52,13 +52,13 @@ image::images/repositories.png[{kib} Console,align="center"]
 . Get the details for the repository we'll recreate later by clicking on the repository
 name in the repositories table and making note of all the repository configurations
 that are displayed on the repository details page (we'll use them when we recreate
-the repository). Close the details page using the "X Close" link at
+the repository). Close the details page using the link at
 the bottom left of the page.
 +
 [role="screenshot"]
 image::images/repo_details.png[{kib} Console,align="center"]
 
-. With all the details above noted down, let's delete the repository. Select the 
+. With all the details above noted, next delete the repository. Select the 
 checkbox at the left of the repository and hit the "Remove repository" red button
 at the top left of the page.
 

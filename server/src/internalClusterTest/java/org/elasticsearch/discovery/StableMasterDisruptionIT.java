@@ -163,7 +163,6 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * Verify that nodes fault detection detects a disconnected node after master reelection
      */
     public void testFollowerCheckerDetectsDisconnectedNodeAfterMasterReelection() throws Exception {
-
         testFollowerCheckerAfterMasterReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
         assertGreenMasterStability(internalCluster().client());
     }
@@ -570,7 +569,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
     public void testNoQuorum() throws Exception {
         /*
-         * In this test we have a three master-eligible node. We make it so that the two non-active ones cannot communicate, and then we
+         * In this test we have three master-eligible nodes. We make it so that the two non-active ones cannot communicate, and then we
          * stop the active master node. Now there is no quorum so a new master cannot be elected. We set the master lookup threshold very
          * low on the data nodes, so when we run the master stability check on each of the master nodes, it will see that there has been no
          * master recently and because there is no quorum, so it returns a RED status.

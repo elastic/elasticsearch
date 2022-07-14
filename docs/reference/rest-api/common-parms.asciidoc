@@ -529,9 +529,6 @@ of each Lucene index file.
 `store`::
 Size of the index in <<byte-units, byte units>>.
 
-`suggest`::
-<<search-suggesters,Suggester>> statistics.
-
 `translog`::
 <<index-modules-translog,Translog>> statistics.
 

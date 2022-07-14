@@ -1,8 +1,8 @@
 ---
-"User Action":
+"Diagnosis":
   - skip:
-      version: "- 8.2.99"
-      reason: "health drilldown was only added in 8.3.0"
+      version: "- 8.3.99"
+      reason: "diagnosis was only added in 8.4.0"
 
   - do:
       indices.create:

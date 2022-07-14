@@ -38,7 +38,7 @@ public class Maps {
      */
     @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedEntry(final Map<K, V> map, final K key, final V value) {
-        assert checkIsImmutableMap(map, key, value);
+        assert assertIsImmutableMapAndNonNullKeyAndValue(map, key, value);
         assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
         @SuppressWarnings("rawtypes")
         final Map.Entry<K, V>[] entries = new Map.Entry[map.size() + 1];
@@ -64,7 +64,7 @@ public class Maps {
         if (existing == null) {
             return copyMapWithAddedEntry(map, key, value);
         }
-        assert checkIsImmutableMap(map, key, value);
+        assert assertIsImmutableMapAndNonNullKeyAndValue(map, key, value);
         @SuppressWarnings("rawtypes")
         final Map.Entry<K, V>[] entries = new Map.Entry[map.size()];
         boolean replaced = false;
@@ -90,9 +90,7 @@ public class Maps {
      * @return an immutable map that contains the items from the specified map with the provided key removed
      */
     public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        assert checkIsImmutableMap(map, key, map.get(key));
+        assert assertIsImmutableMapAndNonNullKeyAndValue(map, key, map.get(key));
         return map.entrySet()
             .stream()
             .filter(k -> key.equals(k.getKey()) == false)
@@ -107,7 +105,9 @@ public class Maps {
         Map.of("a", "b").getClass()
     );
 
-    private static <K, V> boolean checkIsImmutableMap(final Map<K, V> map, final K key, final V value) {
+    private static <K, V> boolean assertIsImmutableMapAndNonNullKeyAndValue(final Map<K, V> map, final K key, final V value) {
+        assert key != null;
+        assert value != null;
         // check in the known immutable classes map first, most of the time we don't need to actually do the put and throw which is slow to
         // the point of visibly slowing down internal cluster tests without this short-cut
         if (IMMUTABLE_MAP_CLASSES.contains(map.getClass())) {

@@ -435,7 +435,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             indicesLookup,
             mappingsByHash,
             oldestIndexVersion,
-            immutableStateMetadata
+            reservedStateMetadata
         );
     }
 

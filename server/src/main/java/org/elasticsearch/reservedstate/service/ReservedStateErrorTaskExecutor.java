@@ -37,6 +37,6 @@ record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<Rese
 
     @Override
     public void clusterStatePublished(ClusterState newClusterState) {
-        logger.info("Wrote new error state in reserved cluster state metadata");
+        logger.debug("Wrote new error state in reserved cluster state metadata");
     }
 }

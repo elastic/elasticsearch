@@ -243,7 +243,25 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testUpdateTaskDuplicateError() {
-        ReservedClusterStateHandler<Map<String, Object>> dummy = new ReservedClusterStateHandler<>() {
+        ReservedClusterStateHandler<Map<String, Object>> newStateMaker = new ReservedClusterStateHandler<>() {
+            @Override
+            public String name() {
+                return "maker";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                ClusterState newState = new ClusterState.Builder(prevState.state()).build();
+                return new TransformState(newState, prevState.keys());
+            }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
+        };
+
+        ReservedClusterStateHandler<Map<String, Object>> exceptionThrower = new ReservedClusterStateHandler<>() {
             @Override
             public String name() {
                 return "one";
@@ -260,21 +278,22 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             }
         };
 
-        ReservedStateUpdateTask task = spy(
-            new ReservedStateUpdateTask(
-                "namespace_one",
-                new ReservedStateChunk(Map.of("one", "two"), new ReservedStateVersion(1L, Version.CURRENT)),
-                Map.of("one", dummy),
-                List.of(dummy.name()),
-                (errorState) -> {},
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(ActionResponse.Empty empty) {}
+        // We submit a task with two handler, one will cause an exception, the other will create a new state.
+        // When we fail to update the metadata because of version, we ensure that the returned state is equal to the
+        // original state by pointer reference to avoid cluster state update task to run.
+        ReservedStateUpdateTask task = new ReservedStateUpdateTask(
+            "namespace_one",
+            new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(1L, Version.CURRENT)),
+            Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
+            List.of(exceptionThrower.name(), newStateMaker.name()),
+            (errorState) -> {},
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ActionResponse.Empty empty) {}
 
-                    @Override
-                    public void onFailure(Exception e) {}
-                }
-            )
+                @Override
+                public void onFailure(Exception e) {}
+            }
         );
 
         ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
@@ -294,10 +313,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
         // We exit on duplicate errors before we update the cluster state error metadata
-        assertEquals(
-            "Not updating error state because version [1] is less or equal to the last state error version [1]",
-            expectThrows(ReservedStateVersion.IncompatibleVersionException.class, () -> task.execute(state)).getMessage()
-        );
+        // The reference == ensures we return the same object as the current state to avoid publishing no-op state update
+        assertTrue(state == task.execute(state));
 
         emOne = new ReservedStateErrorMetadata(
             0L,
@@ -321,33 +338,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     public void testCheckMetadataVersion() {
         ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
-        assertTrue(
-            ReservedClusterStateService.checkMetadataVersion(operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT), (e) -> {})
-        );
+        assertTrue(ReservedClusterStateService.checkMetadataVersion(operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT)));
 
-        AtomicReference<Exception> x = new AtomicReference<>();
+        assertFalse(ReservedClusterStateService.checkMetadataVersion(operatorMetadata, new ReservedStateVersion(123L, Version.CURRENT)));
 
         assertFalse(
             ReservedClusterStateService.checkMetadataVersion(
                 operatorMetadata,
-                new ReservedStateVersion(123L, Version.CURRENT),
-                (e) -> x.set(e)
+                new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1))
             )
         );
-
-        assertTrue(x.get() instanceof ReservedStateVersion.IncompatibleVersionException);
-        assertTrue(x.get().getMessage().contains("is less or equal to the current metadata version"));
-
-        assertFalse(
-            ReservedClusterStateService.checkMetadataVersion(
-                operatorMetadata,
-                new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)),
-                (e) -> x.set(e)
-            )
-        );
-
-        assertEquals(ReservedStateVersion.IncompatibleVersionException.class, x.get().getClass());
-        assertTrue(x.get().getMessage().contains("is not compatible with this Elasticsearch node"));
     }
 
     private ReservedClusterStateHandler<Map<String, Object>> makeHandlerHelper(final String name, final List<String> deps) {

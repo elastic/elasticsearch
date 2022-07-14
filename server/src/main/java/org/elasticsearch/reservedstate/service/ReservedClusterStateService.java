@@ -94,8 +94,7 @@ public class ReservedClusterStateService {
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param parser the XContentParser to process
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
-     *        cluster state cannot be correctly applied, {@link ReservedStateVersion.IncompatibleVersionException} if the content is stale
-     *        or incompatible with this node {@link Version}, null if successful.
+     *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
     public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
         ReservedStateChunk stateChunk;
@@ -120,8 +119,7 @@ public class ReservedClusterStateService {
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param reservedStateChunk a {@link ReservedStateChunk} composite state object to process
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
-     *        cluster state cannot be correctly applied, {@link ReservedStateVersion.IncompatibleVersionException} if the content is stale
-     *        or incompatible with this node {@link Version}, null if successful.
+     *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
      */
     public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
         Map<String, Object> reservedState = reservedStateChunk.state();
@@ -147,7 +145,7 @@ public class ReservedClusterStateService {
 
         ClusterState state = clusterService.state();
         ReservedStateMetadata existingMetadata = state.metadata().reservedStateMetadata().get(namespace);
-        if (checkMetadataVersion(existingMetadata, reservedStateVersion, errorListener) == false) {
+        if (checkMetadataVersion(existingMetadata, reservedStateVersion) == false) {
             return;
         }
 
@@ -179,31 +177,23 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    static boolean checkMetadataVersion(
-        ReservedStateMetadata existingMetadata,
-        ReservedStateVersion reservedStateVersion,
-        Consumer<Exception> errorListener
-    ) {
+    static boolean checkMetadataVersion(ReservedStateMetadata existingMetadata, ReservedStateVersion reservedStateVersion) {
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
-            errorListener.accept(
-                new ReservedStateVersion.IncompatibleVersionException(
-                    format(
-                        "Cluster state version [%s] is not compatible with this Elasticsearch node",
-                        reservedStateVersion.minCompatibleVersion()
-                    )
+            logger.warn(
+                () -> format(
+                    "Cluster state version [%s] is not compatible with this Elasticsearch node",
+                    reservedStateVersion.minCompatibleVersion()
                 )
             );
             return false;
         }
 
         if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
-            errorListener.accept(
-                new ReservedStateVersion.IncompatibleVersionException(
-                    format(
-                        "Not updating cluster state because version [%s] is less or equal to the current metadata version [%s]",
-                        reservedStateVersion.version(),
-                        existingMetadata.version()
-                    )
+            logger.warn(
+                () -> format(
+                    "Not updating cluster state because version [%s] is less or equal to the current metadata version [%s]",
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
                 )
             );
             return false;

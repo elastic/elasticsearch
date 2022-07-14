@@ -74,14 +74,15 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return listener;
     }
 
-    protected ClusterState execute(ClusterState state) {
-        ReservedStateMetadata existingMetadata = state.metadata().reservedStateMetadata().get(namespace);
+    protected ClusterState execute(final ClusterState currentState) {
+        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
+        ClusterState state = currentState;
         for (var handlerName : orderedHandlers) {
             ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
             try {
@@ -97,24 +98,25 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (errors.isEmpty() == false) {
             // Check if we had previous error metadata with version information, don't spam with cluster state updates, if the
             // version hasn't been updated.
+            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
             if (existingMetadata != null
                 && existingMetadata.errorMetadata() != null
                 && existingMetadata.errorMetadata().version() >= reservedStateVersion.version()) {
-                logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-                throw new ReservedStateVersion.IncompatibleVersionException(
-                    format(
+                logger.info(
+                    () -> format(
                         "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
                         reservedStateVersion.version(),
                         existingMetadata.errorMetadata().version()
                     )
                 );
+
+                return currentState;
             }
 
             errorReporter.accept(
                 new ErrorState(namespace, reservedStateVersion.version(), errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION)
             );
-            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             throw new IllegalStateException("Error processing state change request for " + namespace);
         }

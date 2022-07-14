@@ -44,15 +44,4 @@ public record ReservedStateVersion(Long version, Version compatibleWith) {
     public Version minCompatibleVersion() {
         return compatibleWith;
     }
-
-    /**
-     * {@link IncompatibleVersionException} is thrown when we try to update the cluster state
-     * without changing the update version id, or if we try to update cluster state on
-     * an incompatible Elasticsearch version in mixed cluster mode.
-     */
-    public static class IncompatibleVersionException extends RuntimeException {
-        public IncompatibleVersionException(String message) {
-            super(message);
-        }
-    }
 }

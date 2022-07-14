@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
-import org.elasticsearch.immutablestate.TransformState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -28,17 +28,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.Maps.asMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
 /**
- * This {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} is responsible for immutable state
+ * This {@link ReservedClusterStateHandler} is responsible for reserved state
  * CRUD operations on ILM policies in, e.g. file based settings.
  * <p>
  * Internally it uses {@link TransportPutLifecycleAction} and
  * {@link TransportDeleteLifecycleAction} to add, update and delete ILM policies.
  */
-public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<LifecyclePolicy> {
+public class ReservedLifecycleAction implements ReservedClusterStateHandler<List<LifecyclePolicy>> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -46,7 +45,7 @@ public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<Li
 
     public static final String NAME = "ilm";
 
-    public ImmutableLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
+    public ReservedLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
@@ -60,18 +59,12 @@ public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<Li
     @SuppressWarnings("unchecked")
     public Collection<PutLifecycleAction.Request> prepare(Object input) throws IOException {
         List<PutLifecycleAction.Request> result = new ArrayList<>();
+        List<LifecyclePolicy> policies = (List<LifecyclePolicy>) input;
 
-        Map<String, ?> source = asMap(input);
-
-        for (String name : source.keySet()) {
-            Map<String, ?> content = (Map<String, ?>) source.get(name);
-            var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
-            try (XContentParser parser = mapToXContentParser(config, content)) {
-                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
-                PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
-                validate(request);
-                result.add(request);
-            }
+        for (var policy : policies) {
+            PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
+            validate(request);
+            result.add(request);
         }
 
         return result;
@@ -107,5 +100,23 @@ public class ImmutableLifecycleAction implements ImmutableClusterStateHandler<Li
         }
 
         return new TransformState(state, entities);
+    }
+
+    @Override
+    public List<LifecyclePolicy> fromXContent(XContentParser parser) throws IOException {
+        List<LifecyclePolicy> result = new ArrayList<>();
+
+        Map<String, ?> source = parser.map();
+        var config = XContentParserConfiguration.EMPTY.withRegistry(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+
+        for (String name : source.keySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> content = (Map<String, ?>) source.get(name);
+            try (XContentParser policyParser = mapToXContentParser(config, content)) {
+                result.add(LifecyclePolicy.parse(policyParser, name));
+            }
+        }
+
+        return result;
     }
 }

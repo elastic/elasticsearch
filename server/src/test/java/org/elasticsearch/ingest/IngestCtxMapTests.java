@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -17,15 +18,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.TestIngestDocument.replaceValidator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.notNullValue;
 
-public class IngestSourceAndMetadataTests extends ESTestCase {
+public class IngestCtxMapTests extends ESTestCase {
 
-    IngestSourceAndMetadata map;
+    IngestCtxMap map;
+    Metadata md;
 
     public void testSettersAndGetters() {
         Map<String, Object> metadata = new HashMap<>();
@@ -37,65 +36,32 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("_if_primary_term", 10000);
         metadata.put("_version_type", "internal");
         metadata.put("_dynamic_templates", Map.of("foo", "bar"));
-        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null);
-        assertEquals("myIndex", map.getIndex());
-        map.setIndex("myIndex2");
-        assertEquals("myIndex2", map.getIndex());
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null));
+        md = map.getMetadata();
+        assertEquals("myIndex", md.getIndex());
+        md.setIndex("myIndex2");
+        assertEquals("myIndex2", md.getIndex());
 
-        assertEquals("myId", map.getId());
-        map.setId("myId2");
-        assertEquals("myId2", map.getId());
+        assertEquals("myId", md.getId());
+        md.setId("myId2");
+        assertEquals("myId2", md.getId());
 
-        assertEquals("myRouting", map.getRouting());
-        map.setRouting("myRouting2");
-        assertEquals("myRouting2", map.getRouting());
+        assertEquals("myRouting", md.getRouting());
+        md.setRouting("myRouting2");
+        assertEquals("myRouting2", md.getRouting());
 
-        assertEquals(20, map.getVersion());
-        map.setVersion(10);
-        assertEquals(10, map.getVersion());
+        assertEquals(20, md.getVersion());
+        md.setVersion(10);
+        assertEquals(10, md.getVersion());
 
-        assertEquals("internal", map.getVersionType());
-        map.setVersionType("external_gte");
-        assertEquals("external_gte", map.getVersionType());
+        assertEquals("internal", md.getVersionType());
+        md.setVersionType("external_gte");
+        assertEquals("external_gte", md.getVersionType());
 
-        assertEquals(Map.of("foo", "bar"), map.getDynamicTemplates());
+        assertEquals(Map.of("foo", "bar"), md.getDynamicTemplates());
 
-        assertEquals(500, map.getIfSeqNo());
-        assertEquals(10000, map.getIfPrimaryTerm());
-    }
-
-    public void testGetString() {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("_routing", "myRouting");
-        Map<String, Object> source = new HashMap<>();
-        source.put("str", "myStr");
-        source.put("toStr", new Object() {
-            @Override
-            public String toString() {
-                return "myToString()";
-            }
-        });
-        source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", IngestSourceAndMetadata::longValidator));
-        assertNull(map.getString("missing"));
-        assertNull(map.getString("no key"));
-        assertEquals("myToString()", map.getString("toStr"));
-        assertEquals("myStr", map.getString("str"));
-        assertEquals("myRouting", map.getString("_routing"));
-    }
-
-    public void testGetNumber() {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("_version", Long.MAX_VALUE);
-        Map<String, Object> source = new HashMap<>();
-        source.put("number", "NaN");
-        source.put("missing", null);
-        map = new IngestSourceAndMetadata(source, metadata, null, null);
-        assertEquals(Long.MAX_VALUE, map.getNumber("_version"));
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.getNumber("number"));
-        assertEquals("unexpected type for [number] with value [NaN], expected Number, got [java.lang.String]", err.getMessage());
-        assertNull(map.getNumber("missing"));
-        assertNull(map.getNumber("no key"));
+        assertEquals(500, md.getIfSeqNo());
+        assertEquals(10000, md.getIfPrimaryTerm());
     }
 
     public void testInvalidMetadata() {
@@ -103,7 +69,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("_version", Double.MAX_VALUE);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null)
+            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null))
         );
         assertThat(err.getMessage(), containsString("_version may only be set to an int or a long but was ["));
         assertThat(err.getMessage(), containsString("] with type [java.lang.Double]"));
@@ -114,9 +80,9 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         source.put("_version", 25);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(source, source, null, null)
+            () -> new IngestCtxMap(source, new IngestDocMetadata(source, null))
         );
-        assertEquals("Unexpected metadata key [_version] in source with value [25]", err.getMessage());
+        assertEquals("unexpected metadata [_version:25] in source", err.getMessage());
     }
 
     public void testExtraMetadata() {
@@ -126,7 +92,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         metadata.put("routing", "myRouting");
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestSourceAndMetadata(new HashMap<>(), metadata, null, null)
+            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null))
         );
         assertEquals("Unexpected metadata keys [routing:myRouting, version:567]", err.getMessage());
     }
@@ -135,7 +101,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("_version", 123);
         Map<String, Object> source = new HashMap<>();
-        map = new IngestSourceAndMetadata(source, metadata, null, null);
+        map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null));
     }
 
     public void testRemove() {
@@ -143,20 +109,27 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         String canRemove = "canRemove";
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(cannotRemove, "value");
-        map = new IngestSourceAndMetadata(new HashMap<>(), metadata, null, Map.of(cannotRemove, (k, v) -> {
-            if (v == null) {
-                throw new IllegalArgumentException(k + " cannot be null or removed");
-            }
-        }, canRemove, (k, v) -> {}));
-        String msg = "cannotRemove cannot be null or removed";
+        map = new IngestCtxMap(
+            new HashMap<>(),
+            new TestIngestCtxMetadata(
+                metadata,
+                Map.of(
+                    cannotRemove,
+                    new Metadata.FieldProperty<>(String.class, false, true, null),
+                    canRemove,
+                    new Metadata.FieldProperty<>(String.class, true, true, null)
+                )
+            )
+        );
+        String msg = "cannotRemove cannot be removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put(cannotRemove, null));
-        assertEquals(msg, err.getMessage());
+        assertEquals("cannotRemove cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.entrySet().iterator().next().setValue(null));
-        assertEquals(msg, err.getMessage());
+        assertEquals("cannotRemove cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> {
             Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator();
@@ -208,7 +181,8 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestSourceAndMetadata(source, metadata, null, replaceValidator("_version", IngestSourceAndMetadata::longValidator));
+        map = new IngestCtxMap(source, TestIngestCtxMetadata.withNullableVersion(metadata));
+        md = map.getMetadata();
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if ("foo".equals(entry.getKey())) {
@@ -218,7 +192,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         }
         assertEquals("changed", map.get("foo"));
-        assertEquals("external_gte", map.getVersionType());
+        assertEquals("external_gte", md.getVersionType());
 
         assertEquals(5, map.entrySet().size());
         assertEquals(5, map.size());
@@ -235,7 +209,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
             }
         }
 
-        assertNull(map.getVersionType());
+        assertNull(md.getVersionType());
         assertFalse(map.containsKey("baz"));
         assertTrue(map.containsKey("_version"));
         assertTrue(map.containsKey("foo"));
@@ -247,7 +221,7 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
     }
 
     public void testContainsValue() {
-        map = new IngestSourceAndMetadata(Map.of("myField", "fieldValue"), Map.of("_version", 5678), null, null);
+        map = new IngestCtxMap(Map.of("myField", "fieldValue"), new IngestDocMetadata(Map.of("_version", 5678), null));
         assertTrue(map.containsValue(5678));
         assertFalse(map.containsValue(5679));
         assertTrue(map.containsValue("fieldValue"));
@@ -255,40 +229,41 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
     }
 
     public void testValidators() {
-        map = new IngestSourceAndMetadata("myIndex", "myId", 1234, "myRouting", VersionType.EXTERNAL, null, new HashMap<>());
+        map = new IngestCtxMap("myIndex", "myId", 1234, "myRouting", VersionType.EXTERNAL, null, new HashMap<>());
+        md = map.getMetadata();
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.put("_index", 555));
-        assertEquals("_index must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
-        assertEquals("myIndex", map.getIndex());
+        assertEquals("_index [555] is wrong type, expected assignable to [java.lang.String], not [java.lang.Integer]", err.getMessage());
+        assertEquals("myIndex", md.getIndex());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_id", 555));
-        assertEquals("_id must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
-        assertEquals("myId", map.getId());
+        assertEquals("_id [555] is wrong type, expected assignable to [java.lang.String], not [java.lang.Integer]", err.getMessage());
+        assertEquals("myId", md.getId());
         map.put("_id", "myId2");
-        assertEquals("myId2", map.getId());
+        assertEquals("myId2", md.getId());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_routing", 555));
-        assertEquals("_routing must be null or a String but was [555] with type [java.lang.Integer]", err.getMessage());
-        assertEquals("myRouting", map.getRouting());
+        assertEquals("_routing [555] is wrong type, expected assignable to [java.lang.String], not [java.lang.Integer]", err.getMessage());
+        assertEquals("myRouting", md.getRouting());
         map.put("_routing", "myRouting2");
-        assertEquals("myRouting2", map.getRouting());
+        assertEquals("myRouting2", md.getRouting());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version", "five-five-five"));
         assertEquals(
-            "_version may only be set to an int or a long but was [five-five-five] with type [java.lang.String]",
+            "_version [five-five-five] is wrong type, expected assignable to [java.lang.Number], not [java.lang.String]",
             err.getMessage()
         );
-        assertEquals(1234, map.getVersion());
+        assertEquals(1234, md.getVersion());
         map.put("_version", 555);
-        assertEquals(555, map.getVersion());
+        assertEquals(555, md.getVersion());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", "vt"));
         assertEquals(
             "_version_type must be a null or one of [internal, external, external_gte] but was [vt] with type [java.lang.String]",
             err.getMessage()
         );
-        assertEquals("external", map.getVersionType());
+        assertEquals("external", md.getVersionType());
         map.put("_version_type", "internal");
-        assertEquals("internal", map.getVersionType());
+        assertEquals("internal", md.getVersionType());
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", VersionType.EXTERNAL.toString()));
         assertEquals(
             "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type [java.lang.String]",
@@ -296,48 +271,45 @@ public class IngestSourceAndMetadataTests extends ESTestCase {
         );
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_version_type", VersionType.EXTERNAL));
         assertEquals(
-            "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type"
+            "_version_type [EXTERNAL] is wrong type, expected assignable to [java.lang.String], not"
                 + " [org.elasticsearch.index.VersionType$2]",
             err.getMessage()
         );
-        assertEquals("internal", map.getVersionType());
-        err = expectThrows(IllegalArgumentException.class, () -> map.setVersionType(VersionType.EXTERNAL.toString()));
+        assertEquals("internal", md.getVersionType());
+        err = expectThrows(IllegalArgumentException.class, () -> md.setVersionType(VersionType.EXTERNAL.toString()));
         assertEquals(
             "_version_type must be a null or one of [internal, external, external_gte] but was [EXTERNAL] with type [java.lang.String]",
             err.getMessage()
         );
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put("_dynamic_templates", "5"));
-        assertEquals("_dynamic_templates must be a null or a Map but was [5] with type [java.lang.String]", err.getMessage());
+        assertEquals(
+            "_dynamic_templates [5] is wrong type, expected assignable to [java.util.Map], not [java.lang.String]",
+            err.getMessage()
+        );
         Map<String, String> dt = Map.of("a", "b");
         map.put("_dynamic_templates", dt);
-        assertThat(dt, equalTo(map.getDynamicTemplates()));
-    }
-
-    public void testDefaultValidatorForAllMetadata() {
-        for (IngestDocument.Metadata m : IngestDocument.Metadata.values()) {
-            assertThat(IngestSourceAndMetadata.VALIDATORS, hasEntry(equalTo(m.getFieldName()), notNullValue()));
-        }
-        assertEquals(IngestDocument.Metadata.values().length, IngestSourceAndMetadata.VALIDATORS.size());
+        assertThat(dt, equalTo(md.getDynamicTemplates()));
     }
 
     public void testHandlesAllVersionTypes() {
-        Map<String, Object> md = new HashMap<>();
-        md.put("_version", 1234);
-        map = new IngestSourceAndMetadata(new HashMap<>(), md, null, null);
-        assertNull(map.getVersionType());
+        Map<String, Object> mdRawMap = new HashMap<>();
+        mdRawMap.put("_version", 1234);
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(mdRawMap, null));
+        md = map.getMetadata();
+        assertNull(md.getVersionType());
         for (VersionType vt : VersionType.values()) {
-            map.setVersionType(VersionType.toString(vt));
+            md.setVersionType(VersionType.toString(vt));
             assertEquals(VersionType.toString(vt), map.get("_version_type"));
         }
 
         for (VersionType vt : VersionType.values()) {
             map.put("_version_type", VersionType.toString(vt));
-            assertEquals(vt.toString().toLowerCase(Locale.ROOT), map.getVersionType());
+            assertEquals(vt.toString().toLowerCase(Locale.ROOT), md.getVersionType());
         }
 
-        map.setVersionType(null);
-        assertNull(map.getVersionType());
+        md.setVersionType(null);
+        assertNull(md.getVersionType());
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

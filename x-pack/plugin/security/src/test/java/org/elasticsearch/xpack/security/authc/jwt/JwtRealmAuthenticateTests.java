@@ -401,17 +401,17 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Verify rejection of a tampered header (flip HMAC=>RSA or RSA/EC=>HMAC)
             final String mixupAlg; // Check if there are any algorithms available in the realm for attempting a flip test
             if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(validHeader.getAlgorithm().getName())) {
-                if (jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().algs().isEmpty()) {
+                if (jwtIssuerAndRealm.realm().contentAndJwksAlgsPkc.jwksAlgs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip HMAC to PKC (no PKC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().algs()); // flip HMAC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsPkc.jwksAlgs().algs()); // flip HMAC
                                                                                                                               // to PKC
                 }
             } else {
-                if (jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().algs().isEmpty()) {
+                if (jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip PKC to HMAC (no HMAC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().algs()); // flip HMAC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs()); // flip HMAC
                                                                                                                                // to PKC
                 }
             }

@@ -476,7 +476,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             }
             LOGGER.info("GOT TOKEN: principal=[" + tokenPrincipal + "], jwt=[" + tokenJwt + "], secret=[" + tokenSecret + "].");
 
-            // Loop through all authc/authz realms. Confirm authenticatedUser is returned with expected principal and roles.
+            // Loop through all authc/authz realms. Confirm user is returned with expected principal and roles.
             User authenticatedUser = null;
             final List<String> realmAuthenticationResults = new ArrayList<>();
             final List<String> realmUsageStats = new ArrayList<>();
@@ -554,7 +554,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                         );
                     }
                 }
-                // Loop ended. Confirm authenticatedUser is returned with expected principal and roles.
+                // Loop ended. Confirm user is returned with expected principal and roles.
                 assertThat("Expected realm " + jwtRealm.name() + " to authenticate.", authenticatedUser, is(notNullValue()));
                 assertThat(user.principal(), equalTo(authenticatedUser.principal()));
                 assertThat(new TreeSet<>(Arrays.asList(user.roles())), equalTo(new TreeSet<>(Arrays.asList(authenticatedUser.roles()))));
@@ -655,11 +655,11 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + ", algsHmac="
                 + jwtRealm.allowedJwksAlgsHmac
                 + ", filteredHmac="
-                + jwtRealm.contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().algs()
+                + jwtRealm.contentAndJwksAlgsHmac.jwksAlgs().algs()
                 + ", algsPkc="
                 + jwtRealm.allowedJwksAlgsPkc
                 + ", filteredPkc="
-                + jwtRealm.contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().algs()
+                + jwtRealm.contentAndJwksAlgsPkc.jwksAlgs().algs()
                 + ", claimPrincipal=["
                 + jwtRealm.claimParserPrincipal.getClaimName()
                 + "], claimGroups=["
@@ -672,10 +672,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + jwtRealm.jwkSetPath
                 + "]."
         );
-        for (final JWK jwk : jwtRealm.contentAndFilteredJwksAlgsHmac.filteredJwksAlgs().jwks()) {
+        for (final JWK jwk : jwtRealm.contentAndJwksAlgsHmac.jwksAlgs().jwks()) {
             LOGGER.info("REALM HMAC: jwk=[{}]", jwk);
         }
-        for (final JWK jwk : jwtRealm.contentAndFilteredJwksAlgsPkc.filteredJwksAlgs().jwks()) {
+        for (final JWK jwk : jwtRealm.contentAndJwksAlgsPkc.jwksAlgs().jwks()) {
             LOGGER.info("REALM PKC: jwk=[{}]", jwk);
         }
     }

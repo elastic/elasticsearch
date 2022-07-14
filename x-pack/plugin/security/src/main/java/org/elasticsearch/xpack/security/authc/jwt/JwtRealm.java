@@ -73,7 +73,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     // Original PKC/HMAC JWKSet or HMAC JWK content (for comparison during refresh), and filtered JWKs and Algs
     record ContentAndFilteredJwksAlgs(String jwksContent, FilteredJwksAlgs filteredJwksAlgs) {
         ContentAndFilteredJwksAlgs {
-            assert filteredJwksAlgs != null : "Filters JWKs and Algs must not be null";
+            Objects.requireNonNull(filteredJwksAlgs, "Filters JWKs and Algs must not be null");
         }
 
         boolean isEmpty() {
@@ -84,12 +84,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     // Filtered JWKs and Algs
     record FilteredJwksAlgs(List<JWK> jwks, List<String> algs) {
         FilteredJwksAlgs {
-            assert jwks != null : "JWKs must not be null";
-            assert algs != null : "Algs must not be null";
+            Objects.requireNonNull(jwks, "JWKs must not be null");
+            Objects.requireNonNull(algs, "Algs must not be null");
         }
 
         boolean isEmpty() {
-            return ((this.jwks == null) || (this.jwks.isEmpty()) && (this.algs == null) || (this.algs.isEmpty()));
+            return this.jwks.isEmpty() && this.algs.isEmpty();
         }
     }
 

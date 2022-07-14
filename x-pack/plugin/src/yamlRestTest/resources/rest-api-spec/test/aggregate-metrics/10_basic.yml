@@ -290,3 +290,63 @@
         index: test
         body:
           sort: [ { metric.min: desc } ]
+
+---
+"Test fields api":
+  - skip:
+      version: "- 8.3.99"
+      reason: "Breaking change introduced in 8.4.0"
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, sum, value_count]
+                default_metric: sum
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          metric:
+            min: 10
+            max: 100
+            sum: 200
+            value_count: 5
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric:
+            min: 50
+            max: 1000
+            sum: 5000
+            value_count: 10
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          fields: [ metric ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.metric.0.min: 10 }
+  - match: { hits.hits.0.fields.metric.0.max: 100 }
+  - match: { hits.hits.0.fields.metric.0.sum: 200 }
+  - match: { hits.hits.0.fields.metric.0.value_count: 5 }
+  - match: { hits.hits.1.fields.metric.0.min: 50 }
+  - match: { hits.hits.1.fields.metric.0.max: 1000 }
+  - match: { hits.hits.1.fields.metric.0.sum: 5000 }
+  - match: { hits.hits.1.fields.metric.0.value_count: 10 }

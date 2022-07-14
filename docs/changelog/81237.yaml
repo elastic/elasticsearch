@@ -1,0 +1,5 @@
+pr: 81237
+summary: Avoid loading authorized indices when requested indices are all concrete names
+area: Authorization
+type: enhancement
+issues: []

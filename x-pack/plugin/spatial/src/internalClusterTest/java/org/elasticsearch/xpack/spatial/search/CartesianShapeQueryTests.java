@@ -8,13 +8,12 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.geo.GeoShapeQueryTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class GeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase {
+public class CartesianShapeQueryTests extends CartesianShapeQueryTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

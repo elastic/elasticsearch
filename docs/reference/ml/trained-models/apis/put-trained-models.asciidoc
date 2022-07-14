@@ -429,6 +429,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
 .Properties of fill_mask inference
 [%collapsible%open]
 =====
+`num_top_classes`::::
+(Optional, integer)
+Number of top predicted tokens to return for replacing the mask token. Defaults to `0`.
+
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
@@ -522,6 +530,10 @@ labels (IOB) and only persons, organizations, locations, and miscellaneous.
 Example: ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", 
 "I-MISC"]
 
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
@@ -608,6 +620,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-pass-through]
 .Properties of pass_through inference
 [%collapsible%open]
 =====
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
@@ -697,6 +713,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-question-a
 `max_answer_length`::::
 (Optional, integer)
 The maximum amount of words in the answer. Defaults to `15`.
+
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
@@ -822,6 +842,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 (Optional, integer)
 Specifies the number of top class predictions to return. Defaults to all classes (-1).
 
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
@@ -915,6 +939,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding
 .Properties of text_embedding inference
 [%collapsible%open]
 =====
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
@@ -1015,6 +1043,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-clas
 `multi_label`::::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-multi-label]
+
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)

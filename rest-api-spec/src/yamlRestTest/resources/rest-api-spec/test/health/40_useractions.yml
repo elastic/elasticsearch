@@ -20,9 +20,9 @@
 
   - is_true: cluster_name
   - match:   { components.data.indicators.shards_availability.status: "red" }
-  - match:   { components.data.indicators.shards_availability.summary: "This cluster has 1 unavailable primary." }
-  - is_true: components.data.indicators.shards_availability.user_actions
-  - length:  { components.data.indicators.shards_availability.user_actions: 1 }
-  - is_true: components.data.indicators.shards_availability.user_actions.0.affected_resources
-  - length:  { components.data.indicators.shards_availability.user_actions.0.affected_resources: 1 }
-  - match:   { components.data.indicators.shards_availability.user_actions.0.affected_resources.0: "red_index" }
+  - match:   { components.data.indicators.shards_availability.symptom: "This cluster has 1 unavailable primary." }
+  - is_true: components.data.indicators.shards_availability.diagnosis
+  - length:  { components.data.indicators.shards_availability.diagnosis: 1 }
+  - is_true: components.data.indicators.shards_availability.diagnosis.0.affected_resources
+  - length:  { components.data.indicators.shards_availability.diagnosis.0.affected_resources: 1 }
+  - match:   { components.data.indicators.shards_availability.diagnosis.0.affected_resources.0: "red_index" }

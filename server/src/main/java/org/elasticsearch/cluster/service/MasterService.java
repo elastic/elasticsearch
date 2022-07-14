@@ -225,6 +225,10 @@ public class MasterService extends AbstractLifecycleComponent {
         return Thread.currentThread().getName().contains('[' + MASTER_UPDATE_THREAD_NAME + ']');
     }
 
+    public static boolean assertMasterUpdateOrTestThread() {
+        return ThreadPool.assertCurrentThreadPool(MASTER_UPDATE_THREAD_NAME);
+    }
+
     public static boolean assertNotMasterUpdateThread(String reason) {
         assert isMasterUpdateThread() == false
             : "Expected current thread [" + Thread.currentThread() + "] to not be the master service thread. Reason: [" + reason + "]";
@@ -794,8 +798,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         private boolean incomplete() {
-            assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-                : Thread.currentThread().getName();
+            assert assertMasterUpdateOrTestThread();
             return publishedStateConsumer == null && onPublicationSuccess == null && failure == null;
         }
 

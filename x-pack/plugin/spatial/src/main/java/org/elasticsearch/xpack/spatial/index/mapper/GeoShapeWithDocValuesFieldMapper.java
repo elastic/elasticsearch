@@ -44,6 +44,7 @@ import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
@@ -297,9 +298,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
         if (fieldType().hasDocValues()) {
             String name = fieldType().name();
-            BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+            BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryGeoShapeDocValuesField(name);
+                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);

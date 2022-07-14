@@ -193,8 +193,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
         try {
-            this.contentAndJwksAlgsHmac = this.loadContentAndFilterJwksAlgsHmac();
-            this.contentAndJwksAlgsPkc = this.loadContentAndFilterJwksAlgsPkc();
+            this.contentAndJwksAlgsHmac = this.loadContentAndParseJwksAlgsHmac();
+            this.contentAndJwksAlgsPkc = this.loadContentAndParseJwksAlgsPkc();
             this.verifyNonEmptyHmacAndPkcJwksAlgs(); // throws SettingsException if realm has zero combined JWKs and Algs after filtering
         } catch (Throwable t) {
             this.close();
@@ -211,7 +211,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    private ContentAndJwksAlgs loadContentAndFilterJwksAlgsHmac() {
+    private ContentAndJwksAlgs loadContentAndParseJwksAlgsHmac() {
         final JwksAlgs jwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
@@ -227,7 +227,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             );
         } else if ((Strings.hasText(hmacJwkSetContents) == false) && (Strings.hasText(hmacKeyContents) == false)) {
             // If PKC JWKSet has at least one usable JWK, both HMAC Key vs HMAC JWKSet settings can be empty
-            jwksAlgsHmac = new JwksAlgs(Collections.emptyList(), Collections.emptyList());
+            jwksAlgsHmac = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
         } else {
             // At this point, one-and-only-one of the HMAC Key or HMAC JWKSet settings are set
             List<JWK> jwksHmac;
@@ -247,19 +247,18 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 hmacStringContent = hmacKeyContents.toString();
             }
 
-            // Filter HMAC JWK(s) vs Algs. Only keep JWKs with a matching Alg. Only keep Algs with a matching JWK.
-            // Zero HMAC JWKs and Algs after filtering is valid use case, as long as PKC has non-zero JWKs and Algs.
+            // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
             jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, this.allowedJwksAlgsHmac);
         }
-        LOGGER.debug("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
+        LOGGER.info("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
         return new ContentAndJwksAlgs(hmacStringContent, jwksAlgsHmac);
     }
 
-    private ContentAndJwksAlgs loadContentAndFilterJwksAlgsPkc() {
+    private ContentAndJwksAlgs loadContentAndParseJwksAlgsPkc() {
         final JwksAlgs jwksAlgsPkc;
         String jwkSetContentsPkc = null;
         if (this.isConfiguredJwkSetPkc == false) {
-            jwksAlgsPkc = new JwksAlgs(Collections.emptyList(), Collections.emptyList());
+            jwksAlgsPkc = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
         } else {
             // PKC JWKSet get contents from local file or remote HTTPS URL
             final byte[] jwkSetContentBytesPkc;
@@ -285,11 +284,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 jwkSetContentsPkc
             );
 
-            // Filter PKC JWK(s) vs Algs. Only keep JWKs with a matching Alg. Only keep Algs with a matching JWK.
-            // Zero PKC JWKs and Algs after filtering is valid use case, as long as HMAC has non-zero JWKs and Algs.
+            // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
             jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, this.allowedJwksAlgsPkc);
         }
-        LOGGER.debug("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
+        LOGGER.info("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
         return new ContentAndJwksAlgs(jwkSetContentsPkc, jwksAlgsPkc);
     }
 
@@ -349,7 +347,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
                     this.jwtCache.invalidateAll();
                 }
-                LOGGER.trace("Invalidating JWT cache for realm [{}]", super.name());
+                LOGGER.debug("Invalidated JWT cache for realm [{}]", super.name());
             } catch (Exception e) {
                 final String msg = "Exception invalidating JWT cache for realm [" + super.name() + "]";
                 LOGGER.debug(msg, e);
@@ -379,11 +377,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public void expire(final String username) {
         this.ensureInitialized();
-        LOGGER.trace("Expiring JWT cache entries for realm [{}] principal=[{}]", super.name(), username);
+        LOGGER.trace("Expiring JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
         if (this.jwtCacheHelper != null) {
             this.jwtCacheHelper.removeValuesIf(expiringUser -> expiringUser.user.principal().equals(username));
         }
-        LOGGER.trace("Expired JWT cache entries for realm [{}] principal=[{}]", super.name(), username);
+        LOGGER.trace("Expired JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
     }
 
     @Override
@@ -432,12 +430,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 if (expiringUser == null) {
                     LOGGER.trace("Realm [" + super.name() + "] JWT cache miss token=[" + tokenPrincipal + "] key=[" + jwtCacheKey + "].");
                 } else {
-                    final User authenticatedUser = expiringUser.user;
-                    // jwtClaimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis()
-                    final Date jwtExpirationDate = expiringUser.exp;
-                    final String principal = authenticatedUser.principal();
+                    final User user = expiringUser.user;
+                    final Date exp = expiringUser.exp; // claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis()
+                    final String principal = user.principal();
                     final Date now = new Date();
-                    if (now.getTime() < jwtExpirationDate.getTime()) {
+                    if (now.getTime() < exp.getTime()) {
                         LOGGER.trace(
                             "Realm ["
                                 + super.name()
@@ -448,7 +445,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                                 + "] principal=["
                                 + principal
                                 + "] exp=["
-                                + jwtExpirationDate
+                                + exp
                                 + "] now=["
                                 + now
                                 + "]."
@@ -456,7 +453,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         if (this.delegatedAuthorizationSupport.hasDelegation()) {
                             this.delegatedAuthorizationSupport.resolve(principal, listener);
                         } else {
-                            listener.onResponse(AuthenticationResult.success(authenticatedUser));
+                            listener.onResponse(AuthenticationResult.success(user));
                         }
                         return;
                     }
@@ -470,7 +467,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                             + "] principal=["
                             + principal
                             + "] exp=["
-                            + jwtExpirationDate
+                            + exp
                             + "] now=["
                             + now
                             + "]."
@@ -478,14 +475,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
             }
 
-            // Validate JWT: Parse and validate.
+            // Validate JWT: Extract JWT and claims set, and validate JWT.
             final SignedJWT jwt;
-            final JWSHeader jwtHeader;
-            final JWTClaimsSet jwtClaimsSet;
+            final JWSHeader header;
+            final JWTClaimsSet claimsSet;
             try {
                 jwt = SignedJWT.parse(serializedJwt.toString());
-                jwtHeader = jwt.getHeader();
-                jwtClaimsSet = jwt.getJWTClaimsSet();
+                header = jwt.getHeader();
+                claimsSet = jwt.getJWTClaimsSet();
                 final Date now = new Date();
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug(
@@ -495,44 +492,40 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         super.name(),
                         tokenPrincipal,
                         now,
-                        jwtHeader.getAlgorithm(),
-                        jwtClaimsSet.getIssuer(),
-                        jwtClaimsSet.getAudience(),
-                        jwtHeader.getType(),
-                        jwtClaimsSet.getDateClaim("auth_time"),
-                        jwtClaimsSet.getIssueTime(),
-                        jwtClaimsSet.getNotBeforeTime(),
-                        jwtClaimsSet.getExpirationTime(),
-                        jwtHeader.getKeyID(),
-                        jwtClaimsSet.getJWTID()
+                        header.getAlgorithm(),
+                        claimsSet.getIssuer(),
+                        claimsSet.getAudience(),
+                        header.getType(),
+                        claimsSet.getDateClaim("auth_time"),
+                        claimsSet.getIssueTime(),
+                        claimsSet.getNotBeforeTime(),
+                        claimsSet.getExpirationTime(),
+                        header.getKeyID(),
+                        claimsSet.getJWTID()
                     );
                 }
                 // Validate all else before signature, because these checks are more helpful diagnostics than rejected signatures.
-                final boolean isJwtSignatureAlgPkc = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(
-                    jwtHeader.getAlgorithm().getName()
-                );
-                if (isJwtSignatureAlgPkc && (this.isConfiguredJwkSetPkc == false)) {
-                    final String msg = "Realm [" + super.name() + "] is not configured for PKC verify of token=[" + tokenPrincipal + "].";
+                final boolean isJwtSigPkc = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(header.getAlgorithm().getName());
+                if (isJwtSigPkc && (this.isConfiguredJwkSetPkc == false)) {
+                    final String msg = "Realm [" + super.name() + "] not configured to verify PKC JWTs for token=[" + tokenPrincipal + "].";
                     LOGGER.debug(msg);
                     listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
                     return;
-                } else if ((isJwtSignatureAlgPkc == false)
-                    && (this.isConfiguredJwkSetHmac == false)
-                    && (this.isConfiguredJwkOidcHmac == false)) {
-                        final String msg = "Realm ["
-                            + super.name()
-                            + "] is not configured for HMAC verify of token=["
-                            + tokenPrincipal
-                            + "].";
-                        LOGGER.debug(msg);
-                        listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
-                        return;
-                    }
+                } else if ((isJwtSigPkc == false) && (this.isConfiguredJwkSetHmac == false) && (this.isConfiguredJwkOidcHmac == false)) {
+                    final String msg = "Realm ["
+                        + super.name()
+                        + "] not configured to verify HMAC JWTs for token=["
+                        + tokenPrincipal
+                        + "].";
+                    LOGGER.debug(msg);
+                    listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                    return;
+                }
 
                 JwtValidateUtil.validateType(jwt);
                 JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
                 JwtValidateUtil.validateAudiences(jwt, allowedAudiences);
-                JwtValidateUtil.validateSignatureAlgorithm(jwt, isJwtSignatureAlgPkc ? this.allowedJwksAlgsPkc : this.allowedJwksAlgsHmac);
+                JwtValidateUtil.validateSignatureAlgorithm(jwt, isJwtSigPkc ? this.allowedJwksAlgsPkc : this.allowedJwksAlgsHmac);
                 JwtValidateUtil.validateAuthTime(jwt, now, this.allowedClockSkew.seconds());
                 JwtValidateUtil.validateIssuedAtTime(jwt, now, this.allowedClockSkew.seconds());
                 JwtValidateUtil.validateNotBeforeTime(jwt, now, this.allowedClockSkew.seconds());
@@ -542,15 +535,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 try {
                     JwtValidateUtil.validateSignature(
                         jwt,
-                        isJwtSignatureAlgPkc ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
+                        isJwtSigPkc ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
                     );
                 } catch (Exception originalValidateSignatureException) {
-                    if (isJwtSignatureAlgPkc) {
+                    if (isJwtSigPkc) {
                         final String sigErr = originalValidateSignatureException.getMessage() + " ";
                         LOGGER.trace(sigErr + "Reloading PKC JWKs to retry verify JWT token=[" + tokenPrincipal + "]");
                         final ContentAndJwksAlgs newContentAndJwksAlgs;
                         try {
-                            newContentAndJwksAlgs = this.loadContentAndFilterJwksAlgsPkc();
+                            newContentAndJwksAlgs = this.loadContentAndParseJwksAlgsPkc();
                         } catch (Exception reloadException) {
                             final String msg = sigErr + "Failed to reload PKC JWKs, can't retry verify JWT token=[" + tokenPrincipal + "]";
                             reloadException.addSuppressed(originalValidateSignatureException);
@@ -585,7 +578,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     }
                     JwtValidateUtil.validateSignature(
                         jwt,
-                        isJwtSignatureAlgPkc ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
+                        isJwtSigPkc ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
                     );
                 }
             } catch (Exception e) {
@@ -595,9 +588,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return;
             }
 
-            // At this point, JWT is validated. Process the JWT claims using realm settings.
+            // At this point, JWT is validated. Parse the JWT claims using realm settings.
 
-            final String principal = this.claimParserPrincipal.getClaimValue(jwtClaimsSet);
+            final String principal = this.claimParserPrincipal.getClaimValue(claimsSet);
             if (Strings.hasText(principal) == false) {
                 final String msg = "Realm ["
                     + super.name()
@@ -606,7 +599,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + "] parser=["
                     + this.claimParserPrincipal
                     + "] claims=["
-                    + jwtClaimsSet
+                    + claimsSet
                     + "].";
                 LOGGER.debug(msg);
                 listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
@@ -616,18 +609,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Roles listener: Log roles from delegated authz lookup or role mapping, and cache User if JWT cache is enabled.
             final ActionListener<AuthenticationResult<User>> logAndCacheListener = ActionListener.wrap(result -> {
                 if (result.isAuthenticated()) {
-                    final User authenticatedUser = result.getValue();
+                    final User user = result.getValue();
                     LOGGER.debug(
-                        () -> format(
-                            "Realm [%s] roles [%s] for principal=[%s].",
-                            super.name(),
-                            join(",", authenticatedUser.roles()),
-                            principal
-                        )
+                        () -> format("Realm [%s] roles [%s] for principal=[%s].", super.name(), join(",", user.roles()), principal)
                     );
                     if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
                         try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
-                            final long expWallClockMillis = jwtClaimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();
+                            final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();
                             this.jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));
                         }
                     }
@@ -653,21 +641,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             }
 
             // Role resolution: Handle role mapping in JWT Realm.
-            final List<String> groups = this.claimParserGroups.getClaimValues(jwtClaimsSet);
-            final String dn = this.claimParserDn.getClaimValue(jwtClaimsSet);
-            final String mail = this.claimParserMail.getClaimValue(jwtClaimsSet);
-            final String name = this.claimParserName.getClaimValue(jwtClaimsSet);
+            final List<String> groups = this.claimParserGroups.getClaimValues(claimsSet);
+            final String dn = this.claimParserDn.getClaimValue(claimsSet);
+            final String mail = this.claimParserMail.getClaimValue(claimsSet);
+            final String name = this.claimParserName.getClaimValue(claimsSet);
             final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, super.config);
             this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
-                final User authenticatedUser = new User(
-                    principal,
-                    rolesSet.toArray(Strings.EMPTY_ARRAY),
-                    name,
-                    mail,
-                    userData.getMetadata(),
-                    true
-                );
-                logAndCacheListener.onResponse(AuthenticationResult.success(authenticatedUser));
+                final User user = new User(principal, rolesSet.toArray(Strings.EMPTY_ARRAY), name, mail, userData.getMetadata(), true);
+                logAndCacheListener.onResponse(AuthenticationResult.success(user));
             }, logAndCacheListener::onFailure));
         } else {
             final String className = (authenticationToken == null) ? "null" : authenticationToken.getClass().getCanonicalName();

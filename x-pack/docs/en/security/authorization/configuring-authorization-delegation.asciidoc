@@ -5,7 +5,7 @@
 In some cases, after the user has been authenticated by a realm, we may
 want to delegate user lookup and assignment of roles to another realm.
 Any realm that supports <<user-lookup,user lookup>> (without needing the
-the user's credentials) can be used as an authorization realm.
+user's credentials) can be used as an authorization realm.
 
 For example, a user that is authenticated by the Kerberos realm can be looked up
 in the LDAP realm. The LDAP realm takes on responsibility for searching the user

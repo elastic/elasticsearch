@@ -140,32 +140,34 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     }
 
     // Retrieves a class resource from this loader's jars, or null.
-    private Resource getClassResourceOrNull(String name) {
-        String filepath = name.replace('.', '/').concat(".class");
-        String pkg = toPackageName(filepath);
-        JarMeta jarMeta = packageToJarMeta.get(pkg);
-        if (jarMeta != null) {
-            List<Integer> releaseVersions = jarMeta.pkgToVersions().get(pkg);
-            if (jarMeta.isMultiRelease() && releaseVersions != null) {
-                for (int releaseVersion : releaseVersions) {
-                    String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
-                    InputStream is = parent.getResourceAsStream(fullName);
-                    if (is != null) {
-                        return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
+    private Resource privilegedGetClassResourceOrNull(String name) {
+        return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
+            String filepath = name.replace('.', '/').concat(".class");
+            String pkg = toPackageName(filepath);
+            JarMeta jarMeta = packageToJarMeta.get(pkg);
+            if (jarMeta != null) {
+                List<Integer> releaseVersions = jarMeta.pkgToVersions().get(pkg);
+                if (jarMeta.isMultiRelease() && releaseVersions != null) {
+                    for (int releaseVersion : releaseVersions) {
+                        String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
+                        InputStream is = parent.getResourceAsStream(fullName);
+                        if (is != null) {
+                            return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
+                        }
                     }
                 }
+                InputStream is = parent.getResourceAsStream(jarMeta.prefix() + "/" + filepath);
+                if (is != null) {
+                    return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
+                }
             }
-            InputStream is = parent.getResourceAsStream(jarMeta.prefix() + "/" + filepath);
-            if (is != null) {
-                return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-            }
-        }
-        return null;
+            return null;
+        });
     }
 
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
-        Resource res = getClassResourceOrNull(name);
+        Resource res = privilegedGetClassResourceOrNull(name);
         if (res != null) {
             try (InputStream in = res.inputStream()) {
                 byte[] bytes = in.readAllBytes();

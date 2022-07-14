@@ -17,6 +17,7 @@ out/
 
 # These files are generated in the main tree by IntelliJ
 benchmarks/src/main/generated/*
+x-pack/plugin/sql/src/benchmarks/generated/*
 
 # eclipse files
 .project

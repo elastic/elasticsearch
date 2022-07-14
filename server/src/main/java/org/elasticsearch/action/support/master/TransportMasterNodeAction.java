@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -178,13 +178,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     // package private for testing
     void validateForImmutableState(Request request, ClusterState state) {
-        Optional<String> handlerName = immutableStateHandlerName();
+        Optional<String> handlerName = reservedStateHandlerName();
         assert handlerName.isPresent();
 
         Set<String> modified = modifiedKeys(request);
         List<String> errors = new ArrayList<>();
 
-        for (ImmutableStateMetadata metadata : state.metadata().immutableStateMetadata().values()) {
+        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
             Set<String> conflicts = metadata.conflicts(handlerName.get(), modified);
             if (conflicts.isEmpty() == false) {
                 errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));
@@ -200,7 +200,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     // package private for testing
     boolean supportsImmutableState() {
-        return immutableStateHandlerName().isPresent();
+        return reservedStateHandlerName().isPresent();
     }
 
     @Override

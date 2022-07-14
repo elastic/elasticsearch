@@ -29,11 +29,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.metadata.ImmutableStateHandlerMetadata;
-import org.elasticsearch.cluster.metadata.ImmutableStateMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -45,9 +45,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -260,14 +260,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
     }
 
-    class ImmutableStateAction extends Action {
-        ImmutableStateAction(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+    class ReservedStateAction extends Action {
+        ReservedStateAction(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
             super(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
         }
 
         @Override
-        protected Optional<String> immutableStateHandlerName() {
-            return Optional.of("test_immutable_state_action");
+        protected Optional<String> reservedStateHandlerName() {
+            return Optional.of("test_reserved_state_action");
         }
     }
 
@@ -306,8 +306,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected Optional<String> immutableStateHandlerName() {
-            return Optional.of(ImmutableClusterSettingsAction.NAME);
+        protected Optional<String> reservedStateHandlerName() {
+            return Optional.of(ReservedClusterSettingsAction.NAME);
         }
 
         @Override
@@ -760,10 +760,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public void testRejectImmutableConflictClusterStateUpdate() {
-        ImmutableStateHandlerMetadata hmOne = new ImmutableStateHandlerMetadata(ImmutableClusterSettingsAction.NAME, Set.of("a", "b"));
-        ImmutableStateHandlerMetadata hmThree = new ImmutableStateHandlerMetadata(ImmutableClusterSettingsAction.NAME, Set.of("e", "f"));
-        ImmutableStateMetadata omOne = ImmutableStateMetadata.builder("namespace_one").putHandler(hmOne).build();
-        ImmutableStateMetadata omTwo = ImmutableStateMetadata.builder("namespace_two").putHandler(hmThree).build();
+        ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata(ReservedClusterSettingsAction.NAME, Set.of("a", "b"));
+        ReservedStateHandlerMetadata hmThree = new ReservedStateHandlerMetadata(ReservedClusterSettingsAction.NAME, Set.of("e", "f"));
+        ReservedStateMetadata omOne = ReservedStateMetadata.builder("namespace_one").putHandler(hmOne).build();
+        ReservedStateMetadata omTwo = ReservedStateMetadata.builder("namespace_two").putHandler(hmThree).build();
 
         Metadata metadata = Metadata.builder().put(omOne).put(omTwo).build();
 
@@ -773,7 +773,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertFalse(noHandler.supportsImmutableState());
 
-        noHandler = new ImmutableStateAction("internal:testOpAction", transportService, clusterService, threadPool);
+        noHandler = new ReservedStateAction("internal:testOpAction", transportService, clusterService, threadPool);
 
         assertTrue(noHandler.supportsImmutableState());
 

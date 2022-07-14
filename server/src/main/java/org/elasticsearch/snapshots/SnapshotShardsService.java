@@ -56,9 +56,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
@@ -253,10 +250,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     private void startNewShardSnapshots(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            final Snapshot snapshot = entry.snapshot();
-            // TODO: Could you do better than just Runnables?
-            BlockingQueue<Runnable> shardSnapshotTasks = new LinkedBlockingQueue<>();
-            BlockingQueue<Runnable> fileUploadTasks = new LinkedBlockingQueue<>();
             for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
                 final ShardId shardId = shardEntry.getKey();
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
@@ -267,77 +260,51 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     : "Found non-null, non-numeric shard generation ["
                         + snapshotStatus.generation()
                         + "] for snapshot with old-format compatibility";
-                shardSnapshotTasks.add(
-                    () -> snapshot(
-                        shardId,
-                        snapshot,
-                        indexId,
-                        entry.userMetadata(),
-                        snapshotStatus,
-                        entry.version(),
-                        fileUploadTasks,
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(ShardSnapshotResult shardSnapshotResult) {
-                                final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
-                                assert newGeneration != null;
-                                assert newGeneration.equals(snapshotStatus.generation());
-                                if (logger.isDebugEnabled()) {
-                                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                                    logger.debug(
-                                        "[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
-                                        shardId,
-                                        snapshot,
-                                        snapshot.getRepository(),
-                                        lastSnapshotStatus,
-                                        snapshotStatus.generation()
-                                    );
-                                }
-                                notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                final String failure;
-                                if (e instanceof AbortedSnapshotException) {
-                                    failure = "aborted";
-                                    logger.debug(() -> format("[%s][%s] aborted shard snapshot", shardId, snapshot), e);
-                                } else {
-                                    failure = summarizeFailure(e);
-                                    logger.warn(() -> format("[%s][%s] failed to snapshot shard", shardId, snapshot), e);
-                                }
-                                snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                                notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
-                            }
-                        }
-                    )
-                );
-            }
-            // create the workers and pass them the tasks
-            final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-            // Fewer workers than thread pool size?
-            final int workers = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
-            for (int i = 0; i < workers; i++) {
-                executor.execute(() -> {
-                    // Fetch from snapshot task queue, and add to file upload queue
-                    while (true) {
-                        Runnable snapshotTask = shardSnapshotTasks.poll();
-                        if (snapshotTask == null) break;
-                        snapshotTask.run();
-                    }
-                    // Fetch from file upload task queue. If all other workers have reached file upload, and this queue is empty
-                    // then the worker is done (!?)
-                    while (true) {
-                        Runnable fileUploadTask = fileUploadTasks.poll();
-                        if (fileUploadTask == null) {
-                            // TODO: is it safe to exit the worker? Or we should wait as long as not all shard meta tasks are finished?
-                            break;
-                        }
-                        fileUploadTask.run();
-                    }
-                });
+                startShardSnapshot(entry, shardId, snapshotStatus);
             }
         });
+    }
+
+    private void startShardSnapshot(SnapshotsInProgress.Entry entry, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
+        final Snapshot snapshot = entry.snapshot();
+        final IndexId indexId = entry.indices().get(shardId.getIndexName());
+        threadPool.executor(ThreadPool.Names.SNAPSHOT)
+            .execute(
+                () -> snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
+                    @Override
+                    public void onResponse(ShardSnapshotResult shardSnapshotResult) {
+                        final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
+                        assert newGeneration != null;
+                        assert newGeneration.equals(snapshotStatus.generation());
+                        if (logger.isDebugEnabled()) {
+                            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                            logger.debug(
+                                "[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
+                                shardId,
+                                snapshot,
+                                snapshot.getRepository(),
+                                lastSnapshotStatus,
+                                snapshotStatus.generation()
+                            );
+                        }
+                        notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final String failure;
+                        if (e instanceof AbortedSnapshotException) {
+                            failure = "aborted";
+                            logger.debug(() -> format("[%s][%s] aborted shard snapshot", shardId, snapshot), e);
+                        } else {
+                            failure = summarizeFailure(e);
+                            logger.warn(() -> format("[%s][%s] failed to snapshot shard", shardId, snapshot), e);
+                        }
+                        snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
+                        notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
+                    }
+                })
+            );
     }
 
     // package private for testing
@@ -375,7 +342,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Map<String, Object> userMetadata,
         final IndexShardSnapshotStatus snapshotStatus,
         Version version,
-        BlockingQueue<Runnable> fileUploadTasks,
         ActionListener<ShardSnapshotResult> listener
     ) {
         try {
@@ -412,7 +378,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         snapshotStatus,
                         version,
                         userMetadata,
-                        fileUploadTasks,
                         listener
                     )
                 );

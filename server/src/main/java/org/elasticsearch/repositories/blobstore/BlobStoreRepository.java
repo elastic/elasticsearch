@@ -2886,26 +2886,40 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
-
-            final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, filesToSnapshot.size(), allFilesUploadedListener);
-            for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesToSnapshot) {
-                // Todo: is the following correct w/ ActionRunnable.wrap?
-                context.fileUploadQueue().add(ActionRunnable.wrap(filesListener, l -> {
-                    try (Releasable ignored = incrementStoreRef(store, snapshotStatus, store.shardId())) {
-                        snapshotFile(fileInfo, context.indexId(), store.shardId(), snapshotId, snapshotStatus, store);
-                    }
-                }));
+            final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+            // Start as many workers as fit into the snapshot pool at once at the most
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), indexIncrementalFileCount);
+            final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, workers, allFilesUploadedListener);
+            for (int i = 0; i < workers; ++i) {
+                executeOneFileSnapshot(store, snapshotId, context.indexId(), snapshotStatus, filesToSnapshot, executor, filesListener);
             }
         } catch (Exception e) {
             context.onFailure(e);
         }
     }
 
-    public record ShardSnapshotFileUpload(
-        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-        SnapshotShardContext context,
+    private void executeOneFileSnapshot(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexShardSnapshotStatus snapshotStatus,
+        BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot,
+        Executor executor,
         ActionListener<Void> listener
-    ) {}
+    ) throws InterruptedException {
+        final ShardId shardId = store.shardId();
+        final BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
+        if (snapshotFileInfo == null) {
+            listener.onResponse(null);
+        } else {
+            executor.execute(ActionRunnable.wrap(listener, l -> {
+                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
+                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l);
+                }
+            }));
+        }
+    }
 
     private static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
         if (store.tryIncRef() == false) {
@@ -3095,10 +3109,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static ActionListener<Void> fileQueueListener(
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files,
-        int groupSize,
+        int workers,
         ActionListener<Collection<Void>> listener
     ) {
-        return new GroupedActionListener<>(listener, groupSize).delegateResponse((l, e) -> {
+        return new GroupedActionListener<>(listener, workers).delegateResponse((l, e) -> {
             files.clear(); // Stop uploading the remaining files if we run into any exception
             l.onFailure(e);
         });

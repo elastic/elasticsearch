@@ -19,7 +19,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 
 /**
  * Context holding the state for creating a shard snapshot via {@link Repository#snapshotShard(SnapshotShardContext)}.
@@ -38,7 +37,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
     private final IndexShardSnapshotStatus snapshotStatus;
     private final Version repositoryMetaVersion;
     private final Map<String, Object> userMetadata;
-    private final BlockingQueue<Runnable> fileUploadTasks;
 
     /**
      * @param store                 store to be snapshotted
@@ -65,7 +63,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        BlockingQueue<Runnable> fileUploadTasks,
         ActionListener<ShardSnapshotResult> listener
     ) {
         super(ActionListener.runBefore(listener, commitRef::close));
@@ -78,7 +75,6 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         this.snapshotStatus = snapshotStatus;
         this.repositoryMetaVersion = repositoryMetaVersion;
         this.userMetadata = userMetadata;
-        this.fileUploadTasks = fileUploadTasks;
     }
 
     public Store store() {
@@ -121,9 +117,5 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
     @Override
     public void onResponse(ShardSnapshotResult result) {
         delegate.onResponse(result);
-    }
-
-    public BlockingQueue<Runnable> fileUploadQueue() {
-        return fileUploadTasks;
     }
 }

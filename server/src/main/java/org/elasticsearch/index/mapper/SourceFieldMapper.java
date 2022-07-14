@@ -39,7 +39,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final XContentFieldFilter filter;
 
     /** The source mode */
-    public enum Mode {
+    private enum Mode {
         DISABLED,
         STORED,
         SYNTHETIC

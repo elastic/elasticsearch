@@ -47,13 +47,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             dm -> assertTrue(dm.metadataMapper(SourceFieldMapper.class).isSynthetic())
         );
-        /*
-        checker.registerUpdateCheck(
-            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
-            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
-            dm -> assertTrue(dm.metadataMapper(SourceFieldMapper.class).isSynthetic())
-        );
-         */
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
         checker.registerConflictCheck("excludes", b -> b.array("excludes", "foo*"));
         checker.registerConflictCheck(
@@ -221,5 +214,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             { "_doc" : { "_source" : { "mode" : "stored" } } }
             """));
         assertThat(e.getMessage(), containsString("Cannot update parameter [mode] from [synthetic] to [stored]"));
+
+        merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "disabled" } } }
+            """);
+        mapper = mapperService.documentMapper().sourceMapper();
+        assertFalse(mapper.enabled());
+        assertFalse(mapper.isSynthetic());
     }
 }

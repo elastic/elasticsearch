@@ -345,7 +345,7 @@ public final class Authentication implements ToXContentObject {
                 new Subject(
                     new User(user.principal(), allRoleNames, user.fullName(), user.email(), user.metadata(), user.enabled()),
                     effectiveSubject.getRealm(),
-                    getVersion(),
+                    effectiveSubject.getVersion(),
                     effectiveSubject.getMetadata()
                 ),
                 authenticatingSubject,
@@ -358,7 +358,7 @@ public final class Authentication implements ToXContentObject {
                 new Subject(
                     new User(user.principal(), allRoleNames, user.fullName(), user.email(), user.metadata(), user.enabled()),
                     authenticatingSubject.getRealm(),
-                    getVersion(),
+                    authenticatingSubject.getVersion(),
                     authenticatingSubject.getMetadata()
                 ),
                 type
@@ -500,8 +500,10 @@ public final class Authentication implements ToXContentObject {
         }
         authenticatingSubject.getRealm().writeTo(out);
         final RealmRef lookedUpBy = getLookedUpBy();
+        // See detailed comment on the same assertion in the Constructor with StreamInput
+        assert isRunAs() || lookedUpBy == null : "Authentication has no inner-user, but looked-up-by is [" + lookedUpBy + "]";
+
         if (lookedUpBy != null) {
-            assert isRunAs() : "inconsistent looked-up-by realm and run-as";
             out.writeBoolean(true);
             lookedUpBy.writeTo(out);
         } else {

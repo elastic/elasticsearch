@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,8 +47,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -79,18 +83,20 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * health status.
      */
     private final int unacceptableIdentityChanges;
+
     /*
      * This is a list of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
      * diagnosis.
-     * This field is only ever accessed on the cluster change event thread, so there no need to protect it for thread safety.
+     * The field is accessed (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change
+     * event thread.
      */
-    private List<Scheduler.Cancellable> clusterFormationInfoTasks = List.of();
+    private volatile List<Scheduler.Cancellable> clusterFormationInfoTasks = null;
     /*
      * This field holds the results of the tasks in the clusterFormationInfoTasks field above. The field is accessed (reads/writes) from
-     * multiple threads, but is only ever replaced on the cluster change event thread.
+     * multiple threads, but the reference itself is only ever changed on the cluster change event thread.
      */
     // Non-private for testing
-    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
+    volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = null;
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -593,193 +599,144 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }
     }
 
+    /**
+     * This method begins polling all known master-eligible nodes for cluster formation information. After a 10-second initial delay, it
+     * polls each node every 10 seconds until cancelPollingClusterFormationInfo() is called.
+     */
     private void beginPollingClusterFormationInfo() {
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         cancelPollingClusterFormationInfo();
-        clusterFormationInfoTasks = getMasterEligibleNodes().stream()
-            .map(masterNode -> beginPollingClusterFormationInfo(masterNode, clusterFormationResponses))
-            .collect(Collectors.toList());
+        ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
+        List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
+        beginPollingClusterFormationInfo(getMasterEligibleNodes(), responses::put, cancellables::add);
+        clusterFormationResponses = responses;
+        clusterFormationInfoTasks = cancellables;
+    }
+
+    /**
+     * This method returns quickly, but in the background schedules to query the remote node's cluster formation state in 10 seconds, and
+     * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables. This method
+     * exists (rather than being just part of the beginPollingClusterFormationInfo() above) in order to facilitate unit testing.
+     * @param nodeResponseConsumer A consumer for any results produced for a node by this method
+     * @param cancellableConsumer A consumer for any Cancellable tasks produced by this method
+     */
+    // Non-private for testing
+    void beginPollingClusterFormationInfo(
+        Collection<DiscoveryNode> masterEligibleNodes,
+        BiConsumer<DiscoveryNode, ClusterFormationStateOrException> nodeResponseConsumer,
+        Consumer<Scheduler.Cancellable> cancellableConsumer
+    ) {
+        masterEligibleNodes.forEach(masterEligibleNode -> {
+            Consumer<ClusterFormationStateOrException> responseConsumer = result -> nodeResponseConsumer.accept(masterEligibleNode, result);
+            cancellableConsumer.accept(
+                fetchClusterFormationInfo(
+                    masterEligibleNode,
+                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                )
+            );
+        });
+    }
+
+    /**
+     * This wraps the responseConsumer in a Consumer that will run rescheduleFetchConsumer() after responseConsumer has
+     * completed, adding the resulting Cancellable to cancellableConsumer.
+     * @param masterEligibleNode The node being polled
+     * @param responseConsumer The response consumer to be wrapped
+     * @param cancellableConsumer The list of Cancellables
+     * @return
+     */
+    private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleFetchConsumer(
+        DiscoveryNode masterEligibleNode,
+        Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> responseConsumer,
+        Consumer<Scheduler.Cancellable> cancellableConsumer
+    ) {
+        return response -> {
+            cancellableConsumer.accept(
+                fetchClusterFormationInfo(
+                    masterEligibleNode,
+                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                )
+            );
+        };
     }
 
     private void cancelPollingClusterFormationInfo() {
-        clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
-        /*
-         * Recreates the map so that we don't read old information, or worse get stuck with information about a node that has been
-         * removed from the cluster.
-         */
-        clusterFormationResponses = new ConcurrentHashMap<>();
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+        if (clusterFormationResponses != null) {
+            clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
+            clusterFormationResponses = null;
+            clusterFormationInfoTasks = null;
+        }
     }
 
-    Scheduler.Cancellable beginPollingClusterFormationInfo(
-        // Non-private for testing
+    /**
+     * This method returns quickly, but in the background schedules to query the remote node's cluster formation state in 10 seconds
+     * unless cancel() is called on the Cancellable that this method returns.
+     * @param node The node to poll for cluster formation information
+     * @param responseConsumer The consumer of the cluster formation info for the node, or the exception encountered while contacting it
+     * @return A Cancellable for the task that is scheduled to fetch cluster formation information
+     */
+    private Scheduler.Cancellable fetchClusterFormationInfo(
         DiscoveryNode node,
-        final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap
+        Consumer<ClusterFormationStateOrException> responseConsumer
     ) {
-        final AtomicBoolean isCancelled = new AtomicBoolean(false);
-        final Scheduler.ScheduledCancellable[] topLevelScheduledCancellable = { null };
-        new PollClusterFormationStateRunnable(
-            isCancelled,
-            node,
-            nodeToClusterFormationStateMap,
-            new ActionListener<Scheduler.ScheduledCancellable>() {
-                @Override
-                public void onResponse(Scheduler.ScheduledCancellable scheduledCancellable) {
-                    topLevelScheduledCancellable[0] = scheduledCancellable;
-                }
+        StepListener<Releasable> connectionListener = new StepListener<>();
+        StepListener<ClusterFormationInfoAction.Response> fetchClusterInfoListener = new StepListener<>();
+        long startTime = System.nanoTime();
+        connectionListener.whenComplete(releasable -> {
+            logger.trace("Opened connection to {}, making cluster coordination info request", node);
+            // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+            final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+            transportService.sendRequest(
+                node,
+                ClusterFormationInfoAction.NAME,
+                new ClusterFormationInfoAction.Request(),
+                TransportRequestOptions.timeout(transportTimeout),
+                new ActionListenerResponseHandler<>(
+                    ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
+                    ClusterFormationInfoAction.Response::new
+                )
+            );
+        }, e -> {
+            logger.warn("Exception connecting to master node", e);
+            responseConsumer.accept(new ClusterFormationStateOrException(e));
+        });
 
-                @Override
-                public void onFailure(Exception e) {
+        fetchClusterInfoListener.whenComplete(response -> {
+            long endTime = System.nanoTime();
+            logger.trace("Received cluster coordination info from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+            responseConsumer.accept(new ClusterFormationStateOrException(response.getClusterFormationState()));
+        }, e -> {
+            logger.warn("Exception in cluster coordination info request to master node", e);
+            responseConsumer.accept(new ClusterFormationStateOrException(e));
+        });
 
-                }
-            }
-        ).run();
-        return new CancellableWrapper(isCancelled, topLevelScheduledCancellable[0]);
-
-    }
-
-    private static class CancellableWrapper implements Scheduler.Cancellable {
-        private final Scheduler.Cancellable delegate;
-        private final AtomicBoolean isCancelled;
-
-        CancellableWrapper(AtomicBoolean isCancelled, Scheduler.Cancellable delegate) {
-            this.isCancelled = isCancelled;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public boolean cancel() {
-            isCancelled.set(true);
-            return delegate.cancel();
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return delegate.isCancelled();
-        }
-    }
-
-    private class PollClusterFormationStateRunnable implements Runnable {
-        private final DiscoveryNode node;
-        private final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap;
-        private final AtomicBoolean isCancelled;
-        private final ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener;
-
-        PollClusterFormationStateRunnable(
-            AtomicBoolean isCancelled,
-            DiscoveryNode node,
-            final ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap,
-            ActionListener<Scheduler.ScheduledCancellable> cancellableExistsListener
-        ) {
-            this.isCancelled = isCancelled;
-            this.node = node;
-            this.nodeToClusterFormationStateMap = nodeToClusterFormationStateMap;
-            this.cancellableExistsListener = cancellableExistsListener;
-        }
-
-        @Override
-        public void run() {
-            if (isCancelled.get()) {
-                logger.warn("Task cancelled");
+        return transportService.getThreadPool().schedule(() -> {
+            Version minSupportedVersion = Version.V_8_4_0;
+            if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                logger.trace(
+                    "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                    node,
+                    node.getVersion(),
+                    minSupportedVersion
+                );
             } else {
-                Scheduler.ScheduledCancellable scheduledCancellable = transportService.getThreadPool().schedule(() -> {
-                    Version minSupportedVersion = Version.V_8_4_0;
-                    if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
-                        logger.trace(
-                            "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                            node,
-                            node.getVersion(),
-                            minSupportedVersion
-                        );
-                    } else {
-                        long startTime = System.nanoTime();
-                        transportService.connectToNode(
-                            // Note: This connection must be explicitly closed below
-                            node,
-                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                            new ActionListener<>() {
-                                @Override
-                                public void onResponse(Releasable releasable) {
-                                    if (isCancelled.get()) {
-                                        logger.warn("Task cancelled");
-                                    } else {
-                                        logger.trace("Opened connection to {}, making cluster coordination info request", node);
-                                        // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
-                                        final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
-                                        transportService.sendRequest(
-                                            node,
-                                            ClusterFormationInfoAction.NAME,
-                                            new ClusterFormationInfoAction.Request(),
-                                            TransportRequestOptions.timeout(transportTimeout),
-                                            new ActionListenerResponseHandler<>(
-                                                ActionListener.runAfter(ActionListener.runBefore(new ActionListener<>() {
-
-                                                    @Override
-                                                    public void onResponse(ClusterFormationInfoAction.Response response) {
-                                                        if (isCancelled.get()) {
-                                                            logger.warn("Task cancelled");
-                                                        } else {
-                                                            long endTime = System.nanoTime();
-                                                            logger.trace(
-                                                                "Received cluster coordination info from {} in {}",
-                                                                node,
-                                                                TimeValue.timeValueNanos(endTime - startTime)
-                                                            );
-                                                            nodeToClusterFormationStateMap.put(
-                                                                node,
-                                                                new ClusterFormationStateOrException(response.getClusterFormationState())
-                                                            );
-                                                        }
-                                                    }
-
-                                                    @Override
-                                                    public void onFailure(Exception e) {
-                                                        if (isCancelled.get()) {
-                                                            logger.warn("Task cancelled");
-                                                        } else {
-                                                            logger.warn("Exception in cluster coordination info request to master node", e);
-                                                            nodeToClusterFormationStateMap.put(
-                                                                node,
-                                                                new ClusterFormationStateOrException(e)
-                                                            );
-                                                        }
-                                                    }
-                                                }, () -> Releasables.close(releasable)),
-                                                    new PollClusterFormationStateRunnable(
-                                                        isCancelled,
-                                                        node,
-                                                        nodeToClusterFormationStateMap,
-                                                        null
-                                                    )
-                                                ),
-                                                ClusterFormationInfoAction.Response::new
-                                            )
-                                        );
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn("Exception connecting to master node", e);
-                                    nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
-                                    new PollClusterFormationStateRunnable(isCancelled, node, nodeToClusterFormationStateMap, null).run();
-                                }
-                            }
-                        );
-                    }
-                }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-                if (cancellableExistsListener != null) {
-                    cancellableExistsListener.onResponse(scheduledCancellable);
-                }
+                transportService.connectToNode(
+                    // Note: This connection must be explicitly closed in the connectionListener
+                    node,
+                    ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                    connectionListener
+                );
             }
-
-        }
+        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
     }
 
+    // Non-private for testing
     record ClusterFormationStateOrException(
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState,
         Exception exception
-    ) { // non-private for testing
-
-        public ClusterFormationStateOrException {
+    ) {
+        ClusterFormationStateOrException {
             if (clusterFormationState != null && exception != null) {
                 throw new IllegalArgumentException("Cluster formation state and exception cannot both be non-null");
             }

@@ -12,18 +12,8 @@ package org.elasticsearch.index.bulk.stats;
  * An bulk operation listener for bulk events.
  */
 public interface BulkOperationListener {
-
-    default int beforeBulk() {
-        return 0;
-    }
-
-    default void failedBulk(int requestId) {}
     /**
      * Called after the bulk operation occurred.
      */
-    default void afterBulk(int reqId, long bulkShardSizeInBytes, long tookInNanos) {}
-
-    default long totalTime() {
-        return 0;
-    }
+    default void afterBulk(long bulkShardSizeInBytes, long tookInNanos) {}
 }

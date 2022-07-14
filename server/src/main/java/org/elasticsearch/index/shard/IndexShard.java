@@ -74,6 +74,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.bulk.stats.BulkLoadTracker;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -288,6 +289,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final boolean isDataStreamIndex; // if a shard is a part of data stream
 
+    private final BulkLoadTracker bulkLoadTracker;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -331,7 +334,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
-        this.bulkOperationListener = new ShardBulkStats(shardRouting.shardId());
+        this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(
@@ -386,6 +389,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
+        this.bulkLoadTracker = this.isDataStreamIndex ? new BulkLoadTracker(threadPool::rawRelativeTimeInNanos) : BulkLoadTracker.NO_OP;
     }
 
     public ThreadPool getThreadPool() {
@@ -429,6 +433,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public BulkOperationListener getBulkOperationListener() {
         return this.bulkOperationListener;
+    }
+
+    public Releasable startTrackingBulkWriteLoad() {
+        return bulkLoadTracker.trackWriteLoad();
     }
 
     public ShardIndexWarmerService warmerService() {
@@ -1074,7 +1082,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexingOperationListeners.postIndex(shardId, preIndex, e);
             throw e;
         }
-        logger.info("--> RES {} {}", shardId, TimeUnit.NANOSECONDS.toMillis(result.getTook()));
         indexingOperationListeners.postIndex(shardId, preIndex, result);
         return result;
     }
@@ -1353,7 +1360,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public long getTotalIndexingTimeInNanos() {
-        return internalIndexingStats.getTotalIndexingTimeInNanos();
+        return bulkLoadTracker.totalIndexingTimeInNanos();
     }
 
     public long getTotalDeleteTimeInNanos() {
@@ -1377,6 +1384,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return 0;
         }
     }
+
     public long getTotalRefreshTimeInNanos() {
         final var engine = getEngineOrNull();
         if (engine instanceof InternalEngine) {

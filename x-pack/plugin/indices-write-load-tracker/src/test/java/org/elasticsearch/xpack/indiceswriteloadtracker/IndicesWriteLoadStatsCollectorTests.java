@@ -47,6 +47,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -553,7 +555,12 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 config.getLeafSorter()
             );
-            return new InternalEngine(configWithMergePolicy);
+            return new InternalEngine(configWithMergePolicy) {
+                @Override
+                public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+                    return super.ensureTranslogSynced(locations);
+                }
+            };
         }, () -> {}, RetentionLeaseSyncer.EMPTY);
         recoverShardFromStore(shard);
         setUpRelativeTimeClock(relativeTimeClock);

@@ -403,13 +403,15 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
 
     private ShardWriteLoadHistogramSnapshot getRandomWriteLoadDistribution() {
         return new ShardWriteLoadHistogramSnapshot(
-            System.currentTimeMillis(),
             "parent",
             new ShardId("index", "uuid", 0),
             randomBoolean(),
-            randomLoadDistribution(),
-            randomLoadDistribution(),
-            randomLoadDistribution()
+            new WriteLoadHistogramSnapshot(
+                System.currentTimeMillis(),
+                randomLoadDistribution(),
+                randomLoadDistribution(),
+                randomLoadDistribution()
+            )
         );
     }
 

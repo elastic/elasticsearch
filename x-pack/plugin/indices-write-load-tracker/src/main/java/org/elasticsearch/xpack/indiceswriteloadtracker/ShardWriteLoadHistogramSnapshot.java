@@ -21,99 +21,64 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 public record ShardWriteLoadHistogramSnapshot(
-    long timestamp,
     String dataStream,
     ShardId shardId,
     boolean primary,
-    HistogramSnapshot indexLoadHistogramSnapshot,
-    HistogramSnapshot mergeLoadHistogramSnapshot,
-    HistogramSnapshot refreshLoadHistogramSnapshot
+    WriteLoadHistogramSnapshot writeLoadHistogramSnapshot
 ) implements Writeable, ToXContentObject {
 
-    private static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");
     private static final ParseField DATA_STREAM_FIELD = new ParseField("data_stream");
     private static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     private static final ParseField INDEX_UUID_FIELD = new ParseField("index_uuid");
     private static final ParseField SHARD_FIELD = new ParseField("shard");
     private static final ParseField PRIMARY_FIELD = new ParseField("primary");
 
-    private static final ParseField INDEXING_LOAD_DISTRIBUTION_FIELD = new ParseField("index_load_histogram");
-    private static final ParseField MERGING_LOAD_DISTRIBUTION_FIELD = new ParseField("merge_load_histogram");
-    private static final ParseField REFRESH_LOAD_DISTRIBUTION_FIELD = new ParseField("refresh_load_histogram");
-
-    public static final ConstructingObjectParser<ShardWriteLoadHistogramSnapshot, String> PARSER = new ConstructingObjectParser<>(
-        "shard_write_load_distribution",
+    public static final ConstructingObjectParser<ShardWriteLoadHistogramSnapshot, Void> PARSER = new ConstructingObjectParser<>(
+        "shard_write_load_histogram_snapshot",
         false,
         (args, name) -> new ShardWriteLoadHistogramSnapshot(
-            (long) args[0],
-            (String) args[1],
-            new ShardId(new Index((String) args[2], (String) args[3]), (int) args[4]),
-            (boolean) args[5],
-            (HistogramSnapshot) args[6],
-            (HistogramSnapshot) args[7],
-            (HistogramSnapshot) args[8]
+            (String) args[0],
+            new ShardId(new Index((String) args[1], (String) args[2]), (int) args[3]),
+            (boolean) args[4],
+            new WriteLoadHistogramSnapshot(
+                (long) args[5],
+                (HistogramSnapshot) args[6],
+                (HistogramSnapshot) args[7],
+                (HistogramSnapshot) args[8]
+            )
         )
     );
 
     static {
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DATA_STREAM_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_NAME_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), PRIMARY_FIELD);
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> HistogramSnapshot.fromXContent(p),
-            INDEXING_LOAD_DISTRIBUTION_FIELD
-        );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> HistogramSnapshot.fromXContent(p),
-            MERGING_LOAD_DISTRIBUTION_FIELD
-        );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> HistogramSnapshot.fromXContent(p),
-            REFRESH_LOAD_DISTRIBUTION_FIELD
-        );
+        WriteLoadHistogramSnapshot.configureParser(PARSER);
     }
 
     public ShardWriteLoadHistogramSnapshot(StreamInput in) throws IOException {
-        this(
-            in.readLong(),
-            in.readString(),
-            new ShardId(in),
-            in.readBoolean(),
-            new HistogramSnapshot(in),
-            new HistogramSnapshot(in),
-            new HistogramSnapshot(in)
-        );
+        this(in.readString(), new ShardId(in), in.readBoolean(), new WriteLoadHistogramSnapshot(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(timestamp);
         out.writeString(dataStream);
         shardId.writeTo(out);
         out.writeBoolean(primary);
-        indexLoadHistogramSnapshot.writeTo(out);
-        mergeLoadHistogramSnapshot.writeTo(out);
-        refreshLoadHistogramSnapshot.writeTo(out);
+        writeLoadHistogramSnapshot.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TIMESTAMP_FIELD.getPreferredName(), timestamp);
         builder.field(DATA_STREAM_FIELD.getPreferredName(), dataStream);
         builder.field(INDEX_NAME_FIELD.getPreferredName(), shardId.getIndex().getName());
         builder.field(INDEX_UUID_FIELD.getPreferredName(), shardId.getIndex().getUUID());
         builder.field(SHARD_FIELD.getPreferredName(), shardId.getId());
         builder.field(PRIMARY_FIELD.getPreferredName(), primary);
-        builder.field(INDEXING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), indexLoadHistogramSnapshot);
-        builder.field(MERGING_LOAD_DISTRIBUTION_FIELD.getPreferredName(), mergeLoadHistogramSnapshot);
-        builder.field(REFRESH_LOAD_DISTRIBUTION_FIELD.getPreferredName(), refreshLoadHistogramSnapshot);
+        writeLoadHistogramSnapshot.toXContent(builder, params);
         builder.endObject();
 
         return builder;
@@ -123,4 +88,19 @@ public record ShardWriteLoadHistogramSnapshot(
         return PARSER.parse(parser, null);
     }
 
+    public long timestamp() {
+        return writeLoadHistogramSnapshot.timestamp();
+    }
+
+    public HistogramSnapshot indexLoadHistogramSnapshot() {
+        return writeLoadHistogramSnapshot.indexLoadHistogramSnapshot();
+    }
+
+    public HistogramSnapshot mergeLoadHistogramSnapshot() {
+        return writeLoadHistogramSnapshot.mergeLoadHistogramSnapshot();
+    }
+
+    public HistogramSnapshot refreshLoadHistogramSnapshot() {
+        return writeLoadHistogramSnapshot.refreshLoadHistogramSnapshot();
+    }
 }

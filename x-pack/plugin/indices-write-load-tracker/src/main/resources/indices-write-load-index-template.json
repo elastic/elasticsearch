@@ -1,6 +1,7 @@
 {
   "index_patterns": [
-    ".indices-write-load"
+    ".indices-write-load",
+    ".nodes-write-load"
   ],
   "data_stream": {
     "hidden": true
@@ -18,6 +19,9 @@
         "@timestamp": {
           "type": "date",
           "format": "epoch_millis"
+        },
+        "node_id": {
+          "type": "keyword"
         },
         "data_stream": {
           "type": "keyword"

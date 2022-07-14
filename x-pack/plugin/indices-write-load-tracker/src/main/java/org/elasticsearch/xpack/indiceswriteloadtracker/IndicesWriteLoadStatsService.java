@@ -158,13 +158,16 @@ class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
     }
 
     private void storeWriteLoadDistributions() {
-        //assert currentThreadIsWriterLoadCollectorThreadOrTestThread() : Thread.currentThread().getName();
+        // assert currentThreadIsWriterLoadCollectorThreadOrTestThread() : Thread.currentThread().getName();
 
         if (enabled == false) {
             return;
         }
 
         try {
+            final var nodeWriteLoadHistogram = indexShardWriteLoadStatsCollector.getNodeWriteLoadHistogramSnapshotAndReset();
+            indicesWriteLoadStore.putAsync(nodeWriteLoadHistogram);
+
             final var writeLoadHistograms = indexShardWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
             indicesWriteLoadStore.putAsync(writeLoadHistograms);
         } catch (Exception e) {

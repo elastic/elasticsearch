@@ -84,6 +84,8 @@ class IndicesWriteLoadStore implements Closeable {
 
     static final String INDICES_WRITE_LOAD_DATA_STREAM = ".indices-write-load";
 
+    static final String NODES_WRITE_LOAD_DATA_STREAM = ".nodes-write-load";
+
     static final String INDICES_WRITE_LOAD_FEATURE_NAME = "indices_write_load";
 
     static final SystemDataStreamDescriptor INDICES_WRITE_LOAD_DATA_STREAM_DESCRIPTOR = loadDataStreamDescriptor();
@@ -171,21 +173,33 @@ class IndicesWriteLoadStore implements Closeable {
         }
 
         for (ShardWriteLoadHistogramSnapshot shardWriteLoadHistogramSnapshot : shardWriteLoadHistogramSnapshots) {
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                shardWriteLoadHistogramSnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                final var request = new IndexRequest(INDICES_WRITE_LOAD_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
-                bulkProcessor.add(request);
-            } catch (IOException exception) {
-                logger.warn(
-                    String.format(
-                        Locale.ROOT,
-                        "failed to queue indices write load distribution item in index [%s]: [%s]",
-                        INDICES_WRITE_LOAD_DATA_STREAM,
-                        shardWriteLoadHistogramSnapshot
-                    ),
-                    exception
-                );
-            }
+            index(shardWriteLoadHistogramSnapshot, INDICES_WRITE_LOAD_DATA_STREAM);
+        }
+    }
+
+    void putAsync(NodeWriteLoadHistogramSnapshot nodeWriteLoadHistogramSnapshot) {
+        if (enabled == false) {
+            return;
+        }
+
+        index(nodeWriteLoadHistogramSnapshot, NODES_WRITE_LOAD_DATA_STREAM);
+    }
+
+    private void index(ToXContent document, String index) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            document.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            final var request = new IndexRequest(index).source(builder).opType(DocWriteRequest.OpType.CREATE);
+            bulkProcessor.add(request);
+        } catch (IOException exception) {
+            logger.warn(
+                String.format(
+                    Locale.ROOT,
+                    "failed to queue write load histogram item in index [%s]: [%s]",
+                    NODES_WRITE_LOAD_DATA_STREAM,
+                    document
+                ),
+                exception
+            );
         }
     }
 

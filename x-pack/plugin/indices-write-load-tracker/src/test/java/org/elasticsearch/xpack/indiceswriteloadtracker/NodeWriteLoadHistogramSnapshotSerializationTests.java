@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.indiceswriteloadtracker;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -18,24 +16,21 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.indiceswriteloadtracker.HistogramSnapshotSerializationTests.mutateHistogramSnapshot;
 import static org.elasticsearch.xpack.indiceswriteloadtracker.HistogramSnapshotSerializationTests.randomHistogramSnapshot;
 
-public class ShardWriteLoadHistogramSnapshotSerializationTests extends AbstractSerializingTestCase<ShardWriteLoadHistogramSnapshot> {
-
+public class NodeWriteLoadHistogramSnapshotSerializationTests extends AbstractSerializingTestCase<NodeWriteLoadHistogramSnapshot> {
     @Override
-    protected ShardWriteLoadHistogramSnapshot doParseInstance(XContentParser parser) throws IOException {
-        return ShardWriteLoadHistogramSnapshot.fromXContent(parser);
+    protected NodeWriteLoadHistogramSnapshot doParseInstance(XContentParser parser) throws IOException {
+        return NodeWriteLoadHistogramSnapshot.parse(parser);
     }
 
     @Override
-    protected Writeable.Reader<ShardWriteLoadHistogramSnapshot> instanceReader() {
-        return ShardWriteLoadHistogramSnapshot::new;
+    protected Writeable.Reader<NodeWriteLoadHistogramSnapshot> instanceReader() {
+        return NodeWriteLoadHistogramSnapshot::new;
     }
 
     @Override
-    protected ShardWriteLoadHistogramSnapshot createTestInstance() {
-        return new ShardWriteLoadHistogramSnapshot(
+    protected NodeWriteLoadHistogramSnapshot createTestInstance() {
+        return new NodeWriteLoadHistogramSnapshot(
             randomAlphaOfLength(10),
-            new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)),
-            randomBoolean(),
             new WriteLoadHistogramSnapshot(
                 randomNonNegativeLong(),
                 randomHistogramSnapshot(),
@@ -46,31 +41,12 @@ public class ShardWriteLoadHistogramSnapshotSerializationTests extends AbstractS
     }
 
     @Override
-    protected ShardWriteLoadHistogramSnapshot mutateInstance(ShardWriteLoadHistogramSnapshot instance) {
-        final var mutationBranch = randomInt(6);
+    protected NodeWriteLoadHistogramSnapshot mutateInstance(NodeWriteLoadHistogramSnapshot instance) throws IOException {
+        final var mutationBranch = randomInt(4);
         return switch (mutationBranch) {
-            case 0 -> new ShardWriteLoadHistogramSnapshot(
-                randomAlphaOfLength(10),
-                instance.shardId(),
-                instance.primary(),
-                instance.writeLoadHistogramSnapshot()
-            );
-            case 1 -> new ShardWriteLoadHistogramSnapshot(
-                instance.dataStream(),
-                new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(), randomIntBetween(0, 10)),
-                instance.primary(),
-                instance.writeLoadHistogramSnapshot()
-            );
-            case 2 -> new ShardWriteLoadHistogramSnapshot(
-                instance.dataStream(),
-                instance.shardId(),
-                instance.primary() == false,
-                instance.writeLoadHistogramSnapshot()
-            );
-            case 3 -> new ShardWriteLoadHistogramSnapshot(
-                instance.dataStream(),
-                instance.shardId(),
-                instance.primary(),
+            case 0 -> new NodeWriteLoadHistogramSnapshot(randomAlphaOfLength(10), instance.writeLoadHistogramSnapshot());
+            case 1 -> new NodeWriteLoadHistogramSnapshot(
+                instance.nodeId(),
                 new WriteLoadHistogramSnapshot(
                     randomNonNegativeLong(),
                     instance.indexLoadHistogramSnapshot(),
@@ -78,10 +54,8 @@ public class ShardWriteLoadHistogramSnapshotSerializationTests extends AbstractS
                     instance.refreshLoadHistogramSnapshot()
                 )
             );
-            case 4 -> new ShardWriteLoadHistogramSnapshot(
-                instance.dataStream(),
-                instance.shardId(),
-                instance.primary(),
+            case 2 -> new NodeWriteLoadHistogramSnapshot(
+                instance.nodeId(),
                 new WriteLoadHistogramSnapshot(
                     instance.timestamp(),
                     mutateHistogramSnapshot(instance.indexLoadHistogramSnapshot()),
@@ -89,10 +63,8 @@ public class ShardWriteLoadHistogramSnapshotSerializationTests extends AbstractS
                     instance.refreshLoadHistogramSnapshot()
                 )
             );
-            case 5 -> new ShardWriteLoadHistogramSnapshot(
-                instance.dataStream(),
-                instance.shardId(),
-                instance.primary(),
+            case 3 -> new NodeWriteLoadHistogramSnapshot(
+                instance.nodeId(),
                 new WriteLoadHistogramSnapshot(
                     instance.timestamp(),
                     instance.indexLoadHistogramSnapshot(),
@@ -100,10 +72,8 @@ public class ShardWriteLoadHistogramSnapshotSerializationTests extends AbstractS
                     instance.refreshLoadHistogramSnapshot()
                 )
             );
-            case 6 -> new ShardWriteLoadHistogramSnapshot(
-                instance.dataStream(),
-                instance.shardId(),
-                instance.primary(),
+            case 4 -> new NodeWriteLoadHistogramSnapshot(
+                instance.nodeId(),
                 new WriteLoadHistogramSnapshot(
                     instance.timestamp(),
                     instance.indexLoadHistogramSnapshot(),

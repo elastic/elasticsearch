@@ -102,7 +102,7 @@ public class MockTransformAuditor extends TransformAuditor {
     }
 
     public abstract static class AbstractAuditExpectation implements AuditExpectation {
-        protected final String expectedName;
+        protected final String name;
         protected final Level expectedLevel;
         protected final String expectedResourceId;
         protected final String expectedMessage;
@@ -110,13 +110,13 @@ public class MockTransformAuditor extends TransformAuditor {
         volatile int count;
 
         public AbstractAuditExpectation(
-            String expectedName,
+            String name,
             Level expectedLevel,
             String expectedResourceId,
             String expectedMessage,
             int expectedCount
         ) {
-            this.expectedName = expectedName;
+            this.name = name;
             this.expectedLevel = expectedLevel;
             this.expectedResourceId = expectedResourceId;
             this.expectedMessage = expectedMessage;
@@ -144,49 +144,64 @@ public class MockTransformAuditor extends TransformAuditor {
         }
     }
 
+    /**
+     * Expectation to assert a certain audit message has been issued once or multiple times.
+     */
     public static class SeenAuditExpectation extends AbstractAuditExpectation {
 
-        public SeenAuditExpectation(String expectedName, Level expectedLevel, String expectedResourceId, String expectedMessage) {
-            super(expectedName, expectedLevel, expectedResourceId, expectedMessage, 1);
+        /**
+         * Expectation to match an audit exactly once.
+         *
+         * @param name name of the expected audit, free of choice, used for the assert message
+         * @param expectedLevel The expected level of the audit
+         * @param expectedResourceId The expected resource id
+         * @param expectedMessage Expected message of the audit, supports simple wildcard matching
+         */
+        public SeenAuditExpectation(String name, Level expectedLevel, String expectedResourceId, String expectedMessage) {
+            super(name, expectedLevel, expectedResourceId, expectedMessage, 1);
         }
 
-        @Override
-        public void assertMatched() {
-            assertThat("expected to see " + expectedName + " but did not", count, equalTo(expectedCount));
-        }
-    }
-
-    public static class UnseenAuditExpectation extends AbstractAuditExpectation {
-
-        public UnseenAuditExpectation(String expectedName, Level expectedLevel, String expectedResourceId, String expectedMessage) {
-            super(expectedName, expectedLevel, expectedResourceId, expectedMessage, 0);
-        }
-
-        @Override
-        public void assertMatched() {
-            assertThat("expected not to see " + expectedName + " but did", count, equalTo(expectedCount));
-        }
-    }
-
-    public static class MultipleSeenAuditExpectation extends AbstractAuditExpectation {
-
-        public MultipleSeenAuditExpectation(
-            String expectedName,
+        /**
+         * Expectation to match an audit a certain number of times.
+         *
+         * @param name name of the expected audit, free of choice, used for the assert message
+         * @param expectedLevel The expected level of the audit
+         * @param expectedResourceId The expected resource id
+         * @param expectedMessage Expected message of the audit, supports simple wildcard matching
+         * @param expectedCount Expected number of times the audit should be matched
+         */
+        public SeenAuditExpectation(
+            String name,
             Level expectedLevel,
             String expectedResourceId,
             String expectedMessage,
             int expectedCount
         ) {
-            super(expectedName, expectedLevel, expectedResourceId, expectedMessage, expectedCount);
+            super(name, expectedLevel, expectedResourceId, expectedMessage, expectedCount);
         }
 
         @Override
         public void assertMatched() {
             assertThat(
-                "expected to see " + expectedName + " " + expectedCount + " times but saw it " + count + " times ",
+                "expected to see " + name + " " + expectedCount + " times but saw it " + count + " times ",
                 count,
                 equalTo(expectedCount)
             );
+        }
+    }
+
+    /**
+     * Expectation to assert a certain audit message is not issued.
+     */
+    public static class UnseenAuditExpectation extends AbstractAuditExpectation {
+
+        public UnseenAuditExpectation(String name, Level expectedLevel, String expectedResourceId, String expectedMessage) {
+            super(name, expectedLevel, expectedResourceId, expectedMessage, 0);
+        }
+
+        @Override
+        public void assertMatched() {
+            assertThat("expected not to see " + name + " but did", count, equalTo(expectedCount));
         }
     }
 

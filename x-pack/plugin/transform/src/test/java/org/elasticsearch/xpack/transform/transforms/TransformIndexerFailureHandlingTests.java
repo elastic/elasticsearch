@@ -1032,7 +1032,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             : contextNumFailureRetries != null ? contextNumFailureRetries
             : Transform.DEFAULT_FAILURE_RETRIES;
         auditor.addExpectation(
-            new MockTransformAuditor.MultipleSeenAuditExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
                 getTestName(),
                 Level.WARNING,
                 transformId,

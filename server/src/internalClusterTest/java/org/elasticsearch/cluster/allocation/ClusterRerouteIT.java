@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,6 +50,7 @@ import org.elasticsearch.test.MockLogAppender;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
@@ -503,11 +504,9 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         Loggers.removeAppender(actionLogger, allocateMockLog);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testClusterRerouteWithBlocks() {
-        List<String> nodesIds = internalCluster().startNodes(2);
+        List<String> allNodeNames = internalCluster().startNodes(2);
 
-        logger.info("--> create an index with 1 shard and 0 replicas");
         createIndex(
             "test-blocks",
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
@@ -516,23 +515,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose("test-blocks"));
         }
-        ensureGreen("test-blocks");
-
-        logger.info("--> check that the index has 1 shard");
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        List<ShardRouting> shards = state.routingTable().allShards("test-blocks");
-        assertThat(shards, hasSize(1));
-
-        logger.info("--> check that the shard is allocated");
-        ShardRouting shard = shards.get(0);
-        assertThat(shard.assignedToNode(), equalTo(true));
-
-        logger.info("--> retrieve the node where the shard is allocated");
-        DiscoveryNode node = state.nodes().resolveNode(shard.currentNodeId());
-        assertNotNull(node);
-
-        // toggle is used to mve the shard from one node to another
-        int toggle = nodesIds.indexOf(node.getName());
 
         // Rerouting shards is not blocked
         for (String blockSetting : Arrays.asList(
@@ -544,22 +526,11 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                assertAcked(
-                    client().admin()
-                        .cluster()
-                        .prepareReroute()
-                        .add(new MoveAllocationCommand("test-blocks", 0, nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2)))
-                );
 
-                ClusterHealthResponse healthResponse = client().admin()
-                    .cluster()
-                    .prepareHealth()
-                    .setIndices("test-blocks")
-                    .setWaitForYellowStatus()
-                    .setWaitForNoRelocatingShards(true)
-                    .execute()
-                    .actionGet();
-                assertThat(healthResponse.isTimedOut(), equalTo(false));
+                var nodes = getNodes("test-blocks", allNodeNames);
+                assertAcked(
+                    client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test-blocks", 0, nodes.v1(), nodes.v2()))
+                );
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);
             }
@@ -568,14 +539,32 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         // Rerouting shards is blocked when the cluster is read only
         try {
             setClusterReadOnly(true);
+
+            var nodes = getNodes("test-blocks", allNodeNames);
             assertBlocked(
-                client().admin()
-                    .cluster()
-                    .prepareReroute()
-                    .add(new MoveAllocationCommand("test-blocks", 1, nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2)))
+                client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test-blocks", 1, nodes.v1(), nodes.v2()))
             );
         } finally {
             setClusterReadOnly(false);
         }
+    }
+
+    /**
+     * @return a tuple where v1 is a node with index {@code indexName} v2 is a node without it
+     */
+    private Tuple<String, String> getNodes(String indexName, List<String> allNodeNames) {
+        ensureYellowAndNoInitializingShards(indexName);
+
+        var state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        var shards = state.routingTable().allShards(indexName);
+        assertThat(shards, hasSize(1));
+
+        ShardRouting shard = shards.get(0);
+        assertThat(shard.assignedToNode(), equalTo(true));
+
+        var nodeWithIndex = state.nodes().resolveNode(shard.currentNodeId()).getName();
+        var nodeWithoutIndex = Objects.equals(nodeWithIndex, allNodeNames.get(0)) ? allNodeNames.get(1) : allNodeNames.get(0);
+
+        return Tuple.tuple(nodeWithIndex, nodeWithoutIndex);
     }
 }

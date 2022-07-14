@@ -1,5 +1,0 @@
-pr: 88064
-summary: Fix typo in TransportForceMergeAction and TransportClearIndicesCacheAction
-area: Doc
-type: enhancement
-issues: []

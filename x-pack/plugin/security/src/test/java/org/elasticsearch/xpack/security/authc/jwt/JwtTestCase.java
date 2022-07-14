@@ -366,9 +366,9 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     public static SignedJWT buildUnsignedJwt(
-        final String alg,
-        final String kid,
         final String type,
+        final String kid,
+        final String alg,
         final String jwtId,
         final String issuer,
         final List<String> audiences,
@@ -447,7 +447,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 + jwtHeader.getAlgorithm()
                 + "], kid=["
                 + jwtHeader.getKeyID()
-                + "], typ=["
+                + "], kty=["
                 + jwtHeader.getType()
                 + "]}. CLAIMS: {iss=["
                 + jwtClaimsSet.getIssuer()
@@ -485,9 +485,9 @@ public abstract class JwtTestCase extends ESTestCase {
     public static SecureString randomBespokeJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            signatureAlgorithm, // alg
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : jwk.getKeyID(), // kid
-            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // typ
+            signatureAlgorithm, // alg
             randomAlphaOfLengthBetween(10, 20), // jwtID
             randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
             randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),

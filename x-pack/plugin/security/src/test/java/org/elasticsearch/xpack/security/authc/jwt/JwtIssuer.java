@@ -41,7 +41,7 @@ public class JwtIssuer implements Closeable {
     final Map<String, User> principals; // principals with roles, for sending encoded JWTs into JWT realms for authc/authz verification
     final JwtIssuerHttpsServer httpsServer;
 
-    List<String> algorithms;
+    List<String> algorithmsAll;
 
     // Computed values
     List<AlgJwkPair> algAndJwksPkc;
@@ -49,7 +49,7 @@ public class JwtIssuer implements Closeable {
     AlgJwkPair algAndJwkHmacOidc;
     List<AlgJwkPair> algAndJwksAll;
     String encodedJwkSetPkcPublicPrivate;
-    String encodedJwkSetPkcPublicOnly;
+    String encodedJwkSetPkcPublic;
     String encodedJwkSetHmac;
     String encodedKeyHmacOidc;
 
@@ -69,8 +69,8 @@ public class JwtIssuer implements Closeable {
 
     // The flag areHmacJwksOidcSafe indicates if all provided HMAC JWKs are UTF8, for HMAC OIDC JWK encoding compatibility.
     void setJwks(final List<AlgJwkPair> algAndJwks, final boolean areHmacJwksOidcSafe) throws JOSEException {
-        this.algorithms = algAndJwks.stream().map(e -> e.alg).toList();
-        LOGGER.info("Setting JWKs: algorithms=[{}], areHmacJwksOidcSafe=[{}]", String.join(",", this.algorithms), areHmacJwksOidcSafe);
+        this.algorithmsAll = algAndJwks.stream().map(e -> e.alg).toList();
+        LOGGER.info("Setting JWKs: algorithms=[{}], areHmacJwksOidcSafe=[{}]", String.join(",", this.algorithmsAll), areHmacJwksOidcSafe);
         this.algAndJwksAll = algAndJwks;
         this.algAndJwksPkc = this.algAndJwksAll.stream()
             .filter(e -> JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(e.alg))
@@ -88,7 +88,7 @@ public class JwtIssuer implements Closeable {
         // Encode PKC JWKSet (key material bytes are wrapped in Base64URL, and then wraps in JSON)
         final JWKSet jwkSetPkc = new JWKSet(this.algAndJwksPkc.stream().map(p -> p.jwk).toList());
         this.encodedJwkSetPkcPublicPrivate = JwtUtil.serializeJwkSet(jwkSetPkc, false);
-        this.encodedJwkSetPkcPublicOnly = JwtUtil.serializeJwkSet(jwkSetPkc, true);
+        this.encodedJwkSetPkcPublic = JwtUtil.serializeJwkSet(jwkSetPkc, true);
 
         // Encode HMAC JWKSet (key material bytes are wrapped in Base64URL, and then wraps in JSON)
         final JWKSet jwkSetHmac = new JWKSet(this.algAndJwksHmac.stream().map(p -> p.jwk).toList());
@@ -98,7 +98,7 @@ public class JwtIssuer implements Closeable {
         this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
 
         if (this.httpsServer != null) {
-            this.httpsServer.updateJwkSetPkcContents(this.encodedJwkSetPkcPublicOnly.getBytes(StandardCharsets.UTF_8));
+            this.httpsServer.updateJwkSetPkcContents(this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
         }
     }
 

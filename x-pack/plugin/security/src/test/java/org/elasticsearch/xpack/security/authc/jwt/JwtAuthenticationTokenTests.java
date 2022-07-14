@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -69,9 +70,9 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            signatureAlgorithm, // alg
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : jwk.getKeyID(), // kid
-            null, // typ
+            signatureAlgorithm, // alg
             null, // jwtID
             issuer, // iss
             List.of(audience), // aud

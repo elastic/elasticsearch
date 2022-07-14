@@ -93,7 +93,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
-                String.join(",", jwtIssuer.algorithms)
+                String.join(",", jwtIssuer.algorithmsAll)
             )
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
             .put(
@@ -125,9 +125,9 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create JWT
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            algJwkPairHmac.alg(), // alg
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : algJwkPairHmac.jwk().getKeyID(), // kid
-            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // typ
+            algJwkPairHmac.alg(), // alg
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
             jwtIssuerAndRealm.realm().allowedAudiences, // aud
@@ -187,7 +187,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
-                String.join(",", jwtIssuer.algorithms)
+                String.join(",", jwtIssuer.algorithmsAll)
             )
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), "roles")
@@ -200,7 +200,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublicOnly)
+                super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic)
             );
 
         // Create realm
@@ -217,9 +217,9 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create JWT
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            algJwkPairPkc.alg(), // alg
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : algJwkPairPkc.jwk().getKeyID(), // kid
-            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // typ
+            algJwkPairPkc.alg(), // alg
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
             jwtIssuerAndRealm.realm().allowedAudiences, // aud
@@ -323,9 +323,9 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create JWT
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            algJwkPairHmac.alg(), // alg
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
             randomBoolean() ? null : algJwkPairHmac.jwk().getKeyID(), // kid
-            JOSEObjectType.JWT.toString(), // typ
+            algJwkPairHmac.alg(), // alg
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
             jwtIssuerAndRealm.realm().allowedAudiences, // aud
@@ -388,7 +388,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
-                String.join(",", jwtIssuer.algorithms)
+                String.join(",", jwtIssuer.algorithmsAll)
             )
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
@@ -417,12 +417,12 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         super.printJwtRealmAndIssuer(jwtIssuerAndRealm);
 
         // Create JWT
-        final JwtIssuer.AlgJwkPair algJwkPairHmac = randomFrom(hmacKeys);
+        final JwtIssuer.AlgJwkPair selectedHmac = randomFrom(hmacKeys);
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
-            algJwkPairHmac.alg(), // alg
-            randomBoolean() ? null : algJwkPairHmac.jwk().getKeyID(), // kid
-            JOSEObjectType.JWT.toString(), // typ
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
+            randomBoolean() ? null : selectedHmac.jwk().getKeyID(), // kid
+            selectedHmac.alg(), // alg
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
             jwtIssuerAndRealm.realm().allowedAudiences, // aud
@@ -438,8 +438,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // nonce
             Collections.emptyMap() // other claims
         );
-        final SecureString jwt = JwtValidateUtil.signJwt(algJwkPairHmac.jwk(), unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
+        final SecureString jwt = JwtValidateUtil.signJwt(selectedHmac.jwk(), unsignedJwt);
+        assertThat(JwtValidateUtil.verifyJwt(selectedHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
@@ -482,10 +482,10 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final StringBuilder sb = new StringBuilder("\n===\nIssuer settings\n===\n");
         sb.append("Issuer: ").append(jwtIssuer.issuerClaimValue).append('\n');
         sb.append("Audiences: ").append(String.join(",", jwtIssuer.audiencesClaimValue)).append('\n');
-        sb.append("Algorithms: ").append(String.join(",", jwtIssuer.algorithms)).append("\n");
+        sb.append("Algorithms: ").append(String.join(",", jwtIssuer.algorithmsAll)).append("\n");
         if (jwtIssuer.algAndJwksPkc.isEmpty() == false) {
             sb.append("PKC JWKSet (Private): ").append(jwtIssuer.encodedJwkSetPkcPublicPrivate).append("\n");
-            sb.append("PKC JWKSet (Public): ").append(jwtIssuer.encodedJwkSetPkcPublicOnly).append("\n");
+            sb.append("PKC JWKSet (Public): ").append(jwtIssuer.encodedJwkSetPkcPublic).append("\n");
         }
         if (jwtIssuer.algAndJwksHmac.isEmpty() == false) {
             sb.append("HMAC JWKSet: ").append(jwtIssuer.encodedJwkSetHmac).append("\n");

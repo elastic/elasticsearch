@@ -126,14 +126,14 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // Backup JWKs 1
         final List<JwtIssuer.AlgJwkPair> jwtIssuerJwks1Backup = jwtIssuerAndRealm.issuer().algAndJwksAll;
         final boolean jwtIssuerJwks1OidcSafe = JwkValidateUtil.areJwkHmacOidcSafe(jwtIssuerJwks1Backup.stream().map(e -> e.jwk()).toList());
-        LOGGER.debug("JWKs 1, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithms));
+        LOGGER.debug("JWKs 1, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Empty all JWT issuer JWKs.
-        LOGGER.debug("JWKs 1 backed up, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithms));
+        LOGGER.debug("JWKs 1 backed up, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
         jwtIssuerAndRealm.issuer().setJwks(Collections.emptyList(), jwtIssuerJwks1OidcSafe);
         super.printJwtIssuer(jwtIssuerAndRealm.issuer());
         super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
-        LOGGER.debug("JWKs 1 emptied, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithms));
+        LOGGER.debug("JWKs 1 emptied, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
@@ -143,7 +143,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks1Backup, jwtIssuerJwks1OidcSafe);
         super.printJwtIssuer(jwtIssuerAndRealm.issuer());
         super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
-        LOGGER.debug("JWKs 1 restored, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithms));
+        LOGGER.debug("JWKs 1 restored, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
@@ -157,7 +157,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks2Backup, jwtIssuerJwks1OidcSafe);
         super.printJwtIssuer(jwtIssuerAndRealm.issuer());
         super.copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
-        LOGGER.debug("JWKs 2 created, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithms));
+        LOGGER.debug("JWKs 2 created, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm still has original JWKs cached in memory.
         // - jwtJwks1(PKC): Pass (Original PKC JWKs are still in the realm)
@@ -473,11 +473,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
         final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false);
-        super.printJwtIssuer(jwtIssuer);
-
         final int realmsCount = 2;
         final List<Realm> allRealms = new ArrayList<>(realmsCount); // two identical realms for same issuer, except different client secret
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false);
+        super.printJwtIssuer(jwtIssuer);
         this.jwtIssuerAndRealms = new ArrayList<>(realmsCount);
         for (int i = 0; i < realmsCount; i++) {
             final String realmName = "realm_" + jwtIssuer.issuerClaimValue + "_" + i;
@@ -488,7 +487,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
                 .put(
                     RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
-                    String.join(",", jwtIssuer.algorithms)
+                    String.join(",", jwtIssuer.algorithmsAll)
                 )
                 .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), jwtIssuer.audiencesClaimValue.get(0))
                 .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), principalClaimName)
@@ -496,10 +495,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                     RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
                     JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET.value()
                 );
-            if (jwtIssuer.encodedJwkSetPkcPublicOnly.isEmpty() == false) {
+            if (jwtIssuer.encodedJwkSetPkcPublic.isEmpty() == false) {
                 authcSettings.put(
                     RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                    super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublicOnly)
+                    super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic)
                 );
             }
             // JWT authc realm secure settings

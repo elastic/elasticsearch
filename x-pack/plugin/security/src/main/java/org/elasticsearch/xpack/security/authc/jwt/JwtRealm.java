@@ -193,9 +193,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
         try {
-            this.contentAndJwksAlgsHmac = this.loadContentAndParseJwksAlgsHmac();
-            this.contentAndJwksAlgsPkc = this.loadContentAndParseJwksAlgsPkc();
-            this.verifyNonEmptyHmacAndPkcJwksAlgs(); // throws SettingsException if realm has zero combined JWKs and Algs after filtering
+            this.contentAndJwksAlgsHmac = this.parseJwksAlgsHmac();
+            this.contentAndJwksAlgsPkc = this.parseJwksAlgsPkc();
+            this.verifyAnyAvailableJwkAndAlgPair();
         } catch (Throwable t) {
             this.close();
             throw t;
@@ -211,7 +211,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    private ContentAndJwksAlgs loadContentAndParseJwksAlgsHmac() {
+    private ContentAndJwksAlgs parseJwksAlgsHmac() {
         final JwksAlgs jwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
@@ -254,7 +254,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return new ContentAndJwksAlgs(hmacStringContent, jwksAlgsHmac);
     }
 
-    private ContentAndJwksAlgs loadContentAndParseJwksAlgsPkc() {
+    private ContentAndJwksAlgs parseJwksAlgsPkc() {
         final JwksAlgs jwksAlgsPkc;
         String jwkSetContentsPkc = null;
         if (this.isConfiguredJwkSetPkc == false) {
@@ -291,7 +291,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return new ContentAndJwksAlgs(jwkSetContentsPkc, jwksAlgsPkc);
     }
 
-    private void verifyNonEmptyHmacAndPkcJwksAlgs() {
+    private void verifyAnyAvailableJwkAndAlgPair() {
         assert this.contentAndJwksAlgsHmac != null : "HMAC not initialized";
         assert this.contentAndJwksAlgsPkc != null : "PKC not initialized";
         assert this.contentAndJwksAlgsHmac.jwksAlgs != null : "HMAC not initialized";
@@ -487,7 +487,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug(
                         "Realm [{}] JWT parse succeeded for token=[{}]."
-                            + "Validating JWT, now [{}], alg [{}], issuer [{}], audiences [{}], typ [{}],"
+                            + "Validating JWT, now [{}], alg [{}], issuer [{}], audiences [{}], kty [{}],"
                             + " auth_time [{}], iat [{}], nbf [{}], exp [{}], kid [{}], jti [{}]",
                         super.name(),
                         tokenPrincipal,
@@ -531,7 +531,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 JwtValidateUtil.validateNotBeforeTime(jwt, now, this.allowedClockSkew.seconds());
                 JwtValidateUtil.validateExpiredTime(jwt, now, this.allowedClockSkew.seconds());
 
-                // At this point, client authc and JWT typ+iss+aud+alg+time filters passed. Do sig last, in case JWK reload is expensive.
+                // At this point, client authc and JWT kty+alg+iss+aud+time filters passed. Do sig last, in case JWK reload is expensive.
                 try {
                     JwtValidateUtil.validateSignature(
                         jwt,
@@ -543,7 +543,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         LOGGER.trace(sigErr + "Reloading PKC JWKs to retry verify JWT token=[" + tokenPrincipal + "]");
                         final ContentAndJwksAlgs newContentAndJwksAlgs;
                         try {
-                            newContentAndJwksAlgs = this.loadContentAndParseJwksAlgsPkc();
+                            newContentAndJwksAlgs = this.parseJwksAlgsPkc();
                         } catch (Exception reloadException) {
                             final String msg = sigErr + "Failed to reload PKC JWKs, can't retry verify JWT token=[" + tokenPrincipal + "]";
                             reloadException.addSuppressed(originalValidateSignatureException);

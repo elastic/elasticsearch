@@ -216,7 +216,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.httpClient == null)) {
             LOGGER.trace("Updating JwtRealm PKC public JWKSet local file");
             final Path path = PathUtils.get(jwtIssuerAndRealm.realm.jwkSetPath);
-            Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublicOnly);
+            Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublic);
         }
 
         // TODO If x-pack Security plug-in add supports for reloadable settings, update HMAC JWKSet and HMAC OIDC JWK in ES Keystore
@@ -248,7 +248,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
-                String.join(",", jwtIssuer.algorithms)
+                String.join(",", jwtIssuer.algorithmsAll)
             )
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES),
@@ -272,10 +272,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
             );
         }
-        if (jwtIssuer.encodedJwkSetPkcPublicOnly.isEmpty() == false) {
+        if (jwtIssuer.encodedJwkSetPkcPublic.isEmpty() == false) {
             final String jwkSetPath; // file or HTTPS URL
             if (jwtIssuer.httpsServer == null) {
-                jwkSetPath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublicOnly);
+                jwkSetPath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic);
             } else {
                 authcSettings.putList(
                     RealmSettings.getFullSettingKey(
@@ -608,9 +608,9 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // kty
+            randomBoolean() ? null : jwk.getKeyID(), // kid
             algJwkPair.alg(), // alg
-            jwk.getKeyID(), // kid
-            randomBoolean() ? null : JOSEObjectType.JWT.toString(), // typ
             randomAlphaOfLengthBetween(10, 20), // jwtID
             jwtIssuerAndRealm.realm.allowedIssuer, // iss
             jwtIssuerAndRealm.realm.allowedAudiences, // aud
@@ -689,7 +689,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + "], principal=["
                 + jwtIssuer.principalClaimName
                 + "], algorithms=["
-                + String.join(",", jwtIssuer.algorithms)
+                + String.join(",", jwtIssuer.algorithmsAll)
                 + "], httpServer=["
                 + (jwtIssuer.httpsServer != null)
                 + "]."

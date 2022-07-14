@@ -276,7 +276,7 @@ public class JwtValidateUtil {
                 );
                 return;
             } else {
-                LOGGER.debug(
+                LOGGER.trace(
                     "JWT signature validation failed with JWK kty=[{}], jwtAlg=[{}], jwtKid=[{}], use=[{}], ops={}",
                     jwk.getKeyType(),
                     jwk.getAlgorithm(),

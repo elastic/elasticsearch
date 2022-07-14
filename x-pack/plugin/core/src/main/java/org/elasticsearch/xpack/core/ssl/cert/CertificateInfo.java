@@ -127,16 +127,18 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
+        builder.startObject()
             .field("path", path)
             .field("format", format)
             .field("alias", alias)
             .field("subject_dn", subjectDn)
             .field("serial_number", serialNumber)
             .field("has_private_key", hasPrivateKey)
-            .timeField("expiry", expiry)
-            .field("issuer", issuer)
-            .endObject();
+            .timeField("expiry", expiry);
+        if (Strings.hasLength(issuer)) {
+            builder.field("issuer", issuer);
+        }
+        return builder.endObject();
     }
 
     @Override

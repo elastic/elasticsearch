@@ -33,6 +33,7 @@ curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZ...mXQtc2VydmMTpyNXdkYmRib1FTZTl
 include::service-accounts.asciidoc[tag=service-accounts-usage]
 --
 
+[[token-authentication-access-token]]
 _token-service_::
 The token service uses the <<security-api-get-token,get token API>> to
 generate access tokens and refresh tokens based on the OAuth2 specification.
@@ -51,6 +52,7 @@ curl -H "Authorization: Bearer dGhpcyBpcyBub3Qx5...F0YS4gZG8gbm90IHRyeSB0byByZWF
 // NOTCONSOLE
 --
 
+[[token-authentication-api-key]]
 _api-key-service_::
 The API key service uses the
 <<security-api-create-api-key,create API key API>> to generate API keys.

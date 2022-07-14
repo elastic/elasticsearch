@@ -225,7 +225,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         } else {
             double percentThreshold = thresholdSettings.getFreeDiskThresholdLow();
             if (percentThreshold >= 0.0 && percentThreshold < 100.0) {
-                return (long) (bytes / ((100.0 - percentThreshold) / 100));
+                return (long) (100 * bytes / (100 - percentThreshold));
             } else {
                 return bytes;
             }
@@ -793,7 +793,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             private final ClusterInfo delegate;
 
             private ExtendedClusterInfo(Map<String, Long> extraShardSizes, ClusterInfo info) {
-                super(info.getNodeLeastAvailableDiskUsages(), info.getNodeMostAvailableDiskUsages(), extraShardSizes, Map.of(), null, null);
+                super(
+                    info.getNodeLeastAvailableDiskUsages(),
+                    info.getNodeMostAvailableDiskUsages(),
+                    extraShardSizes,
+                    Map.of(),
+                    Map.of(),
+                    Map.of()
+                );
                 this.delegate = info;
             }
 

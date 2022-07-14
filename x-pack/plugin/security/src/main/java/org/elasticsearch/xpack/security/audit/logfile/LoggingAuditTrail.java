@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -287,7 +289,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         DeleteServiceAccountTokenAction.NAME,
         ActivateProfileAction.NAME,
         UpdateProfileDataAction.NAME,
-        SetProfileEnabledAction.NAME
+        SetProfileEnabledAction.NAME,
+        UpdateApiKeyAction.NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -747,6 +750,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final SetProfileEnabledRequest setProfileEnabledRequest) {
                     assert SetProfileEnabledAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(setProfileEnabledRequest).build();
+                } else if (msg instanceof final UpdateApiKeyRequest updateApiKeyRequest) {
+                    assert UpdateApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1215,9 +1221,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikey");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, updateApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         private void withRequestBody(XContentBuilder builder, CreateApiKeyRequest createApiKeyRequest) throws IOException {
             TimeValue expiration = createApiKeyRequest.getExpiration();
             builder.startObject("apikey")
+                .field("id", createApiKeyRequest.getId())
                 .field("name", createApiKeyRequest.getName())
                 .field("expiration", expiration != null ? expiration.toString() : null)
                 .startArray("role_descriptors");
@@ -1226,6 +1243,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             builder.endArray() // role_descriptors
                 .endObject(); // apikey
+        }
+
+        private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
+            if (updateApiKeyRequest.getRoleDescriptors() != null) {
+                builder.startArray("role_descriptors");
+                for (RoleDescriptor roleDescriptor : updateApiKeyRequest.getRoleDescriptors()) {
+                    withRoleDescriptor(builder, roleDescriptor);
+                }
+                builder.endArray();
+            }
+            builder.endObject();
         }
 
         private void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {

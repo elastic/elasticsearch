@@ -451,6 +451,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 recoverySource.restoreUUID(),
                 recoverySource.snapshot(),
                 RestoreInProgress.State.INIT,
+                false,
                 Collections.singletonList(indexName),
                 shards
             )

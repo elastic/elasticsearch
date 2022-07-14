@@ -41,7 +41,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node.node(), allocation);
+        return shouldFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node.node(), allocation);
     }
 
     @Override
@@ -50,8 +50,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node.node(), allocation);
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return shouldFilter(indexMetadata, node.node(), allocation);
     }
 
     @Override
@@ -59,8 +59,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return shouldFilter(indexMetadata, node.getRoles(), allocation);
     }
 
-    private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
-        return shouldFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node.getRoles(), allocation);
+    private Decision shouldFilter(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+        return shouldFilter(indexMetadata, node.getRoles(), allocation);
     }
 
     private static Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles, RoutingAllocation allocation) {

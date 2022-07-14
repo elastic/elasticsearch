@@ -547,7 +547,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 } catch (Exception originalValidateSignatureException) {
                     if (isJwtSignatureAlgPkc) {
                         final String sigErr = originalValidateSignatureException.getMessage() + " ";
-                        LOGGER.trace(sigErr + "Reloading PKC JWKs to retry verify JWT token=[{}]", tokenPrincipal);
+                        LOGGER.trace(sigErr + "Reloading PKC JWKs to retry verify JWT token=[" + tokenPrincipal + "]");
                         final ContentAndJwksAlgs newContentAndJwksAlgs;
                         try {
                             newContentAndJwksAlgs = this.loadContentAndFilterJwksAlgsPkc();
@@ -566,7 +566,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                             listener.onResponse(AuthenticationResult.unsuccessful(msg, reloadPkcException));
                             return;
                         }
-                        LOGGER.debug(sigErr + "Reloaded different PKC JWKs to verify JWT token=[{}]", tokenPrincipal);
+                        LOGGER.debug(sigErr + "Reloaded different PKC JWKs to verify JWT token=[" + tokenPrincipal + "]");
                         this.contentAndJwksAlgsPkc = newContentAndJwksAlgs;
 
                         // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.

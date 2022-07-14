@@ -102,8 +102,11 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
         );
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "the summary of the diagnostic",
-                coordinationDiagnosticsDetails);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                inputStatus,
+                "the summary of the diagnostic",
+                coordinationDiagnosticsDetails
+            );
         HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, true);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
         assertThat(result.symptom(), equalTo("the summary of the diagnostic"));

@@ -41,7 +41,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description, List.of(secondImpactArea)));
         List<Diagnosis> actions = new ArrayList<>();
         Diagnosis action1 = new Diagnosis(
-            new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
+            new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(50), randomAlphaOfLength(30)),
             new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
@@ -49,7 +49,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         }
         actions.add(action1);
         Diagnosis action2 = new Diagnosis(
-            new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
+            new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(50), randomAlphaOfLength(30)),
             new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
@@ -79,7 +79,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         List<Map<String, Object>> expectedUserActions = new ArrayList<>();
         {
             Map<String, Object> expectedAction1 = new HashMap<>();
-            expectedAction1.put("message", action1.definition().message());
+            expectedAction1.put("message", action1.definition().cause());
             expectedAction1.put("help_url", action1.definition().helpURL());
             if (action1.affectedResources().isEmpty() == false) {
                 expectedAction1.put("affected_resources", action1.affectedResources());
@@ -88,7 +88,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         }
         {
             Map<String, Object> expectedAction2 = new HashMap<>();
-            expectedAction2.put("message", action2.definition().message());
+            expectedAction2.put("message", action2.definition().cause());
             expectedAction2.put("help_url", action2.definition().helpURL());
             if (action2.affectedResources().isEmpty() == false) {
                 expectedAction2.put("affected_resources", action2.affectedResources());

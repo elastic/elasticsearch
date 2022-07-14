@@ -24,26 +24,26 @@ import java.util.List;
 public record Diagnosis(Definition definition, @Nullable List<String> affectedResources) implements ToXContentObject {
 
     /**
-     * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
+     * Details a diagnosis - cause and a potential action that a user could take to clear an issue identified by a {@link HealthService}.
      *
      * @param id A unique identifier
-     * @param message A description of the action to be taken
+     * @param cause A description of the cause of the problem
+     * @param action A description of the action to be taken to remedy the problem
      * @param helpURL Optional evergreen url to a help document
      */
-    public record Definition(String id, String message, @Nullable String helpURL) {}
+    public record Definition(String id, String cause, String action, String helpURL) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().field("message", definition.message);
+        builder.startObject();
+        builder.field("cause", definition.cause);
+        builder.field("action", definition.action);
 
         if (affectedResources != null && affectedResources.size() > 0) {
             builder.field("affected_resources", affectedResources);
         }
 
-        if (definition.helpURL != null) {
-            builder.field("help_url", definition.helpURL);
-        }
-
+        builder.field("help_url", definition.helpURL);
         return builder.endObject();
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -41,7 +42,6 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
@@ -138,18 +138,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_RESTORE_FROM_SNAPSHOT = new Diagnosis.Definition(
         "restore_from_snapshot",
         "Elasticsearch isn't allowed to allocate some shards because there are no copies of the shards in the cluster. Elasticsearch will "
-            + "allocate these shards when nodes holding good copies of the data join the cluster. If no such node is available, restore "
-            + "these indices from a recent snapshot.",
+            + "allocate these shards when nodes holding good copies of the data join the cluster.",
+        "If no such node is available, restore these indices from a recent snapshot.",
         RESTORE_FROM_SNAPSHOT_ACTION_GUIDE
     );
 
     public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "http://ela.st/diagnose-shards";
     public static final Diagnosis.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new Diagnosis.Definition(
         "explain_allocations",
-        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the cluster. Diagnose the issue by "
-            + "calling the allocation explain API for an index [GET _cluster/allocation/explain]. Choose a node to which you expect a "
-            + "shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent Elasticsearch "
-            + "from allocating the shard.",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the cluster.",
+        "Diagnose the issue by calling the allocation explain API for an index [GET _cluster/allocation/explain]. Choose a node to which "
+            + "you expect a shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent "
+            + "Elasticsearch from allocating the shard.",
         DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
@@ -157,7 +157,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
         "enable_index_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
-            + "the index level. Check that the ["
+            + "the index level.",
+        "Check that the ["
             + INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
             + "] index settings are set to ["
             + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
@@ -168,7 +169,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new Diagnosis.Definition(
         "enable_cluster_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
-            + "the cluster level. Check that the ["
+            + "the cluster level.",
+        "Check that the ["
             + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
             + "] cluster setting is set to ["
             + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
@@ -184,10 +186,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 tier -> new Diagnosis.Definition(
                     "enable_data_tiers_" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because the indices expect to be allocated to "
-                        + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with "
-                        + "the ["
-                        + tier
-                        + "] role to the cluster.",
+                        + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster.",
+                    "Add nodes with the [" + tier + "] role to the cluster.",
                     ENABLE_TIER_ACTION_GUIDE
                 )
             )
@@ -197,7 +197,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new Diagnosis.Definition(
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the index "
-            + "shard limit. Increase the values for the ["
+            + "shard limit. ",
+        "Increase the values for the ["
             + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
         INCREASE_SHARD_LIMIT_ACTION_GUIDE
@@ -212,7 +213,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_index_setting_" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the index shard limit. Increase the values for the ["
+                        + "] tier has reached the index shard limit. ",
+                    "Increase the values for the ["
                         + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] index setting on each index or add more nodes to the target tiers.",
                     INCREASE_SHARD_LIMIT_ACTION_GUIDE
@@ -224,7 +226,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new Diagnosis.Definition(
         "increase_shard_limit_cluster_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the "
-            + "cluster shard limit. Increase the values for the ["
+            + "cluster shard limit.",
+        "Increase the values for the ["
             + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] cluster setting or add more nodes to the target tiers.",
         INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE
@@ -239,7 +242,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "increase_shard_limit_cluster_setting_" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
-                        + "] tier has reached the cluster shard limit. Increase the values for the ["
+                        + "] tier has reached the cluster shard limit. ",
+                    "Increase the values for the ["
                         + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                         + "] cluster setting or add more nodes to the target tiers.",
                     INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE
@@ -251,7 +255,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new Diagnosis.Definition(
         "migrate_data_tiers_require_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
-            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. Remove ["
+            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier.",
+        "Remove ["
             + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
             + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
             + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
@@ -268,7 +273,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
                         + tier
                         + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
-                        + "nodes in this tier. Remove ["
+                        + "nodes in this tier.",
+                    "Remove ["
                         + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
                         + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then "
                         + "using the data tier migration action [POST /_ilm/migrate_to_data_tiers]. "
@@ -281,7 +287,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA = new Diagnosis.Definition(
         "migrate_data_tiers_include_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
-            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. Remove ["
+            + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. ",
+        "Remove ["
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
             + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
             + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
@@ -298,11 +305,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
                         + tier
                         + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
-                        + "nodes in this tier. Remove ["
+                        + "nodes in this tier.",
+                    "Remove ["
                         + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
                         + ".data] from the index settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then "
-                        + "using the data tier migration action [POST /_ilm/migrate_to_data_tiers]. "
-                        + "Finally, restart ILM [POST /_ilm/start].",
+                        + "using the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM "
+                        + "[POST /_ilm/start].",
                     MIGRATE_TO_TIERS_ACTION_GUIDE
                 )
             )
@@ -312,8 +320,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Diagnosis.Definition ACTION_INCREASE_NODE_CAPACITY = new Diagnosis.Definition(
         "increase_node_capacity_for_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because there are not enough nodes in the cluster to "
-            + "allocate each shard copy on a different node. Increase the number of nodes in the cluster or decrease the number of "
-            + "replica shards in the affected indices.",
+            + "allocate each shard copy on a different node.",
+        "Increase the number of nodes in the cluster or decrease the number of replica shards in the affected indices.",
         TIER_CAPACITY_ACTION_GUIDE
     );
 
@@ -326,8 +334,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the desired data tier "
                         + "because there are not enough nodes in the ["
                         + tier
-                        + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
-                        + "decrease the number of replica shards in the affected indices.",
+                        + "] tier to allocate each shard copy on a different node.",
+                    "Increase the number of nodes in this tier or decrease the number of replica shards in the affected indices.",
                     TIER_CAPACITY_ACTION_GUIDE
                 )
             )

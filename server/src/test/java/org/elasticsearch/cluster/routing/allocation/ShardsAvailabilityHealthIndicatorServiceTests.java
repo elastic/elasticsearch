@@ -33,13 +33,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -1163,20 +1163,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    private HealthIndicatorResult createExpectedTruncatedResult(
-        HealthStatus status,
-        String symptom,
-        List<HealthIndicatorImpact> impacts
-    ) {
-        return new HealthIndicatorResult(
-            NAME,
-            DATA,
-            status,
-            symptom,
-            HealthIndicatorDetails.EMPTY,
-            impacts,
-            Collections.emptyList()
-        );
+    private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String symptom, List<HealthIndicatorImpact> impacts) {
+        return new HealthIndicatorResult(NAME, DATA, status, symptom, HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {

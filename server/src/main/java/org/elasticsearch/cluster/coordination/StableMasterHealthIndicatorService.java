@@ -9,13 +9,13 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.Diagnosis;
 
 import java.util.Collection;
 import java.util.List;
@@ -41,7 +41,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final Diagnosis CONTACT_SUPPORT_USER_ACTION = new Diagnosis(
         new Diagnosis.Definition(
             "contact_support",
-            "The Elasticsearch cluster does not have a stable master node. Get help at " + GET_HELP_GUIDE,
+            "The Elasticsearch cluster does not have a stable master node.",
+            "Get help at " + GET_HELP_GUIDE,
             GET_HELP_GUIDE
         ),
         null

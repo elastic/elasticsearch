@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -40,7 +40,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String HELP_URL = "https://ela.st/fix-ilm";
     public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
-        new Diagnosis.Definition("ilm-not-running", "Start Index Lifecycle Management using [POST /_ilm/start].", HELP_URL),
+        new Diagnosis.Definition(
+            "ilm-not-running",
+            "Index Lifecycle Management is stopped",
+            "Start Index Lifecycle Management using [POST /_ilm/start].",
+            HELP_URL
+        ),
         null
     );
 
@@ -58,11 +63,6 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     @Override
     public String component() {
         return DATA;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
     }
 
     @Override

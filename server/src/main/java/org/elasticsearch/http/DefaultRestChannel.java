@@ -80,89 +80,79 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        try (var ignored = tracer.withScope(this)) {
-            // We're sending a response so we know we won't be needing
-            // the request content again and release it
-            httpRequest.release();
+        // We're sending a response so we know we won't be needing
+        // the request content again and release it
+        httpRequest.release();
 
-            final ArrayList<Releasable> toClose = new ArrayList<>(3);
-            if (HttpUtils.shouldCloseConnection(httpRequest)) {
-                toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
+        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        if (HttpUtils.shouldCloseConnection(httpRequest)) {
+            toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
+        }
+
+        boolean success = false;
+        String opaque = null;
+        String contentLength = null;
+        final AtomicBoolean traceStopped = new AtomicBoolean(false);
+        final Runnable onFinish = () -> {
+            Releasables.close(toClose);
+            if (traceStopped.compareAndSet(false, true)) {
+                tracer.onTraceStopped(this);
             }
+        };
 
-            boolean success = false;
-            String opaque = null;
-            String contentLength = null;
-            final AtomicBoolean traceStopped = new AtomicBoolean(false);
-            final Runnable onFinish = () -> {
-                Releasables.close(toClose);
-                if (traceStopped.compareAndSet(false, true)) {
-                    tracer.onTraceStopped(this);
-                }
-            };
+        try {
+            final BytesReference content = restResponse.content();
+            if (content instanceof Releasable) {
+                toClose.add((Releasable) content);
+            }
+            toClose.add(this::releaseOutputBuffer);
 
+            BytesReference finalContent = content;
             try {
-                final BytesReference content = restResponse.content();
-                if (content instanceof Releasable) {
-                    toClose.add((Releasable) content);
+                if (request.method() == RestRequest.Method.HEAD) {
+                    finalContent = BytesArray.EMPTY;
                 }
-                toClose.add(this::releaseOutputBuffer);
-
-                BytesReference finalContent = content;
-                try {
-                    if (request.method() == RestRequest.Method.HEAD) {
-                        finalContent = BytesArray.EMPTY;
-                    }
-                } catch (IllegalArgumentException ignoredException) {
-                    assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
-                        : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
-                }
-
-                final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
-
-                corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
-
-                opaque = request.header(X_OPAQUE_ID_HTTP_HEADER);
-                if (opaque != null) {
-                    setHeaderField(httpResponse, X_OPAQUE_ID_HTTP_HEADER, opaque);
-                }
-
-                // Add all custom headers
-                addCustomHeaders(httpResponse, restResponse.getHeaders());
-                addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
-
-                // If our response doesn't specify a content-type header, set one
-                setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
-                // If our response has no content-length, calculate and set one
-                contentLength = String.valueOf(restResponse.content().length());
-                setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
-
-                addCookies(httpResponse);
-
-                tracer.setAttribute(this, "http.status_code", restResponse.status().getStatus());
-                restResponse.getHeaders()
-                    .forEach((key, values) -> tracer.setAttribute(this, "http.response.headers." + key, String.join("; ", values)));
-
-                ActionListener<Void> listener = ActionListener.wrap(onFinish);
-                tracer.onTraceEvent(this, "startResponse");
-                try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
-                    httpChannel.sendResponse(httpResponse, listener);
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    onFinish.run();
-                }
-                tracer.maybeLogResponse(
-                    httpRequest.uri(),
-                    restResponse,
-                    httpChannel,
-                    contentLength,
-                    opaque,
-                    request.getRequestId(),
-                    success
-                );
+            } catch (IllegalArgumentException ignoredException) {
+                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
+                    : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
             }
+
+            final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
+
+            corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
+
+            opaque = request.header(X_OPAQUE_ID_HTTP_HEADER);
+            if (opaque != null) {
+                setHeaderField(httpResponse, X_OPAQUE_ID_HTTP_HEADER, opaque);
+            }
+
+            // Add all custom headers
+            addCustomHeaders(httpResponse, restResponse.getHeaders());
+            addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
+
+            // If our response doesn't specify a content-type header, set one
+            setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
+            // If our response has no content-length, calculate and set one
+            contentLength = String.valueOf(restResponse.content().length());
+            setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
+
+            addCookies(httpResponse);
+
+            tracer.setAttribute(this, "http.status_code", restResponse.status().getStatus());
+            restResponse.getHeaders()
+                .forEach((key, values) -> tracer.setAttribute(this, "http.response.headers." + key, String.join("; ", values)));
+
+            ActionListener<Void> listener = ActionListener.wrap(onFinish);
+            tracer.onTraceEvent(this, "startResponse");
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+                httpChannel.sendResponse(httpResponse, listener);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                onFinish.run();
+            }
+            tracer.maybeLogResponse(httpRequest.uri(), restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
         }
     }
 

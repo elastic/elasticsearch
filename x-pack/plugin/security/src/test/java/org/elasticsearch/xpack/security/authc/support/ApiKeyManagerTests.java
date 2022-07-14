@@ -62,11 +62,11 @@ public class ApiKeyManagerTests extends ESTestCase {
             .build(false);
         final CreateApiKeyRequest request = new CreateApiKeyRequest("name", null, null);
 
-        final Set<RoleDescriptor> roleDescriptors = randomRoleDescriptors(userRoleNames);
+        final Set<RoleDescriptor> roleDescriptors = randomRoleDescriptorsForRoles(userRoleNames);
 
-        doAnswerWithRoleDescriptors(rolesStore, userRoleNames, roleDescriptors);
+        doAnswerWithRoleDescriptorsList(rolesStore, userRoleNames, roleDescriptors);
 
-        CreateApiKeyResponse response = new CreateApiKeyResponse(
+        final CreateApiKeyResponse response = new CreateApiKeyResponse(
             "name",
             randomAlphaOfLength(18),
             new SecureString(randomAlphaOfLength(24).toCharArray()),
@@ -102,11 +102,11 @@ public class ApiKeyManagerTests extends ESTestCase {
             .build(false);
         final UpdateApiKeyRequest request = UpdateApiKeyRequest.usingApiKeyId("id");
 
-        final Set<RoleDescriptor> roleDescriptors = randomRoleDescriptors(userRoleNames);
+        final Set<RoleDescriptor> roleDescriptors = randomRoleDescriptorsForRoles(userRoleNames);
 
-        doAnswerWithRoleDescriptors(rolesStore, userRoleNames, roleDescriptors);
+        doAnswerWithRoleDescriptorsList(rolesStore, userRoleNames, roleDescriptors);
 
-        UpdateApiKeyResponse response = new UpdateApiKeyResponse(true);
+        final UpdateApiKeyResponse response = new UpdateApiKeyResponse(true);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args, arrayWithSize(4));
@@ -127,14 +127,14 @@ public class ApiKeyManagerTests extends ESTestCase {
         assertThat(future.actionGet(), sameInstance(response));
     }
 
-    private Set<RoleDescriptor> randomRoleDescriptors(final Set<String> userRoleNames) {
-        return randomSubsetOf(userRoleNames).stream()
+    private Set<RoleDescriptor> randomRoleDescriptorsForRoles(final Set<String> roleNames) {
+        return randomSubsetOf(roleNames).stream()
             .map(name -> new RoleDescriptor(name, generateRandomStringArray(3, 6, false), null, null))
             .collect(Collectors.toUnmodifiableSet());
     }
 
     @SuppressWarnings("unchecked")
-    private void doAnswerWithRoleDescriptors(
+    private void doAnswerWithRoleDescriptorsList(
         final CompositeRolesStore rolesStore,
         final Set<String> userRoleNames,
         final Set<RoleDescriptor> roleDescriptors

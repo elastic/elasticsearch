@@ -107,12 +107,8 @@ public class RollupShardStatus implements Task.Status {
         this.numFailed = numFailed;
     }
 
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
+    public void setFinished() {
+        this.status = Status.FINISHED;
     }
 
     public boolean isCancelled() {

@@ -166,6 +166,8 @@ class RollupShardIndexer {
                     + "]."
             );
         }
+
+        status.setFinished();
         return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), numIndexed.get());
     }
 

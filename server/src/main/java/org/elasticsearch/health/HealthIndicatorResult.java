@@ -35,7 +35,6 @@ public record HealthIndicatorResult(
         if (impacts != null && impacts.isEmpty() == false) {
             builder.field("impacts", impacts);
         }
-        // TODO 83303: Add detail / documentation
         if (diagnosisList != null && diagnosisList.isEmpty() == false) {
             builder.field("diagnosis", diagnosisList);
         }

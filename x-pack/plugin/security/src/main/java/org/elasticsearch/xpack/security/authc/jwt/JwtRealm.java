@@ -525,13 +525,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     );
                 }
                 // Validate all else before signature, because these checks are more helpful diagnostics than rejected signatures.
-                final boolean isJwtSignatureAlgHmac = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(
+                final boolean isJwtSignatureAlgPkc = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(
                     jwtHeader.getAlgorithm().getName()
                 );
                 JwtValidateUtil.validateType(jwt);
                 JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
                 JwtValidateUtil.validateAudiences(jwt, allowedAudiences);
-                JwtValidateUtil.validateSignatureAlgorithm(jwt, isJwtSignatureAlgHmac ? this.allowedJwksAlgsHmac : this.allowedJwksAlgsPkc);
+                JwtValidateUtil.validateSignatureAlgorithm(jwt, isJwtSignatureAlgPkc ? this.allowedJwksAlgsPkc : this.allowedJwksAlgsHmac);
                 JwtValidateUtil.validateAuthTime(jwt, now, this.allowedClockSkew.seconds());
                 JwtValidateUtil.validateIssuedAtTime(jwt, now, this.allowedClockSkew.seconds());
                 JwtValidateUtil.validateNotBeforeTime(jwt, now, this.allowedClockSkew.seconds());
@@ -539,32 +539,31 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
                 // Validate signature last, so expensive JWK reloads only happen after all other checks passed.
                 try {
-                    if (this.contentAndFilteredJwksAlgsHmac.isEmpty() && this.contentAndFilteredJwksAlgsPkc.isEmpty()) {
-                        LOGGER.debug("Realm [" + super.name() + "] has no JWKs and Algs to verify JWT for token=[" + tokenPrincipal + "].");
-                        if (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false) {
-                            return; // Try reload before. Reload failed, or succeeded but no changes. Helper handles listener and logs.
+                    if (isJwtSignatureAlgPkc && this.isConfiguredJwkSetPkc && this.contentAndFilteredJwksAlgsPkc.isEmpty()) {
+                        if (this.reloadPkcJwks(listener, tokenPrincipal) == false) {
+                            return;
                         }
-                        this.verifyNonEmptyHmacAndPkcJwksAlgs(); // throws SettingsException if reload causes filtered PKC+HMAC JWKs and
-                                                                 // Algs to drop to 0
+                        this.verifyNonEmptyHmacAndPkcJwksAlgs();
                     }
-                    // Throws Exception (no JWKs after filtering) or AllVerifiesFailedException (all available JWKs failed)
-                    final ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgs = isJwtSignatureAlgHmac
-                        ? this.contentAndFilteredJwksAlgsHmac
-                        : this.contentAndFilteredJwksAlgsPkc;
-                    JwtValidateUtil.validateSignature(jwt, contentAndFilteredJwksAlgs.filteredJwksAlgs.jwks);
-                    // Fall through means success, exception will be caught by inner or outer catch
+                    JwtValidateUtil.validateSignature(
+                        jwt,
+                        isJwtSignatureAlgPkc
+                            ? this.contentAndFilteredJwksAlgsPkc.filteredJwksAlgs.jwks
+                            : this.contentAndFilteredJwksAlgsHmac.filteredJwksAlgs.jwks
+                    );
                 } catch (Exception e) {
-                    if (this.reloadJwksHelper(listener, tokenPrincipal, isJwtSignatureAlgHmac) == false) {
-                        return; // Try reload before. Reload failed, or succeeded but no changes. Helper handles listener and logs.
+                    if ((isJwtSignatureAlgPkc && this.isConfiguredJwkSetPkc)) {
+                        if (this.reloadPkcJwks(listener, tokenPrincipal) == false) {
+                            return;
+                        }
+                        this.verifyNonEmptyHmacAndPkcJwksAlgs();
                     }
-                    this.verifyNonEmptyHmacAndPkcJwksAlgs(); // throws SettingsException if reload causes filtered PKC+HMAC JWKs and Algs to
-                                                             // drop to 0
-                    // Throws Exception (no JWKs after filtering) or AllVerifiesFailedException (all available JWKs failed)
-                    final ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgs = isJwtSignatureAlgHmac
-                        ? this.contentAndFilteredJwksAlgsHmac
-                        : this.contentAndFilteredJwksAlgsPkc;
-                    JwtValidateUtil.validateSignature(jwt, contentAndFilteredJwksAlgs.filteredJwksAlgs.jwks);
-                    // Fall through means success, exception will be caught by outer catch
+                    JwtValidateUtil.validateSignature(
+                        jwt,
+                        isJwtSignatureAlgPkc
+                            ? this.contentAndFilteredJwksAlgsPkc.filteredJwksAlgs.jwks
+                            : this.contentAndFilteredJwksAlgsHmac.filteredJwksAlgs.jwks
+                    );
                 }
             } catch (Exception e) {
                 final String msg = "Realm [" + super.name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
@@ -673,79 +672,29 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return new BytesKey(messageDigest.digest());
     }
 
-    private boolean reloadJwksHelper(ActionListener<AuthenticationResult<User>> listener, String tokenPrincipal, boolean isJwtAlgHmac) {
+    private boolean reloadPkcJwks(ActionListener<AuthenticationResult<User>> listener, String tokenPrincipal) {
+        LOGGER.trace("Realm [{}] is reloading PKC JWKs to verify JWT for token=[{}].", super.name(), tokenPrincipal);
+        final ContentAndFilteredJwksAlgs newContentAndFilteredJwksAlgs;
         try {
-            if (this.reloadJwks(isJwtAlgHmac) == false) {
-                // Reload failed, or no JWK content changes found, so realm still has no JWKs and Algs to verify JWT
-                final String msg = "Realm [" + super.name() + "] had no JWKs to verify JWT for token=[" + tokenPrincipal + "].";
-                LOGGER.debug(msg);
-                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
-                return false;
-            }
-            LOGGER.info("Realm [" + super.name() + "] loaded new JWKs to verify JWT for token=[" + tokenPrincipal + "].");
-            return true;
+            newContentAndFilteredJwksAlgs = this.loadContentAndFilterJwksAlgsPkc();
         } catch (Exception e) {
-            // Reload succeeded, but no JWKs and Algs remain
-            final String msg = "Realm [" + super.name() + "] had no new JWKs to verify JWT for token=[" + tokenPrincipal + "].";
+            final String msg = "Realm [" + super.name() + "] failed to reload PKC JWKs to verify JWT for token=[" + tokenPrincipal + "].";
             LOGGER.error(msg, e);
             listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
             return false;
         }
-    }
+        if (Objects.equals(this.contentAndFilteredJwksAlgsPkc.jwksContent, newContentAndFilteredJwksAlgs.jwksContent)) {
+            final String msg = "Realm [" + super.name() + "] reloaded same PKC JWKs for JWT for token=[" + tokenPrincipal + "].";
+            LOGGER.debug(msg);
+            listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+            return false;
+        }
+        LOGGER.debug("Realm [{}] reloaded different PKC JWKs to verify JWT for token=[{}].", super.name(), tokenPrincipal);
+        this.contentAndFilteredJwksAlgsPkc = newContentAndFilteredJwksAlgs;
 
-    /**
-     * Tries to refresh the HMAC JWKSet or HMAC JWK from elasticsearch-keystore, or the PKC JWKSet from an HTTPS URL or local file.
-     * For example, if a JWT is signed with HMAC and signature verification fails, only attempt to refresh HMAC JWKSet or HMAC JWK.
-     * For example, if a JWT is signed with PKC and signature verification fails, only attempt to refresh PKC HTTPS URL or PKC local file.
-     *
-     * If reload succeeds and the contents are same, return false so the caller knows the JWKs (and filtered Algs) did not change.
-     * If reload succeeds and the contents are different, filter the new JWKs vs the realm signature algorithms to see if they are valid.
-     * If new JWKs are valid, return true so the caller knows the JWKs (and filtered Algs) changed, so retry JWK signature verification.
-     * If new JWKs are not valid, the call to verifyAnyAvailableJwkAndAlgPair() will trigger a SettingsException. Caller must catch it.
-     *
-     * If there is a SettingsException, the realm keeps the new JWK content, but filters JWKs and Algs are empty.
-     * Manual intervention will be needed to fix the PKC or HMAC JWKs, or adjust the realm signature algorithms.
-     *
-     * @param doHmac If a JWT is signed with an HMAC algorithm, only HMAC refresh is needed, otherwise only PKC refresh is needed.
-     * @return True, if JWK contents were updated. False, is JWK content was unchanged.
-     * @throws SettingsException If JWK contents were updated, and the realm has no usable JWKs and Algs after comparing them.
-     */
-    private boolean reloadJwks(final boolean doHmac) throws SettingsException {
-        // If is valid for old filtered JWKs and algs to be empty
-        LOGGER.trace("Reloading JWKs, doHmac: {}", doHmac);
-        final ContentAndFilteredJwksAlgs oldContentAndFilteredJwksAlgs = doHmac
-            ? this.contentAndFilteredJwksAlgsHmac
-            : this.contentAndFilteredJwksAlgsPkc;
-        final ContentAndFilteredJwksAlgs newContentAndFilteredJwksAlgs;
-        try {
-            // Ending up with zero JWKs and algs after filtering is a valid use case, as long as the other has non-zero JWKs and algs.
-            newContentAndFilteredJwksAlgs = doHmac ? this.loadContentAndFilterJwksAlgsHmac() : this.loadContentAndFilterJwksAlgsPkc();
-        } catch (Throwable t) {
-            final String msg = "Failed to reload JWKs, doHmac: {" + doHmac + "}";
-            LOGGER.error(msg, t);
-            return false;
-        }
-        if (Objects.equals(oldContentAndFilteredJwksAlgs.jwksContent, newContentAndFilteredJwksAlgs.jwksContent)) {
-            LOGGER.debug("Reload JWKs succeeded but content did not change, doHmac: {}", doHmac);
-            return false;
-        }
-        // Accept the updated JWKs
-        if (doHmac) {
-            this.contentAndFilteredJwksAlgsHmac = newContentAndFilteredJwksAlgs;
-        } else {
-            this.contentAndFilteredJwksAlgsPkc = newContentAndFilteredJwksAlgs;
-        }
-        LOGGER.debug(
-            "Reload JWKs succeeded and content changed, doHmac: [{}]. JWKs old: [{}], new: [{}]. Algorithms old: [{}] new: [{}].",
-            doHmac,
-            oldContentAndFilteredJwksAlgs.filteredJwksAlgs.jwks.size(),
-            newContentAndFilteredJwksAlgs.filteredJwksAlgs.jwks.size(),
-            String.join(",", oldContentAndFilteredJwksAlgs.filteredJwksAlgs.algs()),
-            String.join(",", newContentAndFilteredJwksAlgs.filteredJwksAlgs.algs())
-        );
-        // ASSUMPTION: Either PKC JWKs or HMAC JWKs were replaced, so invalidate all JWT cache entries which used old replaced JWKs
-        // Enhancement idea: Separate HMAC and PKC entries into separate caches, since only HMAC or PKC entries need to be invalidated.
-        // Enhancement idea: Identify which JWKs were removed, and only invalidate affected entries. Entries using retained keys remain.
+        // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
+        // Enhancement idea: Use separate caches for HMAC vs PKC, so only the PKC entries need to be invalidated.
+        // Enhancement idea: If some PKC JWKs were retained (i.e. rotation), only invalid entries for removed JWKs.
         this.invalidateJwtCache();
         return true;
     }

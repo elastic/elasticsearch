@@ -279,9 +279,9 @@ class RollupShardIndexer {
 
                         // Create new rollup bucket
                         if (tsidChanged) {
-                            rollupBucketBuilder.reset(tsid, lastHistoTimestamp);
+                            rollupBucketBuilder.init(tsid, lastHistoTimestamp);
                         } else {
-                            rollupBucketBuilder.reset(lastHistoTimestamp);
+                            rollupBucketBuilder.init(lastHistoTimestamp);
                         }
 
                         bucketsCreated++;
@@ -352,12 +352,12 @@ class RollupShardIndexer {
             this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
         }
 
-        public RollupBucketBuilder reset(BytesRef tsid, long timestamp) {
+        public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
             return reset(timestamp);
         }
 
-        public RollupBucketBuilder reset(long timestamp) {
+        public RollupBucketBuilder init(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
             this.metricFieldProducers.values().stream().forEach(p -> p.reset());

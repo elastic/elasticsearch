@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -345,6 +346,30 @@ public class PyTorchModelIT extends ESRestTestCase {
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(2));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFailedDeploymentStats() throws Exception {
+        String badModel = "bad_model";
+        String poorlyFormattedModelBase64 = "cG9vcmx5IGZvcm1hdHRlZCBtb2RlbAo=";
+        int length = Base64.getDecoder().decode(poorlyFormattedModelBase64).length;
+        createTrainedModel(badModel);
+        putVocabulary(List.of("once", "twice"), badModel);
+        Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
+        request.setJsonEntity("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(length, poorlyFormattedModelBase64));
+        client().performRequest(request);
+        startDeployment(badModel, AllocationStatus.State.STARTING.toString());
+        assertBusy(() -> {
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(badModel);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
+                "trained_model_stats"
+            );
+            assertThat(stats, hasSize(1));
+
+            String assignmentState = (String) XContentMapValues.extractValue("deployment_stats.state", stats.get(0));
+            assertThat(assignmentState, equalTo(AssignmentState.FAILED.toString()));
+        });
     }
 
     private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {

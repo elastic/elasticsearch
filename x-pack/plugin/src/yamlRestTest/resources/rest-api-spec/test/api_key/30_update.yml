@@ -223,7 +223,7 @@ teardown:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.update_api_key:
         id: "$user1_key_id"
-  - match: { updated: true }
+  - match: { updated: false }
 
   # Check metadata did not change
   - do:

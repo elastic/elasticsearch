@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
+import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,6 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -96,6 +98,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = null;
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
+
+    /*
+     * This is a list of tasks that are periodically reaching out to a master eligible node to get its CoordinationDiagnosticsResult for
+     * diagnosis.
+     * The field is accessed (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change
+     * event thread.
+     */
+    private List<Scheduler.Cancellable> remoteStableMasterHealthIndicatorTasks = null;
+    /*
+     * This field holds the result of the tasks in the remoteStableMasterHealthIndicatorTasks field above. The field is accessed
+     * (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change event thread.
+     */
+    private volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = null;  // Non-private for testing
 
     /**
      * This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
@@ -454,6 +469,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         } else {
             cancelPollingClusterFormationInfo();
         }
+        /*
+         * This begins polling a random master-eligible node for its result from this service. However there's a 10-second delay before it
+         * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
+         * polling tasks will be canceled before any requests are actually made.
+         */
+        if (currentMaster == null && clusterService.localNode().isMasterNode() == false) {
+            beginPollingRemoteStableMasterHealthIndicatorService();
+        } else {
+            cancelPollingRemoteStableMasterHealthIndicatorService();
+        }
     }
 
     /**
@@ -488,21 +513,23 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             cancellableConsumer.accept(
                 fetchClusterFormationInfo(
                     masterEligibleNode,
-                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                    responseConsumer.andThen(
+                        rescheduleClusterFormationFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer)
+                    )
                 )
             );
         });
     }
 
     /**
-     * This wraps the responseConsumer in a Consumer that will run rescheduleFetchConsumer() after responseConsumer has
+     * This wraps the responseConsumer in a Consumer that will run fetchClusterFormationInfo() after responseConsumer has
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
      * @param cancellableConsumer The list of Cancellables
      * @return
      */
-    private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleFetchConsumer(
+    private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleClusterFormationFetchConsumer(
         DiscoveryNode masterEligibleNode,
         Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> responseConsumer,
         Consumer<Scheduler.Cancellable> cancellableConsumer
@@ -511,7 +538,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             cancellableConsumer.accept(
                 fetchClusterFormationInfo(
                     masterEligibleNode,
-                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                    responseConsumer.andThen(
+                        rescheduleClusterFormationFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer)
+                    )
                 )
             );
         };
@@ -586,6 +615,131 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 );
             }
         }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+    }
+
+    private void beginPollingRemoteStableMasterHealthIndicatorService() {
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+        cancelPollingRemoteStableMasterHealthIndicatorService();
+        List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
+        AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
+        beginPollingRemoteStableMasterHealthIndicatorService(getMasterEligibleNodes(), resultReference::set, cancellables::add);
+        remoteStableMasterHealthIndicatorTasks = cancellables;
+        remoteCoordinationDiagnosisResult = resultReference;
+    }
+
+    /**
+     * This method returns quickly, but in the background schedules to query the remote node's cluster diagnostics in 10 seconds, and
+     * repeats doing that until cancel() is called on all of the Cancellable that this method sends to the cancellableConsumer. This method
+     * exists (rather than being just part of the beginPollingRemoteStableMasterHealthIndicatorService() above) in order to facilitate
+     * unit testing.
+     * masterEligibleNodes A collection of all master eligible nodes that may be polled
+     * @param responseConsumer A consumer for any results produced for a node by this method
+     * @param cancellableConsumer A consumer for any Cancellable tasks produced by this method
+     */
+    // Non-private for testing
+    void beginPollingRemoteStableMasterHealthIndicatorService(
+        Collection<DiscoveryNode> masterEligibleNodes,
+        Consumer<RemoteMasterHealthResult> responseConsumer,
+        Consumer<Scheduler.Cancellable> cancellableConsumer
+    ) {
+        masterEligibleNodes.stream().findAny().ifPresentOrElse(masterEligibleNode -> {
+            cancellableConsumer.accept(
+                fetchCoordinationDiagnostics(
+                    masterEligibleNode,
+                    responseConsumer.andThen(rescheduleDiagnosticsFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                )
+            );
+        }, () -> logger.trace("No master eligible node found"));
+    }
+
+    /**
+     * This wraps the responseConsumer in a Consumer that will run fetchCoordinationDiagnostics() after responseConsumer has
+     * completed, adding the resulting Cancellable to cancellableConsumer.
+     * @param masterEligibleNode The node being polled
+     * @param responseConsumer The response consumer to be wrapped
+     * @param cancellableConsumer The list of Cancellables
+     * @return A wrapped Consumer that will run fetchCoordinationDiagnostics()
+     */
+    private Consumer<RemoteMasterHealthResult> rescheduleDiagnosticsFetchConsumer(
+        DiscoveryNode masterEligibleNode,
+        Consumer<RemoteMasterHealthResult> responseConsumer,
+        Consumer<Scheduler.Cancellable> cancellableConsumer
+    ) {
+        return response -> {
+            cancellableConsumer.accept(
+                fetchCoordinationDiagnostics(
+                    masterEligibleNode,
+                    responseConsumer.andThen(rescheduleDiagnosticsFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                )
+            );
+        };
+    }
+
+    /**
+     * This method returns quickly, but in the background schedules to query the remote node's cluster diagnostics in 10 seconds
+     * unless cancel() is called on the Cancellable that this method returns.
+     * @param node The node to poll for cluster diagnostics
+     * @param responseConsumer The consumer of the cluster diagnostics for the node, or the exception encountered while contacting it
+     * @return A Cancellable for the task that is scheduled to fetch cluster diagnostics
+     */
+    private Scheduler.Cancellable fetchCoordinationDiagnostics(DiscoveryNode node, Consumer<RemoteMasterHealthResult> responseConsumer) {
+        StepListener<Releasable> connectionListener = new StepListener<>();
+        StepListener<CoordinationDiagnosticsAction.Response> fetchCoordinationDiagnosticsListener = new StepListener<>();
+        long startTime = System.nanoTime();
+        connectionListener.whenComplete(releasable -> {
+            logger.trace("Opened connection to {}, making master stability request", node);
+            // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+            final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+            transportService.sendRequest(
+                node,
+                CoordinationDiagnosticsAction.NAME,
+                new CoordinationDiagnosticsAction.Request(true),
+                TransportRequestOptions.timeout(transportTimeout),
+                new ActionListenerResponseHandler<>(
+                    ActionListener.runBefore(fetchCoordinationDiagnosticsListener, () -> Releasables.close(releasable)),
+                    CoordinationDiagnosticsAction.Response::new
+                )
+            );
+        }, e -> {
+            logger.warn("Exception connecting to master node", e);
+            responseConsumer.accept(new RemoteMasterHealthResult(node, null, e));
+        });
+
+        fetchCoordinationDiagnosticsListener.whenComplete(response -> {
+            long endTime = System.nanoTime();
+            logger.trace("Received master stability result from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+            responseConsumer.accept(new RemoteMasterHealthResult(node, response.getCoordinationDiagnosticsResult(), null));
+        }, e -> {
+            logger.warn("Exception in master stability request to master node", e);
+            responseConsumer.accept(new RemoteMasterHealthResult(node, null, e));
+        });
+
+        return transportService.getThreadPool().schedule(() -> {
+            Version minSupportedVersion = Version.V_8_4_0;
+            if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                logger.trace(
+                    "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                    node,
+                    node.getVersion(),
+                    minSupportedVersion
+                );
+            } else {
+                transportService.connectToNode(
+                    // Note: This connection must be explicitly closed in the connectionListener
+                    node,
+                    ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                    connectionListener
+                );
+            }
+        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+    }
+
+    private void cancelPollingRemoteStableMasterHealthIndicatorService() {
+        if (remoteStableMasterHealthIndicatorTasks != null) {
+            remoteStableMasterHealthIndicatorTasks.forEach(Scheduler.Cancellable::cancel);
+            remoteStableMasterHealthIndicatorTasks = null;
+            remoteCoordinationDiagnosisResult = null;
+        }
     }
 
     // Non-private for testing
@@ -715,4 +869,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }
 
     }
+
+    // Non-private for testing:
+    record RemoteMasterHealthResult(DiscoveryNode node, CoordinationDiagnosticsResult result, Exception remoteException) {}
 }

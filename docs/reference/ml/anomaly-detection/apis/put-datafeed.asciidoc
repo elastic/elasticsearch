@@ -157,37 +157,70 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 [[ml-put-datafeed-example]]
 == {api-examples-title}
 
+Create a {dfeed} for an {anomaly-job} (`test-job`):
+
 [source,console]
 --------------------------------------------------
-PUT _ml/datafeeds/datafeed-total-requests
+PUT _ml/datafeeds/datafeed-test-job?pretty
 {
-  "job_id": "total-requests",
-  "indices": ["server-metrics"]
+  "indices": [
+    "kibana_sample_data_logs"
+  ],
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match_all": {}
+        }
+      ]
+    }
+  },
+  "job_id": "test-job"
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_job]
+// TEST[skip:setup ecommerce job]
 
 When the {dfeed} is created, you receive the following results:
 
 [source,console-result]
 ----
 {
-  "datafeed_id": "datafeed-total-requests",
-  "job_id": "total-requests",
-  "query_delay": "83474ms",
-  "indices": [
-    "server-metrics"
-  ],
-  "query": {
-    "match_all": {
-      "boost": 1.0
+  "datafeed_id" : "datafeed-test-job",
+  "job_id" : "test-job",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "query_delay" : "91820ms",
+  "chunking_config" : {
+    "mode" : "auto"
+  },
+  "indices_options" : {
+    "expand_wildcards" : [
+      "open"
+    ],
+    "ignore_unavailable" : false,
+    "allow_no_indices" : true,
+    "ignore_throttled" : true
+  },
+  "query" : {
+    "bool" : {
+      "must" : [
+        {
+          "match_all" : { }
+        }
+      ]
     }
   },
-  "scroll_size": 1000,
-  "chunking_config": {
-    "mode": "auto"
+  "indices" : [
+    "kibana_sample_data_logs"
+  ],
+  "scroll_size" : 1000,
+  "delayed_data_check_config" : {
+    "enabled" : true
   }
 }
 ----
-// TESTRESPONSE[s/"query_delay": "83474ms"/"query_delay": $body.query_delay/]
-// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]
+// TESTRESPONSE[s/"query_delay": "91820ms"/"query_delay": $body.query_delay/]
+

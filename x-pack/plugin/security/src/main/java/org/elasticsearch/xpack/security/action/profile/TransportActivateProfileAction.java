@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileReque
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
 import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 
 public class TransportActivateProfileAction extends TransportGrantAction<ActivateProfileRequest, ActivateProfileResponse> {
@@ -30,6 +31,7 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
         ActionFilters actionFilters,
         ProfileService profileService,
         AuthenticationService authenticationService,
+        AuthorizationService authorizationService,
         ThreadPool threadPool
     ) {
         super(
@@ -38,6 +40,7 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
             actionFilters,
             ActivateProfileRequest::new,
             authenticationService,
+            authorizationService,
             threadPool.getThreadContext()
         );
         this.profileService = profileService;

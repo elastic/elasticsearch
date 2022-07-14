@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="modules-discovery-hosts-providers"]
+=== Node discovery
+
+Refer to <<discovery-hosts-providers,Discovery>>.
+
+[role="exclude",id="modules-discovery-troubleshooting"]
+==== Troubleshooting node discovery
+
+Refer to <<discovery-troubleshooting,Troubleshooting discovery>>.
+
 [role="exclude",id="jwt-realm"]
 === JWT realm
 

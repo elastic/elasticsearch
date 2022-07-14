@@ -1,5 +1,0 @@
-pr: 87533
-summary: Fixes inference timeout handling bug that throws unexpected `NullPointerException`
-area: Machine Learning
-type: bug
-issues: []

@@ -33,6 +33,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -42,6 +43,9 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -140,6 +144,33 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 throw e;
             }
         }
+    }
+
+    /**
+     * Override this method if the master node action also has an {@link ReservedClusterStateHandler}
+     * interaction.
+     * <p>
+     * We need to check if certain settings or entities are allowed to be modified by the master node
+     * action, depending on if they are set as reserved in 'operator' mode (file based settings, modules, plugins).
+     *
+     * @return an Optional of the {@link ReservedClusterStateHandler} name
+     */
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.empty();
+    }
+
+    /**
+     * Override this method to return the keys of the cluster state or cluster entities that are modified by
+     * the Request object.
+     * <p>
+     * This method is used by the reserved state handler logic (see {@link ReservedClusterStateHandler})
+     * to verify if the keys don't conflict with an existing key set as reserved.
+     *
+     * @param request the TransportMasterNode request
+     * @return set of String keys intended to be modified/set/deleted by this request
+     */
+    protected Set<String> modifiedKeys(Request request) {
+        return Collections.emptySet();
     }
 
     @Override

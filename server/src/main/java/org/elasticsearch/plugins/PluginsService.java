@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -279,7 +280,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static void loadExtensions(Collection<LoadedPlugin> plugins) {
-
         Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
             .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
@@ -291,6 +291,28 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
             }
         }
+    }
+
+    /**
+     * SPI convenience method that uses the {@link ServiceLoader} JDK class to load various SPI providers
+     * from plugins/modules.
+     * <p>
+     * For example:
+     *
+     * <pre>
+     * var pluginHandlers = pluginsService.loadServiceProviders(OperatorHandlerProvider.class);
+     * </pre>
+     * @param service A templated service class to look for providers in plugins
+     * @return an immutable {@link List} of discovered providers in the plugins/modules
+     */
+    public <T> List<? extends T> loadServiceProviders(Class<T> service) {
+        List<T> result = new ArrayList<>();
+
+        for (LoadedPlugin pluginTuple : plugins()) {
+            result.addAll(createExtensions(service, pluginTuple.instance));
+        }
+
+        return Collections.unmodifiableList(result);
     }
 
     private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {
@@ -326,11 +348,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
         }
 
-        if (constructors.length > 1) {
+        Constructor<T> constructor = constructors[0];
+        // Using modules and SPI requires that we declare the default no-arg constructor apart from our custom
+        // one arg constructor with a plugin.
+        if (constructors.length == 2) {
+            // we prefer the one arg constructor in this case
+            if (constructors[1].getParameterCount() > 0) {
+                constructor = constructors[1];
+            }
+        } else if (constructors.length > 1) {
             throw new IllegalStateException("no unique public " + extensionConstructorMessage(extensionClass, extensionPointType));
         }
 
-        final Constructor<T> constructor = constructors[0];
         if (constructor.getParameterCount() > 1) {
             throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
         }

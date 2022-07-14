@@ -111,8 +111,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("timeout", "70s");
                 }));
                 waitForDeploymentStarted(modelId);
-                assertInfer(modelId);
-                assertInfer(modelId);
+                // attempt inference on new and old nodes multiple times
+                for (int i = 0; i < 10; i++) {
+                    assertInfer(modelId);
+                }
             }
             case UPGRADED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {

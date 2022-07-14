@@ -561,7 +561,7 @@ public class ApiKeyService {
             final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
                 request.getId(),
                 apiKeyDoc.roleDescriptorsBytes,
-                RoleReference.ApiKeyRoleType.ASSIGNED
+                false
             );
             if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
                 && Set.copyOf(newRoleDescriptors).containsAll(new HashSet<>(currentRoleDescriptors)))) {

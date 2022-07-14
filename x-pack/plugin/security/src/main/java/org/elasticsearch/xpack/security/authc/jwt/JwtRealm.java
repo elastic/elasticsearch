@@ -118,11 +118,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final SecureString clientAuthenticationSharedSecret;
     final Cache<BytesKey, AuthenticatedUserAndJwtExpirationDate> jwtCache;
     final CacheIteratorHelper<BytesKey, AuthenticatedUserAndJwtExpirationDate> jwtCacheHelper;
+    final List<String> allowedJwksAlgsPkc;
+    final List<String> allowedJwksAlgsHmac;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
     ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgsPkc;
     ContentAndFilteredJwksAlgs contentAndFilteredJwksAlgsHmac;
-    List<String> allowedJwksAlgsPkc;
-    List<String> allowedJwksAlgsHmac;
 
     JwtRealm(
         final RealmConfig realmConfig,

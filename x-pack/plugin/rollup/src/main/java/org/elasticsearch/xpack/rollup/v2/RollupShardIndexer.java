@@ -354,7 +354,7 @@ class RollupShardIndexer {
 
         public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
-            return reset(timestamp);
+            return init(timestamp);
         }
 
         public RollupBucketBuilder init(long timestamp) {

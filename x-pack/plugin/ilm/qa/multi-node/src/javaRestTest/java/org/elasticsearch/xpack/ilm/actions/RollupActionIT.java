@@ -115,7 +115,6 @@ public class RollupActionIT extends ESRestTestCase {
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2006-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy);
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -229,9 +228,6 @@ public class RollupActionIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
             assertThat(settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()), equalTo(originalIndex));
         });
-        assertBusy(
-            () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
-        );
     }
 
     public void testTsdbDataStreams() throws Exception {

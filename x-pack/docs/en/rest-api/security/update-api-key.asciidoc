@@ -98,7 +98,6 @@ POST /_security/api_key
   }
 }
 ------------------------------------------------------------
-// TEST[skip:tests in subsequent PR]
 
 A successful call returns a JSON structure that provides API key information.
 For example:
@@ -194,8 +193,7 @@ PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
   "role_descriptors": {}
 }
 ----
-// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.id}/]
-// TEST[continued]
+// TEST[skip:api key id not available anymore]
 
 Which returns the response:
 
@@ -244,8 +242,7 @@ The following request re-applies the user's updated permissions to the API key:
 ----
 PUT /_security/api_key/VuaCfGcBCdbkQm-e5aOx
 ----
-// TEST[s/VuaCfGcBCdbkQm-e5aOx/\${body.id}/]
-// TEST[continued]
+// TEST[skip:api key id not available anymore]
 
 Which returns the response:
 

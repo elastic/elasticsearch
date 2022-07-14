@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
@@ -31,11 +30,12 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
-    @Test
     public void testGetRoleDescriptors() {
         final CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
         final ApiKeyUserRoleDescriptorResolver resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, NamedXContentRegistry.EMPTY);
@@ -66,5 +66,17 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
         resolver.getUserRoleDescriptors(authentication, future);
 
         assertThat(future.actionGet(), equalTo(roleDescriptors));
+    }
+
+    public void testGetRoleDescriptorsEmptyForApiKey() {
+        final CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().apiKey().build(false);
+
+        final ApiKeyUserRoleDescriptorResolver resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, NamedXContentRegistry.EMPTY);
+        final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
+        resolver.getUserRoleDescriptors(authentication, future);
+
+        assertThat(future.actionGet(), equalTo(Set.of()));
+        verify(rolesStore, never()).getRoleDescriptorsList(any(), any());
     }
 }

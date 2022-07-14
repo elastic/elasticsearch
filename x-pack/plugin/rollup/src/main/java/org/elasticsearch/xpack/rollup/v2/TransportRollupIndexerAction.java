@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.rollup.v2;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.client.internal.Client;
@@ -23,9 +25,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
@@ -51,6 +55,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     private final Client client;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final TransportCancelTasksAction cancelTasksAction;
 
     @Inject
     public TransportRollupIndexerAction(
@@ -59,7 +64,8 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransportCancelTasksAction cancelTasksAction
     ) {
         super(
             RollupIndexerAction.NAME,
@@ -74,6 +80,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.cancelTasksAction = cancelTasksAction;
     }
 
     @Override
@@ -171,9 +178,12 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     private class Async extends AsyncBroadcastAction {
         private final RollupIndexerAction.Request request;
         private final ActionListener<RollupIndexerAction.Response> listener;
+        private final Task task;
+        private boolean hasCancelled = false;
 
         protected Async(Task task, RollupIndexerAction.Request request, ActionListener<RollupIndexerAction.Response> listener) {
             super(task, request, listener);
+            this.task = task;
             this.request = request;
             this.listener = listener;
         }
@@ -185,6 +195,32 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
                 listener.onResponse(resp);
             } catch (Exception e) {
                 listener.onFailure(e);
+            }
+        }
+
+        @Override
+        protected void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
+            cancelOtherShardIndexers();
+            super.onOperation(shard, shardIt, shardIndex, e);
+        }
+
+        private void cancelOtherShardIndexers() {
+            if (false == hasCancelled) {
+                cancelTasksAction.execute(
+                    task,
+                    new CancelTasksRequest().setTargetParentTaskId(new TaskId(clusterService.localNode().getId(), task.getId())),
+                    ActionListener.wrap(r -> {
+                        logger.info("[{}] rollup cancel other shard indexers", request.getRollupRequest().getSourceIndex());
+                        hasCancelled = true;
+                    },
+                        e -> {
+                            logger.warn(
+                                () -> "[" + request.getRollupRequest().getSourceIndex() + "] rollup cancel other shard indexers failed",
+                                e
+                            );
+                        }
+                    )
+                );
             }
         }
     }

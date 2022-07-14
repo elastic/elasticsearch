@@ -120,7 +120,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);
-        numOfShards = randomIntBetween(1, 4);
+        numOfShards = 4;// randomIntBetween(1, 4);
         numOfReplicas = 0; // Since this is a single node, we cannot have replicas
 
         // Values for keyword dimensions
@@ -370,7 +370,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 }
         );
-        status.setCancelStatus();
+        status.setCancelled();
 
         TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
         assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][0] rollup cancelled"));
@@ -389,12 +389,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
 
         // block rollup index
-        assertAcked(client().admin()
-            .indices()
-            .preparePutTemplate(rollupIndex)
-            .setPatterns(List.of(rollupIndex))
-            .setSettings(Settings.builder().put("index.blocks.write", "true").build())
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate(rollupIndex)
+                .setPatterns(List.of(rollupIndex))
+                .setSettings(Settings.builder().put("index.blocks.write", "true").build())
+                .get()
+        );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));

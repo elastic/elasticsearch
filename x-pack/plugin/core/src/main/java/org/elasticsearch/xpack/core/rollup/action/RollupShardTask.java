@@ -51,6 +51,6 @@ public class RollupShardTask extends CancellableTask {
 
     @Override
     public void onCancelled() {
-        status.setCancelStatus();
+        status.setCancelled();
     }
 }

@@ -46,11 +46,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -145,9 +143,6 @@ class RollupShardIndexer {
             bucketCollector.preCollection();
             timeSeriesSearcher.search(new MatchAllDocsQuery(), bucketCollector);
             bucketCollector.postCollection();
-
-            // check cancel after the flush all data
-            checkCancelled();
         }
 
         logger.info(
@@ -175,7 +170,7 @@ class RollupShardIndexer {
     }
 
     private void checkCancelled() {
-        if (status.getStatus() == Status.ABORT) {
+        if (status.isCancelled()) {
             logger.warn(
                 "Shard [{}] rollup abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
@@ -199,7 +194,8 @@ class RollupShardIndexer {
                 numIndexed.addAndGet(request.numberOfActions());
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems())
-                        .filter(BulkItemResponse::isFailed).collect(Collectors.toList());
+                        .filter(BulkItemResponse::isFailed)
+                        .collect(Collectors.toList());
                     numFailed.addAndGet(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()
@@ -213,7 +209,7 @@ class RollupShardIndexer {
                     logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
 
                     // cancel rollup task
-                    status.setCancelStatus();
+                    status.setCancelled();
                 }
             }
 
@@ -225,7 +221,7 @@ class RollupShardIndexer {
                     logger.error(() -> format("Shard [%s] failed to populate rollup index.", indexShard.shardId()), failure);
 
                     // cancel rollup task
-                    status.setCancelStatus();
+                    status.setCancelled();
                 }
             }
         };
@@ -353,7 +349,8 @@ class RollupShardIndexer {
 
         @Override
         public void preCollection() throws IOException {
-            // no-op
+            // check cancel when start running
+            checkCancelled();
         }
 
         @Override
@@ -364,6 +361,10 @@ class RollupShardIndexer {
                 indexBucket(doc);
             }
             bulkProcessor.flush();
+
+            // check cancel after the flush all data
+            checkCancelled();
+
             logger.info("Shard {} processed [{}] docs, created [{}] rollup buckets", indexShard.shardId(), docsProcessed, bucketsCreated);
         }
 

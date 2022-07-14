@@ -59,7 +59,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -2382,14 +2381,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return getInstance(NamedWriteableRegistry.class);
-    }
-
-    /**
-     * Returns a predicate that only accepts settings of nodes with one of the given names.
-     */
-    public static Predicate<Settings> nameFilter(String... nodeNames) {
-        final Set<String> nodes = Sets.newHashSet(nodeNames);
-        return settings -> nodes.contains(settings.get("node.name"));
     }
 
     /**

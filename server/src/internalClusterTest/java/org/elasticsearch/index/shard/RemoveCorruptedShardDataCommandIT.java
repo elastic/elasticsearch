@@ -331,7 +331,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final Settings node2PathSettings = internalCluster().dataPathSettings(node2);
 
         // shut down the replica node to be tested later
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
+        internalCluster().stopNode(node2);
 
         final Path translogDir = getPathToShardData(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
         final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
@@ -631,7 +631,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
             environmentByNodeName.put(nodeName, environment);
 
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeName));
+            internalCluster().stopNode(nodeName);
             logger.info(" -- stopped {}", nodeName);
         }
 

@@ -1775,11 +1775,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Update with different role descriptors is not a noop
         final List<RoleDescriptor> newRoleDescriptors = List.of(
             randomValueOtherThanMany(
-                rd -> (RoleDescriptorRequestValidator.validate(rd) != null) && initialRequest.getRoleDescriptors().contains(rd) == false,
+                rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
                 () -> RoleDescriptorTests.randomRoleDescriptor(false)
             ),
             randomValueOtherThanMany(
-                rd -> (RoleDescriptorRequestValidator.validate(rd) != null) && initialRequest.getRoleDescriptors().contains(rd) == false,
+                rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
                 () -> RoleDescriptorTests.randomRoleDescriptor(false)
             )
         );

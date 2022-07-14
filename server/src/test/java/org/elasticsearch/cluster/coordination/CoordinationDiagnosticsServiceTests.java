@@ -675,8 +675,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         /*
          * This test sets up a 4-node cluster (3 master eligible). We call beginPollingClusterFormationInfo() on each node. We then
          * cancel all tasks. This simulates what will happen most often in practice -- polling is triggered when the master node goes
-         * null, and then polling is cancelled when a new master node is elected within 10 seconds. We then simulate the cluster running
-         * for a little while, and assert that there are no results from beginPollingClusterFormationInfo().
+         * null, and then polling is cancelled immediately when a new master node is elected, well within the 10 second initial delay. We
+         * then simulate the cluster running for a little while, and assert that there are no results from
+         * beginPollingClusterFormationInfo().
          */
         try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             createAndAddNonMasterNode(cluster);

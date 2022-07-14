@@ -495,7 +495,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     /**
-     * This wraps the responseConsumer in a Consumer that will run beginPollingClusterFormationInfo() after responseConsumer has
+     * This wraps the responseConsumer in a Consumer that will run rescheduleFetchConsumer() after responseConsumer has
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped

@@ -37,8 +37,8 @@ public record ReservedStateVersion(Long version, Version compatibleWith) {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), COMPATIBILITY);
     }
 
-    public static ReservedStateVersion parse(XContentParser parser, Void v) {
-        return PARSER.apply(parser, v);
+    public static ReservedStateVersion parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     public Version minCompatibleVersion() {

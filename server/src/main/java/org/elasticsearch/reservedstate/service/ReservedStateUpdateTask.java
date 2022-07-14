@@ -29,14 +29,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.reservedstate.service.ErrorState.unwrapException;
 
 /**
  * Generic task to update and reserve parts of the cluster state
  *
  * <p>
- * Reserved cluster state can only be modified by using the {@link ReservedClusterStateController}. Updating
+ * Reserved cluster state can only be modified by using the {@link ReservedClusterStateService}. Updating
  * the reserved cluster state through REST APIs is not permitted.
  */
 public class ReservedStateUpdateTask implements ClusterStateTaskListener {
@@ -90,7 +90,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                 state = transformState.state();
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
             } catch (Exception e) {
-                errors.add(format("Error processing %s state change: %s", handler.name(), unwrapException(e)));
+                errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
             }
         }
 

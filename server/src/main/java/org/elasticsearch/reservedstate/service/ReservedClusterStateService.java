@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -40,10 +41,10 @@ import static org.elasticsearch.core.Strings.format;
  * <p>
  * This class contains the logic about validation, ordering and applying of
  * the cluster state specified in a file or through plugins/modules. Reserved cluster state
- * cannot be modified throught the REST APIs, only through this controller class.
+ * cannot be modified through the REST APIs, only through this controller class.
  */
-public class ReservedClusterStateController {
-    private static final Logger logger = LogManager.getLogger(ReservedClusterStateController.class);
+public class ReservedClusterStateService {
+    private static final Logger logger = LogManager.getLogger(ReservedClusterStateService.class);
 
     public static final ParseField STATE_FIELD = new ParseField("state");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
@@ -72,7 +73,7 @@ public class ReservedClusterStateController {
      * @param clusterService for fetching and saving the modified state
      * @param handlerList a list of reserved state handlers, which we use to transform the state
      */
-    public ReservedClusterStateController(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
+    public ReservedClusterStateService(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
         this.clusterService = clusterService;
         this.updateStateTaskExecutor = new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService());
         this.errorStateTaskExecutor = new ReservedStateErrorTaskExecutor();
@@ -84,7 +85,7 @@ public class ReservedClusterStateController {
             p.nextToken();
             return new Tuple<>(name, handlers.get(name).fromXContent(p));
         }, STATE_FIELD);
-        stateChunkParser.declareObject(ConstructingObjectParser.constructorArg(), ReservedStateVersion::parse, METADATA_FIELD);
+        stateChunkParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReservedStateVersion.parse(p), METADATA_FIELD);
     }
 
     /**
@@ -128,7 +129,7 @@ public class ReservedClusterStateController {
 
         LinkedHashSet<String> orderedHandlers;
         try {
-            orderedHandlers = HandlerDependencyManager.orderedStateHandlers(handlers, reservedState.keySet());
+            orderedHandlers = orderedStateHandlers(reservedState.keySet());
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 namespace,
@@ -228,5 +229,56 @@ public class ReservedClusterStateController {
             ClusterStateTaskConfig.build(Priority.URGENT),
             errorStateTaskExecutor
         );
+    }
+
+    /**
+     * Returns an ordered set ({@link LinkedHashSet}) of the cluster state handlers that need to
+     * execute for a given list of handler names supplied through the {@link ReservedStateChunk}.
+     * @param handlerNames Names of handlers found in the {@link ReservedStateChunk}
+     * @return
+     */
+    LinkedHashSet<String> orderedStateHandlers(Set<String> handlerNames) {
+        LinkedHashSet<String> orderedHandlers = new LinkedHashSet<>();
+        LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
+
+        for (String key : handlerNames) {
+            addStateHandler(key, handlerNames, orderedHandlers, dependencyStack);
+        }
+
+        return orderedHandlers;
+    }
+
+    private void addStateHandler(String key, Set<String> keys, LinkedHashSet<String> ordered, LinkedHashSet<String> visited) {
+        if (visited.contains(key)) {
+            StringBuilder msg = new StringBuilder("Cycle found in settings dependencies: ");
+            visited.forEach(s -> {
+                msg.append(s);
+                msg.append(" -> ");
+            });
+            msg.append(key);
+            throw new IllegalStateException(msg.toString());
+        }
+
+        if (ordered.contains(key)) {
+            // already added by another dependent handler
+            return;
+        }
+
+        visited.add(key);
+        ReservedClusterStateHandler<?> handler = handlers.get(key);
+
+        if (handler == null) {
+            throw new IllegalStateException("Unknown handler type: " + key);
+        }
+
+        for (String dependency : handler.dependencies()) {
+            if (keys.contains(dependency) == false) {
+                throw new IllegalStateException("Missing handler dependency definition: " + key + " -> " + dependency);
+            }
+            addStateHandler(dependency, keys, ordered, visited);
+        }
+
+        visited.remove(key);
+        ordered.add(key);
     }
 }

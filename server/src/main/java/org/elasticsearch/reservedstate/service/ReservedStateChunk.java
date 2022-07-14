@@ -11,7 +11,7 @@ package org.elasticsearch.reservedstate.service;
 import java.util.Map;
 
 /**
- * Tuple class containing the cluster state to be saved and reserved and the version info
+ * A holder for the cluster state to be saved and reserved and the version info
  * <p>
  * Apart from the cluster state we want to store and reserve, the chunk requires that
  * you supply the version metadata. This version metadata (see {@link ReservedStateVersion}) is checked to ensure

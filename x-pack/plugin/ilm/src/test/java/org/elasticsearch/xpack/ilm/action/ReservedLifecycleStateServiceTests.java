@@ -21,7 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
-import org.elasticsearch.reservedstate.service.ReservedClusterStateController;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.reservedstate.service.ReservedStateChunk;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
@@ -71,7 +71,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ReservedLifecycleStateControllerTests extends ESTestCase {
+public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
@@ -281,7 +281,7 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ReservedClusterStateController controller = new ReservedClusterStateController(
+        ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
@@ -353,7 +353,7 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        controller = new ReservedClusterStateController(
+        controller = new ReservedClusterStateService(
             clusterService,
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
@@ -380,7 +380,7 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ReservedClusterStateController controller = new ReservedClusterStateController(
+        ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
@@ -417,7 +417,7 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        controller = new ReservedClusterStateController(
+        controller = new ReservedClusterStateService(
             clusterService,
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),

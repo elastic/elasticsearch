@@ -53,7 +53,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ReservedClusterStateControllerTests extends ESTestCase {
+public class ReservedClusterStateServiceTests extends ESTestCase {
 
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -63,7 +63,7 @@ public class ReservedClusterStateControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        ReservedClusterStateController controller = new ReservedClusterStateController(
+        ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
@@ -322,17 +322,13 @@ public class ReservedClusterStateControllerTests extends ESTestCase {
         ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
         assertTrue(
-            ReservedClusterStateController.checkMetadataVersion(
-                operatorMetadata,
-                new ReservedStateVersion(124L, Version.CURRENT),
-                (e) -> {}
-            )
+            ReservedClusterStateService.checkMetadataVersion(operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT), (e) -> {})
         );
 
         AtomicReference<Exception> x = new AtomicReference<>();
 
         assertFalse(
-            ReservedClusterStateController.checkMetadataVersion(
+            ReservedClusterStateService.checkMetadataVersion(
                 operatorMetadata,
                 new ReservedStateVersion(123L, Version.CURRENT),
                 (e) -> x.set(e)
@@ -343,7 +339,7 @@ public class ReservedClusterStateControllerTests extends ESTestCase {
         assertTrue(x.get().getMessage().contains("is less or equal to the current metadata version"));
 
         assertFalse(
-            ReservedClusterStateController.checkMetadataVersion(
+            ReservedClusterStateService.checkMetadataVersion(
                 operatorMetadata,
                 new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1)),
                 (e) -> x.set(e)
@@ -354,121 +350,60 @@ public class ReservedClusterStateControllerTests extends ESTestCase {
         assertTrue(x.get().getMessage().contains("is not compatible with this Elasticsearch node"));
     }
 
+    private ReservedClusterStateHandler<Map<String, Object>> makeHandlerHelper(final String name, final List<String> deps) {
+        return new ReservedClusterStateHandler<>() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                return null;
+            }
+
+            @Override
+            public Collection<String> dependencies() {
+                return deps;
+            }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
+        };
+    }
+
     public void testHandlerOrdering() {
-        ReservedClusterStateHandler<Map<String, Object>> oh1 = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "one";
-            }
-
-            @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
-                return null;
-            }
-
-            @Override
-            public Collection<String> dependencies() {
-                return List.of("two", "three");
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
-            }
-        };
-
-        ReservedClusterStateHandler<Map<String, Object>> oh2 = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "two";
-            }
-
-            @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
-                return null;
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
-            }
-        };
-
-        ReservedClusterStateHandler<Map<String, Object>> oh3 = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "three";
-            }
-
-            @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
-                return null;
-            }
-
-            @Override
-            public Collection<String> dependencies() {
-                return List.of("two");
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
-            }
-        };
+        ReservedClusterStateHandler<Map<String, Object>> oh1 = makeHandlerHelper("one", List.of("two", "three"));
+        ReservedClusterStateHandler<Map<String, Object>> oh2 = makeHandlerHelper("two", Collections.emptyList());
+        ReservedClusterStateHandler<Map<String, Object>> oh3 = makeHandlerHelper("three", List.of("two"));
 
         ClusterService clusterService = mock(ClusterService.class);
-        final var controller = new ReservedClusterStateController(clusterService, List.of(oh1, oh2, oh3));
-        Collection<String> ordered = HandlerDependencyManager.orderedStateHandlers(controller.handlers, Set.of("one", "two", "three"));
+        final var controller = new ReservedClusterStateService(clusterService, List.of(oh1, oh2, oh3));
+        Collection<String> ordered = controller.orderedStateHandlers(Set.of("one", "two", "three"));
         assertThat(ordered, contains("two", "three", "one"));
 
         // assure that we bail on unknown handler
         assertEquals(
             "Unknown handler type: four",
-            expectThrows(
-                IllegalStateException.class,
-                () -> HandlerDependencyManager.orderedStateHandlers(controller.handlers, Set.of("one", "two", "three", "four"))
-            ).getMessage()
+            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two", "three", "four")))
+                .getMessage()
         );
 
         // assure that we bail on missing dependency link
         assertEquals(
             "Missing handler dependency definition: one -> three",
-            expectThrows(
-                IllegalStateException.class,
-                () -> HandlerDependencyManager.orderedStateHandlers(controller.handlers, Set.of("one", "two"))
-            ).getMessage()
+            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage()
         );
 
         // Change the second handler so that we create cycle
-        oh2 = new ReservedClusterStateHandler<>() {
-            @Override
-            public String name() {
-                return "two";
-            }
+        oh2 = makeHandlerHelper("two", List.of("one"));
 
-            @Override
-            public TransformState transform(Object source, TransformState prevState) throws Exception {
-                return null;
-            }
-
-            @Override
-            public Collection<String> dependencies() {
-                return List.of("one");
-            }
-
-            @Override
-            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
-                return parser.map();
-            }
-        };
-
-        final var controller1 = new ReservedClusterStateController(clusterService, List.of(oh1, oh2));
+        final var controller1 = new ReservedClusterStateService(clusterService, List.of(oh1, oh2));
 
         assertThat(
-            expectThrows(
-                IllegalStateException.class,
-                () -> HandlerDependencyManager.orderedStateHandlers(controller1.handlers, Set.of("one", "two"))
-            ).getMessage(),
+            expectThrows(IllegalStateException.class, () -> controller1.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
             anyOf(
                 is("Cycle found in settings dependencies: one -> two -> one"),
                 is("Cycle found in settings dependencies: two -> one -> two")
@@ -487,7 +422,7 @@ public class ReservedClusterStateControllerTests extends ESTestCase {
         assertTrue(
             expectThrows(
                 IllegalStateException.class,
-                () -> new ReservedClusterStateController(
+                () -> new ReservedClusterStateService(
                     clusterService,
                     List.of(new ReservedClusterSettingsAction(clusterSettings), new TestHandler())
                 )
@@ -503,7 +438,7 @@ public class ReservedClusterStateControllerTests extends ESTestCase {
         }
 
         @Override
-        public TransformState transform(Object source, TransformState prevState) throws Exception {
+        public TransformState transform(Object source, TransformState prevState) {
             return prevState;
         }
 

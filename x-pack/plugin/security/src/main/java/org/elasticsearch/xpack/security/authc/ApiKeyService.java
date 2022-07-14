@@ -564,7 +564,7 @@ public class ApiKeyService {
                 false
             );
             if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
-                && Set.copyOf(newRoleDescriptors).containsAll(new HashSet<>(currentRoleDescriptors)))) {
+                && Set.copyOf(newRoleDescriptors).containsAll(currentRoleDescriptors))) {
                 return false;
             }
         }

@@ -31,6 +31,8 @@ class TransformContext {
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
+    // Keeps track of the last failure that occured, used for throttling logs and audit
+    private final AtomicReference<String> lastFailure = new AtomicReference<>();
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
@@ -68,6 +70,7 @@ class TransformContext {
     void resetReasonAndFailureCounter() {
         stateReason.set(null);
         failureCount.set(0);
+        lastFailure.set(null);
         taskListener.failureCountChanged();
     }
 
@@ -99,10 +102,15 @@ class TransformContext {
         return failureCount.get();
     }
 
-    int incrementAndGetFailureCount() {
+    int incrementAndGetFailureCount(String failure) {
         int newFailureCount = failureCount.incrementAndGet();
+        lastFailure.set(failure);
         taskListener.failureCountChanged();
         return newFailureCount;
+    }
+
+    String getLastFailure() {
+        return lastFailure.get();
     }
 
     void setChangesLastDetectedAt(Instant time) {

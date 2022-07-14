@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.transform.notifications;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -14,7 +16,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.common.notifications.Level;
+import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -35,6 +39,7 @@ import static org.mockito.Mockito.when;
 public class MockTransformAuditor extends TransformAuditor {
 
     private static final String MOCK_NODE_NAME = "mock_node_name";
+    private static final Logger logger = LogManager.getLogger(MockTransformAuditor.class);
 
     @SuppressWarnings("unchecked")
     public static MockTransformAuditor createMockAuditor() {
@@ -101,14 +106,22 @@ public class MockTransformAuditor extends TransformAuditor {
         protected final Level expectedLevel;
         protected final String expectedResourceId;
         protected final String expectedMessage;
-        volatile boolean saw;
+        protected final int expectedCount;
+        volatile int count;
 
-        public AbstractAuditExpectation(String expectedName, Level expectedLevel, String expectedResourceId, String expectedMessage) {
+        public AbstractAuditExpectation(
+            String expectedName,
+            Level expectedLevel,
+            String expectedResourceId,
+            String expectedMessage,
+            int expectedCount
+        ) {
             this.expectedName = expectedName;
             this.expectedLevel = expectedLevel;
             this.expectedResourceId = expectedResourceId;
             this.expectedMessage = expectedMessage;
-            this.saw = false;
+            this.expectedCount = expectedCount;
+            this.count = 0;
         }
 
         @Override
@@ -116,11 +129,11 @@ public class MockTransformAuditor extends TransformAuditor {
             if (level.equals(expectedLevel) && resourceId.equals(expectedResourceId) && innerMatch(level, resourceId, message)) {
                 if (Regex.isSimpleMatchPattern(expectedMessage)) {
                     if (Regex.simpleMatch(expectedMessage, message)) {
-                        saw = true;
+                        ++count;
                     }
                 } else {
                     if (message.contains(expectedMessage)) {
-                        saw = true;
+                        ++count;
                     }
                 }
             }
@@ -134,28 +147,52 @@ public class MockTransformAuditor extends TransformAuditor {
     public static class SeenAuditExpectation extends AbstractAuditExpectation {
 
         public SeenAuditExpectation(String expectedName, Level expectedLevel, String expectedResourceId, String expectedMessage) {
-            super(expectedName, expectedLevel, expectedResourceId, expectedMessage);
+            super(expectedName, expectedLevel, expectedResourceId, expectedMessage, 1);
         }
 
         @Override
         public void assertMatched() {
-            assertThat("expected to see " + expectedName + " but did not", saw, equalTo(true));
+            assertThat("expected to see " + expectedName + " but did not", count, equalTo(expectedCount));
         }
     }
 
     public static class UnseenAuditExpectation extends AbstractAuditExpectation {
 
         public UnseenAuditExpectation(String expectedName, Level expectedLevel, String expectedResourceId, String expectedMessage) {
-            super(expectedName, expectedLevel, expectedResourceId, expectedMessage);
+            super(expectedName, expectedLevel, expectedResourceId, expectedMessage, 0);
         }
 
         @Override
         public void assertMatched() {
-            assertThat("expected not to see " + expectedName + " but did", saw, equalTo(false));
+            assertThat("expected not to see " + expectedName + " but did", count, equalTo(expectedCount));
+        }
+    }
+
+    public static class MultipleSeenAuditExpectation extends AbstractAuditExpectation {
+
+        public MultipleSeenAuditExpectation(
+            String expectedName,
+            Level expectedLevel,
+            String expectedResourceId,
+            String expectedMessage,
+            int expectedCount
+        ) {
+            super(expectedName, expectedLevel, expectedResourceId, expectedMessage, expectedCount);
+        }
+
+        @Override
+        public void assertMatched() {
+            assertThat(
+                "expected to see " + expectedName + " " + expectedCount + " times but saw it " + count + " times ",
+                count,
+                equalTo(expectedCount)
+            );
         }
     }
 
     private void audit(Level level, String resourceId, String message) {
+        logger.info("AUDIT: {}", new TransformAuditMessage(resourceId, message, level, new Date(), MOCK_NODE_NAME));
+
         for (AuditExpectation expectation : expectations) {
             expectation.match(level, resourceId, message);
         }

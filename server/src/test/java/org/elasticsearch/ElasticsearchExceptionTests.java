@@ -202,6 +202,55 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
     }
 
+    public void testSearchPhaseExecutionExceptionWithNoShardFailuresAndNoCause() throws IOException {
+        final SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "no shard failure",
+            null,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "search_phase_execution_exception",
+              "reason": "no shard failure",
+              "phase": "search",
+              "grouped": true,
+              "failed_shards": []
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), ex.status().getStatus());
+    }
+
+    public void testSearchPhaseExecutionExceptionWithNoShardFailuresAndCause() throws IOException {
+        final SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "no shard failure",
+            new IllegalArgumentException("illegal argument"),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "search_phase_execution_exception",
+              "reason": "no shard failure",
+              "phase": "search",
+              "grouped": true,
+              "failed_shards": [],
+              "caused_by":{"type":"illegal_argument_exception","reason":"illegal argument"}
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+        assertEquals(RestStatus.BAD_REQUEST.getStatus(), ex.status().getStatus());
+    }
+
     public void testDeduplicate() throws IOException {
         {
             ShardSearchFailure failure = new ShardSearchFailure(

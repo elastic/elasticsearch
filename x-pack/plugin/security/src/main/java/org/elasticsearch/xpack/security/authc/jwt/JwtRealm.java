@@ -212,7 +212,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     private ContentAndJwksAlgs parseJwksAlgsHmac() {
-        final JwksAlgs jwksAlgsHmac;
+        final JwtRealm.JwksAlgs jwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
         String hmacStringContent = null;
@@ -255,7 +255,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     private ContentAndJwksAlgs parseJwksAlgsPkc() {
-        final JwksAlgs jwksAlgsPkc;
+        final JwtRealm.JwksAlgs jwksAlgsPkc;
         String jwkSetContentsPkc = null;
         if (this.isConfiguredJwkSetPkc == false) {
             jwksAlgsPkc = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
@@ -349,8 +349,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
                 LOGGER.debug("Invalidated JWT cache for realm [{}]", super.name());
             } catch (Exception e) {
-                final String msg = "Exception invalidating JWT cache for realm [" + super.name() + "]";
-                LOGGER.debug(msg, e);
+                LOGGER.warn("Exception invalidating JWT cache for realm [" + super.name() + "]", e);
             }
         }
     }

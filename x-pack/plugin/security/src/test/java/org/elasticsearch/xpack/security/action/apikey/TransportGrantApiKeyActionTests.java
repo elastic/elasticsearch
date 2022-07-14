@@ -62,14 +62,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
     private TransportGrantApiKeyAction action;
-    private ApiKeyGenerator generator;
+    private ApiKeyGenerator apiKeyGenerator;
     private AuthenticationService authenticationService;
     private ThreadPool threadPool;
     private AuthorizationService authorizationService;
 
     @Before
     public void setupMocks() throws Exception {
-        generator = mock(ApiKeyGenerator.class);
+        apiKeyGenerator = mock(ApiKeyGenerator.class);
         authenticationService = mock(AuthenticationService.class);
         authorizationService = mock(AuthorizationService.class);
 
@@ -80,7 +80,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             mock(TransportService.class),
             mock(ActionFilters.class),
             threadContext,
-            generator,
+            apiKeyGenerator,
             authenticationService,
             authorizationService
         );
@@ -222,7 +222,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
-        verifyNoMoreInteractions(generator);
+        verifyNoMoreInteractions(apiKeyGenerator);
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
     }
 
@@ -410,7 +410,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             listener.onResponse(response);
 
             return null;
-        }).when(generator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
+        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
     }
 
 }

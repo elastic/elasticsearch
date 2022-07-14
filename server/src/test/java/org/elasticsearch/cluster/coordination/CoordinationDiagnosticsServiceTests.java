@@ -378,6 +378,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testRedForNoMasterNoQuorum() {
+        /*
+         * This test brings up a 4-node cluster (3 master-eligible, one not). After the cluster stabilizes, one node is elected master.
+         * Then we disconnect all master nodes from all other nodes and allow the cluster to simulate running for a little longer. At
+         * that point, the non-master node thinks that there are no master nodes. The two master eligible nodes that were not initially
+         * elected master think that no quorum can be formed. Depending on timing, the node that had originally been elected master
+         * either thinks that it is still master, or that no quorum can be formed.
+         */
         try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
             // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
             createAndAddNonMasterNode(cluster);
@@ -395,18 +402,6 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             int greenMasterCount = 0;
             cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
-                /*
-                 * The following line puts the local node's cluster formation state into its map of cluster formation states. This would
-                 * ordinarily happen 10s after the master went null (and long before diagnoseMasterStability was called), but this
-                 * avoids having to wait 10 seconds.
-                 */
-                if (node.getLocalNode().isMasterNode()) {
-                    node.coordinationDiagnosticsService.clusterFormationResponses = new ConcurrentHashMap<>();
-                    node.coordinationDiagnosticsService.clusterFormationResponses.put(
-                        node.getLocalNode(),
-                        new CoordinationDiagnosticsService.ClusterFormationStateOrException(node.coordinator.getClusterFormationState())
-                    );
-                }
                 CoordinationDiagnosticsService.CoordinationDiagnosticsResult healthIndicatorResult = node.coordinationDiagnosticsService
                     .diagnoseMasterStability(true);
                 if (node.getLocalNode().isMasterNode() == false) {
@@ -436,7 +431,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testRedForDiscoveryProblems() {
-        try (Cluster cluster = new Cluster(4, false, Settings.EMPTY)) {
+        /*
+         * In this test we bring up a 4-node cluster (3 master-eligible) and allow it to stabilize. Then we disconnect all master nodes.
+         * This actually causes a quorum failure (see testRedForNoMasterNoQuorum()). The reason for this is so that we get into the state
+         *  where we have not had a master node recently. Then we swap out he clusterFormationResponses so that the reason appears to be
+         * a discovery problem instead of a quorum problem.
+         */
+        try (Cluster cluster = new Cluster(3, false, Settings.EMPTY)) {
             // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();
@@ -448,7 +449,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 if (node.getLocalNode().isMasterNode()) {
                     clusterFormationStates.put(
                         node.getLocalNode(),
-                        new CoordinationDiagnosticsService.ClusterFormationStateOrException(node.coordinator.getClusterFormationState())
+                        new CoordinationDiagnosticsService.ClusterFormationStateOrException(getClusterFormationState(false, true))
                     );
                     node.disconnect();
                     masterNodeCount++;
@@ -478,7 +479,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 }
             }
             // Non-master nodes see only themselves and think that there are no master nodes:
-            assertThat(redNonMasterCount, equalTo(5 - masterNodeCount));
+            assertThat(redNonMasterCount, equalTo(1));
             // The original master node sees only itself, but might think it is still master:
             assertThat(greenMasterCount, lessThanOrEqualTo(1));
             // The other master nodes only see themselves and cannot form a quorum (and sometimes the original master already sees this):
@@ -692,9 +693,20 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         MasterHistory localMasterHistory = mock(MasterHistory.class);
         Collection<DiscoveryNode> masterEligibleNodes = List.of(node1, node2, node3);
         boolean explain = true;
+
+        /*
+         * In this test, we have an exception rather than the ClusterFormationState for one of the nodes, we expect the status to be RED
+         * and the summary to indicate that there was an exception.
+         */
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
-        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(new RuntimeException()));
-        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(new RuntimeException()));
+        clusterFormationResponses.put(
+            node1,
+            new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), randomBoolean()))
+        );
+        clusterFormationResponses.put(
+            node2,
+            new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), randomBoolean()))
+        );
         clusterFormationResponses.put(node3, new ClusterFormationStateOrException(new RuntimeException()));
         TimeValue nodeHasMasterLookupTimeframe = new TimeValue(1, TimeUnit.MILLISECONDS);
         Coordinator coordinator = mock(Coordinator.class);
@@ -712,6 +724,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
         assertThat(result.summary(), containsString(" an exception occurred while reaching out to "));
 
+        /*
+         * In this test, the ClusterFormationStates of all of the nodes appear fine. Since we only run this method when there has been no
+         *  master recently, we expect the status to be RED and the summary to indicate that we don't know what the problem is.
+         */
         clusterFormationResponses = new ConcurrentHashMap<>();
         clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
         clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
@@ -727,6 +743,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
         assertThat(result.summary(), containsString(" the cause has not been determined"));
 
+        /*
+         * In this test, we have the ClusterFormationState of one of the node reports that it cannot form a quorum, so we expect the
+         * status to be RED and the summary to indicate that we are unable to form a quorum.
+         */
         clusterFormationResponses = new ConcurrentHashMap<>();
         clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
         clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
@@ -742,6 +762,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
         assertThat(result.summary(), containsString(" the master eligible nodes are unable to form a quorum"));
 
+        /*
+         * In this test, we have the ClusterFormationState of one of the node reports that its foundPeers does not include all known
+         * master eligible nodes, so we expect the status to be RED and the summary to indicate that we are unable to discover all nodes.
+         */
         clusterFormationResponses = new ConcurrentHashMap<>();
         clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
         clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(false, true)));
@@ -760,10 +784,14 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
 
     public void testAnyNodeInClusterReportsDiscoveryProblems() {
         Collection<DiscoveryNode> masterEligibleNodes = List.of(node1, node2, node3);
+        /*
+         * In this test, the foundPeers of the ClusterFormationStates of all nodes contain all known master eligible nodes, so we expect
+         * anyNodeInClusterReportsDiscoveryProblems() to be false since there are no discovery problems.
+         */
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
-        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
-        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
-        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, randomBoolean())));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, randomBoolean())));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, randomBoolean())));
         Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeClusterFormationStateMap = clusterFormationResponses
             .entrySet()
             .stream()
@@ -772,10 +800,20 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             CoordinationDiagnosticsService.anyNodeInClusterReportsDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)
         );
 
+        /*
+         * In this test, the foundPeers of at least one ClusterFormationState does _not_ include all known master eligible nodes, so we
+         * expect anyNodeInClusterReportsDiscoveryProblems() to be true.
+         */
         clusterFormationResponses = new ConcurrentHashMap<>();
-        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
-        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(false, true)));
-        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(
+            node1,
+            new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), randomBoolean()))
+        );
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(false, randomBoolean())));
+        clusterFormationResponses.put(
+            node3,
+            new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), randomBoolean()))
+        );
         nodeClusterFormationStateMap = clusterFormationResponses.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
@@ -785,26 +823,45 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
     }
 
     public void testAnyNodeInClusterReportsQuorumProblems() {
+        /*
+         * In this test the hasDiscoveredQuorum field of all ClusterFormationStates is true, so we expect
+         * anyNodeInClusterReportsQuorumProblems() to return false.
+         */
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = new ConcurrentHashMap<>();
-        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
-        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
-        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), true)));
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), true)));
+        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), true)));
         Map<DiscoveryNode, ClusterFormationFailureHelper.ClusterFormationState> nodeClusterFormationStateMap = clusterFormationResponses
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
         assertFalse(CoordinationDiagnosticsService.anyNodeInClusterReportsQuorumProblems(nodeClusterFormationStateMap));
 
+        /*
+         * In this test the hasDiscoveredQuorum field of at least one ClusterFormationState is false, so we expect
+         * anyNodeInClusterReportsQuorumProblems() to return true.
+         */
         clusterFormationResponses = new ConcurrentHashMap<>();
-        clusterFormationResponses.put(node1, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
-        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(true, false)));
-        clusterFormationResponses.put(node3, new ClusterFormationStateOrException(getClusterFormationState(true, true)));
+        clusterFormationResponses.put(
+            node1,
+            new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), randomBoolean()))
+        );
+        clusterFormationResponses.put(node2, new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), false)));
+        clusterFormationResponses.put(
+            node3,
+            new ClusterFormationStateOrException(getClusterFormationState(randomBoolean(), randomBoolean()))
+        );
         nodeClusterFormationStateMap = clusterFormationResponses.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
         assertTrue(CoordinationDiagnosticsService.anyNodeInClusterReportsQuorumProblems(nodeClusterFormationStateMap));
     }
 
+    /*
+     * Creates a new ClusterFormationState for testing. If hasDiscoveredAllNodes is false, then the foundPeers on the returned
+     * ClusterFormationState will be missing at least one known master eligible node. The hasDiscoveredQuorum field in the returned
+     * ClusterFormationState is set to the hasDiscoveredQuorum argument of this method.
+     */
     private ClusterFormationFailureHelper.ClusterFormationState getClusterFormationState(
         boolean hasDiscoveredAllNodes,
         boolean hasDiscoveredQuorum
@@ -815,6 +872,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
         masterEligibleNodesMap.forEach(masterEligibleNodesBuilder::put);
         ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes = masterEligibleNodesBuilder.build();
+        List<DiscoveryNode> allMasterEligibleNodes = List.of(node1, node2, node3);
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
             localNode,
@@ -824,7 +882,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
             Collections.emptyList(),
-            hasDiscoveredAllNodes ? List.of(node1, node2, node3) : List.of(),
+            hasDiscoveredAllNodes
+                ? allMasterEligibleNodes
+                : randomSubsetOf(randomInt(allMasterEligibleNodes.size() - 1), allMasterEligibleNodes),
             randomLong(),
             hasDiscoveredQuorum,
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),

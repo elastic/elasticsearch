@@ -47,7 +47,8 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.KeywordValueFetcherIndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherIndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -57,6 +58,7 @@ import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
@@ -697,8 +699,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return fielddataBuilder(fullyQualifiedIndexName, searchLookup);
             }
 
-            return new KeywordValueFetcherIndexFieldData.Builder(
+            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
+                CoreValuesSourceType.KEYWORD,
                 new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
                     @Override
                     protected String parseSourceValue(Object value) {

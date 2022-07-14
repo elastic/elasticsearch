@@ -11,8 +11,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.KeywordValueFetcherIndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SourceValueFetcherIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
@@ -56,7 +56,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
 
         // do not use cached source fallback fields for old style doc access
-        if (lookup == fieldDataLookup && factory instanceof KeywordValueFetcherIndexFieldData.ValueFetcherDocValues) {
+        if (lookup == fieldDataLookup && factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
             factory = null;
         }
 

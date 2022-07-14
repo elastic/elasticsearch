@@ -404,15 +404,13 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 if (jwtIssuerAndRealm.realm().contentAndJwksAlgsPkc.jwksAlgs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip HMAC to PKC (no PKC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsPkc.jwksAlgs().algs()); // flip HMAC
-                                                                                                                              // to PKC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsPkc.jwksAlgs().algs()); // flip HMAC to PKC
                 }
             } else {
                 if (jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs().isEmpty()) {
                     mixupAlg = null; // cannot flip PKC to HMAC (no HMAC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs()); // flip HMAC
-                                                                                                                               // to PKC
+                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs()); // flip HMAC to PKC
                 }
             }
             // This check can only be executed if there is a flip algorithm available in the realm

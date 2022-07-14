@@ -206,10 +206,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final TimeValue jwtCacheTtl = super.config.getSetting(JwtRealmSettings.JWT_CACHE_TTL);
         final int jwtCacheSize = super.config.getSetting(JwtRealmSettings.JWT_CACHE_SIZE);
         if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheSize > 0)) {
-            return CacheBuilder.<BytesKey, ExpiringUser>builder()
-                .setExpireAfterWrite(jwtCacheTtl)
-                .setMaximumWeight(jwtCacheSize)
-                .build();
+            return CacheBuilder.<BytesKey, ExpiringUser>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
         }
         return null;
     }
@@ -254,11 +251,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Zero HMAC JWKs and Algs after filtering is valid use case, as long as PKC has non-zero JWKs and Algs.
             jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, this.allowedJwksAlgsHmac);
         }
-        LOGGER.debug(
-            "Usable HMAC: JWKs [{}]. Algorithms [{}].",
-            jwksAlgsHmac.jwks.size(),
-            String.join(",", jwksAlgsHmac.algs())
-        );
+        LOGGER.debug("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
         return new ContentAndJwksAlgs(hmacStringContent, jwksAlgsHmac);
     }
 
@@ -296,11 +289,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Zero PKC JWKs and Algs after filtering is valid use case, as long as HMAC has non-zero JWKs and Algs.
             jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, this.allowedJwksAlgsPkc);
         }
-        LOGGER.debug(
-            "Usable PKC: JWKs [{}]. Algorithms [{}].",
-            jwksAlgsPkc.jwks().size(),
-            String.join(",", jwksAlgsPkc.algs())
-        );
+        LOGGER.debug("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
         return new ContentAndJwksAlgs(jwkSetContentsPkc, jwksAlgsPkc);
     }
 
@@ -313,8 +302,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         assert this.contentAndJwksAlgsPkc.jwksAlgs.jwks != null : "PKC not initialized";
         assert this.contentAndJwksAlgsHmac.jwksAlgs.algs != null : "HMAC not initialized";
         assert this.contentAndJwksAlgsPkc.jwksAlgs.algs != null : "PKC not initialized";
-        if (this.contentAndJwksAlgsHmac.jwksAlgs.isEmpty()
-            && this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
+        if (this.contentAndJwksAlgsHmac.jwksAlgs.isEmpty() && this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
             final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
             throw new SettingsException(msg);
         }
@@ -393,10 +381,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.ensureInitialized();
         LOGGER.trace("Expiring JWT cache entries for realm [{}] principal=[{}]", super.name(), username);
         if (this.jwtCacheHelper != null) {
-            this.jwtCacheHelper.removeValuesIf(
-                expiringUser -> expiringUser.user.principal()
-                    .equals(username)
-            );
+            this.jwtCacheHelper.removeValuesIf(expiringUser -> expiringUser.user.principal().equals(username));
         }
         LOGGER.trace("Expired JWT cache entries for realm [{}] principal=[{}]", super.name(), username);
     }
@@ -557,9 +542,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 try {
                     JwtValidateUtil.validateSignature(
                         jwt,
-                        isJwtSignatureAlgPkc
-                            ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks
-                            : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
+                        isJwtSignatureAlgPkc ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
                     );
                 } catch (Exception originalValidateSignatureException) {
                     if (isJwtSignatureAlgPkc) {
@@ -602,9 +585,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     }
                     JwtValidateUtil.validateSignature(
                         jwt,
-                        isJwtSignatureAlgPkc
-                            ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks
-                            : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
+                        isJwtSignatureAlgPkc ? this.contentAndJwksAlgsPkc.jwksAlgs.jwks : this.contentAndJwksAlgsHmac.jwksAlgs.jwks
                     );
                 }
             } catch (Exception e) {
@@ -647,10 +628,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     if ((this.jwtCache != null) && (this.jwtCacheHelper != null)) {
                         try (ReleasableLock ignored = this.jwtCacheHelper.acquireUpdateLock()) {
                             final long expWallClockMillis = jwtClaimsSet.getExpirationTime().getTime() + this.allowedClockSkew.getMillis();
-                            this.jwtCache.put(
-                                jwtCacheKey,
-                                new ExpiringUser(result.getValue(), new Date(expWallClockMillis))
-                            );
+                            this.jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));
                         }
                     }
                 }

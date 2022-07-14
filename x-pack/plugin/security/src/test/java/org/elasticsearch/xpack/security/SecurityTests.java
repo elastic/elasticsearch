@@ -780,7 +780,8 @@ public class SecurityTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                Tracer.NOOP);
+                Tracer.NOOP
+            );
             actionModule.initRestHandlers(null);
 
             appender.assertAllExpectationsMatched();

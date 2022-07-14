@@ -407,7 +407,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
-    private boolean handleNoHandlerFound(ThreadContext threadContext, String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
+    private boolean handleNoHandlerFound(
+        ThreadContext threadContext,
+        String rawPath,
+        RestRequest.Method method,
+        String uri,
+        RestChannel channel
+    ) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {

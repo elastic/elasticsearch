@@ -889,6 +889,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testMonitoringExporterPassword() {
+        DiscoveryNode node1 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1);
+
         // test for presence of deprecated exporter passwords
         final int numExporterPasswords = randomIntBetween(1, 3);
         final String[] exporterNames = new String[numExporterPasswords];
@@ -899,7 +902,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
         final Settings settings = b.build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null, licenseState);
+        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, state, licenseState);
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-passwords";
         final String joinedNames = Arrays.stream(exporterNames)
             .map(s -> "xpack.monitoring.exporters." + s + ".auth.password")
@@ -926,7 +929,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, state, licenseState);
         assertThat(issue, nullValue());
     }
 
@@ -958,6 +961,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testCheckSearchRemoteSettings() {
+        DiscoveryNode node1 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1);
+
         // test for presence of deprecated exporter passwords
         final int numClusters = randomIntBetween(1, 3);
         final String[] clusterNames = new String[numClusters];
@@ -1008,7 +1014,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, state, licenseState);
         assertThat(issue, nullValue());
     }
 

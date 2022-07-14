@@ -15,26 +15,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private final String indexName;
-    private final Map<String, IndexFieldCapabilities> responseMap;
+    private final Collection<IndexFieldCapabilities> fields;
     private final boolean canMatch;
     private final transient Version originVersion;
 
-    FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap, boolean canMatch) {
+    FieldCapabilitiesIndexResponse(String indexName, Collection<IndexFieldCapabilities> fields, boolean canMatch) {
         this.indexName = indexName;
-        this.responseMap = responseMap;
+        this.fields = fields;
         this.canMatch = canMatch;
         this.originVersion = Version.CURRENT;
     }
 
-    FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
+    FieldCapabilitiesIndexResponse(StreamInput in, IndexFieldCapabilities.Deduplicator fieldDeduplicator) throws IOException {
         super(in);
         this.indexName = in.readString();
-        this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
+        this.fields = readFields(in, fieldDeduplicator);
         this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
         this.originVersion = in.getVersion();
     }
@@ -51,18 +54,36 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     }
 
     /**
-     * Get the field capabilities map
+     * Get the field capabilities
      */
-    public Map<String, IndexFieldCapabilities> get() {
-        return responseMap;
+    public Collection<IndexFieldCapabilities> getFields() {
+        return fields;
     }
 
-    /**
-     *
-     * Get the field capabilities for the provided {@code field}
-     */
-    public IndexFieldCapabilities getField(String field) {
-        return responseMap.get(field);
+    private static Collection<IndexFieldCapabilities> readFields(StreamInput in, IndexFieldCapabilities.Deduplicator fieldDeduplicator)
+        throws IOException {
+        // Previously, we serialize fields as a map from field name to field-caps
+        final int size = in.readVInt();
+        if (size == 0) {
+            return Collections.emptyList();
+        }
+        final List<IndexFieldCapabilities> fields = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            final String fieldName = in.readString(); // the fieldName will be discarded - it's used in assertions only
+            final IndexFieldCapabilities fieldCaps = new IndexFieldCapabilities(in);
+            assert fieldName.equals(fieldCaps.getName()) : fieldName + " != " + fieldCaps.getName();
+            fields.add(fieldDeduplicator.deduplicate(fieldCaps));
+        }
+        return fields;
+    }
+
+    private static void writeFields(StreamOutput out, Collection<IndexFieldCapabilities> fields) throws IOException {
+        // Previously, we serialize fields as a map from field name to field-caps
+        out.writeVInt(fields.size());
+        for (IndexFieldCapabilities field : fields) {
+            out.writeString(field.getName());
+            field.writeTo(out);
+        }
     }
 
     Version getOriginVersion() {
@@ -72,7 +93,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
-        out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        writeFields(out, fields);
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeBoolean(canMatch);
         }
@@ -83,11 +104,11 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
-        return canMatch == that.canMatch && Objects.equals(indexName, that.indexName) && Objects.equals(responseMap, that.responseMap);
+        return canMatch == that.canMatch && Objects.equals(indexName, that.indexName) && Objects.equals(fields, that.fields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, responseMap, canMatch);
+        return Objects.hash(indexName, fields, canMatch);
     }
 }

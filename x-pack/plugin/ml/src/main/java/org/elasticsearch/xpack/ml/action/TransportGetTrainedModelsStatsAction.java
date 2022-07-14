@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -21,23 +20,18 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
-import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +41,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsByModelIdsOrAliases;
 
 public class TransportGetTrainedModelsStatsAction extends HandledTransportAction<
     GetTrainedModelsStatsAction.Request,
@@ -54,7 +49,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
     private final Client client;
     private final ClusterService clusterService;
-    private final IngestService ingestService;
     private final TrainedModelProvider trainedModelProvider;
 
     @Inject
@@ -62,14 +56,12 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        IngestService ingestService,
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
         super(GetTrainedModelsStatsAction.NAME, transportService, actionFilters, GetTrainedModelsStatsAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
-        this.ingestService = ingestService;
         this.trainedModelProvider = trainedModelProvider;
     }
 
@@ -100,7 +92,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 .collect(Collectors.toSet());
             Map<String, Set<String>> pipelineIdsByModelIdsOrAliases = pipelineIdsByModelIdsOrAliases(
                 clusterService.state(),
-                ingestService,
                 allPossiblePipelineReferences
             );
             Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByModelId(
@@ -155,38 +146,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
     static String[] ingestNodes(final ClusterState clusterState) {
         return clusterState.nodes().getIngestNodes().keySet().toArray(new String[0]);
-    }
-
-    static Map<String, Set<String>> pipelineIdsByModelIdsOrAliases(ClusterState state, IngestService ingestService, Set<String> modelIds) {
-        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
-        if (ingestMetadata == null) {
-            return pipelineIdsByModelIds;
-        }
-
-        ingestMetadata.getPipelines().forEach((pipelineId, pipelineConfiguration) -> {
-            try {
-                Pipeline pipeline = Pipeline.create(
-                    pipelineId,
-                    pipelineConfiguration.getConfigAsMap(),
-                    ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
-                );
-                pipeline.getProcessors().forEach(processor -> {
-                    if (processor instanceof InferenceProcessor) {
-                        InferenceProcessor inferenceProcessor = (InferenceProcessor) processor;
-                        if (modelIds.contains(inferenceProcessor.getModelId())) {
-                            pipelineIdsByModelIds.computeIfAbsent(inferenceProcessor.getModelId(), m -> new LinkedHashSet<>())
-                                .add(pipelineId);
-                        }
-                    }
-                });
-            } catch (Exception ex) {
-                throw new ElasticsearchException("unexpected failure gathering pipeline information", ex);
-            }
-        });
-
-        return pipelineIdsByModelIds;
     }
 
     static IngestStats ingestStatsForPipelineIds(NodeStats nodeStats, Set<String> pipelineIds) {
@@ -274,12 +233,11 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             this.type = type;
         }
 
-        IngestStatsAccumulator inc(IngestStats.Stats s) {
+        void inc(IngestStats.Stats s) {
             ingestCount.inc(s.getIngestCount());
             ingestTimeInMillis.inc(s.getIngestTimeInMillis());
             ingestCurrent.inc(s.getIngestCurrent());
             ingestFailedCount.inc(s.getIngestFailedCount());
-            return this;
         }
 
         IngestStats.Stats build() {

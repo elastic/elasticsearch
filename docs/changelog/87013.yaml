@@ -1,6 +1,0 @@
-pr: 87013
-summary: Make sure to rewrite explain query on coordinator
-area: Search
-type: bug
-issues:
- - 64281

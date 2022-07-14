@@ -42,24 +42,46 @@ import com.nimbusds.openid.connect.sdk.Nonce;
 import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
+import com.sun.net.httpserver.HttpServer;
 
+import org.apache.http.HeaderIterator;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.conn.ConnectionKeepAliveStrategy;
+import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.protocol.HTTP;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -74,17 +96,24 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import static java.time.Instant.now;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -882,6 +911,222 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Map<String, Object> userInfoObject2 = new JWTClaimsSet.Builder().claim("email_verified", "yes").build().toJSONObject();
         e = expectThrows(IllegalStateException.class, () -> OpenIdConnectAuthenticator.mergeObjects(idTokenObject2, userInfoObject2));
         assertThat(e.getMessage(), containsString("Cannot merge [java.lang.Boolean] with [java.lang.String]"));
+    }
+
+    @SuppressForbidden(reason = "uses a http server")
+    public void testHttpClientConnectionTtlBehaviour() throws URISyntaxException, IllegalAccessException, InterruptedException,
+        IOException {
+        // Create an internal HTTP server, the expectation is: For 2 consecutive HTTP requests, the client port should be different
+        // because the client should not reuse the same connection after 1s
+        final HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.start();
+
+        final AtomicReference<Integer> firstClientPort = new AtomicReference<>(null);
+        final AtomicReference<Boolean> portTested = new AtomicReference<>(false);
+        httpServer.createContext("/", exchange -> {
+            try {
+                final int currentPort = exchange.getRemoteAddress().getPort();
+                // Either set the first port number, otherwise the current (2nd) port number should be different from the 1st one
+                if (false == firstClientPort.compareAndSet(null, currentPort)) {
+                    assertThat(currentPort, not(equalTo(firstClientPort.get())));
+                    portTested.set(true);
+                }
+                final byte[] bytes = randomByteArrayOfLength(2);
+                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.getResponseBody().write(bytes);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final InetSocketAddress address = httpServer.getAddress();
+        final URI uri = new URI("http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort());
+
+        // Authenticator with a short TTL
+        final RealmConfig config = buildConfig(
+            getBasicRealmSettings().put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL), "1s").build(),
+            threadContext
+        );
+
+        // In addition, capture logs to show that kept alive (TTL) is honored
+        final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "log",
+                    logger.getName(),
+                    Level.DEBUG,
+                    ".*Connection .* can be kept alive for 1.0 seconds"
+                )
+            );
+            authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
+            // Issue two requests to verify the 2nd request do not reuse the 1st request's connection
+            for (int i = 0; i < 2; i++) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                authenticator.getHttpClient().execute(new HttpGet(uri), new FutureCallback<HttpResponse>() {
+                    @Override
+                    public void completed(HttpResponse result) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void failed(Exception ex) {
+                        assert false;
+                    }
+
+                    @Override
+                    public void cancelled() {
+                        assert false;
+                    }
+                });
+                latch.await();
+                Thread.sleep(1500);
+            }
+            appender.assertAllExpectationsMatched();
+            assertThat(portTested.get(), is(true));
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+            Loggers.setLevel(logger, (Level) null);
+            authenticator.close();
+            httpServer.stop(1);
+        }
+    }
+
+    public void testKeepAliveStrategyNotConfigured() throws URISyntaxException {
+        final Settings.Builder settingsBuilder = getBasicRealmSettings();
+        if (randomBoolean()) {
+            // Only negative time value allowed is -1, but it can take many forms, e.g. -1, -01, -1s, -001nanos etc.
+            settingsBuilder.put(
+                getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
+                "-"
+                    + Strings.collectionToDelimitedString(randomList(0, 10, () -> "0"), "")
+                    + "1"
+                    + randomFrom("", "nanos", "micros", "ms", "s", "m", "h", "d")
+            );
+        }
+        final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+        try {
+            authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
+            assertThat(authenticator.getKeepAliveStrategy(), nullValue());
+        } finally {
+            authenticator.close();
+        }
+    }
+
+    public void testKeepAliveStrategy() throws URISyntaxException, IllegalAccessException {
+        // Client explicitly configures for 100s
+        doTestKeepAliveStrategy(null, "100", 100_000L);
+
+        // Both server and client explicitly configures it
+        doTestKeepAliveStrategy("120", "90", 90_000L);
+
+        // Both server and client explicitly configures it
+        doTestKeepAliveStrategy("80", "90", 80_000L);
+
+        // Server configures negative value
+        doTestKeepAliveStrategy(String.valueOf(randomIntBetween(-100, -1)), "400", 400_000L);
+
+        // Extra randomization
+        final int serverTtlInSeconds;
+        if (randomBoolean()) {
+            serverTtlInSeconds = randomIntBetween(-1, 300);
+        } else {
+            // Server may not set the response header
+            serverTtlInSeconds = -1;
+        }
+
+        final int clientTtlInSeconds = randomIntBetween(0, 300);
+
+        final int effectiveTtlInSeconds;
+        if (serverTtlInSeconds <= -1) {
+            effectiveTtlInSeconds = clientTtlInSeconds;
+        } else if (clientTtlInSeconds <= -1) {
+            effectiveTtlInSeconds = serverTtlInSeconds;
+        } else {
+            effectiveTtlInSeconds = Math.min(serverTtlInSeconds, clientTtlInSeconds);
+        }
+        final long effectiveTtlInMs = effectiveTtlInSeconds <= -1 ? -1L : effectiveTtlInSeconds * 1000L;
+
+        doTestKeepAliveStrategy(
+            serverTtlInSeconds == -1 ? randomFrom(String.valueOf(serverTtlInSeconds), null) : String.valueOf(serverTtlInSeconds),
+            String.valueOf(clientTtlInSeconds),
+            effectiveTtlInMs
+        );
+    }
+
+    private void doTestKeepAliveStrategy(String serverTtlInSeconds, String clientTtlInSeconds, long effectiveTtlInMs)
+        throws URISyntaxException, IllegalAccessException {
+        final HttpResponse httpResponse = mock(HttpResponse.class);
+        final Iterator<BasicHeader> iterator;
+        if (serverTtlInSeconds != null) {
+            iterator = org.elasticsearch.core.List.of(new BasicHeader("Keep-Alive", "timeout=" + serverTtlInSeconds)).iterator();
+        } else {
+            // Server may not set the response header
+            iterator = Collections.emptyIterator();
+        }
+        when(httpResponse.headerIterator(HTTP.CONN_KEEP_ALIVE)).thenReturn(new HeaderIterator() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public org.apache.http.Header nextHeader() {
+                return iterator.next();
+            }
+
+            @Override
+            public Object next() {
+                return iterator.next();
+            }
+        });
+
+        final Settings.Builder settingsBuilder = getBasicRealmSettings();
+        if (clientTtlInSeconds != null) {
+            settingsBuilder.put(
+                getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL),
+                clientTtlInSeconds + "s"
+            );
+        }
+        final RealmConfig config = buildConfig(settingsBuilder.build(), threadContext);
+
+        final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        Loggers.addAppender(logger, appender);
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "configure keep-alive strategy",
+                    logger.getName(),
+                    Level.DEBUG,
+                    "configuring keep-alive strategy for http client used by oidc back-channel"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "log",
+                    logger.getName(),
+                    Level.DEBUG,
+                    "effective HTTP connection keep-alive: [" + effectiveTtlInMs + "]ms"
+                )
+            );
+            authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
+            final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
+            assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
+            appender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+            Loggers.setLevel(logger, (Level) null);
+            authenticator.close();
+        }
     }
 
     private OpenIdConnectProviderConfiguration getOpConfig() throws URISyntaxException {

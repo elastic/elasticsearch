@@ -1,0 +1,6 @@
+pr: 88213
+summary: Port fixed version of Lucene Tessellator into ES 7.17
+area: Geo
+type: bug
+issues:
+ - 88014

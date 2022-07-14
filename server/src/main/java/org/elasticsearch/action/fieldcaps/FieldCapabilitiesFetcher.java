@@ -37,9 +37,11 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
+    private final IndexFieldCapabilities.Deduplicator fieldDeduplicator;
 
     FieldCapabilitiesFetcher(IndicesService indicesService) {
         this.indicesService = indicesService;
+        this.fieldDeduplicator = new IndexFieldCapabilities.Deduplicator();
     }
 
     public FieldCapabilitiesIndexResponse fetch(final FieldCapabilitiesIndexRequest request) throws IOException {
@@ -58,7 +60,7 @@ class FieldCapabilitiesFetcher {
             );
 
             if (canMatchShard(request, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
+                return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyList(), false);
             }
 
             Set<String> fieldNames = new HashSet<>();
@@ -80,7 +82,7 @@ class FieldCapabilitiesFetcher {
                         ft.isAggregatable(),
                         ft.meta()
                     );
-                    responseMap.put(field, fieldCap);
+                    responseMap.put(field, fieldDeduplicator.deduplicate(fieldCap));
                 } else {
                     continue;
                 }
@@ -111,14 +113,14 @@ class FieldCapabilitiesFetcher {
                                     false,
                                     Collections.emptyMap()
                                 );
-                                responseMap.put(parentField, fieldCap);
+                                responseMap.put(parentField, fieldDeduplicator.deduplicate(fieldCap));
                             }
                         }
                         dotIndex = parentField.lastIndexOf('.');
                     }
                 }
             }
-            return new FieldCapabilitiesIndexResponse(request.index(), responseMap, true);
+            return new FieldCapabilitiesIndexResponse(request.index(), responseMap.values(), true);
         }
     }
 

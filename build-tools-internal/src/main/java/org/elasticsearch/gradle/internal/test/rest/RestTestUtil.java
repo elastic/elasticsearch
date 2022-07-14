@@ -60,4 +60,23 @@ public class RestTestUtil {
         project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
     }
 
+    public static void setupYamlRestTestDependenciesDefaults(Project project, SourceSet sourceSet) {
+        Project testFramework = project.findProject(":test:framework");
+        // we shield the project dependency to make integration tests easier
+        if (testFramework != null) {
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), testFramework);
+        }
+    }
+
+    /**
+     * Setup the dependencies needed for the Java REST tests.
+     */
+    public static void setupJavaRestTestDependenciesDefaults(Project project, SourceSet sourceSet) {
+        // TODO: this should just be test framework, but some cleanup is needed in places incorrectly specifying java vs yaml
+        // we shield the project dependency to make integration tests easier
+        Project testFramework = project.findProject(":test:framework");
+        if (testFramework != null) {
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), testFramework);
+        }
+    }
 }

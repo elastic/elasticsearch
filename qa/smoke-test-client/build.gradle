@@ -31,6 +31,10 @@ tasks.named("javaRestTest").configure {
   dependsOn singleNodeIntegTest
 }
 
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.smoketest.ESSmokeClientTestCase'
+}
+
 tasks.named("check").configure {
   dependsOn("javaRestTest")
 }

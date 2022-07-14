@@ -1,0 +1,12 @@
+pr: 88351
+summary: Set monitoring auth.password cluster settings deprecation level as critical
+area: Infra/Core
+type: deprecation
+issues:
+ - 86022
+deprecation:
+  title: Set monitoring auth.password cluster settings deprecation level as critical
+  area: Cluster and node setting
+  details: Changing the deprecation level for the monitoring auth.password settings in cluster state
+    to CRITICAL.
+  impact: The upgrade assistant will block 8.0 upgrades on monitoring auth.password set in cluster state.

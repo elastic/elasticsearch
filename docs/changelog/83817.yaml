@@ -1,6 +1,0 @@
-pr: 83817
-summary: Correctly migrate system indices that are still using named types
-area: Infra/Core
-type: bug
-issues:
- - 83779

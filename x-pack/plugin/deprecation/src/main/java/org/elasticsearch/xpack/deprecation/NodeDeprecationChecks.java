@@ -747,34 +747,23 @@ class NodeDeprecationChecks {
     static DeprecationIssue checkMonitoringExporterPassword(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
-        ClusterState cs,
+        ClusterState clusterState,
         XPackLicenseState licenseState
     ) {
-        // Mimic the HttpExporter#AUTH_PASSWORD_SETTING setting here to avoid a dependency on monitoring module:
-        // (just having the setting prefix and suffic here is sufficient to check on whether this setting is used)
-        final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING = Setting.affixKeySetting(
-            "xpack.monitoring.exporters.",
-            "auth.password",
-            s -> Setting.simpleString(s)
-        );
-        List<Setting<?>> passwords = AUTH_PASSWORD_SETTING.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey))
-            .collect(Collectors.toList());
-
-        if (passwords.isEmpty()) {
-            return null;
-        }
-
-        final String passwordSettings = passwords.stream().map(Setting::getKey).collect(Collectors.joining(","));
-        final String message = String.format(Locale.ROOT, "Monitoring exporters must use secure passwords", passwordSettings);
-        final String details = String.format(
-            Locale.ROOT,
+        return deprecatedAffixSetting(
+            Setting.affixKeySetting(
+                "xpack.monitoring.exporters.",
+                "auth.password",
+                (Function<String, Setting<String>>) Setting::simpleString
+            ),
+            "Monitoring exporters must use secure passwords",
             "Remove the non-secure monitoring exporter password settings: [%s]. Configure secure passwords with "
                 + "[xpack.monitoring.exporters.*.auth.secure_password].",
-            passwordSettings
+            "https://ela.st/es-deprecation-7-monitoring-exporter-passwords",
+            DeprecationIssue.Level.CRITICAL,
+            clusterState.metadata().settings(),
+            settings
         );
-        final String url = "https://ela.st/es-deprecation-7-monitoring-exporter-passwords";
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
     static DeprecationIssue checkJoinTimeoutSetting(
@@ -1438,6 +1427,18 @@ class NodeDeprecationChecks {
         Settings clusterSettings,
         Settings nodeSettings
     ) {
+        return deprecatedAffixSetting(deprecatedAffixSetting, null, detailPattern, url, warningLevel, clusterSettings, nodeSettings);
+    }
+
+    private static DeprecationIssue deprecatedAffixSetting(
+        Setting.AffixSetting<?> deprecatedAffixSetting,
+        String message,
+        String detailPattern,
+        String url,
+        DeprecationIssue.Level warningLevel,
+        Settings clusterSettings,
+        Settings nodeSettings
+    ) {
         List<Setting<?>> deprecatedConcreteNodeSettings = deprecatedAffixSetting.getAllConcreteSettings(nodeSettings)
             .sorted(Comparator.comparing(Setting::getKey))
             .collect(Collectors.toList());
@@ -1457,11 +1458,9 @@ class NodeDeprecationChecks {
         final String concatSettingNames = Stream.concat(deprecatedNodeSettingKeys.stream(), deprecatedClusterSettingKeys.stream())
             .distinct()
             .collect(Collectors.joining(","));
-        final String message = String.format(
-            Locale.ROOT,
-            "The [%s] settings are deprecated and will be removed after 8.0",
-            concatSettingNames
-        );
+        if (message == null) {
+            message = String.format(Locale.ROOT, "The [%s] settings are deprecated and will be removed after 8.0", concatSettingNames);
+        }
         final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
         boolean canBeFixedByRemovingDynamicSetting = deprecatedNodeSettingKeys.containsAll(deprecatedClusterSettingKeys) == false;
         if (canBeFixedByRemovingDynamicSetting) {

@@ -87,6 +87,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
         }
 
         public void emit(long v) {
+            script.checkMaxSize(script.count());
             script.emit(v);
         }
     }

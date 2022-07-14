@@ -30,6 +30,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -63,6 +64,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     private Recycler<BytesRef> bigArrays;
     private HttpChannel httpChannel;
     private HttpTracer httpTracer;
+    private Tracer tracer;
 
     @Before
     public void setup() {
@@ -70,6 +72,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         threadPool = new TestThreadPool("test");
         bigArrays = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         httpTracer = mock(HttpTracer.class);
+        tracer = mock(Tracer.class);
     }
 
     @After
@@ -150,7 +153,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
-            httpTracer
+            httpTracer,
+            tracer
         );
         RestResponse resp = testRestResponse();
         final String customHeader = "custom-header";
@@ -186,7 +190,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
-            httpTracer
+            httpTracer,
+            tracer
         );
         channel.sendResponse(testRestResponse());
 
@@ -214,7 +219,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
-            httpTracer
+            httpTracer,
+            tracer
         );
         final RestResponse response = new RestResponse(
             RestStatus.INTERNAL_SERVER_ERROR,
@@ -281,7 +287,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
-            httpTracer
+            httpTracer,
+            tracer
         );
         channel.sendResponse(testRestResponse());
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
@@ -320,7 +327,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             HttpHandlingSettings.fromSettings(Settings.EMPTY),
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
-            httpTracer
+            httpTracer,
+            tracer
         );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
@@ -366,7 +374,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             HttpHandlingSettings.fromSettings(Settings.EMPTY),
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
-            httpTracer
+            httpTracer,
+            tracer
         );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
@@ -399,7 +408,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(httpTracer).onTraceStopped(any(DefaultRestChannel.class));
+        verify(tracer).onTraceStopped(any(DefaultRestChannel.class));
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String host) {
@@ -423,7 +432,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpHandlingSettings,
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(settings)),
-            httpTracer
+            httpTracer,
+            tracer
         );
         channel.sendResponse(testRestResponse());
 

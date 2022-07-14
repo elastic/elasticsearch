@@ -24,11 +24,11 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
 
@@ -51,7 +51,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
-    private final HttpTracer tracer;
+    private final HttpTracer httpTracer;
+    private final Tracer tracer;
 
     DefaultRestChannel(
         HttpChannel httpChannel,
@@ -61,7 +62,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         HttpHandlingSettings settings,
         ThreadContext threadContext,
         CorsHandler corsHandler,
-        HttpTracer tracer
+        HttpTracer httpTracer,
+        Tracer tracer
     ) {
         super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
@@ -70,6 +72,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.settings = settings;
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
+        this.httpTracer = httpTracer;
         this.tracer = tracer;
     }
 
@@ -92,12 +95,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         boolean success = false;
         String opaque = null;
         String contentLength = null;
-        final AtomicBoolean traceStopped = new AtomicBoolean(false);
         final Runnable onFinish = () -> {
             Releasables.close(toClose);
-            if (traceStopped.compareAndSet(false, true)) {
-                tracer.onTraceStopped(this);
-            }
+            tracer.onTraceStopped(this);
         };
 
         try {
@@ -143,7 +143,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 .forEach((key, values) -> tracer.setAttribute(this, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.wrap(onFinish);
-            tracer.onTraceEvent(this, "startResponse");
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
             }
@@ -152,7 +151,15 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (success == false) {
                 onFinish.run();
             }
-            tracer.maybeLogResponse(httpRequest.uri(), restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+            httpTracer.maybeLogResponse(
+                httpRequest.uri(),
+                restResponse,
+                httpChannel,
+                contentLength,
+                opaque,
+                request.getRequestId(),
+                success
+            );
         }
     }
 
@@ -185,20 +192,5 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 }
             }
         }
-    }
-
-    @Override
-    public void startTrace() {
-        this.tracer.onTraceStarted(threadContext, this);
-    }
-
-    @Override
-    public void stopTrace() {
-        this.tracer.onTraceStopped(this);
-    }
-
-    @Override
-    public void recordException(Throwable throwable) {
-        this.tracer.onTraceException(this, throwable);
     }
 }

@@ -13,15 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tracing.Traceable;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -34,55 +29,16 @@ import static org.elasticsearch.core.Strings.format;
 class HttpTracer {
 
     private final Logger logger = LogManager.getLogger(HttpTracer.class);
-    private final Tracer tracer;
 
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;
 
-    HttpTracer(Settings settings, ClusterSettings clusterSettings, Tracer tracer) {
-        this.tracer = tracer;
-
+    HttpTracer(Settings settings, ClusterSettings clusterSettings) {
         setTracerLogInclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.get(settings));
         setTracerLogExclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.get(settings));
 
         clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE, this::setTracerLogInclude);
         clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE, this::setTracerLogExclude);
-    }
-
-    void onTraceStarted(ThreadContext threadContext, RestChannel channel) {
-        this.tracer.onTraceStarted(threadContext, channel);
-    }
-
-    void onTraceStopped(RestChannel channel) {
-        this.tracer.onTraceStopped(channel);
-    }
-
-    void onTraceEvent(RestChannel channel, String eventName) {
-        this.tracer.onTraceEvent(channel, eventName);
-    }
-
-    public void onTraceException(RestChannel channel, Throwable throwable) {
-        this.tracer.onTraceException(channel, throwable);
-    }
-
-    void setAttribute(Traceable traceable, String key, boolean value) {
-        this.tracer.setAttribute(traceable, key, value);
-    }
-
-    void setAttribute(Traceable traceable, String key, double value) {
-        this.tracer.setAttribute(traceable, key, value);
-    }
-
-    void setAttribute(Traceable traceable, String key, long value) {
-        this.tracer.setAttribute(traceable, key, value);
-    }
-
-    void setAttribute(Traceable traceable, String key, String value) {
-        this.tracer.setAttribute(traceable, key, value);
-    }
-
-    Releasable withScope(Traceable traceable) {
-        return tracer.withScope(traceable);
     }
 
     /**

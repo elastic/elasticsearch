@@ -715,7 +715,8 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices
+                systemIndices,
+                tracer
             );
             modules.add(actionModule);
 

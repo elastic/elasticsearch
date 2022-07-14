@@ -28,6 +28,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -89,16 +90,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private final Tracer tracer;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService
+        UsageService usageService,
+        Tracer tracer
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
+        this.tracer = tracer;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -403,11 +407,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
-    private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
+    private boolean handleNoHandlerFound(ThreadContext threadContext, String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
+                tracer.onTraceStarted(threadContext, channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -415,6 +420,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
+                tracer.onTraceStarted(threadContext, channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
@@ -461,19 +467,24 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     handler = handlers.getHandler(requestMethod, restApiVersion);
                 }
                 if (handler == null) {
-                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
+                    if (handleNoHandlerFound(threadContext, rawPath, requestMethod, uri, channel)) {
                         return;
                     }
                 } else {
+                    channel.setTracePath(handlers.getPath());
+                    tracer.onTraceStarted(threadContext, channel);
                     dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
+            tracer.onTraceStarted(threadContext, channel);
+            tracer.onTraceException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
+        tracer.onTraceStarted(threadContext, channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 
@@ -497,7 +508,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     String traceparent = distinctHeaderValues.get(0);
                     if (traceparent.length() >= 55) {
                         threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
+                } else if (name.equals(Task.TRACE_STATE)) {
+                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }
@@ -672,21 +686,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public void startTrace() {
-            delegate.startTrace();
-        }
-
-        @Override
-        public void stopTrace() {
-            delegate.stopTrace();
-        }
-
-        @Override
-        public void recordException(Throwable throwable) {
-            delegate.recordException(throwable);
-        }
-
-        @Override
         public void setTracePath(String path) {
             delegate.setTracePath(path);
         }
@@ -694,6 +693,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public String getTracePath() {
             return delegate.getTracePath();
+        }
+
+        @Override
+        public String getSpanId() {
+            return delegate.getSpanId();
+        }
+
+        @Override
+        public String getSpanName() {
+            return delegate.getSpanName();
+        }
+
+        @Override
+        public Map<String, Object> getAttributes() {
+            return delegate.getAttributes();
         }
     }
 

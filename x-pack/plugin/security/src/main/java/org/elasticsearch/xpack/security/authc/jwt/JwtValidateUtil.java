@@ -32,6 +32,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.util.Date;
@@ -229,7 +230,7 @@ public class JwtValidateUtil {
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
         if (jwks == null || jwks.isEmpty()) {
-            throw new Exception("Verify requires a non-empty JWK list.");
+            throw new ElasticsearchSecurityException("Verify requires a non-empty JWK list.");
         }
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
@@ -260,7 +261,7 @@ public class JwtValidateUtil {
 
         // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
         if (jwksStrength.isEmpty()) {
-            throw new Exception("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
+            throw new ElasticsearchSecurityException("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
         }
 
         for (final JWK jwk : jwksStrength) {
@@ -286,7 +287,7 @@ public class JwtValidateUtil {
             }
         }
 
-        throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+        throw new ElasticsearchSecurityException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {

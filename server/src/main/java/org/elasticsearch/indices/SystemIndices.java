@@ -17,8 +17,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,6 +47,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -328,6 +336,10 @@ public class SystemIndices {
      * @return The matching {@link SystemIndexDescriptor} or {@code null} if no descriptor is found
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
+        return findMatchingDescriptor(indexDescriptors, name);
+    }
+
+    @Nullable static SystemIndexDescriptor findMatchingDescriptor(SystemIndexDescriptor[] indexDescriptors, String name) {
         SystemIndexDescriptor matchingDescriptor = null;
         for (SystemIndexDescriptor systemIndexDescriptor : indexDescriptors) {
             if (systemIndexDescriptor.matchesIndexPattern(name)) {
@@ -854,6 +866,29 @@ public class SystemIndices {
             return postMigrationFunction;
         }
 
+        private static ListenableActionFuture<AcknowledgedResponse> cleanUpFeatureForIndices(
+            Client client,
+            String[] indexNames,
+            final Consumer<Exception> errorListener
+        ) {
+            var actionListener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    errorListener.accept(e);
+                }
+            };
+            var actionFuture = new ListenableActionFuture<AcknowledgedResponse>();
+            actionFuture.addListener(actionListener);
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
+            deleteIndexRequest.indices(indexNames);
+            client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, actionFuture);
+
+            return actionFuture;
+        }
+
         /**
          * Clean up the state of a feature
          * @param indexDescriptors List of descriptors of a feature's system indices
@@ -864,7 +899,7 @@ public class SystemIndices {
          * @param listener A listener to return success or failure of cleanup
          */
         public static void cleanUpFeature(
-            Collection<? extends IndexPatternMatcher> indexDescriptors,
+            Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
             String name,
             ClusterService clusterService,
@@ -872,31 +907,46 @@ public class SystemIndices {
             ActionListener<ResetFeatureStateStatus> listener
         ) {
             Metadata metadata = clusterService.state().getMetadata();
+            List<Future<?>> actionFutures = new ArrayList<>();
+            var errors = new ConcurrentLinkedDeque<Exception>();
 
-            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
+            List<String> associatedIndices = associatedIndexDescriptors.stream()
                 .map(descriptor -> descriptor.getMatchingIndices(metadata))
                 .flatMap(List::stream)
                 .toList();
 
-            if (allIndices.isEmpty()) {
-                // if no actual indices match the pattern, we can stop here
-                listener.onResponse(ResetFeatureStateStatus.success(name));
-                return;
+            if (associatedIndices.isEmpty() == false) {
+                actionFutures.add(cleanUpFeatureForIndices(client, associatedIndices.toArray(Strings.EMPTY_ARRAY), e -> errors.add(e)));
             }
 
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-            deleteIndexRequest.indices(allIndices.toArray(Strings.EMPTY_ARRAY));
-            client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    listener.onResponse(ResetFeatureStateStatus.success(name));
-                }
+            for (var indexDescriptor : indexDescriptors) {
+                List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onResponse(ResetFeatureStateStatus.failure(name, e));
+                final OriginSettingClient clientWithOrigin = new OriginSettingClient(client, indexDescriptor.getOrigin());
+                actionFutures.add(cleanUpFeatureForIndices(
+                    clientWithOrigin,
+                    matchingIndices.toArray(Strings.EMPTY_ARRAY),
+                    e -> errors.add(e))
+                );
+            }
+
+            for (var future : actionFutures) {
+                try {
+                    future.get(5, TimeUnit.SECONDS);
+                } catch (TimeoutException ignore) {
+                } catch (Exception e) {
+                    throw new IllegalStateException("Unexpected error while waiting on action", e);
                 }
-            });
+            }
+
+            if (errors.isEmpty()) {
+                listener.onResponse(ResetFeatureStateStatus.success(name));
+            } else {
+                StringBuilder exceptions = new StringBuilder('[');
+                exceptions.append(errors.stream().map(Exception::getMessage).collect(Collectors.joining(", ")));
+                exceptions.append(']');
+                listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
+            }
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.

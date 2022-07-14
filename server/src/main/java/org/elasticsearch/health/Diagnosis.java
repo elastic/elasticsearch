@@ -16,17 +16,17 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
+ * Details a potential issue that was diagnosed by a {@link HealthService}.
  *
- * @param definition The definition of the user action (e.g. message, helpURL)
- * @param affectedResources Optional list of "things" that this action should be taken on (e.g. shards, indices, or policies).
+ * @param definition The definition of the diagnosis (e.g. message, helpURL)
+ * @param affectedResources Optional list of "things" that are affected by this condition (e.g. shards, indices, or policies).
  */
-public record UserAction(Definition definition, @Nullable List<String> affectedResources) implements ToXContentObject {
+public record Diagnosis(Definition definition, @Nullable List<String> affectedResources) implements ToXContentObject {
 
     /**
      * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
      *
-     * @param id A unique identifier for this kind of action
+     * @param id A unique identifier
      * @param message A description of the action to be taken
      * @param helpURL Optional evergreen url to a help document
      */

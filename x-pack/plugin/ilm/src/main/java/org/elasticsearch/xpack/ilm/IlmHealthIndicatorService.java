@@ -14,7 +14,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -39,8 +39,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "ilm";
 
     public static final String HELP_URL = "https://ela.st/fix-ilm";
-    public static final UserAction ILM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("ilm-not-running", "Start Index Lifecycle Management using [POST /_ilm/start].", HELP_URL),
+    public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
+        new Diagnosis.Definition("ilm-not-running", "Start Index Lifecycle Management using [POST /_ilm/start].", HELP_URL),
         null
     );
 

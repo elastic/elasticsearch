@@ -20,7 +20,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -54,7 +54,6 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.NO_CORRUPT_REPOS,
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -80,7 +79,6 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     RED,
                     "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
-                    RepositoryIntegrityHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", corruptedRepos)
                     ),
@@ -91,7 +89,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new UserAction(CORRUPTED_REPOSITORY, corruptedRepos))
+                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, corruptedRepos))
                 )
             )
         );
@@ -109,7 +107,6 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.NO_REPOS_CONFIGURED,
-                    null,
                     HealthIndicatorDetails.EMPTY,
                     Collections.emptyList(),
                     Collections.emptyList()

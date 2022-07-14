@@ -25,7 +25,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         String name = randomAlphaOfLength(10);
         String component = randomAlphaOfLength(10);
         HealthStatus status = randomFrom(HealthStatus.RED, HealthStatus.YELLOW, HealthStatus.GREEN);
-        String summary = randomAlphaOfLength(20);
+        String symptom = randomAlphaOfLength(20);
         String helpUrl = randomAlphaOfLength(20);
         Map<String, Object> detailsMap = new HashMap<>();
         detailsMap.put("key", "value");
@@ -39,29 +39,29 @@ public class HealthIndicatorResultTests extends ESTestCase {
         String impact2Description = randomAlphaOfLength(30);
         ImpactArea secondImpactArea = randomFrom(ImpactArea.values());
         impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description, List.of(secondImpactArea)));
-        List<UserAction> actions = new ArrayList<>();
-        UserAction action1 = new UserAction(
-            new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
+        List<Diagnosis> actions = new ArrayList<>();
+        Diagnosis action1 = new Diagnosis(
+            new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
             new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
             action1.affectedResources().add(randomAlphaOfLength(10));
         }
         actions.add(action1);
-        UserAction action2 = new UserAction(
-            new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
+        Diagnosis action2 = new Diagnosis(
+            new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
             new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
             action2.affectedResources().add(randomAlphaOfLength(10));
         }
         actions.add(action2);
-        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, helpUrl, details, impacts, actions);
+        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, symptom, details, impacts, actions);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertEquals(status.xContentValue(), xContentMap.get("status"));
-        assertEquals(summary, xContentMap.get("summary"));
+        assertEquals(symptom, xContentMap.get("symptom"));
         assertEquals(helpUrl, xContentMap.get("help_url"));
         assertEquals(detailsMap, xContentMap.get("details"));
         List<Map<String, Object>> expectedImpacts = new ArrayList<>();

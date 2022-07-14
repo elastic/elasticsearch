@@ -19,13 +19,13 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyManager;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUpdateHandler;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
     private final SecurityContext securityContext;
-    private final ApiKeyManager apiKeyManager;
+    private final ApiKeyUpdateHandler handler;
 
     @Inject
     public TransportUpdateApiKeyAction(
@@ -38,7 +38,7 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
     ) {
         super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new);
         this.securityContext = context;
-        this.apiKeyManager = new ApiKeyManager(apiKeyService, rolesStore, xContentRegistry);
+        this.handler = new ApiKeyUpdateHandler(apiKeyService, rolesStore, xContentRegistry);
     }
 
     @Override
@@ -54,6 +54,6 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             return;
         }
 
-        apiKeyManager.updateApiKey(authentication, request, listener);
+        handler.updateApiKey(authentication, request, listener);
     }
 }

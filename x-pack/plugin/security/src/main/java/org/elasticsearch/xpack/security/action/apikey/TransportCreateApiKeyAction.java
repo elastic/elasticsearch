@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyManager;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 /**
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
  */
 public final class TransportCreateApiKeyAction extends HandledTransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
 
-    private final ApiKeyManager apiKeyManager;
+    private final ApiKeyGenerator generator;
     private final SecurityContext securityContext;
 
     @Inject
@@ -42,7 +42,7 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         NamedXContentRegistry xContentRegistry
     ) {
         super(CreateApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new);
-        this.apiKeyManager = new ApiKeyManager(apiKeyService, rolesStore, xContentRegistry);
+        this.generator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
         this.securityContext = context;
     }
 
@@ -60,7 +60,7 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
                 );
                 return;
             }
-            apiKeyManager.generateApiKey(authentication, request, listener);
+            generator.generateApiKey(authentication, request, listener);
         }
     }
 

@@ -724,21 +724,21 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 .map(Cluster.ClusterNode::getLocalNode)
                 .filter(DiscoveryNode::isMasterNode)
                 .toList();
-            Cluster.ClusterNode originalMaster = cluster.getAnyLeader();
-            List<DiscoveryNode> masterNodesNotIncludingOriginalMaster = masterNodes.stream()
-                .filter(node -> node.equals(originalMaster.getLocalNode()) == false)
+            Cluster.ClusterNode electedMaster = cluster.getAnyLeader();
+            List<DiscoveryNode> masterNodesNotIncludingElectedMaster = masterNodes.stream()
+                .filter(node -> node.equals(electedMaster.getLocalNode()) == false)
                 .toList();
             cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode() == false).forEach(node -> {
-                List<CoordinationDiagnosticsService.RemoteMasterHealthResult> healthResultsNotOriginalMaster = new ArrayList<>();
+                List<CoordinationDiagnosticsService.RemoteMasterHealthResult> healthResultsNotElectedMaster = new ArrayList<>();
                 node.coordinationDiagnosticsService.beginPollingRemoteStableMasterHealthIndicatorService(
-                    masterNodesNotIncludingOriginalMaster,
-                    healthResultsNotOriginalMaster::add,
+                    masterNodesNotIncludingElectedMaster,
+                    healthResultsNotElectedMaster::add,
                     cancellable -> {}
                 );
 
                 List<CoordinationDiagnosticsService.RemoteMasterHealthResult> healthResultsOriginalMaster = new ArrayList<>();
                 node.coordinationDiagnosticsService.beginPollingRemoteStableMasterHealthIndicatorService(
-                    List.of(originalMaster.getLocalNode()),
+                    List.of(electedMaster.getLocalNode()),
                     healthResultsOriginalMaster::add,
                     cancellable -> {}
                 );
@@ -747,12 +747,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 cluster.stabilise();
 
                 /*
-                 * The cluster has now run normally for some period of time, so check that the outputs of
-                 * beginPollingClusterFormationInfo() are present with no exceptions:
+                 * The cluster has now run normally for some period of time, so check that the output of
+                 * beginPollingRemoteStableMasterHealthIndicatorService() is present and not an exception, both when we're polling a node
+                 * that was not elected master, and when we're polling the node that was elected master:
                  */
-                assertThat(healthResultsNotOriginalMaster.size(), greaterThanOrEqualTo(1));
-                CoordinationDiagnosticsService.RemoteMasterHealthResult result = healthResultsNotOriginalMaster.get(
-                    healthResultsNotOriginalMaster.size() - 1
+                assertThat(healthResultsNotElectedMaster.size(), greaterThanOrEqualTo(1));
+                CoordinationDiagnosticsService.RemoteMasterHealthResult result = healthResultsNotElectedMaster.get(
+                    healthResultsNotElectedMaster.size() - 1
                 );
                 assertThat((result.result()), notNullValue());
                 assertThat((result.node()), notNullValue());
@@ -768,20 +769,31 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 diagResult = result.result();
                 assertThat(diagResult.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN));
 
+                /*
+                 * Now disconnect all master-eligible nodes except the elected master (the fact that it's the elected master does not
+                 * really matter, it's just a convenient way to distinguish it).
+                 */
                 for (Cluster.ClusterNode clusterNode : cluster.clusterNodes) {
                     if (clusterNode.getLocalNode().isMasterNode()
-                        && clusterNode.getLocalNode().equals(originalMaster.getLocalNode()) == false) {
+                        && clusterNode.getLocalNode().equals(electedMaster.getLocalNode()) == false) {
                         clusterNode.disconnect();
                     }
                 }
                 cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
 
-                assertThat(healthResultsNotOriginalMaster.size(), greaterThanOrEqualTo(1));
-                result = healthResultsNotOriginalMaster.get(healthResultsNotOriginalMaster.size() - 1);
+                /*
+                 * At this point the cluster has been running for a while with 2 of its 3 master-eligible nodes missing. So when a
+                 * non-master-eligible node tries to poll one of the disconnected nodes, we expect it to have received an exception:
+                 */
+                assertThat(healthResultsNotElectedMaster.size(), greaterThanOrEqualTo(1));
+                result = healthResultsNotElectedMaster.get(healthResultsNotElectedMaster.size() - 1);
                 assertThat((result.result()), nullValue());
                 assertThat((result.node()), notNullValue());
                 assertThat((result.remoteException()), notNullValue());
 
+                /*
+                 * Since the lone master-eligible node we can talk to cannot form a quorum, we expect its status to be red:
+                 */
                 assertThat(healthResultsOriginalMaster.size(), greaterThanOrEqualTo(1));
                 result = healthResultsOriginalMaster.get(healthResultsOriginalMaster.size() - 1);
                 assertThat((result.result()), notNullValue());
@@ -795,6 +807,47 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                         clusterNode.heal();
                     }
                 }
+            });
+
+        }
+    }
+
+    public void testBeginPollingRemoteStableMasterHealthIndicatorServiceCancel() {
+        /*
+         * This test sets up a 5-node cluster (3 master eligible). We call beginPollingRemoteStableMasterHealthIndicatorService() on each
+         * non-master-eligible node. But we immediately call cancel, which is what will happen in practice most often since usually the
+         * master becomes null and then is immediately non-null when a new master is elected. This means that polling will not be started
+         *  since there is a 10-second delay, and we expect no results.
+         */
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            createAndAddNonMasterNode(cluster);
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            List<DiscoveryNode> masterNodes = cluster.clusterNodes.stream()
+                .map(Cluster.ClusterNode::getLocalNode)
+                .filter(DiscoveryNode::isMasterNode)
+                .toList();
+            Cluster.ClusterNode electedMaster = cluster.getAnyLeader();
+            List<DiscoveryNode> masterNodesNotIncludingElectedMaster = masterNodes.stream()
+                .filter(node -> node.equals(electedMaster.getLocalNode()) == false)
+                .toList();
+            cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode() == false).forEach(node -> {
+                List<CoordinationDiagnosticsService.RemoteMasterHealthResult> healthResults = new ArrayList<>();
+                node.coordinationDiagnosticsService.beginPollingRemoteStableMasterHealthIndicatorService(
+                    masterNodes,
+                    healthResults::add,
+                    Scheduler.Cancellable::cancel
+                );
+
+                cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+                cluster.stabilise();
+
+                /*
+                 * The cluster has now run normally for some period of time, but cancel() was called before polling began, so we expect
+                 * no results:
+                 */
+                assertThat(healthResults.size(), equalTo(0));
             });
 
         }

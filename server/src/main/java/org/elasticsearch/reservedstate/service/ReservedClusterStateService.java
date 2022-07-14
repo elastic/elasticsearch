@@ -145,7 +145,7 @@ public class ReservedClusterStateService {
 
         ClusterState state = clusterService.state();
         ReservedStateMetadata existingMetadata = state.metadata().reservedStateMetadata().get(namespace);
-        if (checkMetadataVersion(existingMetadata, reservedStateVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
             return;
         }
 
@@ -177,12 +177,17 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    static boolean checkMetadataVersion(ReservedStateMetadata existingMetadata, ReservedStateVersion reservedStateVersion) {
+    static boolean checkMetadataVersion(
+        String namespace,
+        ReservedStateMetadata existingMetadata,
+        ReservedStateVersion reservedStateVersion
+    ) {
         if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
             logger.warn(
                 () -> format(
-                    "Cluster state version [%s] is not compatible with this Elasticsearch node",
-                    reservedStateVersion.minCompatibleVersion()
+                    "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    reservedStateVersion.minCompatibleVersion(),
+                    namespace
                 )
             );
             return false;
@@ -191,7 +196,9 @@ public class ReservedClusterStateService {
         if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
             logger.warn(
                 () -> format(
-                    "Not updating cluster state because version [%s] is less or equal to the current metadata version [%s]",
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
+                        + " to the current metadata version [%s]",
+                    namespace,
                     reservedStateVersion.version(),
                     existingMetadata.version()
                 )

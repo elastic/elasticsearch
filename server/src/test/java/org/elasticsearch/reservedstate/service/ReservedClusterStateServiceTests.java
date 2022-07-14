@@ -338,12 +338,17 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     public void testCheckMetadataVersion() {
         ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
-        assertTrue(ReservedClusterStateService.checkMetadataVersion(operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT)));
+        assertTrue(
+            ReservedClusterStateService.checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(124L, Version.CURRENT))
+        );
 
-        assertFalse(ReservedClusterStateService.checkMetadataVersion(operatorMetadata, new ReservedStateVersion(123L, Version.CURRENT)));
+        assertFalse(
+            ReservedClusterStateService.checkMetadataVersion("operator", operatorMetadata, new ReservedStateVersion(123L, Version.CURRENT))
+        );
 
         assertFalse(
             ReservedClusterStateService.checkMetadataVersion(
+                "operator",
                 operatorMetadata,
                 new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1))
             )

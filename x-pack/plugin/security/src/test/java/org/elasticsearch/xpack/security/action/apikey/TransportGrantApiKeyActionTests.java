@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyManager;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.junit.Before;
@@ -62,14 +62,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
     private TransportGrantApiKeyAction action;
-    private ApiKeyGenerator apiKeyGenerator;
+    private ApiKeyManager apiKeyManager;
     private AuthenticationService authenticationService;
     private ThreadPool threadPool;
     private AuthorizationService authorizationService;
 
     @Before
     public void setupMocks() throws Exception {
-        apiKeyGenerator = mock(ApiKeyGenerator.class);
+        apiKeyManager = mock(ApiKeyManager.class);
         authenticationService = mock(AuthenticationService.class);
         authorizationService = mock(AuthorizationService.class);
 
@@ -80,7 +80,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             mock(TransportService.class),
             mock(ActionFilters.class),
             threadContext,
-            apiKeyGenerator,
+            apiKeyManager,
             authenticationService,
             authorizationService
         );
@@ -222,7 +222,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
-        verifyNoMoreInteractions(apiKeyGenerator);
+        verifyNoMoreInteractions(apiKeyManager);
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
     }
 
@@ -410,7 +410,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             listener.onResponse(response);
 
             return null;
-        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
+        }).when(apiKeyManager).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
     }
 
 }

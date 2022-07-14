@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyManager;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
  */
 public final class TransportGrantApiKeyAction extends TransportGrantAction<GrantApiKeyRequest, CreateApiKeyResponse> {
 
-    private final ApiKeyGenerator generator;
+    private final ApiKeyManager apiKeyManager;
 
     @Inject
     public TransportGrantApiKeyAction(
@@ -47,7 +47,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             transportService,
             actionFilters,
             threadPool.getThreadContext(),
-            new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry),
+            new ApiKeyManager(apiKeyService, rolesStore, xContentRegistry),
             authenticationService,
             authorizationService
         );
@@ -58,7 +58,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadContext threadContext,
-        ApiKeyGenerator generator,
+        ApiKeyManager apiKeyManager,
         AuthenticationService authenticationService,
         AuthorizationService authorizationService
     ) {
@@ -71,14 +71,16 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             authorizationService,
             threadContext
         );
-        this.generator = generator;
+        this.apiKeyManager = apiKeyManager;
     }
 
     @Override
     protected void doExecute(Task task, GrantApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
         executeWithGrantAuthentication(
             request,
-            listener.delegateFailure((l, authentication) -> generator.generateApiKey(authentication, request.getApiKeyRequest(), listener))
+            listener.delegateFailure(
+                (l, authentication) -> apiKeyManager.generateApiKey(authentication, request.getApiKeyRequest(), listener)
+            )
         );
     }
 }

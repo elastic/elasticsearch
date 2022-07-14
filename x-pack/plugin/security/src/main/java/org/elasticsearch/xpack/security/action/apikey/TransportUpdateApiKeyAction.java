@@ -19,14 +19,13 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyManager;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
-    private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
-    private final ApiKeyGenerator apiKeyGenerator;
+    private final ApiKeyManager apiKeyManager;
 
     @Inject
     public TransportUpdateApiKeyAction(
@@ -38,9 +37,8 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
         final NamedXContentRegistry xContentRegistry
     ) {
         super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new);
-        this.apiKeyService = apiKeyService;
         this.securityContext = context;
-        this.apiKeyGenerator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
+        this.apiKeyManager = new ApiKeyManager(apiKeyService, rolesStore, xContentRegistry);
     }
 
     @Override
@@ -56,14 +54,6 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             return;
         }
 
-        // TODO generalize `ApiKeyGenerator` to handle updates
-        apiKeyService.ensureEnabled();
-        apiKeyGenerator.getUserRoleDescriptors(
-            authentication,
-            ActionListener.wrap(
-                roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),
-                listener::onFailure
-            )
-        );
+        apiKeyManager.updateApiKey(authentication, request, listener);
     }
 }

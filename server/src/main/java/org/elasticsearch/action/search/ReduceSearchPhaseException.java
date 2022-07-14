@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -26,5 +28,22 @@ public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
     public ReduceSearchPhaseException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public RestStatus status() {
+        ShardSearchFailure[] shardFailures = getShardFailures();
+        if (shardFailures.length == 0) {
+            return getCause() == null ? RestStatus.INTERNAL_SERVER_ERROR : ExceptionsHelper.status(getCause());
+        }
+        RestStatus status = shardFailures[0].status();
+        if (shardFailures.length > 1) {
+            for (int i = 1; i < shardFailures.length; i++) {
+                if (shardFailures[i].status().getStatus() >= 500) {
+                    status = shardFailures[i].status();
+                }
+            }
+        }
+        return status;
     }
 }

@@ -161,4 +161,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     public String getPhaseName() {
         return phaseName;
     }
+
+    public ShardSearchFailure[] getShardFailures() {
+        return shardFailures;
+    }
 }

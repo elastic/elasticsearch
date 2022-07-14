@@ -158,9 +158,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.clientAuthenticationSharedSecret
         );
 
-        if (super.config.hasSetting(JwtRealmSettings.HMAC_KEY) == false
-            && super.config.hasSetting(JwtRealmSettings.HMAC_JWKSET) == false
-            && super.config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
+        // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
+        this.jwkSetPath = super.config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
+        this.isConfiguredJwkSetPkc = Strings.hasText(this.jwkSetPath);
+        this.isConfiguredJwkSetHmac = Strings.hasText(super.config.getSetting(JwtRealmSettings.HMAC_JWKSET));
+        this.isConfiguredJwkOidcHmac = Strings.hasText(super.config.getSetting(JwtRealmSettings.HMAC_KEY));
+        if (this.isConfiguredJwkSetPkc == false
+            && this.isConfiguredJwkSetHmac == false
+            && this.isConfiguredJwkOidcHmac == false) {
             throw new SettingsException(
                 "At least one of ["
                     + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_KEY)
@@ -171,12 +176,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + "] must be set"
             );
         }
-
-        // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
-        this.jwkSetPath = super.config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
-        this.isConfiguredJwkSetPkc = Strings.hasText(this.jwkSetPath);
-        this.isConfiguredJwkSetHmac = Strings.hasText(super.config.getSetting(JwtRealmSettings.HMAC_JWKSET));
-        this.isConfiguredJwkOidcHmac = Strings.hasText(super.config.getSetting(JwtRealmSettings.HMAC_KEY));
 
         if (this.isConfiguredJwkSetPkc) {
             final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);

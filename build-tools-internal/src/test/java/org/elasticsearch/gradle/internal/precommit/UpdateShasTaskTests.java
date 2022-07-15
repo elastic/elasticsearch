@@ -66,7 +66,6 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
         getLicensesDir(project).mkdir();
         task.updateShas();
-        Files.list(getLicensesDir(project).toPath()).forEach(System.out::println);
         Path groovySha = Files.list(getLicensesDir(project).toPath())
             .filter(p -> p.toFile().getName().matches(GROOVY_JAR_REGEX + ".sha1"))
             .findFirst()

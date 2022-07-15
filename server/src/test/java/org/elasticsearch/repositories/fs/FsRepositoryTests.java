@@ -55,6 +55,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -70,6 +71,7 @@ import java.util.concurrent.CountDownLatch;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
+@TestLogging(value = "org.elasticsearch.repositories:DEBUG", reason = "debugging")
 public class FsRepositoryTests extends ESTestCase {
 
     public void testSnapshotAndRestore() throws IOException, InterruptedException {

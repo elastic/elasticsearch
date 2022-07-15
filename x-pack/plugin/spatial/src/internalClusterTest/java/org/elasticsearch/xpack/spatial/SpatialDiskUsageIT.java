@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRes
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -101,51 +102,44 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
         Map<String, Object> objects = parser.map();
         assertNotNull(objects);
 
-        int value = extractValue(new String[] { "test-index", "store_size_in_bytes" }, objects);
+        int value = extractValue("test-index.store_size_in_bytes", objects);
         assertThat(value, greaterThan(100));
 
-        value = extractValue(new String[] { "test-index", "fields", "location", "total_in_bytes" }, objects);
+        value = extractValue("test-index.fields.location.total_in_bytes", objects);
         assertThat(value, greaterThan(0));
 
-        value = extractValue(new String[] { "test-index", "fields", "location", "points_in_bytes" }, objects);
+        value = extractValue("test-index.fields.location.points_in_bytes", objects);
         assertThat(value, greaterThan(0));
 
-        value = extractValue(new String[] { "test-index", "fields", "_source", "inverted_index", "total_in_bytes" }, objects);
+        value = extractValue("test-index.fields._source.inverted_index.total_in_bytes", objects);
         assertThat(value, equalTo(0));
-        value = extractValue(new String[] { "test-index", "fields", "_source", "stored_fields_in_bytes" }, objects);
+        value = extractValue("test-index.fields._source.stored_fields_in_bytes", objects);
         assertThat(value, greaterThan(0));
-        value = extractValue(new String[] { "test-index", "fields", "_source", "points_in_bytes" }, objects);
+        value = extractValue("test-index.fields._source.points_in_bytes", objects);
         assertThat(value, equalTo(0));
-        value = extractValue(new String[] { "test-index", "fields", "_source", "doc_values_in_bytes" }, objects);
+        value = extractValue("test-index.fields._source.doc_values_in_bytes", objects);
+        assertThat(value, equalTo(0));
+        value = extractValue("test-index.fields._id.inverted_index.total_in_bytes", objects);
+        assertThat(value, greaterThan(0));
+        value = extractValue("test-index.fields._id.stored_fields_in_bytes", objects);
+        assertThat(value, greaterThan(0));
+        value = extractValue("test-index.fields._id.points_in_bytes", objects);
+        assertThat(value, equalTo(0));
+        value = extractValue("test-index.fields._id.doc_values_in_bytes", objects);
         assertThat(value, equalTo(0));
 
-        value = extractValue(new String[] { "test-index", "fields", "_id", "inverted_index", "total_in_bytes" }, objects);
+        value = extractValue("test-index.fields._seq_no.inverted_index.total_in_bytes", objects);
+        assertThat(value, equalTo(0));
+        value = extractValue("test-index.fields._seq_no.stored_fields_in_bytes", objects);
+        assertThat(value, equalTo(0));
+        value = extractValue("test-index.fields._seq_no.points_in_bytes", objects);
         assertThat(value, greaterThan(0));
-        value = extractValue(new String[] { "test-index", "fields", "_id", "stored_fields_in_bytes" }, objects);
-        assertThat(value, greaterThan(0));
-        value = extractValue(new String[] { "test-index", "fields", "_id", "points_in_bytes" }, objects);
-        assertThat(value, equalTo(0));
-        value = extractValue(new String[] { "test-index", "fields", "_id", "doc_values_in_bytes" }, objects);
-        assertThat(value, equalTo(0));
-
-        value = extractValue(new String[] { "test-index", "fields", "_seq_no", "inverted_index", "total_in_bytes" }, objects);
-        assertThat(value, equalTo(0));
-        value = extractValue(new String[] { "test-index", "fields", "_seq_no", "stored_fields_in_bytes" }, objects);
-        assertThat(value, equalTo(0));
-        value = extractValue(new String[] { "test-index", "fields", "_seq_no", "points_in_bytes" }, objects);
-        assertThat(value, greaterThan(0));
-        value = extractValue(new String[] { "test-index", "fields", "_seq_no", "doc_values_in_bytes" }, objects);
+        value = extractValue("test-index.fields._seq_no.doc_values_in_bytes", objects);
         assertThat(value, greaterThan(0));
     }
 
-    @SuppressWarnings("unchecked")
-    private int extractValue(String[] path, Map<String, Object> objects) {
-        for (int i = 0; i < path.length - 1; i++) {
-            Object o = objects.get(path[i]);
-            assertTrue(o instanceof Map<?, ?>);
-            objects = (Map<String, Object>) o;
-        }
-        Object o = objects.get(path[path.length - 1]);
+    private int extractValue(String path, Map<String, Object> objects) {
+        Object o = XContentMapValues.extractValue(path, objects);
         assertTrue(o instanceof Integer);
         return (Integer) o;
     }
